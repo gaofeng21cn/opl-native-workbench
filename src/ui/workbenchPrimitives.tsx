@@ -1,57 +1,130 @@
+import {
+  ClipboardCheck,
+  FileText,
+  PackageCheck,
+  ReceiptText,
+  RotateCcw,
+  ShieldQuestion
+} from "lucide-react";
 import { rendererModuleRegistry } from "../renderers/moduleRegistry";
+import type {
+  ConfirmationCard as ConfirmationCardModel,
+  InterviewQuestion,
+  WorkbenchArtifactRef
+} from "../workbench/workbenchModel";
 
-export function RendererModuleRegistryPanel() {
+export function StatusPill({ status }: { status: string }) {
+  return <span className="status-pill">{status.replaceAll("_", " ")}</span>;
+}
+
+export function DeliveryCard({ item }: { item: WorkbenchArtifactRef }) {
+  const Icon = item.kind === "receipt" ? ReceiptText : item.kind === "deliverable" ? PackageCheck : FileText;
   return (
-    <section data-testid="opl-renderer-module-registry" className="module-registry">
-      <h3>Renderer modules</h3>
-      <p>{rendererModuleRegistry.policy}</p>
+    <article className="delivery-card" data-kind={item.kind}>
+      <header>
+        <Icon aria-hidden="true" size={18} />
+        <div>
+          <h3>{item.title}</h3>
+          <StatusPill status={item.status} />
+        </div>
+      </header>
+      <p>{item.summary}</p>
+      <dl>
+        <dt>Ref</dt>
+        <dd>{item.ref}</dd>
+        <dt>Provenance</dt>
+        <dd>{item.provenance.join(" / ")}</dd>
+      </dl>
       <ul>
-        {rendererModuleRegistry.primitives.concat(rendererModuleRegistry.richText).map((moduleName) => (
-          <li key={moduleName} data-testid="opl-renderer-module-card">{moduleName}</li>
+        {item.actions.map((action) => (
+          <li key={action}>{action}</li>
         ))}
       </ul>
-    </section>
+    </article>
+  );
+}
+
+export type QuestionCardProps = {
+  question: InterviewQuestion;
+};
+
+export function QuestionCard({ question }: QuestionCardProps) {
+  return (
+    <article data-testid="opl-question-card" className="question-card">
+      <header>
+        <ShieldQuestion aria-hidden="true" size={18} />
+        <h4>{question.question}</h4>
+      </header>
+      <p>{question.whyItMatters}</p>
+      <small>{question.answerType}</small>
+    </article>
   );
 }
 
 export type ConfirmationCardProps = {
-  title: string;
-  questions: string[];
-  risks: string[];
-  willChange: string[];
-  willNotChange: string[];
-  receipt: string;
-  rollback: string;
+  card: ConfirmationCardModel;
+  question: InterviewQuestion;
+  onDryRun: (actionId: string, payload: Record<string, unknown>) => void;
 };
 
-export function ConfirmationCard(props: ConfirmationCardProps) {
+export function ConfirmationCard({ card, question, onDryRun }: ConfirmationCardProps) {
   return (
     <article data-testid="opl-confirmation-card" className="confirmation-card">
-      <h3>{props.title}</h3>
-      <section data-testid="opl-question-card">
-        <h4>Questions</h4>
-        <ul>{props.questions.map((item) => <li key={item}>{item}</li>)}</ul>
-      </section>
+      <header>
+        <ClipboardCheck aria-hidden="true" size={18} />
+        <div>
+          <h3>{card.title}</h3>
+          <p>{card.question}</p>
+        </div>
+      </header>
+      <QuestionCard question={question} />
       <section data-testid="opl-interview-card">
         <h4>Interview</h4>
         <p>Collect user input before execute; dry-run receipts stay separate.</p>
       </section>
       <section>
         <h4>Risk</h4>
-        <ul>{props.risks.map((item) => <li key={item}>{item}</li>)}</ul>
+        <ul>{card.risks.map((item) => <li key={item}>{item}</li>)}</ul>
       </section>
       <section>
         <h4>Will change</h4>
-        <ul>{props.willChange.map((item) => <li key={item}>{item}</li>)}</ul>
+        <ul>{card.willChange.map((item) => <li key={item}>{item}</li>)}</ul>
       </section>
       <section>
         <h4>Will not change</h4>
-        <ul>{props.willNotChange.map((item) => <li key={item}>{item}</li>)}</ul>
+        <ul>{card.willNotChange.map((item) => <li key={item}>{item}</li>)}</ul>
       </section>
       <footer>
-        <span>{props.receipt}</span>
-        <span>{props.rollback}</span>
+        <span>{card.receipt}</span>
+        <span>
+          <RotateCcw aria-hidden="true" size={14} />
+          {card.rollback}
+        </span>
+        <button
+          type="button"
+          onClick={() => onDryRun(card.dryRunAction, { confirmationId: card.id, questionId: question.id })}
+        >
+          Dry-run confirmation
+        </button>
       </footer>
     </article>
+  );
+}
+
+export function RendererModuleRegistryPanel() {
+  return (
+    <section data-testid="opl-renderer-module-registry" className="module-registry">
+      <h3>Renderer modules</h3>
+      <p>OSS renderer and UI modules are registered as candidate adapters only.</p>
+      <ul>
+        {rendererModuleRegistry.map((module) => (
+          <li key={module.id} data-testid="opl-renderer-module-card">
+            <strong>{module.packageName}</strong>
+            <span>{module.surface}</span>
+            <small>{module.adapter}</small>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

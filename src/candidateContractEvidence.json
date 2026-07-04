@@ -140,7 +140,8 @@
       "live_evidence": false,
       "layout_markers": ["starter-forms", "opl-starter-form-${starter.purpose}"],
       "renderer_testids": [
-        "opl-starter-forms"
+        "opl-starter-forms",
+        "opl-starter-form"
       ]
     },
     "confirmation_interview_cards": {
