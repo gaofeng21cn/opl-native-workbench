@@ -26,8 +26,9 @@
     "package": "node scripts/package-native-workbench.mjs",
     "validate:candidate": "node scripts/validate-native-workbench-candidate.mjs",
     "validate:state-model": "node scripts/validate-state-model.mjs",
+    "validate:package": "node scripts/validate-packaged-runtime.mjs",
     "smoke:webui": "node scripts/smoke-webui.mjs",
     "smoke:visual": "node scripts/smoke-visual.mjs",
-    "test": "npm run validate:candidate && npm run validate:state-model && npm run smoke:webui && npm run smoke:visual"
+    "test": "npm run validate:candidate && npm run validate:state-model && npm run smoke:webui && npm run smoke:visual && npm run package && npm run validate:package"
   }
 }

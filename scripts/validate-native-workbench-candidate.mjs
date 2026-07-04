@@ -22,9 +22,11 @@ const requiredFiles = [
   "src/workbench/workbenchModel.ts",
   "src/candidateContractEvidence.json",
   "scripts/validate-state-model.mjs",
+  "scripts/validate-packaged-runtime.mjs",
   "scripts/smoke-webui.mjs",
   "scripts/smoke-visual.mjs",
-  "scripts/package-native-workbench.mjs"
+  "scripts/package-native-workbench.mjs",
+  "scripts/native-workbench-app.swift"
 ];
 
 const requiredScripts = [
@@ -35,6 +37,7 @@ const requiredScripts = [
   "package",
   "validate:candidate",
   "validate:state-model",
+  "validate:package",
   "smoke:webui",
   "smoke:visual",
   "test"
