@@ -1,7 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
-
-const root = path.resolve(new URL("..", import.meta.url).pathname);
+import {
+  assert,
+  assertRendererTestIds,
+  deliverySurfaceTestIds,
+  read,
+  readJson,
+  readRendererSource,
+  root,
+  validateNonLiveDeliveryEvidence
+} from "./native-workbench-gates.mjs";
 
 const requiredFiles = [
   "AGENTS.md",
@@ -15,6 +23,7 @@ const requiredFiles = [
   "src/candidateContractEvidence.json",
   "scripts/validate-state-model.mjs",
   "scripts/smoke-webui.mjs",
+  "scripts/smoke-visual.mjs",
   "scripts/package-native-workbench.mjs"
 ];
 
@@ -27,6 +36,7 @@ const requiredScripts = [
   "validate:candidate",
   "validate:state-model",
   "smoke:webui",
+  "smoke:visual",
   "test"
 ];
 
@@ -43,14 +53,6 @@ const requiredTestIds = [
   "opl-locale-toggle"
 ];
 
-function read(relativePath) {
-  return fs.readFileSync(path.join(root, relativePath), "utf8");
-}
-
-function assert(condition, message) {
-  if (!condition) throw new Error(message);
-}
-
 for (const file of requiredFiles) {
   assert(fs.existsSync(path.join(root, file)), `missing ${file}`);
 }
@@ -61,9 +63,11 @@ for (const script of requiredScripts) {
 }
 
 const app = read("src/workbench/App.tsx");
-for (const testId of requiredTestIds) {
-  assert(app.includes(`data-testid="${testId}"`), `missing renderer test id ${testId}`);
-}
+const rendererSource = readRendererSource();
+const evidence = readJson("src/candidateContractEvidence.json");
+validateNonLiveDeliveryEvidence(evidence);
+assertRendererTestIds(app, requiredTestIds);
+assertRendererTestIds(rendererSource, deliverySurfaceTestIds(evidence));
 
 const bridge = read("src/bridge/oplBridge.ts");
 for (const command of [
@@ -75,7 +79,6 @@ for (const command of [
   assert(bridge.includes(command), `missing bridge command ${command}`);
 }
 
-const evidence = JSON.parse(read("src/candidateContractEvidence.json"));
 assert(evidence.owner === "one-person-lab-app", "evidence owner must be one-person-lab-app");
 assert(evidence.shell === "opl-native-workbench", "evidence shell must match");
 for (const capability of [
@@ -84,7 +87,15 @@ for (const capability of [
   "opl_app_state_bridge",
   "opl_app_action_bridge",
   "webui_renderer_parity",
-  "candidate_app_bundle_package"
+  "candidate_app_bundle_package",
+  "source_visual_smoke",
+  "artifact_preview_tabs",
+  "provenance_drawer",
+  "starter_forms",
+  "confirmation_interview_cards",
+  "renderer_module_registry",
+  "delivery_mode_selection",
+  "export_action"
 ]) {
   assert(evidence.capabilities.includes(capability), `missing evidence capability ${capability}`);
 }
@@ -96,6 +107,8 @@ assert(evidence.user_visible_protocol_copy.copilotkit_surface === false, "Copilo
 console.log(JSON.stringify({
   status: "opl_native_workbench_candidate_valid",
   shell: "opl-native-workbench",
+  non_live_delivery_surface_testids: deliverySurfaceTestIds(evidence).length,
   active_shell_adopted: false,
-  release_ready: false
+  release_ready: false,
+  live_evidence: false
 }, null, 2));

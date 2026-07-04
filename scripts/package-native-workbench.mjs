@@ -1,5 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
+import {
+  assertNoFalseReadyFields,
+  assertRendererTestIds,
+  assertSourceMarkers,
+  deliverySurfaceMarkers,
+  deliverySurfaceStatuses,
+  deliverySurfaceTestIds,
+  read,
+  readRendererSource,
+  validateNonLiveDeliveryEvidence
+} from "./native-workbench-gates.mjs";
 
 const root = path.resolve(new URL("..", import.meta.url).pathname);
 const appName = "One Person Lab Native Workbench Candidate";
@@ -7,6 +18,16 @@ const appRoot = path.join(root, "out", `${appName}.app`);
 const macOsDir = path.join(appRoot, "Contents", "MacOS");
 const contentsDir = path.join(appRoot, "Contents");
 const evidence = JSON.parse(fs.readFileSync(path.join(root, "src/candidateContractEvidence.json"), "utf8"));
+const app = read("src/workbench/App.tsx");
+const rendererSource = readRendererSource();
+
+validateNonLiveDeliveryEvidence(evidence);
+assertRendererTestIds(rendererSource, deliverySurfaceTestIds(evidence), "package source");
+assertSourceMarkers(rendererSource, deliverySurfaceMarkers(evidence), "package source layout");
+assertNoFalseReadyFields({
+  "src/workbench/App.tsx": app,
+  "src/candidateContractEvidence.json": fs.readFileSync(path.join(root, "src/candidateContractEvidence.json"), "utf8")
+});
 
 fs.rmSync(appRoot, { recursive: true, force: true });
 fs.mkdirSync(macOsDir, { recursive: true });
@@ -47,11 +68,14 @@ const manifest = {
     "opl-web-transport"
   ],
   source_ui_smoke_status: "passed",
+  source_visual_smoke_status: "passed",
   packaged_ui_smoke_status: "passed",
   webui_smoke_status: "passed",
   state_model_status: "passed",
   action_dry_run_status: "passed",
   webui_parity_status: "passed",
+  ...deliverySurfaceStatuses(evidence),
+  live_evidence: false,
   release_ready: false,
   production_ready: false
 };

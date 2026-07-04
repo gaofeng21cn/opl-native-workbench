@@ -11,6 +11,7 @@
     "new_conversation_thread_reset",
     "source_renderer_build",
     "source_ui_smoke",
+    "source_visual_smoke",
     "packaged_ui_smoke",
     "webui_shared_renderer",
     "web_transport_bridge",
@@ -31,6 +32,13 @@
     "app_owned_settings_information_architecture",
     "secondary_runtime_context_refs",
     "conversation_event_ref_rendering",
+    "artifact_preview_tabs",
+    "provenance_drawer",
+    "starter_forms",
+    "confirmation_interview_cards",
+    "renderer_module_registry",
+    "delivery_mode_selection",
+    "export_action",
     "webui_renderer_parity",
     "release_isolation",
     "candidate_app_bundle_package"
@@ -71,6 +79,112 @@
       "structured confirmation forms",
       "rich file preview affordances"
     ]
+  },
+  "reused_oss_module_policy": {
+    "policy": "reference_and_adapter_only",
+    "allowed_reference_modules": ["K-Dense", "OpenClaudeScience", "AionUI", "Hermes Desktop", "AGUI"],
+    "copied_source": false,
+    "runtime_authority_transfer": false,
+    "user_visible_protocol_copy": false,
+    "required_boundary": "reuse interaction patterns only; do not vendor source, protocol truth, domain truth, runtime truth, or provider implementation authority"
+  },
+  "false_ready_boundary": {
+    "active_shell_adopted": false,
+    "release_ready": false,
+    "production_ready": false,
+    "domain_ready": false,
+    "clean_vm_ready": false,
+    "full_release_ready": false,
+    "live_evidence": false,
+    "owner_receipt": false,
+    "runtime_authority_transfer": false,
+    "domain_truth_owned": false,
+    "forbidden_true_fields": [
+      "active_shell_adopted",
+      "release_ready",
+      "production_ready",
+      "domain_ready",
+      "clean_vm_ready",
+      "full_release_ready",
+      "live_evidence",
+      "owner_receipt",
+      "runtime_authority_transfer",
+      "domain_truth_owned"
+    ]
+  },
+  "non_live_delivery_surface": {
+    "artifact_preview_tabs": {
+      "capability": "artifact_preview_tabs",
+      "status_field": "artifact_preview_status",
+      "live_evidence": false,
+      "layout_markers": ["artifact-preview-tabs", "artifact-preview", "data-preview-kind"],
+      "renderer_testids": [
+        "opl-artifact-preview-tabs",
+        "opl-artifact-preview-tab",
+        "opl-artifact-preview-panel"
+      ]
+    },
+    "provenance_drawer": {
+      "capability": "provenance_drawer",
+      "status_field": "provenance_drawer_status",
+      "live_evidence": false,
+      "layout_markers": ["opl-provenance-drawer"],
+      "renderer_testids": [
+        "opl-provenance-drawer",
+        "opl-provenance-ref"
+      ]
+    },
+    "starter_forms": {
+      "capability": "starter_forms",
+      "status_field": "starter_forms_status",
+      "live_evidence": false,
+      "layout_markers": ["starter-forms", "opl-starter-form-${starter.purpose}"],
+      "renderer_testids": [
+        "opl-starter-forms"
+      ]
+    },
+    "confirmation_interview_cards": {
+      "capability": "confirmation_interview_cards",
+      "status_field": "confirmation_cards_status",
+      "live_evidence": false,
+      "layout_markers": ["confirmation-card"],
+      "renderer_testids": [
+        "opl-confirmation-card",
+        "opl-question-card",
+        "opl-interview-card"
+      ]
+    },
+    "renderer_module_registry": {
+      "capability": "renderer_module_registry",
+      "status_field": "renderer_module_registry_status",
+      "live_evidence": false,
+      "layout_markers": ["RendererModuleRegistryPanel"],
+      "renderer_testids": [
+        "opl-renderer-module-registry",
+        "opl-renderer-module-card"
+      ]
+    },
+    "delivery_mode": {
+      "capability": "delivery_mode_selection",
+      "status_field": "delivery_mode_status",
+      "live_evidence": false,
+      "layout_markers": ["delivery-workbench"],
+      "renderer_testids": [
+        "opl-workbench-delivery-mode",
+        "opl-delivery-mode",
+        "opl-delivery-mode-option"
+      ]
+    },
+    "export_action": {
+      "capability": "export_action",
+      "status_field": "export_action_status",
+      "live_evidence": false,
+      "layout_markers": ["artifact.export.prepare"],
+      "renderer_testids": [
+        "opl-export-action",
+        "opl-export-action-dry-run"
+      ]
+    }
   },
   "page_state_matrix_mapping": {
     "page_ids": ["home", "runtime", "settings", "first_run", "release"],

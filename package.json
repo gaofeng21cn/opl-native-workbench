@@ -25,6 +25,6 @@
     "validate:state-model": "node scripts/validate-state-model.mjs",
     "smoke:webui": "node scripts/smoke-webui.mjs",
     "smoke:visual": "node scripts/smoke-visual.mjs",
-    "test": "npm run validate:candidate && npm run validate:state-model && npm run smoke:webui"
+    "test": "npm run validate:candidate && npm run validate:state-model && npm run smoke:webui && npm run smoke:visual"
   }
 }
