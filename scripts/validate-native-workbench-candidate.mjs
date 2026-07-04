@@ -86,6 +86,8 @@ assert(evidence.owner === "one-person-lab-app", "evidence owner must be one-pers
 assert(evidence.shell === "opl-native-workbench", "evidence shell must match");
 for (const capability of [
   "native_react_workbench_renderer",
+  "codex_app_server_thread_turn_backend",
+  "native_wkwebview_command_bridge",
   "results_and_delivery_first_presentation",
   "opl_app_state_bridge",
   "opl_app_action_bridge",

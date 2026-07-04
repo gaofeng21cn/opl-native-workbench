@@ -3,6 +3,7 @@
   "shell": "opl-native-workbench",
   "capabilities": [
     "codex_cli_fixed_executor_home",
+    "native_wkwebview_command_bridge",
     "codex_app_server_thread_turn_backend",
     "native_react_workbench_renderer",
     "opl_app_event_contract_map",
@@ -18,7 +19,8 @@
     "webui_smoke",
     "chat_first_codex_app_surface",
     "results_and_delivery_first_presentation",
-    "default_context_collapsed_chat_first_home",
+    "codex_style_persistent_left_sidebar",
+    "default_inspector_collapsed_chat_first_home",
     "lightweight_workspace_session_rail",
     "collapsible_contextual_tabs",
     "app_product_profile_mapping",
@@ -50,14 +52,25 @@
     "full_drilldown": "opl runtime app-operator-drilldown --detail full --json",
     "action": "opl app action execute --action <action_id> [--payload json] [--dry-run] --json"
   },
+  "functional_mvp": {
+    "codex_app_server_thread_turn": true,
+    "codex_command": "codex app-server --stdio",
+    "codex_protocol": "JSON-RPC newline transport with initialize, thread/start, turn/start, item/agentMessage/delta, turn/completed, thread/resume",
+    "opl_state_bridge": "opl app state --profile fast --json",
+    "opl_action_bridge": "opl app action execute --action <action_id> --dry-run --json",
+    "native_bridge": "WKScriptMessageHandler window.webkit.messageHandlers.oplNativeWorkbench",
+    "default_sandbox": "read-only",
+    "conversation_persistence": "codex_app_server_thread_id_resume_capable",
+    "acp_app_server_reuse_status": "implemented_with_codex_app_server_thread_turn_stream"
+  },
   "user_visible_protocol_copy": {
     "copilotkit_surface": false,
     "agui": false
   },
   "default_home_layout": {
-    "policy": "ordinary home opens on the chat canvas only; workspace/session rail and inspector stay collapsed until the user explicitly opens them",
-    "stage_classes": ["without-rail", "without-inspector"],
-    "workspace_rail_default_open": false,
+    "policy": "ordinary home opens with a persistent Codex-style left sidebar for navigation/history, a single centered chat canvas, and secondary inspectors collapsed until explicitly opened",
+    "stage_classes": ["codex-sidebar-chat", "without-inspector"],
+    "workspace_rail_default_open": true,
     "inspector_default_open": false
   },
   "webui_transport": {
@@ -74,6 +87,9 @@
     "copied_source": false,
     "runtime_authority_transfer": false,
     "adopted_patterns": [
+      "persistent Codex-style left sidebar",
+      "single centered conversation canvas",
+      "on-demand workspace/file/artifact inspector",
       "project sandbox organization",
       "result and artifact delivery panel",
       "structured confirmation forms",

@@ -14,9 +14,25 @@ The shell keeps App truth in the App repository:
 - Release adoption: forbidden until the App owner deliberately changes
   `contracts/app-shell-adapter.json` and release gates pass.
 
-The current candidate is a skeleton that proves the reusable module shape:
-shared React renderer, Electron/WebUI bridge contracts, result and delivery
-context panels, and candidate packaging evidence.
+The current candidate keeps the visual contract intentionally close to Codex
+App: persistent left sidebar for navigation/history, one centered chat canvas,
+bottom composer as the primary action, and an on-demand workspace inspector for
+files, previews, provenance, workflow starters, and export receipts. K-Dense and
+Open Science are used as layout/interaction references only; their runtime,
+provider, backend, and authority surfaces are not copied.
+
+The packaged macOS MVP includes a native `WKScriptMessageHandler` bridge. The
+renderer can read `opl app state`, request App action dry-runs, and talk to
+Codex through `codex app-server --stdio`. The bridge uses the app-server
+thread/turn JSON-RPC flow (`initialize`, `thread/start`, `turn/start`,
+`item/agentMessage/delta`, `turn/completed`) so multi-turn state, streaming
+deltas, and thread resume use the Codex control plane instead of a shell-owned
+one-shot CLI wrapper.
+
+Settings is a first-class route in the candidate. Global controls such as
+language, model/account access, workspace, and runtime connection live there;
+the composer stays limited to prompt-local actions like attach and send. This
+is functional MVP evidence, not active-shell adoption or release readiness.
 
 ## Commands
 

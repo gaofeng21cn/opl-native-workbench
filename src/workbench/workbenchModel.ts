@@ -95,22 +95,22 @@ export const initialWorkbenchModel: WorkbenchModel = {
   sessions: [
     {
       id: "workspace-current",
-      workspace: "Current workspace",
-      session: "Chat to delivery",
+      workspace: "Current project",
+      session: "Delivery review",
       status: "candidate_surface_only",
-      nextStep: "Draft from App state refs, then request dry-run confirmation"
+      nextStep: "Draft from project refs, then preview the action"
     },
     {
       id: "workspace-review",
-      workspace: "Delivery review",
-      session: "Owner packet",
+      workspace: "Result package",
+      session: "Export draft",
       status: "needs_human_confirmation",
-      nextStep: "Inspect provenance and export dry-run receipt"
+      nextStep: "Inspect trace and preview the export receipt"
     },
     {
       id: "workspace-starters",
-      workspace: "Starter lane",
-      session: "MAS/MAG/RCA/BookForge forms",
+      workspace: "Workflow setup",
+      session: "Research, grant, presentation",
       status: "starter_ready",
       nextStep: "Choose a module form without executing domain CLI"
     }
@@ -125,7 +125,7 @@ export const initialWorkbenchModel: WorkbenchModel = {
       ref: "opl://result/summary",
       summary: "Chat answer distilled into a refs-only product result.",
       provenance: ["App fast state", "conversation event refs", "candidate plan"],
-      actions: ["Open preview", "Ask follow-up", "Prepare export dry-run"]
+      actions: ["Open preview", "Ask follow-up", "Preview export"]
     },
     {
       id: "gap-map",
@@ -149,11 +149,11 @@ export const initialWorkbenchModel: WorkbenchModel = {
       ref: "opl://delivery/package",
       summary: "Exportable packet shell for result refs, receipt refs, and reviewer notes.",
       provenance: ["delivery workbench model", "artifact preview tabs"],
-      actions: ["Dry-run export", "Attach receipt ref", "Rollback request"]
+      actions: ["Preview export", "Attach receipt ref", "Rollback request"]
     },
     {
       id: "owner-brief",
-      title: "Owner brief",
+      title: "Review brief",
       kind: "deliverable",
       status: "ready",
       previewKind: "markdown",
@@ -166,12 +166,12 @@ export const initialWorkbenchModel: WorkbenchModel = {
   receipts: [
     {
       id: "dry-run-receipt",
-      title: "Action dry-run receipt",
+      title: "Action preview receipt",
       kind: "receipt",
       status: "ready",
       previewKind: "code",
       ref: "opl://receipt/dry-run",
-      summary: "Bridge dry-run command receipt; no domain execution is implied.",
+      summary: "Bridge preview receipt; no domain execution is implied.",
       provenance: ["opl app action execute --dry-run", "browser bridge"],
       actions: ["Copy command ref", "Compare payload"]
     }
@@ -225,7 +225,7 @@ export const initialWorkbenchModel: WorkbenchModel = {
       title: "Research / MAS",
       requiredSkill: "mas",
       module: "MedAutoScience",
-      intent: "Prepare a paper-mission dry-run request from local fields.",
+      intent: "Prepare a paper-mission preview request from local fields.",
       fields: [
         { name: "study", label: "Study", input: "text", value: "DM-CVD candidate" },
         { name: "question", label: "Scientific question", input: "textarea", value: "What evidence package should be reviewed next?" },
@@ -239,7 +239,7 @@ export const initialWorkbenchModel: WorkbenchModel = {
       title: "Grant / MAG",
       requiredSkill: "mag",
       module: "MedAutoGrant",
-      intent: "Shape a grant-authoring dry-run request without grant authority.",
+      intent: "Shape a grant-authoring preview request without grant authority.",
       fields: [
         { name: "mechanism", label: "Mechanism", input: "text", value: "R01-style concept" },
         { name: "aim", label: "Aim", input: "textarea", value: "Draft specific aims from approved refs only." },
@@ -253,7 +253,7 @@ export const initialWorkbenchModel: WorkbenchModel = {
       title: "Presentation / RCA",
       requiredSkill: "rca",
       module: "RedCube AI",
-      intent: "Prepare a visual-deliverable dry-run request from refs.",
+      intent: "Prepare a visual-deliverable preview request from refs.",
       fields: [
         { name: "scene", label: "Scene", input: "text", value: "Mechanism overview" },
         { name: "assets", label: "Assets", input: "textarea", value: "Use approved local refs; no generated authority claim." },
@@ -267,7 +267,7 @@ export const initialWorkbenchModel: WorkbenchModel = {
       title: "Book / BookForge",
       requiredSkill: "opl-bookforge",
       module: "OPL BookForge",
-      intent: "Start a manuscript-structure dry-run request.",
+      intent: "Start a manuscript-structure preview request.",
       fields: [
         { name: "book", label: "Book", input: "text", value: "One Person Lab methods" },
         { name: "chapter", label: "Chapter brief", input: "textarea", value: "Turn confirmed results into a chapter outline." },
@@ -279,12 +279,12 @@ export const initialWorkbenchModel: WorkbenchModel = {
   confirmations: [
     {
       id: "confirm-export",
-      title: "Export delivery packet",
-      question: "Export the current result refs and receipt refs as a candidate delivery packet?",
+      title: "Prepare delivery export",
+      question: "Preview the current result refs and receipt refs as a delivery package?",
       risks: ["Refs may be stale until App state is refreshed", "Packet is not owner acceptance"],
-      willChange: ["Create an App action dry-run request", "Record the proposed export payload"],
+      willChange: ["Create an App action preview request", "Record the proposed export payload"],
       willNotChange: ["No domain artifact body is written", "No owner receipt or release claim is created"],
-      receipt: "Dry-run receipt from opl app action execute --dry-run",
+      receipt: "Preview receipt from opl app action execute --dry-run",
       rollback: "Discard the candidate packet request before explicit execution",
       dryRunAction: "candidate.delivery.export"
     },

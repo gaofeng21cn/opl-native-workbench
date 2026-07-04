@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld("oplNativeWorkbench", {
   readState: (profile = "fast") => ipcRenderer.invoke("opl:state", { profile }),
   readFullDrilldown: () => ipcRenderer.invoke("opl:full-drilldown"),
   executeAction: (request: unknown) => ipcRenderer.invoke("opl:action", request),
+  sendMessage: (request: unknown) => ipcRenderer.invoke("opl:codex-message", request),
   subscribeEvents: (onEvent: (event: unknown) => void) => {
     const listener = (_event: unknown, payload: unknown) => onEvent(payload);
     ipcRenderer.on("opl:event", listener);

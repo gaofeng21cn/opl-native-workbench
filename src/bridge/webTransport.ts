@@ -8,8 +8,9 @@ declare global {
 
 export function installWebTransport(): void {
   const eventSourceUrl = "/api/opl-events";
+  const bridge = createBrowserBridge();
   window.oplNativeWorkbench = {
-    bridge: createBrowserBridge(),
+    ...bridge,
     eventSourceUrl,
     connectEvents(onEvent: (event: unknown) => void) {
       const source = new EventSource(eventSourceUrl);

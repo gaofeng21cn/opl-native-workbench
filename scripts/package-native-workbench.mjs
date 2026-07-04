@@ -80,175 +80,357 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preload" as="image" href="branding/opl-banner.png" />
   <title>${escapeHtml(appName)}</title>
   <style>
-    :root { color-scheme: light; --bg: #f8fafc; --surface: #ffffff; --surface-2: #f2f5f8; --border: #e5e9ef; --text: #242936; --muted: #7d8794; --accent: #0f8a9d; --accent-fg: #ffffff; --shadow: 0 1px 2px rgba(35,40,52,.04), 0 12px 34px rgba(35,40,52,.08); }
+    :root { color-scheme: light; --bg: #f7f8f7; --sidebar: #f0f3f4; --surface: #ffffff; --surface-2: #eef3f4; --border: #dde4e6; --text: #20242d; --muted: #737d88; --subtle: #8b949f; --accent: #0f8a9d; --accent-soft: #e7f5f7; --accent-fg: #ffffff; --shadow: 0 1px 2px rgba(30,36,44,.04), 0 18px 48px rgba(30,36,44,.08); }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
     button, textarea { font: inherit; }
-    button { border: 0; background: transparent; color: inherit; border-radius: 10px; padding: 7px 9px; cursor: default; }
-    button:hover { background: var(--surface-2); }
-    button.primary { background: var(--accent); color: var(--accent-fg); }
-    h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 0; }
-    h2 { margin: 0; font-size: 15px; font-weight: 600; }
-    h3 { margin: 0 0 8px; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    button { border: 0; background: transparent; color: inherit; border-radius: 8px; cursor: default; }
+    button:hover { background: rgba(32,36,45,.06); }
+    button.primary { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 30px; border-radius: 9px; background: var(--accent); color: var(--accent-fg); }
+    h1 { margin: 0; font-size: 14px; font-weight: 650; letter-spacing: 0; }
+    h2 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: 0; }
+    h3 { margin: 0 0 8px; color: var(--muted); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; }
     p { margin: 0; color: var(--muted); line-height: 1.55; }
     small, .muted { color: var(--muted); }
-    .opl-native-workbench { height: 100vh; display: grid; grid-template-rows: 46px 1fr; overflow: hidden; }
-    .app-bar { display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: rgba(255,255,255,.78); border-bottom: 1px solid rgba(229,233,239,.78); backdrop-filter: blur(18px); }
-    .logo { width: 28px; height: 28px; border-radius: 8px; }
-    .banner { height: 26px; width: 126px; object-fit: contain; margin-left: 4px; opacity: .82; }
-    .pill { border: 1px solid #cfe7ec; background: #edf8fa; color: #0b6876; border-radius: 999px; padding: 3px 7px; font-size: 11px; }
-    .top-spacer { flex: 1; }
-    .shell { position: relative; min-height: 0; display: grid; grid-template-columns: 1fr; }
-    .chat { min-height: 0; display: grid; grid-template-rows: 34px 1fr auto; }
-    .tabs { display: flex; align-items: center; gap: 4px; padding: 4px 16px; }
-    .tabs-inner { margin: 0 auto; width: min(780px, 100%); display: flex; align-items: center; gap: 4px; }
-    .tab { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; color: var(--muted); font-size: 12px; }
-    .tab.active { background: var(--surface-2); color: var(--text); }
-    .conversation { overflow: auto; padding: 32px 20px; }
-    .conversation-inner { margin: 0 auto; width: min(760px, 100%); display: grid; gap: 18px; }
+    .opl-native-workbench { height: 100vh; display: grid; grid-template-columns: 236px minmax(0, 1fr); overflow: hidden; }
+    .sidebar { display: flex; min-height: 0; flex-direction: column; border-right: 1px solid var(--border); background: var(--sidebar); padding: 10px 8px; }
+    .brand { display: flex; align-items: center; gap: 8px; padding: 2px 6px 10px; }
+    .logo { width: 22px; height: 22px; border-radius: 6px; }
+    .brand-title { display: grid; gap: 1px; min-width: 0; }
+    .brand-title small { font-size: 11px; }
+    .quick-actions { display: grid; grid-template-columns: 1fr 56px; gap: 4px; margin-bottom: 8px; }
+    .quick-actions button, .nav button, .session-row, .file-row, .purpose-row, .sidebar-footer button { min-height: 30px; padding: 6px 8px; text-align: left; font-size: 12px; }
+    .nav { display: grid; gap: 2px; margin-bottom: 12px; }
+    .nav button, .session-row, .file-row, .purpose-row { width: 100%; display: flex; align-items: center; gap: 8px; }
+    .nav .active, .session-row.active, .file-row.active, .purpose-row.active, .sidebar-footer .active { background: rgba(255,255,255,.72); box-shadow: inset 0 0 0 1px rgba(221,228,230,.7); }
+    .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--accent); opacity: .78; }
+    .section { padding: 9px 0; border-top: 1px solid rgba(221,228,230,.85); }
+    .list { display: grid; gap: 2px; }
+    .session-row { align-items: flex-start; flex-direction: column; gap: 2px; border-radius: 8px; }
+    .session-row strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 560; }
+    .session-row small { font-size: 11px; }
+    .file-row { justify-content: space-between; border-radius: 8px; color: #3e4751; }
+    .purpose-row { border-radius: 8px; color: #3e4751; }
+    .sidebar-footer { margin-top: auto; display: grid; gap: 2px; padding-top: 10px; border-top: 1px solid rgba(221,228,230,.85); }
+    .sidebar-footer button { width: 100%; display: flex; align-items: center; justify-content: space-between; color: #3e4751; }
+    .sidebar-note { padding: 5px 8px 0; color: var(--subtle); font-size: 11px; line-height: 1.35; }
+    .status-pill { width: fit-content; border: 1px solid #cfe7ec; background: var(--accent-soft); color: #0b6876; border-radius: 999px; padding: 3px 8px; font-size: 11px; }
+    .chat-shell { position: relative; min-width: 0; min-height: 0; display: grid; grid-template-rows: 44px 1fr auto; }
+    .topbar { display: flex; align-items: center; gap: 8px; padding: 0 20px; border-bottom: 1px solid rgba(221,228,230,.78); background: rgba(255,255,255,.72); backdrop-filter: blur(18px); }
+    .topbar-title { min-width: 0; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 560; }
+    .spacer { flex: 1; }
+    .topbar button, .composer-footer button, .chip { padding: 5px 8px; color: var(--muted); font-size: 12px; }
+    .topbar .status-pill { margin-left: 4px; }
+    .conversation { overflow: auto; padding: 34px 20px 18px; }
+    .thread { margin: 0 auto; width: min(760px, 100%); display: grid; gap: 18px; }
     .message { display: grid; gap: 8px; max-width: 720px; font-size: 14px; }
     .message.user { justify-self: end; max-width: 560px; border-radius: 16px; background: var(--surface-2); padding: 10px 13px; }
+    .assistant-head { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+    .assistant-head::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: var(--accent); opacity: .75; }
     .status-line { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
-    .status-line::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: var(--accent); opacity: .75; }
-    .inline-confirmation { margin-top: 2px; border: 1px solid var(--border); background: var(--surface); border-radius: 14px; padding: 12px; box-shadow: 0 1px 2px rgba(35,40,52,.04); }
+    .status-line::before { content: ""; width: 4px; height: 4px; border-radius: 999px; background: #a1abb5; }
+    .inline-card { margin-top: 4px; border: 1px solid var(--border); background: rgba(255,255,255,.78); border-radius: 13px; padding: 11px 12px; box-shadow: 0 1px 2px rgba(30,36,44,.04); }
+    .inline-card strong { display: block; margin-bottom: 4px; font-size: 13px; }
+    .inline-card button { margin-top: 8px; padding: 6px 9px; background: var(--accent-soft); color: #0b6876; }
+    .capability-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 3px; }
+    .capability-row button { border: 1px solid var(--border); background: rgba(255,255,255,.8); padding: 6px 9px; color: #33404b; font-size: 12px; }
+    .codex-reply { white-space: pre-wrap; border: 1px solid var(--border); background: var(--surface); border-radius: 13px; padding: 12px; line-height: 1.55; }
+    .codex-reply.error { border-color: #efc9c9; color: #9f2b2b; }
     .composer { padding: 10px 20px 22px; }
     .composer-box { margin: 0 auto; width: min(760px, 100%); overflow: hidden; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
     textarea { width: 100%; min-height: 78px; border: 0; padding: 14px 15px; resize: none; outline: none; background: transparent; color: var(--text); }
     .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
     .composer-footer { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-top: 1px solid var(--border); }
-    .drawer { position: absolute; inset: 0 auto 0 0; width: min(360px, 88vw); transform: translateX(calc(-100% - 16px)); transition: transform .18s ease; border-right: 1px solid var(--border); background: rgba(255,255,255,.94); box-shadow: var(--shadow); backdrop-filter: blur(18px); z-index: 3; }
-    .drawer.open { transform: translateX(0); }
-    .drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 12px; border-bottom: 1px solid var(--border); }
-    .section { padding: 12px; border-bottom: 1px solid var(--border); }
-    .list { display: grid; gap: 2px; }
-    .list button, .file-row { width: 100%; display: flex; align-items: center; gap: 8px; padding: 7px 8px; text-align: left; border-radius: 10px; font-size: 13px; }
-    .file-row.active { background: #edf8fa; color: #086777; }
-    .preview { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 18px; text-align: center; }
+    .composer-footer .row { color: var(--muted); font-size: 12px; }
+    .inspector { position: absolute; inset: 0 0 0 auto; width: min(396px, 88vw); transform: translateX(calc(100% + 16px)); transition: transform .18s ease; border-left: 1px solid var(--border); background: rgba(255,255,255,.95); box-shadow: var(--shadow); backdrop-filter: blur(18px); z-index: 4; overflow: auto; }
+    .inspector.open { transform: translateX(0); }
+    .inspector-head { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; padding: 12px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,.92); backdrop-filter: blur(14px); }
+    .panel { padding: 12px; border-bottom: 1px solid var(--border); }
+    .preview { border: 1px solid var(--border); border-radius: 13px; background: #fbfcfc; padding: 16px; }
     details { padding: 10px 12px; border-bottom: 1px solid var(--border); }
     summary { color: var(--muted); font-size: 13px; }
     .receipt { margin-top: 8px; white-space: pre-wrap; background: #111827; color: #e9eef6; border-radius: 12px; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    .settings-page { display: none; overflow: auto; padding: 34px 20px; }
+    .settings-page.active { display: block; }
+    .settings-content { margin: 0 auto; width: min(820px, 100%); display: grid; gap: 14px; }
+    .settings-content section { border-bottom: 1px solid var(--border); padding: 0 0 14px; }
+    .settings-content h2 { margin-bottom: 6px; }
+    .settings-content button { margin-top: 8px; padding: 6px 9px; background: var(--surface-2); }
+    .settings-content code { display: inline-block; margin-top: 8px; border: 1px solid var(--border); border-radius: 8px; padding: 5px 7px; color: #3e4751; background: #fbfcfc; }
+    .chat-content.hidden, .composer.hidden { display: none; }
+    @media (max-width: 760px) {
+      .opl-native-workbench { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .topbar { padding: 0 12px; }
+      .conversation, .composer { padding-left: 12px; padding-right: 12px; }
+    }
   </style>
 </head>
 <body>
-  <main data-testid="opl-native-workbench-root" class="opl-native-workbench">
-    <header class="app-bar">
-      <img class="logo" src="branding/opl-app-logo.png" alt="One Person Lab App" />
-      <div>
-        <h1>${escapeHtml(appName)}</h1>
-        <small>Native macOS candidate - chat-first workbench</small>
-      </div>
-      <span class="pill">non-live candidate</span>
-      <img class="banner" src="branding/opl-banner.png" alt="One Person Lab" />
-    </header>
-    <section class="shell">
-      <aside id="drawer" data-testid="opl-workspace-rail" class="drawer" aria-label="Project files">
-        <div class="drawer-head">
-          <strong>Workspace</strong>
-          <button type="button" onclick="toggleDrawer(false)">Close</button>
+  <main data-testid="opl-native-workbench-root" data-layout="codex-sidebar-chat" class="opl-native-workbench">
+    <aside data-testid="opl-workspace-rail" class="sidebar" aria-label="Persistent Codex-style left sidebar">
+      <div class="brand">
+        <img class="logo" src="branding/opl-app-logo.png" alt="One Person Lab App" />
+        <div class="brand-title">
+          <h1>One Person Lab</h1>
+          <small>Codex workbench</small>
         </div>
-        <div class="section">
-          <h3>Project</h3>
-          <div data-testid="opl-session-list" class="list">
-            <button><span>Current workspace</span><small class="muted">Chat to delivery</small></button>
-            <button><span>Delivery review</span><small class="muted">Owner packet</small></button>
-            <button><span>Starter lane</span><small class="muted">Workflow draft</small></button>
+      </div>
+      <div class="quick-actions">
+        <button type="button">New chat</button>
+        <button type="button" aria-label="Search">Search</button>
+      </div>
+      <nav class="nav" aria-label="Primary">
+        <button id="chatNav" class="active" type="button" onclick="showView('chat')"><span class="dot"></span>Chats</button>
+      </nav>
+      <section class="section">
+        <h3>Recent</h3>
+        <div data-testid="opl-session-list" class="list">
+          <button class="session-row active" type="button"><strong>Delivery review</strong><small>Current project refs</small></button>
+          <button class="session-row" type="button"><strong>Result package</strong><small>Trace and export draft</small></button>
+          <button class="session-row" type="button"><strong>Workflow setup</strong><small>Research, grant, presentation</small></button>
+        </div>
+      </section>
+      <div class="sidebar-footer">
+        <button type="button" onclick="toggleInspector(true)">Context</button>
+        <button id="settingsNav" type="button" onclick="showView('settings')">Settings</button>
+        <span class="status-pill">connected</span>
+      </div>
+    </aside>
+    <section class="chat-shell" aria-label="Single conversation canvas">
+      <header class="topbar">
+        <div class="topbar-title">
+          <span class="dot"></span>
+          <span id="viewTitle">Current project</span>
+        </div>
+        <span class="spacer"></span>
+        <span id="codexStatus" data-testid="opl-model-access-entry" class="status-pill">Codex connected</span>
+        <button data-testid="opl-export-action" type="button" onclick="dryRun('artifact.export.prepare')">Export</button>
+        <button type="button" onclick="toggleInspector(true)">Context</button>
+      </header>
+      <div id="chatContent" class="conversation chat-content">
+        <div class="thread">
+          <article class="message user">Use the current project to prepare a review or deliverable.</article>
+          <article data-testid="opl-conversation-event" class="message">
+            <div class="assistant-head">One Person Lab</div>
+            <h2>Codex is connected to OPL project context.</h2>
+            <p>Ask for a result review, export draft, or workflow request. OPL keeps sources, previews, trace, and receipts available in the context panel, and asks before execution.</p>
+            <div class="status-line">Project sources loaded</div>
+            <div class="status-line">Preview and export actions require confirmation</div>
+            <div class="status-line">Artifact bodies remain source-owned</div>
+            <div data-testid="opl-workbench-delivery-mode" class="capability-row delivery-workbench" aria-label="Suggested outputs">
+              <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('candidate.delivery.mode')">Review results</button>
+              <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('candidate.delivery.mode')">Draft grant</button>
+              <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('candidate.delivery.mode')">Build deck</button>
+              <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('candidate.delivery.mode')">Prepare handoff</button>
+              <span data-testid="opl-delivery-mode" hidden>research</span>
+            </div>
+          </article>
+        </div>
+      </div>
+      <form id="composer" class="composer">
+        <div class="composer-box">
+          <textarea id="promptInput" aria-label="Prompt" placeholder="Ask OPL to review, draft, export, or start a workflow"></textarea>
+          <div class="composer-footer">
+            <div class="row">
+              <button type="button" aria-label="Attach">+</button>
+              <span>OPL tools available</span>
+            </div>
+            <button type="button" class="primary" onclick="sendCodexMessage()" aria-label="Send">Send</button>
           </div>
         </div>
-        <div class="section" data-testid="opl-files-panel">
-          <h3>Files</h3>
+      </form>
+      <section id="settingsView" data-testid="opl-settings-panel" class="settings-page" aria-label="Settings">
+        <div class="settings-content">
+          <section>
+            <h2>Execution</h2>
+            <p>Codex is the local executor for this build. Model and reasoning controls belong in settings, not beside Send.</p>
+            <button data-testid="opl-model-access-entry" type="button">Codex CLI managed</button>
+          </section>
+          <section>
+            <h2>Interface</h2>
+            <p>Language is a global interface preference.</p>
+            <button data-testid="opl-locale-toggle" type="button">Chinese</button>
+          </section>
+          <section>
+            <h2>Runtime</h2>
+            <p>This build uses Codex app-server JSON-RPC for initialize, thread/start, turn/start, streaming deltas, and thread resume.</p>
+            <code>codex app-server --stdio</code>
+          </section>
+          <section>
+            <h2>Project</h2>
+            <p>The default project is the OPL App repo. Domain truth and artifact bodies remain outside this shell.</p>
+          </section>
+          <section>
+            <h2>About</h2>
+            <p>This is a local candidate build. AionUI remains the active shell until release gates pass.</p>
+          </section>
+        </div>
+      </section>
+      <aside id="inspector" class="inspector" aria-label="On-demand context panel" aria-hidden="true">
+        <div class="inspector-head">
+          <strong>Context</strong>
+          <button type="button" onclick="toggleInspector(false)">Close</button>
+        </div>
+        <section data-testid="opl-files-panel" class="panel">
+          <h3>Sources</h3>
           <div class="list">
             <div class="file-row active">report.md</div>
             <div class="file-row">figures/overview.png</div>
-            <div class="file-row">receipts/dry-run.json</div>
+            <div class="file-row">receipts/action-preview.json</div>
           </div>
-        </div>
-        <div class="section">
-          <h3>Preview</h3>
-          <section data-testid="opl-artifact-preview-tabs" class="preview">
-            <p><strong>report.md</strong></p>
-            <p>Rendered output and delivery artifacts appear here when selected.</p>
+        </section>
+        <section class="panel">
+          <h3>Output preview</h3>
+          <section data-testid="opl-artifact-preview-tabs" class="preview artifact-preview-tabs">
+            <div data-testid="opl-artifact-preview-panel" class="artifact-preview" data-preview-kind="streamdown">
+              <p><strong>report.md</strong></p>
+              <p>Selected result or export previews appear here.</p>
+            </div>
           </section>
-        </div>
+        </section>
+        <section data-testid="opl-starter-forms" class="panel starter-forms">
+          <h3>Workflow starters</h3>
+          <button data-testid="opl-workbench-delivery-mode" class="purpose-row active delivery-workbench" type="button">
+            <span data-testid="opl-delivery-mode">Research</span>
+          </button>
+          <button data-testid="opl-delivery-mode-option" class="purpose-row" type="button">Grant</button>
+          <button data-testid="opl-delivery-mode-option" class="purpose-row" type="button">Presentation</button>
+          <button type="button" onclick="dryRun('starter.mas.dry_run')">Research package</button>
+          <button type="button" onclick="dryRun('starter.mag.dry_run')">Grant draft</button>
+          <button type="button" onclick="dryRun('starter.rca.dry_run')">Presentation deck</button>
+        </section>
         <details data-testid="opl-provenance-drawer" open>
-          <summary>Provenance</summary>
-          <p data-testid="opl-provenance-ref">Artifact refs, receipt refs, replay refs, and export refs without artifact bodies.</p>
-          <output id="receipt" data-testid="opl-runtime-action-receipt" class="receipt">No dry-run request yet.</output>
+          <summary>Trace</summary>
+          <p data-testid="opl-provenance-ref">Source refs, receipt refs, replay refs, and export refs without artifact bodies.</p>
+          <div data-testid="opl-confirmation-card" class="inline-card">
+            <strong>Review before execution</strong>
+            <p>Preview the action receipt first; execution stays behind App action confirmation.</p>
+            <button type="button" onclick="dryRun('confirmation.dry_run')">Preview action</button>
+          </div>
+          <output id="receipt" data-testid="opl-runtime-action-receipt" class="receipt">No action preview yet.</output>
         </details>
         <details data-testid="opl-renderer-module-registry">
-          <summary>Renderer modules</summary>
-          <p>streamdown, KaTeX, Mermaid, CodeMirror, and PDF.js stay as candidate adapters.</p>
+          <summary>Preview engines</summary>
+          <p>Streamdown, KaTeX, Mermaid, CodeMirror, and PDF.js stay as candidate adapters.</p>
         </details>
         <details>
-          <summary>Context</summary>
+          <summary>System context</summary>
           <div data-testid="opl-context-tabs" class="row"><button>Skills</button><button>Routing</button><button>Memory</button><button>Runtime</button></div>
           <div data-testid="opl-skills-panel"></div>
           <div data-testid="opl-routing-panel"></div>
           <div data-testid="opl-memory-panel"></div>
           <div data-testid="opl-always-on-panel"></div>
           <div data-testid="opl-runtime-summary"></div>
+          <button data-testid="opl-runtime-full-detail-button" type="button">Full drilldown</button>
+          <button data-testid="opl-runtime-action-dry-run" type="button" onclick="dryRun('candidate.inspect')">Preview action</button>
+          <div data-testid="opl-settings-panel"></div>
           <div data-testid="opl-web-transport" class="muted">window.oplNativeWorkbench / SSE /api/opl-events</div>
         </details>
+        <div data-testid="opl-event-feed" hidden>tool process diff file receipt user_input permission</div>
       </aside>
-      <section class="chat" aria-label="Conversation">
-        <div class="tabs">
-          <div class="tabs-inner">
-            <button class="tab" type="button" onclick="toggleDrawer()">Workspace</button>
-            <button class="tab active">Chat</button>
-            <button data-testid="opl-starter-forms" class="tab">Workflows</button>
-            <button data-testid="opl-export-action" class="tab">Export</button>
-            <span class="top-spacer"></span>
-            <span class="muted" style="font-size:12px">auto-first</span>
-          </div>
-        </div>
-        <div class="conversation">
-          <div class="conversation-inner">
-            <article class="message user">Build an owner-review packet from current OPL App refs.</article>
-            <article data-testid="opl-conversation-event" class="message">
-              <h2>Ready to work from the current OPL context.</h2>
-              <p>I will keep the main flow in chat. Files, previews, provenance, and delivery controls stay in the workspace drawer until they are needed.</p>
-              <div class="status-line">App fast state loaded as refs</div>
-              <div class="status-line">Artifact body authority remains outside this candidate</div>
-              <div data-testid="opl-confirmation-card" class="inline-confirmation">
-                <strong>Confirmation needed before execute</strong>
-                <p>Dry-run can prepare the export receipt; real execution stays behind App action confirmation.</p>
-                <button onclick="dryRun('confirmation.dry_run')">Dry-run confirmation</button>
-              </div>
-            </article>
-          </div>
-        </div>
-        <form class="composer">
-          <div class="composer-box">
-            <textarea aria-label="Prompt" placeholder="Ask OPL to produce a result or delivery artifact"></textarea>
-            <div class="composer-footer">
-              <div class="row">
-                <button type="button">+</button>
-                <button data-testid="opl-model-access-entry" type="button">OPL model</button>
-                <button data-testid="opl-delivery-mode" type="button">research</button>
-                <button data-testid="opl-locale-toggle" type="button">中 / EN</button>
-                <button data-testid="opl-skip-to-chat" type="button">Skip</button>
-              </div>
-              <button type="button" class="primary" onclick="dryRun('candidate.chat.submit')">Send</button>
-            </div>
-          </div>
-        </form>
-      </section>
     </section>
   </main>
   <script>
-    function toggleDrawer(force) {
-      const drawer = document.getElementById("drawer");
-      drawer.classList.toggle("open", typeof force === "boolean" ? force : undefined);
+    const pendingNativeCalls = new Map();
+    let currentCodexThreadId = null;
+    window.__oplNativeWorkbenchResolve = function(id, ok, payload) {
+      const pending = pendingNativeCalls.get(id);
+      if (!pending) return;
+      pendingNativeCalls.delete(id);
+      if (ok) pending.resolve(payload);
+      else pending.reject(payload);
+    };
+    const nativeEventListeners = new Set();
+    window.__oplNativeWorkbenchEvent = function(payload) {
+      nativeEventListeners.forEach((listener) => listener(payload));
+    };
+    function nativeInvoke(method, payload) {
+      const handler = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.oplNativeWorkbench;
+      if (!handler) {
+        return Promise.resolve({ simulated: true, method, payload });
+      }
+      const id = Date.now() + "-" + Math.random().toString(36).slice(2);
+      return new Promise((resolve, reject) => {
+        pendingNativeCalls.set(id, { resolve, reject });
+        handler.postMessage({ id, method, payload });
+      });
     }
-    function dryRun(actionId) {
-      document.getElementById("receipt").textContent = JSON.stringify({
-        actionId,
-        dryRun: true,
-        authority: "one-person-lab-app",
-        at: new Date().toISOString()
-      }, null, 2);
+    window.oplNativeWorkbench = {
+      readState: (profile = "fast") => nativeInvoke("readState", { profile }),
+      readFullDrilldown: () => nativeInvoke("readFullDrilldown", {}),
+      executeAction: (request) => nativeInvoke("executeAction", request),
+      sendMessage: (request) => nativeInvoke("sendMessage", request),
+      subscribeEvents: (onEvent) => {
+        nativeEventListeners.add(onEvent);
+        onEvent({ type: "bridge.ready", source: "native-wkwebview" });
+        return () => nativeEventListeners.delete(onEvent);
+      }
+    };
+    function showView(view) {
+      const isSettings = view === "settings";
+      document.getElementById("chatContent").classList.toggle("hidden", isSettings);
+      document.getElementById("composer").classList.toggle("hidden", isSettings);
+      document.getElementById("settingsView").classList.toggle("active", isSettings);
+      document.getElementById("chatNav").classList.toggle("active", !isSettings);
+      document.getElementById("settingsNav").classList.toggle("active", isSettings);
+      document.getElementById("viewTitle").textContent = isSettings ? "Settings" : "Current project";
     }
+    function toggleInspector(force) {
+      const inspector = document.getElementById("inspector");
+      const next = typeof force === "boolean" ? force : !inspector.classList.contains("open");
+      inspector.classList.toggle("open", next);
+      inspector.setAttribute("aria-hidden", String(!next));
+    }
+    function appendMessage(role, text, className = "") {
+      const thread = document.querySelector(".thread");
+      const article = document.createElement("article");
+      article.className = ("message " + role + " " + className).trim();
+      article.textContent = text;
+      thread.appendChild(article);
+      article.scrollIntoView({ block: "end", behavior: "smooth" });
+      return article;
+    }
+    async function sendCodexMessage() {
+      const input = document.getElementById("promptInput");
+      const prompt = input.value.trim();
+      if (!prompt) return;
+      input.value = "";
+      appendMessage("user", prompt);
+      const reply = appendMessage("", "Codex is working...", "codex-reply");
+      document.getElementById("codexStatus").textContent = "Codex running";
+      try {
+        const result = await window.oplNativeWorkbench.sendMessage({ prompt, threadId: currentCodexThreadId });
+        if (result.threadId) currentCodexThreadId = result.threadId;
+        const text = result.finalMessage || result.stdout || result.stderr || JSON.stringify(result, null, 2);
+        reply.textContent = text;
+        reply.dataset.testid = "opl-codex-reply";
+        if (result.error) reply.classList.add("error");
+        document.getElementById("codexStatus").textContent = result.finalMessage ? "Codex ready" : "Codex returned";
+      } catch (error) {
+        reply.textContent = JSON.stringify(error, null, 2);
+        reply.classList.add("error");
+        document.getElementById("codexStatus").textContent = "Codex error";
+      }
+    }
+    async function dryRun(actionId) {
+      const receipt = document.getElementById("receipt");
+      receipt.textContent = "Preparing preview...";
+      try {
+        const result = await window.oplNativeWorkbench.executeAction({ actionId, dryRun: true });
+        receipt.textContent = JSON.stringify(result, null, 2);
+      } catch (error) {
+        receipt.textContent = JSON.stringify(error, null, 2);
+      }
+    }
+    window.oplNativeWorkbench.readState("fast").then(() => {
+      document.getElementById("codexStatus").textContent = "Context ready";
+    }).catch(() => {
+      document.getElementById("codexStatus").textContent = "Local runtime";
+    });
   </script>
 </body>
 </html>
@@ -307,8 +489,9 @@ const manifest = {
       "apps/desktop/src/index.css"
     ],
     adapted_patterns: [
-      "header plus project switcher/status controls",
-      "workspace files default to a collapsible drawer",
+      "persistent Codex-style left sidebar for navigation and chat history",
+      "single conversation canvas with centered max-width thread and bottom composer",
+      "secondary files, preview, provenance, workflows, and export live in on-demand inspector surfaces",
       "chat tab strip and bottom composer as primary interaction",
       "artifact preview and provenance stay on-demand",
       "workflow/export/interview surfaces are secondary, not dashboard cards",
@@ -316,6 +499,17 @@ const manifest = {
     ]
   },
   brand_owner: "one-person-lab-app",
+  functional_mvp: {
+    codex_app_server_thread_turn: true,
+    codex_command: "codex app-server --stdio",
+    codex_protocol: "JSON-RPC newline transport with initialize, thread/start, turn/start, item/agentMessage/delta, turn/completed, thread/resume",
+    opl_state_bridge: "opl app state --profile fast --json",
+    opl_action_bridge: "opl app action execute --action <action_id> --dry-run --json",
+    native_bridge: "WKScriptMessageHandler window.webkit.messageHandlers.oplNativeWorkbench",
+    default_sandbox: "read-only",
+    conversation_persistence: "codex_app_server_thread_id_resume_capable",
+    acp_app_server_reuse_status: "implemented_with_codex_app_server_thread_turn_stream"
+  },
   brand_assets: {
     icon_icns: {
       package_path: "Contents/Resources/app.icns",

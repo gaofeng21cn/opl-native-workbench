@@ -32,7 +32,7 @@ export function DeliveryCard({ item }: { item: WorkbenchArtifactRef }) {
       <dl>
         <dt>Ref</dt>
         <dd>{item.ref}</dd>
-        <dt>Provenance</dt>
+        <dt>Trace</dt>
         <dd>{item.provenance.join(" / ")}</dd>
       </dl>
       <ul>
@@ -79,8 +79,8 @@ export function ConfirmationCard({ card, question, onDryRun }: ConfirmationCardP
       </header>
       <QuestionCard question={question} />
       <section data-testid="opl-interview-card">
-        <h4>Interview</h4>
-        <p>Collect user input before execute; dry-run receipts stay separate.</p>
+        <h4>Decision note</h4>
+        <p>Confirm the action before execution; preview receipts stay separate.</p>
       </section>
       <section>
         <h4>Risk</h4>
@@ -104,7 +104,7 @@ export function ConfirmationCard({ card, question, onDryRun }: ConfirmationCardP
           type="button"
           onClick={() => onDryRun(card.dryRunAction, { confirmationId: card.id, questionId: question.id })}
         >
-          Dry-run confirmation
+          Preview action
         </button>
       </footer>
     </article>
@@ -114,8 +114,8 @@ export function ConfirmationCard({ card, question, onDryRun }: ConfirmationCardP
 export function RendererModuleRegistryPanel() {
   return (
     <section data-testid="opl-renderer-module-registry" className="module-registry">
-      <h3>Renderer modules</h3>
-      <p>OSS renderer and UI modules are registered as candidate adapters only.</p>
+      <h3>Preview engines</h3>
+      <p>OSS renderers are registered as candidate adapters only.</p>
       <ul>
         {rendererModuleRegistry.map((module) => (
           <li key={module.id} data-testid="opl-renderer-module-card">
