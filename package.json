@@ -5,6 +5,16 @@
   "type": "module",
   "description": "OPL native workbench candidate shell for One Person Lab App.",
   "license": "Apache-2.0",
+  "dependencies": {
+    "@codemirror/view": "^6.38.3",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "katex": "^0.16.22",
+    "lucide-react": "^0.468.0",
+    "mermaid": "^10.9.3",
+    "pdfjs-dist": "^4.10.38",
+    "react-resizable-panels": "^2.1.9",
+    "streamdown": "^1.4.0"
+  },
   "scripts": {
     "dev": "node scripts/dev-webui-server.mjs",
     "webui": "node scripts/dev-webui-server.mjs",

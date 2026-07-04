@@ -1,4 +1,5 @@
 import { createBrowserBridge } from "../bridge/oplBridge";
+import { ConfirmationCard, RendererModuleRegistryPanel } from "../ui/workbenchPrimitives";
 import { initialWorkbenchModel } from "./workbenchModel";
 
 const contextTabs = [
@@ -37,6 +38,19 @@ export function App() {
             <h2>OPL Native Workbench</h2>
             <p>Chat-first workbench with results, deliverables, receipts, and refs close to the task.</p>
           </article>
+          <section data-testid="opl-workbench-delivery-mode" className="delivery-workbench" aria-label="Delivery workbench">
+            <nav data-testid="opl-artifact-preview-tabs" className="artifact-preview-tabs">
+              {model.results.concat(model.deliverables).map((item) => (
+                <button key={item.id} type="button" data-preview-kind={item.previewKind}>
+                  {item.title}
+                </button>
+              ))}
+            </nav>
+            <section className="artifact-preview">
+              <h3>Artifact preview</h3>
+              <p>Markdown, math, diagrams, code, and PDF previews are renderer-module backed and refs-only.</p>
+            </section>
+          </section>
           <section className="delivery-strip" aria-label="Results and delivery">
             {model.results.concat(model.deliverables, model.receipts).map((item) => (
               <button key={item.id} type="button" data-kind={item.kind}>
@@ -50,6 +64,26 @@ export function App() {
             <button type="button">Presentation</button>
             <textarea aria-label="Prompt" placeholder="Ask OPL to produce a result or delivery artifact" />
           </form>
+          <section data-testid="opl-starter-form" className="starter-forms" aria-label="Workflow starters">
+            {model.starters.map((starter) => (
+              <form key={starter.id} data-starter={starter.id}>
+                <h3>{starter.title}</h3>
+                <p>Required skill: {starter.requiredSkill}</p>
+                {starter.fields.map((field) => (
+                  <label key={field}>
+                    {field}
+                    <input name={field} />
+                  </label>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => bridge.executeAction({ actionId: starter.dryRunAction, dryRun: true })}
+                >
+                  Dry-run starter
+                </button>
+              </form>
+            ))}
+          </section>
         </section>
       </section>
 
@@ -63,6 +97,23 @@ export function App() {
           <h3>Files</h3>
           <p>Refs-only surface backed by OPL App state/action contracts.</p>
         </section>
+        <section data-testid="opl-provenance-drawer">
+          <h3>Provenance</h3>
+          <p>Artifact refs, receipt refs, replay refs, and export refs without artifact bodies.</p>
+          <button data-testid="opl-export-action" type="button" onClick={() => bridge.executeAction({ actionId: "artifact.export.prepare", dryRun: true })}>
+            Prepare export
+          </button>
+        </section>
+        <ConfirmationCard
+          title="Confirm dry-run action"
+          questions={["Is the workspace correct?", "Are result refs ready for handoff?"]}
+          risks={["May create a new receipt ref after explicit execute"]}
+          willChange={["A dry-run preview is requested from OPL App action"]}
+          willNotChange={["No domain artifact body", "No owner receipt", "No runtime authority"]}
+          receipt="dry-run receipt required"
+          rollback="no mutation before execute"
+        />
+        <RendererModuleRegistryPanel />
         <section data-testid="opl-skills-panel">
           <h3>Skills</h3>
           <p>Codex Skill references only; no domain authority is owned here.</p>

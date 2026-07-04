@@ -5,6 +5,16 @@ export type WorkbenchArtifactRef = {
   title: string;
   kind: "result" | "file" | "receipt" | "deliverable";
   status: "ready" | "needs_review" | "blocked";
+  previewKind?: "markdown" | "pdf" | "code" | "mermaid" | "math";
+  ref?: string;
+};
+
+export type WorkbenchStarter = {
+  id: "mas" | "mag" | "rca" | "bookforge";
+  title: string;
+  requiredSkill: string;
+  fields: string[];
+  dryRunAction: string;
 };
 
 export type ActiveProjectLine = {
@@ -22,19 +32,27 @@ export type WorkbenchModel = {
   results: WorkbenchArtifactRef[];
   deliverables: WorkbenchArtifactRef[];
   receipts: WorkbenchArtifactRef[];
+  starters: WorkbenchStarter[];
   activeProjectLines: ActiveProjectLine[];
 };
 
 export const initialWorkbenchModel: WorkbenchModel = {
   purposes: ["research", "grant", "ppt"],
   results: [
-    { id: "result-summary", title: "Result summary", kind: "result", status: "needs_review" }
+    { id: "result-summary", title: "Result summary", kind: "result", status: "needs_review", previewKind: "markdown", ref: "opl://result/summary" },
+    { id: "figure-preview", title: "Figure preview", kind: "file", status: "ready", previewKind: "pdf", ref: "opl://artifact/figure-preview" }
   ],
   deliverables: [
-    { id: "delivery-package", title: "Delivery package", kind: "deliverable", status: "needs_review" }
+    { id: "delivery-package", title: "Delivery package", kind: "deliverable", status: "needs_review", previewKind: "code", ref: "opl://delivery/package" }
   ],
   receipts: [
-    { id: "dry-run-receipt", title: "Action dry-run receipt", kind: "receipt", status: "ready" }
+    { id: "dry-run-receipt", title: "Action dry-run receipt", kind: "receipt", status: "ready", ref: "opl://receipt/dry-run" }
+  ],
+  starters: [
+    { id: "mas", title: "Research / MAS", requiredSkill: "mas", fields: ["question", "cohort", "deliverable"], dryRunAction: "starter.mas.dry_run" },
+    { id: "mag", title: "Grant / MAG", requiredSkill: "mag", fields: ["funding_call", "specific_aims", "deadline"], dryRunAction: "starter.mag.dry_run" },
+    { id: "rca", title: "Presentation / RCA", requiredSkill: "rca", fields: ["audience", "storyline", "format"], dryRunAction: "starter.rca.dry_run" },
+    { id: "bookforge", title: "Book / BookForge", requiredSkill: "opl-bookforge", fields: ["chapter", "voice", "export_target"], dryRunAction: "starter.bookforge.dry_run" }
   ],
   activeProjectLines: [
     {
