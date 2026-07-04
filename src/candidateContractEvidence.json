@@ -1,0 +1,185 @@
+{
+  "owner": "one-person-lab-app",
+  "shell": "opl-native-workbench",
+  "capabilities": [
+    "codex_cli_fixed_executor_home",
+    "codex_app_server_thread_turn_backend",
+    "native_react_workbench_renderer",
+    "opl_app_event_contract_map",
+    "purpose_first_home_entries",
+    "workspace_directory_picker",
+    "new_conversation_thread_reset",
+    "source_renderer_build",
+    "source_ui_smoke",
+    "packaged_ui_smoke",
+    "webui_shared_renderer",
+    "web_transport_bridge",
+    "webui_smoke",
+    "chat_first_codex_app_surface",
+    "results_and_delivery_first_presentation",
+    "default_context_collapsed_chat_first_home",
+    "lightweight_workspace_session_rail",
+    "collapsible_contextual_tabs",
+    "app_product_profile_mapping",
+    "opl_app_state_bridge",
+    "active_project_line_state_model",
+    "opl_app_action_bridge",
+    "page_state_matrix_mapping",
+    "first_run_matrix_mapping",
+    "runtime_summary_detail_action_bridge",
+    "foundry_agent_series_shared_progress_display",
+    "app_owned_settings_information_architecture",
+    "secondary_runtime_context_refs",
+    "conversation_event_ref_rendering",
+    "webui_renderer_parity",
+    "release_isolation",
+    "candidate_app_bundle_package"
+  ],
+  "framework_surfaces": {
+    "state": "opl app state --profile fast --json",
+    "refresh": "opl app state --profile fast --json",
+    "full_state": "opl app state --profile full --json",
+    "full_drilldown": "opl runtime app-operator-drilldown --detail full --json",
+    "action": "opl app action execute --action <action_id> [--payload json] [--dry-run] --json"
+  },
+  "user_visible_protocol_copy": {
+    "copilotkit_surface": false,
+    "agui": false
+  },
+  "default_home_layout": {
+    "policy": "ordinary home opens on the chat canvas only; workspace/session rail and inspector stay collapsed until the user explicitly opens them",
+    "stage_classes": ["without-rail", "without-inspector"],
+    "workspace_rail_default_open": false,
+    "inspector_default_open": false
+  },
+  "webui_transport": {
+    "renderer": "src/workbench/App.tsx",
+    "electron_transport": "src/bridge/electronPreload.ts",
+    "web_transport": "src/bridge/webTransport.ts",
+    "gateway": "scripts/dev-webui-server.mjs",
+    "shared_surface": true,
+    "events": "GET /api/opl-events uses SSE for Codex app-server events"
+  },
+  "reuse_policy": {
+    "kdense_source_usage": "experience_reference_only",
+    "openclaudescience_source_usage": "experience_reference_only",
+    "copied_source": false,
+    "runtime_authority_transfer": false,
+    "adopted_patterns": [
+      "project sandbox organization",
+      "result and artifact delivery panel",
+      "structured confirmation forms",
+      "rich file preview affordances"
+    ]
+  },
+  "page_state_matrix_mapping": {
+    "page_ids": ["home", "runtime", "settings", "first_run", "release"],
+    "runtime_testids": [
+      "opl-workspace-rail",
+      "opl-session-list",
+      "opl-context-tabs",
+      "opl-files-panel",
+      "opl-skills-panel",
+      "opl-routing-panel",
+      "opl-memory-panel",
+      "opl-always-on-panel",
+      "opl-web-transport",
+      "opl-runtime-summary",
+      "opl-runtime-full-detail-button",
+      "opl-runtime-action-dry-run",
+      "opl-runtime-action-receipt"
+    ],
+    "settings_testids": ["opl-settings-panel", "opl-model-access-entry", "opl-locale-toggle"]
+  },
+  "first_run_matrix_mapping": {
+    "required_shell_testids": [
+      "opl-native-workbench-root",
+      "opl-model-access-entry",
+      "opl-skip-to-chat"
+    ]
+  },
+  "runtime_summary_detail_action_bridge": {
+    "renderer_testids": [
+      "opl-runtime-summary",
+      "opl-runtime-full-detail-button",
+      "opl-runtime-action-dry-run",
+      "opl-runtime-action-receipt"
+    ],
+    "full_detail_policy": "lazy_full_drilldown_only",
+    "action_policy": "dry_run_first_then_explicit_execute"
+  },
+  "settings_information_architecture": {
+    "visible_tabs": ["general", "access", "capabilities", "environment", "storage", "appearance", "advanced"],
+    "labels_en": ["General", "Access", "Agents & Capabilities", "Local Environment", "Storage", "Appearance", "Advanced"],
+    "legacy_tabs_hidden": ["overview", "runtime", "system", "model", "agent", "assistants", "skills-hub", "tools", "display", "webui", "pet"]
+  },
+  "bilingual_ui": {
+    "default_locale": "zh",
+    "supported_locales": ["zh", "en"],
+    "ordinary_ui_policy": "same_screen_single_language_for_user_visible_chrome",
+    "language_toggle_testid": "opl-locale-toggle",
+    "zh_purpose_labels": ["科研", "基金", "演示"],
+    "en_purpose_labels": ["Research", "Grant", "Presentation"]
+  },
+  "secondary_runtime_context_refs": {
+    "authority": "opl_framework_refs_only_projection",
+    "source": "Runtime page and secondary context surfaces only",
+    "display_groups": ["needs_attention", "active_projects", "recent_projects"],
+    "default_placement": "runtime_page_or_secondary_context_not_home",
+    "home_surface_policy": "ordinary_home_must_not_render_runtime_activity_or_continue_work",
+    "empty_state_policy": "stable_empty_state_without_page_wide_spinner",
+    "forbidden_body_display": ["domain artifact body", "memory body", "quality verdict body", "provider implementation details"],
+    "renderer_testids": ["opl-runtime-summary", "opl-secondary-runtime-context", "opl-runtime-context-group", "opl-runtime-context-item"]
+  },
+  "conversation_event_rendering": {
+    "event_kinds": ["tool", "process", "diff", "file", "receipt", "user_input", "permission"],
+    "display_policy": "summary_first_compact_conversation_events_or_expandable_refs",
+    "forbidden_visible_protocol_copy": ["AG-UI event name", "ACP wire detail", "app-server raw frame"],
+    "renderer_testids": ["opl-conversation-event", "opl-event-feed"]
+  },
+  "webui_parity": {
+    "shared_renderer": true,
+    "bridge_shape": "window.oplNativeWorkbench",
+    "product_profile": "src/generated/oplProductProfile.generated.json",
+    "desktop_and_webui_default_home": "chat_first_default_collapsed",
+    "evidence_status_field": "webui_parity_status"
+  },
+  "foundry_agent_series_display_contract": {
+    "authority": "opl_framework_shared_progress_projection",
+    "display_policy": "classification_only_no_domain_artifact_body",
+    "required_shared_progress_fields": [
+      "progress_delta_classification",
+      "deliverable_progress_delta",
+      "platform_repair_delta",
+      "next_forced_delta"
+    ],
+    "forbidden_domain_fields": [
+      "domain_body",
+      "artifact_body",
+      "memory_body",
+      "quality_verdict",
+      "export_verdict"
+    ]
+  },
+  "active_project_line_state_model": {
+    "authority": "opl_framework_active_project_line_projection",
+    "validation_command": "npm run validate:state-model",
+    "consumed_projection": "opl app state --profile fast --json active_project_lines",
+    "required_fields": [
+      "status",
+      "active_run_id",
+      "next_visible_step",
+      "progress_delta_classification",
+      "deliverable_progress_delta",
+      "platform_repair_delta",
+      "next_forced_delta"
+    ],
+    "forbidden_claims": [
+      "domain_ready",
+      "production_ready",
+      "clean_vm_ready",
+      "full_release_ready",
+      "active_shell_adopted"
+    ]
+  }
+}

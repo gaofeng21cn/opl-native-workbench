@@ -1,0 +1,7 @@
+appId: cn.gflab.opl.native-workbench.candidate
+productName: One Person Lab Native Workbench Candidate
+directories:
+  output: out
+files:
+  - src/**/*
+  - package.json
