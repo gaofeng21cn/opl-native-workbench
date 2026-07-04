@@ -7,7 +7,7 @@ export function RendererModuleRegistryPanel() {
       <p>{rendererModuleRegistry.policy}</p>
       <ul>
         {rendererModuleRegistry.primitives.concat(rendererModuleRegistry.richText).map((moduleName) => (
-          <li key={moduleName}>{moduleName}</li>
+          <li key={moduleName} data-testid="opl-renderer-module-card">{moduleName}</li>
         ))}
       </ul>
     </section>
@@ -31,6 +31,10 @@ export function ConfirmationCard(props: ConfirmationCardProps) {
       <section data-testid="opl-question-card">
         <h4>Questions</h4>
         <ul>{props.questions.map((item) => <li key={item}>{item}</li>)}</ul>
+      </section>
+      <section data-testid="opl-interview-card">
+        <h4>Interview</h4>
+        <p>Collect user input before execute; dry-run receipts stay separate.</p>
       </section>
       <section>
         <h4>Risk</h4>

@@ -11,6 +11,7 @@ export type WorkbenchArtifactRef = {
 
 export type WorkbenchStarter = {
   id: "mas" | "mag" | "rca" | "bookforge";
+  purpose: "research" | "grant" | "presentation" | "book";
   title: string;
   requiredSkill: string;
   fields: string[];
@@ -49,10 +50,10 @@ export const initialWorkbenchModel: WorkbenchModel = {
     { id: "dry-run-receipt", title: "Action dry-run receipt", kind: "receipt", status: "ready", ref: "opl://receipt/dry-run" }
   ],
   starters: [
-    { id: "mas", title: "Research / MAS", requiredSkill: "mas", fields: ["question", "cohort", "deliverable"], dryRunAction: "starter.mas.dry_run" },
-    { id: "mag", title: "Grant / MAG", requiredSkill: "mag", fields: ["funding_call", "specific_aims", "deadline"], dryRunAction: "starter.mag.dry_run" },
-    { id: "rca", title: "Presentation / RCA", requiredSkill: "rca", fields: ["audience", "storyline", "format"], dryRunAction: "starter.rca.dry_run" },
-    { id: "bookforge", title: "Book / BookForge", requiredSkill: "opl-bookforge", fields: ["chapter", "voice", "export_target"], dryRunAction: "starter.bookforge.dry_run" }
+    { id: "mas", purpose: "research", title: "Research / MAS", requiredSkill: "mas", fields: ["question", "cohort", "deliverable"], dryRunAction: "starter.mas.dry_run" },
+    { id: "mag", purpose: "grant", title: "Grant / MAG", requiredSkill: "mag", fields: ["funding_call", "specific_aims", "deadline"], dryRunAction: "starter.mag.dry_run" },
+    { id: "rca", purpose: "presentation", title: "Presentation / RCA", requiredSkill: "rca", fields: ["audience", "storyline", "format"], dryRunAction: "starter.rca.dry_run" },
+    { id: "bookforge", purpose: "book", title: "Book / BookForge", requiredSkill: "opl-bookforge", fields: ["chapter", "voice", "export_target"], dryRunAction: "starter.bookforge.dry_run" }
   ],
   activeProjectLines: [
     {
