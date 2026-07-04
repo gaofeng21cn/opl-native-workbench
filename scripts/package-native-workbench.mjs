@@ -82,52 +82,53 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(appName)}</title>
   <style>
-    :root { color-scheme: light; --ink: #172033; --muted: #617087; --line: #d9e0ea; --bg: #f6f8fb; --accent: #0f8a9d; --soft: #eaf7fa; }
+    :root { color-scheme: light; --bg: #f8fafc; --surface: #ffffff; --surface-2: #f2f5f8; --border: #e5e9ef; --text: #242936; --muted: #7d8794; --accent: #0f8a9d; --accent-fg: #ffffff; --shadow: 0 1px 2px rgba(35,40,52,.04), 0 12px 34px rgba(35,40,52,.08); }
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
     button, textarea { font: inherit; }
-    button { border: 0; background: transparent; color: inherit; border-radius: 7px; padding: 6px 8px; cursor: default; }
-    button:hover { background: #eef2f7; }
-    button.primary { background: var(--accent); color: white; }
-    h1 { margin: 0; font-size: 14px; line-height: 1.1; }
-    h2 { margin: 0 0 10px; font-size: 16px; }
-    h3 { margin: 0 0 8px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
-    p { margin: 0; color: var(--muted); line-height: 1.45; }
+    button { border: 0; background: transparent; color: inherit; border-radius: 10px; padding: 7px 9px; cursor: default; }
+    button:hover { background: var(--surface-2); }
+    button.primary { background: var(--accent); color: var(--accent-fg); }
+    h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 0; }
+    h2 { margin: 0; font-size: 15px; font-weight: 600; }
+    h3 { margin: 0 0 8px; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    p { margin: 0; color: var(--muted); line-height: 1.55; }
     small, .muted { color: var(--muted); }
-    .opl-native-workbench { height: 100vh; display: grid; grid-template-rows: 48px 1fr; overflow: hidden; }
-    .app-bar { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--line); background: #fff; }
-    .logo { width: 28px; height: 28px; border-radius: 7px; }
-    .banner { height: 28px; width: 132px; object-fit: contain; margin-left: auto; }
-    .pill { border: 1px solid #b7dfe6; background: var(--soft); color: #0b6876; border-radius: 999px; padding: 3px 7px; font-size: 11px; }
-    .shell { display: grid; grid-template-columns: 220px minmax(520px, 1fr) 340px; min-height: 0; }
-    .rail, .chat, .outputs { min-height: 0; overflow: hidden; }
-    .rail, .outputs { background: #fbfcfe; }
-    .rail { border-right: 1px solid var(--line); }
-    .outputs { border-left: 1px solid var(--line); }
-    .section { padding: 12px; border-bottom: 1px solid var(--line); }
+    .opl-native-workbench { height: 100vh; display: grid; grid-template-rows: 46px 1fr; overflow: hidden; }
+    .app-bar { display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: rgba(255,255,255,.78); border-bottom: 1px solid rgba(229,233,239,.78); backdrop-filter: blur(18px); }
+    .logo { width: 28px; height: 28px; border-radius: 8px; }
+    .banner { height: 26px; width: 126px; object-fit: contain; margin-left: 4px; opacity: .82; }
+    .pill { border: 1px solid #cfe7ec; background: #edf8fa; color: #0b6876; border-radius: 999px; padding: 3px 7px; font-size: 11px; }
+    .top-spacer { flex: 1; }
+    .shell { position: relative; min-height: 0; display: grid; grid-template-columns: 1fr; }
+    .chat { min-height: 0; display: grid; grid-template-rows: 34px 1fr auto; }
+    .tabs { display: flex; align-items: center; gap: 4px; padding: 4px 16px; }
+    .tabs-inner { margin: 0 auto; width: min(780px, 100%); display: flex; align-items: center; gap: 4px; }
+    .tab { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; color: var(--muted); font-size: 12px; }
+    .tab.active { background: var(--surface-2); color: var(--text); }
+    .conversation { overflow: auto; padding: 32px 20px; }
+    .conversation-inner { margin: 0 auto; width: min(760px, 100%); display: grid; gap: 18px; }
+    .message { display: grid; gap: 8px; max-width: 720px; font-size: 14px; }
+    .message.user { justify-self: end; max-width: 560px; border-radius: 16px; background: var(--surface-2); padding: 10px 13px; }
+    .status-line { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+    .status-line::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: var(--accent); opacity: .75; }
+    .inline-confirmation { margin-top: 2px; border: 1px solid var(--border); background: var(--surface); border-radius: 14px; padding: 12px; box-shadow: 0 1px 2px rgba(35,40,52,.04); }
+    .composer { padding: 10px 20px 22px; }
+    .composer-box { margin: 0 auto; width: min(760px, 100%); overflow: hidden; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
+    textarea { width: 100%; min-height: 78px; border: 0; padding: 14px 15px; resize: none; outline: none; background: transparent; color: var(--text); }
+    .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .composer-footer { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-top: 1px solid var(--border); }
+    .drawer { position: absolute; inset: 0 auto 0 0; width: min(360px, 88vw); transform: translateX(calc(-100% - 16px)); transition: transform .18s ease; border-right: 1px solid var(--border); background: rgba(255,255,255,.94); box-shadow: var(--shadow); backdrop-filter: blur(18px); z-index: 3; }
+    .drawer.open { transform: translateX(0); }
+    .drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 12px; border-bottom: 1px solid var(--border); }
+    .section { padding: 12px; border-bottom: 1px solid var(--border); }
     .list { display: grid; gap: 2px; }
-    .list button, .file-row { width: 100%; display: flex; align-items: center; gap: 8px; padding: 7px 8px; text-align: left; }
-    .file-row { border-radius: 7px; font-size: 13px; }
-    .file-row.active { background: #eef6f8; color: #086777; }
-    .chat { display: grid; grid-template-rows: 34px 1fr auto; background: #fff; }
-    .tabs { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--line); }
-    .tab { display: inline-flex; align-items: center; gap: 6px; max-width: 180px; padding: 5px 9px; font-size: 12px; }
-    .tab.active { background: #eef2f7; }
-    .conversation { overflow: auto; padding: 18px 24px; display: grid; align-content: start; gap: 18px; }
-    .message { display: grid; gap: 8px; max-width: 760px; }
-    .message.user { justify-self: end; max-width: 620px; border-radius: 12px; background: #f2f5f8; padding: 10px 12px; }
-    .tool-line { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; padding: 4px 0; }
-    .inline-confirmation { border-left: 3px solid var(--accent); background: #f8fbfc; padding: 9px 11px; border-radius: 7px; }
-    .composer { padding: 12px; border-top: 1px solid var(--line); background: #fff; }
-    .composer-box { border: 1px solid var(--line); border-radius: 12px; background: #fff; overflow: hidden; }
-    textarea { width: 100%; min-height: 72px; border: 0; padding: 12px; resize: none; outline: none; }
-    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .composer-footer { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-top: 1px solid var(--line); }
-    .preview { height: calc(100vh - 215px); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #fff; display: grid; grid-template-rows: 34px 1fr; }
-    .preview-body { display: grid; place-items: center; text-align: center; padding: 24px; }
-    details { border-top: 1px solid var(--line); padding: 10px 12px; }
+    .list button, .file-row { width: 100%; display: flex; align-items: center; gap: 8px; padding: 7px 8px; text-align: left; border-radius: 10px; font-size: 13px; }
+    .file-row.active { background: #edf8fa; color: #086777; }
+    .preview { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 18px; text-align: center; }
+    details { padding: 10px 12px; border-bottom: 1px solid var(--border); }
     summary { color: var(--muted); font-size: 13px; }
-    .receipt { margin-top: 8px; white-space: pre-wrap; background: #101826; color: #e9eef6; border-radius: 8px; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    .receipt { margin-top: 8px; white-space: pre-wrap; background: #111827; color: #e9eef6; border-radius: 12px; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
   </style>
 </head>
 <body>
@@ -142,7 +143,11 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
       <img class="banner" src="branding/opl-banner.png" alt="One Person Lab" />
     </header>
     <section class="shell">
-      <aside data-testid="opl-workspace-rail" class="rail" aria-label="Project files">
+      <aside id="drawer" data-testid="opl-workspace-rail" class="drawer" aria-label="Project files">
+        <div class="drawer-head">
+          <strong>Workspace</strong>
+          <button type="button" onclick="toggleDrawer(false)">Close</button>
+        </div>
         <div class="section">
           <h3>Project</h3>
           <div data-testid="opl-session-list" class="list">
@@ -159,56 +164,11 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
             <div class="file-row">receipts/dry-run.json</div>
           </div>
         </div>
-      </aside>
-      <section class="chat" aria-label="Conversation">
-        <div class="tabs">
-          <button class="tab active">Chat 1</button>
-          <button class="tab">+</button>
-          <button data-testid="opl-starter-forms" class="tab">Workflows</button>
-          <button data-testid="opl-export-action" class="tab">Export</button>
-          <span class="muted" style="margin-left:auto;font-size:12px">OPL App state/action refs only</span>
-        </div>
-        <div class="conversation">
-          <article class="message user">Build an owner-review packet from current OPL App refs.</article>
-          <article data-testid="opl-conversation-event" class="message">
-            <h2>Ready to work from the current OPL context.</h2>
-            <p>I can draft results, prepare delivery notes, and request confirmation through dry-run actions. Files and previews stay in the side panels instead of occupying the main chat.</p>
-            <div class="tool-line">✓ App fast state loaded as refs</div>
-            <div class="tool-line">✓ Artifact body authority remains outside this candidate</div>
-            <div data-testid="opl-confirmation-card" class="inline-confirmation">
-              <strong>Confirmation needed before execute</strong>
-              <p>Dry-run can prepare the export receipt; real execution stays behind App action confirmation.</p>
-              <button onclick="dryRun('confirmation.dry_run')">Dry-run confirmation</button>
-            </div>
-          </article>
-        </div>
-        <form class="composer">
-          <div class="composer-box">
-            <textarea aria-label="Prompt" placeholder="Ask OPL to produce a result or delivery artifact"></textarea>
-            <div class="composer-footer">
-              <div class="row">
-                <button type="button">+</button>
-                <button data-testid="opl-model-access-entry" type="button">OPL model</button>
-                <button data-testid="opl-delivery-mode" type="button">research</button>
-                <button data-testid="opl-locale-toggle" type="button">中 / EN</button>
-                <button data-testid="opl-skip-to-chat" type="button">Skip</button>
-              </div>
-              <button type="button" class="primary" onclick="dryRun('candidate.chat.submit')">Send</button>
-            </div>
-          </div>
-        </form>
-      </section>
-      <aside class="outputs" aria-label="Files and outputs">
         <div class="section">
           <h3>Preview</h3>
           <section data-testid="opl-artifact-preview-tabs" class="preview">
-            <div class="tabs"><button class="tab active">Markdown</button><button class="tab">PDF</button><button class="tab">Code</button></div>
-            <div class="preview-body">
-              <div>
-                <p><strong>report.md</strong></p>
-                <p>Rendered output and delivery artifacts appear here when selected.</p>
-              </div>
-            </div>
+            <p><strong>report.md</strong></p>
+            <p>Rendered output and delivery artifacts appear here when selected.</p>
           </section>
         </div>
         <details data-testid="opl-provenance-drawer" open>
@@ -231,9 +191,56 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
           <div data-testid="opl-web-transport" class="muted">window.oplNativeWorkbench / SSE /api/opl-events</div>
         </details>
       </aside>
+      <section class="chat" aria-label="Conversation">
+        <div class="tabs">
+          <div class="tabs-inner">
+            <button class="tab" type="button" onclick="toggleDrawer()">Workspace</button>
+            <button class="tab active">Chat</button>
+            <button data-testid="opl-starter-forms" class="tab">Workflows</button>
+            <button data-testid="opl-export-action" class="tab">Export</button>
+            <span class="top-spacer"></span>
+            <span class="muted" style="font-size:12px">auto-first</span>
+          </div>
+        </div>
+        <div class="conversation">
+          <div class="conversation-inner">
+            <article class="message user">Build an owner-review packet from current OPL App refs.</article>
+            <article data-testid="opl-conversation-event" class="message">
+              <h2>Ready to work from the current OPL context.</h2>
+              <p>I will keep the main flow in chat. Files, previews, provenance, and delivery controls stay in the workspace drawer until they are needed.</p>
+              <div class="status-line">App fast state loaded as refs</div>
+              <div class="status-line">Artifact body authority remains outside this candidate</div>
+              <div data-testid="opl-confirmation-card" class="inline-confirmation">
+                <strong>Confirmation needed before execute</strong>
+                <p>Dry-run can prepare the export receipt; real execution stays behind App action confirmation.</p>
+                <button onclick="dryRun('confirmation.dry_run')">Dry-run confirmation</button>
+              </div>
+            </article>
+          </div>
+        </div>
+        <form class="composer">
+          <div class="composer-box">
+            <textarea aria-label="Prompt" placeholder="Ask OPL to produce a result or delivery artifact"></textarea>
+            <div class="composer-footer">
+              <div class="row">
+                <button type="button">+</button>
+                <button data-testid="opl-model-access-entry" type="button">OPL model</button>
+                <button data-testid="opl-delivery-mode" type="button">research</button>
+                <button data-testid="opl-locale-toggle" type="button">中 / EN</button>
+                <button data-testid="opl-skip-to-chat" type="button">Skip</button>
+              </div>
+              <button type="button" class="primary" onclick="dryRun('candidate.chat.submit')">Send</button>
+            </div>
+          </div>
+        </form>
+      </section>
     </section>
   </main>
   <script>
+    function toggleDrawer(force) {
+      const drawer = document.getElementById("drawer");
+      drawer.classList.toggle("open", typeof force === "boolean" ? force : undefined);
+    }
     function dryRun(actionId) {
       document.getElementById("receipt").textContent = JSON.stringify({
         actionId,
@@ -282,6 +289,23 @@ const manifest = {
   app_bundle_manifest: "Contents/Resources/package-manifest.json",
   native_runtime: "AppKit/WKWebView",
   opens_default_browser: false,
+  external_layout_reference: {
+    repo: "https://github.com/K-Dense-AI/k-dense-byok",
+    inspected_commit: "dccc7ec4d034a00d7662eaabb3f5916bc3d00602",
+    source_paths: [
+      "web/src/app/page.tsx",
+      "web/src/components/chat-tab.tsx",
+      "web/src/components/chat-tabs-bar.tsx",
+      "web/src/components/file-preview-panel.tsx"
+    ],
+    adapted_patterns: [
+      "header plus project switcher/status controls",
+      "left project file rail",
+      "chat tab strip and bottom composer as primary interaction",
+      "file preview and provenance kept in side panels",
+      "workflow/export/interview surfaces are secondary, not dashboard cards"
+    ]
+  },
   brand_owner: "one-person-lab-app",
   brand_assets: {
     icon_icns: {

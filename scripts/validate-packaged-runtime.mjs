@@ -28,15 +28,17 @@ for (const marker of [
   'data-testid="opl-confirmation-card"',
   'data-testid="opl-renderer-module-registry"',
   "chat-first workbench",
-  "Files and previews stay in the side panels",
+  "workspace drawer until they are needed",
   "branding/opl-app-logo.png",
   "branding/opl-banner.png"
 ]) {
   assert(workbench.includes(marker), `missing packaged workbench marker ${marker}`);
 }
-for (const marker of ["delivery-grid", "starter-grid", "delivery-card"]) {
+for (const marker of ["delivery-grid", "starter-grid", "delivery-card", 'class="outputs"', 'class="rail"']) {
   assert(!workbench.includes(marker), `packaged workbench must not put ${marker} on the main surface`);
 }
+assert(workbench.includes('class="drawer"'), "workspace surface must default to a closed drawer");
+assert(workbench.includes("toggleDrawer"), "packaged workbench must expose drawer toggle");
 
 for (const asset of [
   "app.icns",
@@ -51,6 +53,8 @@ const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 assert(manifest.native_runtime === "AppKit/WKWebView", "native runtime must be AppKit/WKWebView");
 assert(manifest.opens_default_browser === false, "candidate app must not open the default browser");
 assert(manifest.app_bundle_workbench === "Contents/Resources/workbench.html", "manifest must point at workbench.html");
+assert(manifest.external_layout_reference?.repo === "https://github.com/K-Dense-AI/k-dense-byok", "manifest must record the K-Dense layout reference");
+assert(manifest.external_layout_reference?.adapted_patterns?.includes("chat tab strip and bottom composer as primary interaction"), "manifest must record the chat-first K-Dense adaptation");
 assert(manifest.release_ready === false, "candidate package must not claim release readiness");
 assert(manifest.live_evidence === false, "candidate package must not claim live evidence");
 
