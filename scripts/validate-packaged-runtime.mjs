@@ -54,7 +54,9 @@ assert(manifest.native_runtime === "AppKit/WKWebView", "native runtime must be A
 assert(manifest.opens_default_browser === false, "candidate app must not open the default browser");
 assert(manifest.app_bundle_workbench === "Contents/Resources/workbench.html", "manifest must point at workbench.html");
 assert(manifest.external_layout_reference?.repo === "https://github.com/K-Dense-AI/k-dense-byok", "manifest must record the K-Dense layout reference");
+assert(manifest.external_layout_reference?.companion_repo === "https://github.com/ai4s-research/open-science", "manifest must record the Open Science visual reference");
 assert(manifest.external_layout_reference?.adapted_patterns?.includes("chat tab strip and bottom composer as primary interaction"), "manifest must record the chat-first K-Dense adaptation");
+assert(manifest.external_layout_reference?.adapted_patterns?.includes("Open Science paper-light surface, thin borders, compact message blocks, and rounded composer"), "manifest must record the Open Science visual adaptation");
 assert(manifest.release_ready === false, "candidate package must not claim release readiness");
 assert(manifest.live_evidence === false, "candidate package must not claim live evidence");
 

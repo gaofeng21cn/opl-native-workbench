@@ -292,18 +292,27 @@ const manifest = {
   external_layout_reference: {
     repo: "https://github.com/K-Dense-AI/k-dense-byok",
     inspected_commit: "dccc7ec4d034a00d7662eaabb3f5916bc3d00602",
+    companion_repo: "https://github.com/ai4s-research/open-science",
+    companion_inspected_commit: "ac80a9c833b792190109c2b375a24b8e5130cd1f",
     source_paths: [
       "web/src/app/page.tsx",
       "web/src/components/chat-tab.tsx",
       "web/src/components/chat-tabs-bar.tsx",
-      "web/src/components/file-preview-panel.tsx"
+      "web/src/components/file-preview-panel.tsx",
+      "apps/desktop/src/app/layout/AppShell.tsx",
+      "apps/desktop/src/app/routes/LiveSessionPage.tsx",
+      "apps/desktop/src/components/thread/Composer.tsx",
+      "apps/desktop/src/components/thread/ThreadView.tsx",
+      "apps/desktop/src/components/sidebar/Sidebar.tsx",
+      "apps/desktop/src/index.css"
     ],
     adapted_patterns: [
       "header plus project switcher/status controls",
-      "left project file rail",
+      "workspace files default to a collapsible drawer",
       "chat tab strip and bottom composer as primary interaction",
-      "file preview and provenance kept in side panels",
-      "workflow/export/interview surfaces are secondary, not dashboard cards"
+      "artifact preview and provenance stay on-demand",
+      "workflow/export/interview surfaces are secondary, not dashboard cards",
+      "Open Science paper-light surface, thin borders, compact message blocks, and rounded composer"
     ]
   },
   brand_owner: "one-person-lab-app",
