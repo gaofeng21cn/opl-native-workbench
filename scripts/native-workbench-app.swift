@@ -11,26 +11,35 @@ struct CommandResult {
 final class PendingRequest {
   let semaphore = DispatchSemaphore(value: 0)
   var response: [String: Any]?
+  var error: String?
 }
 
 final class PendingTurn {
   let semaphore = DispatchSemaphore(value: 0)
   var text = ""
+  var completedText: String?
   var events: [[String: Any]] = []
   var completed: [String: Any]?
+  var error: String?
 }
 
 final class CodexAppServerClient {
+  private static let requestTimeout: TimeInterval = 45
+  private static let turnTimeout: TimeInterval = 180
+  private static let stderrLimit = 8000
   private let workspaceRoot: URL
   private var process: Process?
   private var stdinHandle: FileHandle?
   private var stdoutBuffer = Data()
+  private var stderrTail = ""
+  private var processExitDescription: String?
   private var nextRequestId = 1
   private var pendingRequests: [Int: PendingRequest] = [:]
   private var pendingTurns: [String: PendingTurn] = [:]
   private var threadId: String?
   private var initialized = false
   private let lock = NSLock()
+  private let turnLock = NSLock()
   var onEvent: (([String: Any]) -> Void)?
 
   init(workspaceRoot: URL) {
@@ -38,6 +47,9 @@ final class CodexAppServerClient {
   }
 
   func send(prompt: String, requestedThreadId: String?) throws -> [String: Any] {
+    turnLock.lock()
+    defer { turnLock.unlock() }
+
     try ensureInitialized()
     if let requestedThreadId, !requestedThreadId.isEmpty, requestedThreadId != threadId {
       try resumeThread(requestedThreadId)
@@ -49,10 +61,10 @@ final class CodexAppServerClient {
         "threadId": thread,
         "input": [["type": "text", "text": prompt, "text_elements": []]],
         "cwd": workspaceRoot.path,
-        "runtimeWorkspaceRoots": [workspaceRoot.path],
-        "approvalPolicy": "never"
+        "approvalPolicy": "never",
+        "sandboxPolicy": ["type": "readOnly", "networkAccess": false]
       ],
-      timeout: 45
+      timeout: Self.requestTimeout
     )
     guard
       let result = turnResponse["result"] as? [String: Any],
@@ -62,24 +74,39 @@ final class CodexAppServerClient {
       throw BridgeError.invalidPayload("app-server turn/start returned no turn id")
     }
 
-    let pendingTurn = PendingTurn()
     lock.lock()
+    let pendingTurn = turnBucketLocked(turnId)
     pendingTurns[turnId] = pendingTurn
     lock.unlock()
 
-    if pendingTurn.semaphore.wait(timeout: .now() + 180) == .timedOut {
+    if pendingTurn.semaphore.wait(timeout: .now() + Self.turnTimeout) == .timedOut {
       lock.lock()
+      let eventCount = pendingTurn.events.count
       pendingTurns.removeValue(forKey: turnId)
+      let diagnostics = diagnosticSuffixLocked()
       lock.unlock()
-      throw BridgeError.invalidPayload("app-server turn timed out")
+      throw BridgeError.invalidPayload("app-server turn timed out after \(Int(Self.turnTimeout))s: threadId=\(thread), turnId=\(turnId), events=\(eventCount)\(diagnostics)")
     }
 
     lock.lock()
     pendingTurns.removeValue(forKey: turnId)
-    let finalText = pendingTurn.text
+    let finalText = pendingTurn.completedText ?? pendingTurn.text
     let events = pendingTurn.events
     let completed = pendingTurn.completed ?? [:]
+    let turnError = pendingTurn.error
+    let diagnostics = diagnosticSuffixLocked()
     lock.unlock()
+
+    if let turnError {
+      throw BridgeError.invalidPayload("app-server turn error: threadId=\(thread), turnId=\(turnId), error=\(turnError)\(diagnostics)")
+    }
+    if
+      let completedTurn = completed["turn"] as? [String: Any],
+      let status = completedTurn["status"] as? String,
+      status != "completed"
+    {
+      throw BridgeError.invalidPayload("app-server turn \(status): threadId=\(thread), turnId=\(turnId), error=\(describeValue(completedTurn["error"]))\(diagnostics)")
+    }
 
     return [
       "executor": "codex_app_server",
@@ -94,7 +121,8 @@ final class CodexAppServerClient {
   }
 
   private func ensureInitialized() throws {
-    if initialized { return }
+    if initialized, process?.isRunning == true { return }
+    initialized = false
     try startProcess()
     _ = try request(
       method: "initialize",
@@ -111,7 +139,7 @@ final class CodexAppServerClient {
       ],
       timeout: 30
     )
-    send(notification: ["method": "initialized"])
+    try send(frame: ["method": "initialized"])
     initialized = true
   }
 
@@ -121,13 +149,12 @@ final class CodexAppServerClient {
       method: "thread/start",
       params: [
         "cwd": workspaceRoot.path,
-        "runtimeWorkspaceRoots": [workspaceRoot.path],
         "sandbox": "read-only",
         "approvalPolicy": "never",
         "threadSource": "opl-native-workbench",
         "ephemeral": false
       ],
-      timeout: 45
+      timeout: Self.requestTimeout
     )
     guard
       let result = response["result"] as? [String: Any],
@@ -146,12 +173,10 @@ final class CodexAppServerClient {
       params: [
         "threadId": id,
         "cwd": workspaceRoot.path,
-        "runtimeWorkspaceRoots": [workspaceRoot.path],
         "sandbox": "read-only",
-        "approvalPolicy": "never",
-        "excludeTurns": true
+        "approvalPolicy": "never"
       ],
-      timeout: 45
+      timeout: Self.requestTimeout
     )
     guard
       let result = response["result"] as? [String: Any],
@@ -177,17 +202,29 @@ final class CodexAppServerClient {
     process.standardOutput = stdoutPipe
     process.standardError = stderrPipe
     process.standardInput = stdinPipe
+    process.terminationHandler = { [weak self] terminated in
+      self?.handleProcessExit(terminated)
+    }
 
     stdoutPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
       self?.consumeStdout(handle.availableData)
     }
-    stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-      _ = handle.availableData
+    stderrPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+      self?.consumeStderr(handle.availableData)
     }
 
-    try process.run()
     self.process = process
     self.stdinHandle = stdinPipe.fileHandleForWriting
+    stdoutBuffer.removeAll()
+    stderrTail = ""
+    processExitDescription = nil
+    do {
+      try process.run()
+    } catch {
+      self.process = nil
+      self.stdinHandle = nil
+      throw error
+    }
   }
 
   private func request(method: String, params: [String: Any], timeout: TimeInterval) throws -> [String: Any] {
@@ -198,30 +235,49 @@ final class CodexAppServerClient {
     pendingRequests[id] = pending
     lock.unlock()
 
-    send(notification: ["method": method, "id": id, "params": params])
-    if pending.semaphore.wait(timeout: .now() + timeout) == .timedOut {
+    do {
+      try send(frame: ["method": method, "id": id, "params": params])
+    } catch {
       lock.lock()
       pendingRequests.removeValue(forKey: id)
       lock.unlock()
-      throw BridgeError.invalidPayload("app-server request timed out: \(method)")
+      throw error
+    }
+    if pending.semaphore.wait(timeout: .now() + timeout) == .timedOut {
+      lock.lock()
+      pendingRequests.removeValue(forKey: id)
+      let diagnostics = diagnosticSuffixLocked()
+      lock.unlock()
+      throw BridgeError.invalidPayload("app-server request timed out after \(Int(timeout))s: method=\(method), id=\(id)\(diagnostics)")
+    }
+    if let error = pending.error {
+      throw BridgeError.invalidPayload("app-server request failed: method=\(method), id=\(id), error=\(error)")
     }
     guard let response = pending.response else {
       throw BridgeError.invalidPayload("app-server request returned no response: \(method)")
     }
     if let error = response["error"] {
-      throw BridgeError.invalidPayload("app-server \(method) error: \(error)")
+      throw BridgeError.invalidPayload("app-server \(method) error: \(describeValue(error))")
     }
     return response
   }
 
-  private func send(notification: [String: Any]) {
+  private func send(frame: [String: Any]) throws {
     guard
-      JSONSerialization.isValidJSONObject(notification),
-      let data = try? JSONSerialization.data(withJSONObject: notification, options: []),
+      JSONSerialization.isValidJSONObject(frame),
+      let data = try? JSONSerialization.data(withJSONObject: frame, options: []),
       var line = String(data: data, encoding: .utf8)
-    else { return }
+    else {
+      throw BridgeError.invalidPayload("app-server frame is not valid JSON: \(describeValue(frame))")
+    }
+    guard let stdinHandle else {
+      lock.lock()
+      let diagnostics = diagnosticSuffixLocked()
+      lock.unlock()
+      throw BridgeError.invalidPayload("app-server stdin is not available\(diagnostics)")
+    }
     line.append("\n")
-    stdinHandle?.write(Data(line.utf8))
+    stdinHandle.write(Data(line.utf8))
   }
 
   private func consumeStdout(_ data: Data) {
@@ -237,6 +293,62 @@ final class CodexAppServerClient {
     lock.unlock()
   }
 
+  private func consumeStderr(_ data: Data) {
+    guard !data.isEmpty, let chunk = String(data: data, encoding: .utf8), !chunk.isEmpty else { return }
+    lock.lock()
+    stderrTail.append(chunk)
+    if stderrTail.count > Self.stderrLimit {
+      stderrTail = String(stderrTail.suffix(Self.stderrLimit))
+    }
+    lock.unlock()
+  }
+
+  private func handleProcessExit(_ terminated: Process) {
+    lock.lock()
+    if process === terminated {
+      process = nil
+      stdinHandle = nil
+      initialized = false
+      threadId = nil
+    }
+    let reason = "app-server process exited with code \(terminated.terminationStatus)"
+    processExitDescription = reason
+    failPendingLocked(reason)
+    lock.unlock()
+  }
+
+  private func failPendingLocked(_ error: String) {
+    for pending in pendingRequests.values {
+      pending.error = "\(error)\(diagnosticSuffixLocked())"
+      pending.semaphore.signal()
+    }
+    pendingRequests.removeAll()
+    for pendingTurn in pendingTurns.values {
+      pendingTurn.error = "\(error)\(diagnosticSuffixLocked())"
+      pendingTurn.semaphore.signal()
+    }
+    pendingTurns.removeAll()
+  }
+
+  private func turnBucketLocked(_ turnId: String) -> PendingTurn {
+    if let existing = pendingTurns[turnId] { return existing }
+    let pendingTurn = PendingTurn()
+    pendingTurns[turnId] = pendingTurn
+    return pendingTurn
+  }
+
+  private func diagnosticSuffixLocked() -> String {
+    var parts: [String] = []
+    if let processExitDescription {
+      parts.append("process=\(processExitDescription)")
+    }
+    let stderr = stderrTail.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !stderr.isEmpty {
+      parts.append("stderr=\(stderr)")
+    }
+    return parts.isEmpty ? "" : "; " + parts.joined(separator: "; ")
+  }
+
   private func handleMessageData(_ data: Data) {
     guard
       let message = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]
@@ -249,22 +361,45 @@ final class CodexAppServerClient {
     }
 
     if let method = message["method"] as? String {
-      if method == "item/agentMessage/delta",
-         let params = message["params"] as? [String: Any],
-         let turnId = params["turnId"] as? String,
-         let delta = params["delta"] as? String,
-         let pendingTurn = pendingTurns[turnId] {
-        pendingTurn.text.append(delta)
-        pendingTurn.events.append(message)
-      }
-      if method == "turn/completed",
-         let params = message["params"] as? [String: Any],
-         let turn = params["turn"] as? [String: Any],
-         let turnId = turn["id"] as? String,
-         let pendingTurn = pendingTurns[turnId] {
-        pendingTurn.completed = params
-        pendingTurn.events.append(message)
-        pendingTurn.semaphore.signal()
+      if let params = message["params"] as? [String: Any] {
+        if method == "turn/started",
+           let turn = params["turn"] as? [String: Any],
+           let turnId = turn["id"] as? String {
+          turnBucketLocked(turnId).events.append(message)
+        }
+        if method == "item/agentMessage/delta",
+           let turnId = params["turnId"] as? String,
+           let delta = params["delta"] as? String {
+          let pendingTurn = turnBucketLocked(turnId)
+          pendingTurn.text.append(delta)
+          pendingTurn.events.append(message)
+        }
+        if method == "item/completed",
+           let turnId = params["turnId"] as? String,
+           let item = params["item"] as? [String: Any] {
+          let pendingTurn = turnBucketLocked(turnId)
+          if item["type"] as? String == "agentMessage", let text = item["text"] as? String {
+            pendingTurn.completedText = text
+          }
+          pendingTurn.events.append(message)
+        }
+        if method == "error",
+           let turnId = params["turnId"] as? String {
+          let pendingTurn = turnBucketLocked(turnId)
+          pendingTurn.error = describeValue(params["error"])
+          pendingTurn.events.append(message)
+          if (params["willRetry"] as? Bool) != true {
+            pendingTurn.semaphore.signal()
+          }
+        }
+        if method == "turn/completed",
+           let turn = params["turn"] as? [String: Any],
+           let turnId = turn["id"] as? String {
+          let pendingTurn = turnBucketLocked(turnId)
+          pendingTurn.completed = params
+          pendingTurn.events.append(message)
+          pendingTurn.semaphore.signal()
+        }
       }
       DispatchQueue.main.async {
         self.onEvent?(message)
@@ -398,6 +533,17 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
 
 enum BridgeError: Error {
   case invalidPayload(String)
+}
+
+func describeValue(_ value: Any?) -> String {
+  guard let value else { return "null" }
+  if JSONSerialization.isValidJSONObject(value),
+     let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
+     let string = String(data: data, encoding: .utf8) {
+    return string
+  }
+  if let string = value as? String { return string }
+  return String(describing: value)
 }
 
 func jsonString(_ value: Any) -> String {

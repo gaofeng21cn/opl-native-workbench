@@ -23,7 +23,13 @@ export const CODEX_APP_SERVER = {
   threadStart: "thread/start",
   turnStart: "turn/start",
   resume: "thread/resume",
-  streamEvent: "item/agentMessage/delta"
+  streamEvent: "item/agentMessage/delta",
+  itemCompleted: "item/completed",
+  turnCompleted: "turn/completed",
+  defaultSandbox: "read-only",
+  approvalPolicy: "never",
+  requestTimeoutSeconds: 45,
+  turnTimeoutSeconds: 180
 } as const;
 
 export type OplBridge = {
@@ -60,7 +66,12 @@ export function createBrowserBridge(): OplBridge {
         command: CODEX_APP_SERVER.transport,
         threadStart: CODEX_APP_SERVER.threadStart,
         turnStart: CODEX_APP_SERVER.turnStart,
+        resume: CODEX_APP_SERVER.resume,
         streamEvent: CODEX_APP_SERVER.streamEvent,
+        itemCompleted: CODEX_APP_SERVER.itemCompleted,
+        turnCompleted: CODEX_APP_SERVER.turnCompleted,
+        defaultSandbox: CODEX_APP_SERVER.defaultSandbox,
+        approvalPolicy: CODEX_APP_SERVER.approvalPolicy,
         prompt: request.prompt,
         executor: "codex_app_server",
         simulated: true

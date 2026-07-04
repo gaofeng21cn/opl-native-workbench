@@ -42,8 +42,27 @@ for (const marker of [
 ]) {
   assert(workbench.includes(marker), `missing packaged workbench marker ${marker}`);
 }
-for (const marker of ["WKScriptMessageHandler", "codex\",", "app-server", "turn/start", "opl\", \"app\", \"state"]) {
+for (const marker of [
+  "WKScriptMessageHandler",
+  "codex\",",
+  "app-server",
+  "thread/start",
+  "thread/resume",
+  "turn/start",
+  "turn/completed",
+  "item/agentMessage/delta",
+  "item/completed",
+  "sandboxPolicy",
+  "\"type\": \"readOnly\"",
+  "approvalPolicy\": \"never\"",
+  "process.terminationHandler",
+  "turn timed out after",
+  "opl\", \"app\", \"state"
+]) {
   assert(nativeSource.includes(marker), `missing native bridge marker ${marker}`);
+}
+for (const marker of ["runtimeWorkspaceRoots", "excludeTurns"]) {
+  assert(!nativeSource.includes(marker), `native bridge must not send unsupported app-server param ${marker}`);
 }
 for (const marker of ["delivery-grid", "starter-grid", "delivery-card", 'class="outputs"', 'class="rail"']) {
   assert(!workbench.includes(marker), `packaged workbench must not put ${marker} on the main surface`);
