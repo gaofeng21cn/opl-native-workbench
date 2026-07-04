@@ -29,6 +29,28 @@ export type ArtifactPreview = {
   summary: string;
 };
 
+export type WorkbenchSourceRef = {
+  id: string;
+  label: string;
+  ref: string;
+  summary: string;
+};
+
+export type WorkbenchActionRef = {
+  id: string;
+  label: string;
+  route: string;
+  payloadFields: string[];
+  mutates: string;
+  dryRunSupported: boolean;
+};
+
+export type WorkbenchTraceRef = {
+  id: string;
+  label: string;
+  value: string;
+};
+
 export type WorkbenchStarterField = {
   name: string;
   label: string;
@@ -88,6 +110,10 @@ export type WorkbenchModel = {
   confirmations: ConfirmationCard[];
   questions: InterviewQuestion[];
   activeProjectLines: ActiveProjectLine[];
+  contextSources: WorkbenchSourceRef[];
+  contextActions: WorkbenchActionRef[];
+  contextTrace: WorkbenchTraceRef[];
+  stateGeneratedAt?: string;
 };
 
 export const initialWorkbenchModel: WorkbenchModel = {
@@ -330,5 +356,143 @@ export const initialWorkbenchModel: WorkbenchModel = {
       platformRepairDelta: "native workbench non-live delivery surface",
       nextForcedDelta: "owner adoption gate"
     }
+  ],
+  contextSources: [
+    {
+      id: "fallback-fast-state",
+      label: "Fast state",
+      ref: "opl app state --profile fast --json",
+      summary: "Default GUI state read surface."
+    },
+    {
+      id: "fallback-action",
+      label: "Action bridge",
+      ref: "opl app action execute --action <action_id> --dry-run --json",
+      summary: "Preview receipts before execution."
+    }
+  ],
+  contextActions: [
+    {
+      id: "candidate.inspect",
+      label: "Preview context inspect",
+      route: "opl app action execute --action candidate.inspect --dry-run --json",
+      payloadFields: [],
+      mutates: "none_read_only",
+      dryRunSupported: true
+    }
+  ],
+  contextTrace: [
+    { id: "fallback-owner", label: "Owner", value: "one-person-lab-app GUI refs" },
+    { id: "fallback-boundary", label: "Boundary", value: "refs-only, no domain artifact body ownership" }
   ]
 };
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(asString).filter((item): item is string => Boolean(item)) : [];
+}
+
+function uniqueByRef<T extends { ref?: string; route?: string; id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = item.ref ?? item.route ?? item.id;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function sourceRef(id: string, label: string, ref: unknown, summary: string): WorkbenchSourceRef | null {
+  const value = asString(ref);
+  return value ? { id, label, ref: value, summary } : null;
+}
+
+function pickAppState(state: unknown): Record<string, unknown> | null {
+  const root = asRecord(state);
+  return asRecord(root?.app_state) ?? root;
+}
+
+export function deriveWorkbenchModelFromState(state: unknown, fallback: WorkbenchModel = initialWorkbenchModel): WorkbenchModel {
+  const appState = pickAppState(state);
+  if (!appState) return fallback;
+
+  const runtimeSource = asRecord(appState.runtime_source);
+  const operator = asRecord(appState.operator);
+  const modules = asRecord(appState.modules);
+  const moduleItems = Array.isArray(modules?.items) ? modules.items.map(asRecord).filter(Boolean) : [];
+  const actions = Array.isArray(appState.actions) ? appState.actions.map(asRecord).filter(Boolean) : [];
+  const meta = asRecord(appState.meta);
+
+  const runtimeSources = [
+    sourceRef("state-fast", "Fast state", runtimeSource?.normal_gui_state_surface, "Normal GUI state read."),
+    sourceRef("state-full", "Full state", runtimeSource?.full_gui_state_surface, "Explicit detailed state read."),
+    sourceRef("action-boundary", "Action boundary", runtimeSource?.action_boundary_surface, "App action execution surface."),
+    sourceRef("full-drilldown", "Full drilldown", runtimeSource?.full_drilldown_exception_surface, "Runtime drilldown exception.")
+  ].filter((item): item is WorkbenchSourceRef => Boolean(item));
+
+  const operatorSources = Array.isArray(operator?.refs)
+    ? operator.refs.map((item, index) => {
+        const ref = asRecord(item);
+        return sourceRef(`operator-ref-${index}`, asString(ref?.label) ?? "Operator ref", ref?.ref, asString(ref?.node_kind) ?? "OPL operator ref.");
+      }).filter((item): item is WorkbenchSourceRef => Boolean(item))
+    : [];
+
+  const moduleSources = moduleItems.slice(0, 5).map((item, index) => sourceRef(
+    `module-${asString(item?.module_id) ?? index}`,
+    asString(item?.label) ?? asString(item?.module_id) ?? "Module",
+    asString(item?.checkout_path) ?? asString(item?.repo_url),
+    asString(item?.health_status) ? `Module health: ${item?.health_status}` : "Managed OPL module ref."
+  )).filter((item): item is WorkbenchSourceRef => Boolean(item));
+
+  const contextSources = uniqueByRef([...runtimeSources, ...operatorSources, ...moduleSources]);
+
+  const contextActions = actions.map((item): WorkbenchActionRef | null => {
+    const id = asString(item?.action_id);
+    if (!id) return null;
+    return {
+      id,
+      label: asString(item?.label) ?? id,
+      route: asString(item?.route) ?? `opl app action execute --action ${id}`,
+      payloadFields: asStringArray(item?.payload_fields),
+      mutates: asString(item?.mutates) ?? "unknown",
+      dryRunSupported: item?.dry_run_supported === true || asString(item?.dry_run_supported) === "true"
+    };
+  }).filter((item): item is WorkbenchActionRef => Boolean(item));
+
+  const previewActions = contextActions.filter((action) => action.dryRunSupported).slice(0, 5);
+  const artifactPreviews = previewActions.length ? previewActions.map((action): ArtifactPreview => ({
+    id: `preview-${action.id}`,
+    label: action.label,
+    rendererModuleId: "json",
+    title: action.label,
+    ref: action.route,
+    summary: `Dry-run supported; mutates: ${action.mutates}.`
+  })) : fallback.artifactPreviews;
+
+  const contextTrace = [
+    { id: "profile", label: "Profile", value: asString(meta?.profile) ?? "" },
+    { id: "generated", label: "Generated", value: asString(meta?.generated_at) ?? "" },
+    { id: "owner", label: "Owner", value: asString(runtimeSource?.owner) ?? "" },
+    { id: "app-owner", label: "App truth owner", value: asString(runtimeSource?.app_repo_truth_owner) ?? "" },
+    { id: "provider", label: "Provider status", value: asString(asRecord(operator?.summary)?.provider_status) ?? "" },
+    { id: "runtime", label: "Runtime status", value: asString(asRecord(operator?.summary)?.runtime_status) ?? "" }
+  ].filter((item) => item.value);
+
+  return {
+    ...fallback,
+    artifactPreviews,
+    contextSources: contextSources.length ? contextSources : fallback.contextSources,
+    contextActions: contextActions.length ? contextActions : fallback.contextActions,
+    contextTrace: contextTrace.length ? contextTrace : fallback.contextTrace,
+    stateGeneratedAt: asString(meta?.generated_at) ?? fallback.stateGeneratedAt
+  };
+}

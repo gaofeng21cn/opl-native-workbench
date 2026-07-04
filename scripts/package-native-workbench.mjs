@@ -277,7 +277,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
         </div>
         <section data-testid="opl-files-panel" class="panel">
           <h3>Sources</h3>
-          <div class="list">
+          <div id="contextSources" class="list">
             <div class="file-row active">report.md</div>
             <div class="file-row">figures/overview.png</div>
             <div class="file-row">receipts/action-preview.json</div>
@@ -285,7 +285,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
         </section>
         <section class="panel">
           <h3>Output preview</h3>
-          <section data-testid="opl-artifact-preview-tabs" class="preview artifact-preview-tabs">
+          <section id="previewPanel" data-testid="opl-artifact-preview-tabs" class="preview artifact-preview-tabs">
             <div data-testid="opl-artifact-preview-panel" class="artifact-preview" data-preview-kind="streamdown">
               <p><strong>report.md</strong></p>
               <p>Selected result or export previews appear here.</p>
@@ -294,6 +294,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
         </section>
         <section data-testid="opl-starter-forms" class="panel starter-forms">
           <h3>Workflow starters</h3>
+          <div id="contextActions" class="list"></div>
           <button data-testid="opl-workbench-delivery-mode" class="purpose-row active delivery-workbench" type="button">
             <span data-testid="opl-delivery-mode">Research</span>
           </button>
@@ -306,6 +307,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
         <details data-testid="opl-provenance-drawer" open>
           <summary>Trace</summary>
           <p data-testid="opl-provenance-ref">Source refs, receipt refs, replay refs, and export refs without artifact bodies.</p>
+          <div id="contextTrace" class="list"></div>
           <div data-testid="opl-confirmation-card" class="inline-card">
             <strong>Review before execution</strong>
             <p>Preview the action receipt first; execution stays behind App action confirmation.</p>
@@ -426,9 +428,90 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
         receipt.textContent = JSON.stringify(error, null, 2);
       }
     }
-    window.oplNativeWorkbench.readState("fast").then(() => {
+    function objectValue(value) {
+      return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    }
+    function stringValue(value) {
+      return typeof value === "string" && value.trim() ? value : "";
+    }
+    function setRows(id, rows) {
+      const root = document.getElementById(id);
+      if (!root || !rows.length) return;
+      root.replaceChildren(...rows);
+    }
+    function row(label, value, active = false) {
+      const node = document.createElement("div");
+      node.className = "file-row" + (active ? " active" : "");
+      const strong = document.createElement("strong");
+      strong.textContent = label;
+      const small = document.createElement("small");
+      small.textContent = value;
+      node.append(strong, small);
+      return node;
+    }
+    function renderContextState(payload) {
+      const state = objectValue(objectValue(payload).app_state || payload);
+      const runtime = objectValue(state.runtime_source);
+      const operator = objectValue(state.operator);
+      const modules = objectValue(state.modules);
+      const sources = [
+        ["Fast state", runtime.normal_gui_state_surface],
+        ["Full state", runtime.full_gui_state_surface],
+        ["Action", runtime.action_boundary_surface],
+        ["Drilldown", runtime.full_drilldown_exception_surface],
+        ...((Array.isArray(operator.refs) ? operator.refs : []).map((item) => {
+          const ref = objectValue(item);
+          return [stringValue(ref.label) || "Operator ref", ref.ref];
+        })),
+        ...((Array.isArray(modules.items) ? modules.items : []).slice(0, 5).map((item) => {
+          const module = objectValue(item);
+          return [stringValue(module.label) || stringValue(module.module_id) || "Module", module.checkout_path || module.repo_url];
+        }))
+      ].filter((item) => stringValue(item[1]));
+      setRows("contextSources", sources.map((item, index) => row(item[0], item[1], index === 0)));
+
+      const actions = (Array.isArray(state.actions) ? state.actions : [])
+        .map(objectValue)
+        .filter((action) => action.dry_run_supported && action.action_id);
+      setRows("contextActions", actions.slice(0, 8).map((action) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "purpose-row";
+        button.textContent = stringValue(action.label) || action.action_id;
+        button.onclick = () => dryRun(action.action_id);
+        return button;
+      }));
+      const previewPanel = document.getElementById("previewPanel");
+      if (previewPanel && actions.length) {
+        previewPanel.replaceChildren(...actions.slice(0, 4).map((action) => {
+          const panel = document.createElement("div");
+          panel.dataset.testid = "opl-artifact-preview-panel";
+          panel.className = "artifact-preview";
+          panel.dataset.previewKind = "json";
+          const title = document.createElement("p");
+          title.innerHTML = "<strong></strong>";
+          title.firstElementChild.textContent = stringValue(action.label) || action.action_id;
+          const route = document.createElement("p");
+          route.textContent = stringValue(action.route) || "opl app action execute --action " + action.action_id;
+          panel.append(title, route);
+          return panel;
+        }));
+      }
+
+      setRows("contextTrace", [
+        ["Profile", objectValue(state.meta).profile],
+        ["Generated", objectValue(state.meta).generated_at],
+        ["Owner", runtime.owner],
+        ["App owner", runtime.app_repo_truth_owner],
+        ["Runtime", objectValue(operator.summary).runtime_status],
+        ["Provider", objectValue(operator.summary).provider_status]
+      ].filter((item) => stringValue(item[1])).map((item) => row(item[0], item[1])));
+    }
+    window.oplNativeWorkbench.readState("fast").then((state) => {
+      renderContextState(state);
       document.getElementById("codexStatus").textContent = "Context ready";
-    }).catch(() => {
+    }).catch((error) => {
+      document.getElementById("contextTrace").append(row("Context fallback", String(error)));
       document.getElementById("codexStatus").textContent = "Local runtime";
     });
   </script>

@@ -1,13 +1,19 @@
 import * as Tabs from "@radix-ui/react-tabs";
 import { Download, FileText, GitBranch, PanelRightOpen, Plus, Search, Send, Settings } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createBrowserBridge } from "../bridge/oplBridge";
 import {
   ConfirmationCard,
   RendererModuleRegistryPanel,
   StatusPill
 } from "../ui/workbenchPrimitives";
-import { initialWorkbenchModel, type WorkbenchPurpose, type WorkbenchStarter } from "./workbenchModel";
+import {
+  deriveWorkbenchModelFromState,
+  initialWorkbenchModel,
+  type WorkbenchActionRef,
+  type WorkbenchPurpose,
+  type WorkbenchStarter
+} from "./workbenchModel";
 
 const contextTabs = [
   ["opl-files-panel", "Sources"],
@@ -41,14 +47,41 @@ function formatReceipt(value: unknown): string {
   }
 }
 
+function firstPreviewAction(actions: WorkbenchActionRef[]): WorkbenchActionRef | undefined {
+  return actions.find((action) => action.dryRunSupported && action.payloadFields.length === 0)
+    ?? actions.find((action) => action.dryRunSupported);
+}
+
 export function App() {
   const bridge = useMemo(() => createBrowserBridge(), []);
-  const model = initialWorkbenchModel;
+  const [model, setModel] = useState(initialWorkbenchModel);
+  const [stateStatus, setStateStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [stateError, setStateError] = useState("");
   const [activeView, setActiveView] = useState<"chat" | "settings">("chat");
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [lastDryRun, setLastDryRun] = useState("No action preview yet.");
   const [lastCodexReply, setLastCodexReply] = useState("");
   const [codexThreadId, setCodexThreadId] = useState<string | undefined>();
+  const previewAction = firstPreviewAction(model.contextActions);
+
+  useEffect(() => {
+    let cancelled = false;
+    bridge
+      .readState("fast")
+      .then((state) => {
+        if (cancelled) return;
+        setModel(deriveWorkbenchModelFromState(state));
+        setStateStatus("ready");
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setStateStatus("error");
+        setStateError(String(error));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bridge]);
 
   function runDryRun(actionId: string, payload: Record<string, unknown> = {}) {
     void bridge
@@ -124,14 +157,18 @@ export function App() {
       <section className="chat-shell" aria-label="Single conversation canvas">
         <header className="topbar">
           <h1>{activeView === "settings" ? "Settings" : "Current project"}</h1>
-          <span className="topbar-status" data-testid="opl-model-access-entry">Codex connected</span>
+          <span className="topbar-status" data-testid="opl-model-access-entry">
+            {stateStatus === "loading" ? "Context loading" : stateStatus === "ready" ? "Context ready" : "Context fallback"}
+          </span>
           <button
             data-testid="opl-export-action"
             type="button"
-            onClick={() => runDryRun("artifact.export.prepare", { refs: model.deliverables.map((item) => item.ref) })}
+            onClick={() => previewAction
+              ? runDryRun(previewAction.id)
+              : runDryRun("artifact.export.prepare", { refs: model.deliverables.map((item) => item.ref) })}
           >
             <Download aria-hidden="true" size={15} />
-            Prepare export
+            Preview action
           </button>
           {activeView === "settings" ? (
             <button data-testid="opl-skip-to-chat" type="button" onClick={() => setActiveView("chat")}>Back to chat</button>
@@ -229,6 +266,12 @@ export function App() {
           <button type="button" onClick={() => setInspectorOpen(false)}>Close</button>
         </header>
 
+        <section aria-live="polite">
+          {stateStatus === "loading" ? <p>Loading OPL fast state...</p> : null}
+          {stateStatus === "error" ? <p>Using fallback context model. {stateError}</p> : null}
+          {stateStatus === "ready" && model.stateGeneratedAt ? <p>Loaded from opl app state --profile fast --json at {model.stateGeneratedAt}.</p> : null}
+        </section>
+
         <nav data-testid="opl-context-tabs" className="context-tabs">
           {contextTabs.map(([testId, label]) => (
             <button key={testId} type="button">{label}</button>
@@ -239,13 +282,18 @@ export function App() {
           <h3>Sources</h3>
           <p>Refs-only surface backed by OPL App state/action contracts.</p>
           <ol>
-            {model.artifactPreviews.map((preview) => (
-              <li key={preview.id}>{preview.ref}</li>
+            {model.contextSources.map((source) => (
+              <li key={source.id}>
+                <strong>{source.label}</strong>
+                <span>{source.summary}</span>
+                <code>{source.ref}</code>
+              </li>
             ))}
           </ol>
         </section>
 
         <Tabs.Root
+          key={model.artifactPreviews[0]?.id}
           data-testid="opl-artifact-preview-tabs"
           className="artifact-preview-tabs"
           defaultValue={model.artifactPreviews[0]?.id}
@@ -283,13 +331,23 @@ export function App() {
           <p data-testid="opl-provenance-ref">
             Source refs, receipt refs, replay refs, and export refs without artifact bodies.
           </p>
+          <dl>
+            {model.contextTrace.map((trace) => (
+              <div key={trace.id}>
+                <dt>{trace.label}</dt>
+                <dd>{trace.value}</dd>
+              </div>
+            ))}
+          </dl>
           <button
             data-testid="opl-export-action-dry-run"
             type="button"
-            onClick={() => runDryRun("artifact.export.prepare", { refs: model.deliverables.map((item) => item.ref) })}
+            onClick={() => previewAction
+              ? runDryRun(previewAction.id)
+              : runDryRun("artifact.export.prepare", { refs: model.deliverables.map((item) => item.ref) })}
           >
             <Download aria-hidden="true" size={16} />
-            Preview export
+            Preview action
           </button>
           <output data-testid="opl-runtime-action-receipt">{lastDryRun}</output>
         </section>
@@ -301,6 +359,19 @@ export function App() {
         />
 
         <section data-testid="opl-starter-forms" className="starter-forms" aria-label="Workflow starters">
+          {model.contextActions.filter((action) => action.dryRunSupported).slice(0, 8).map((action) => (
+            <article key={action.id} data-testid="opl-starter-form" data-starter={action.id}>
+              <header>
+                <h3>{action.label}</h3>
+                <span>{action.mutates}</span>
+              </header>
+              <p>{action.route}</p>
+              <button type="button" onClick={() => runDryRun(action.id)}>
+                <Send aria-hidden="true" size={16} />
+                Preview receipt
+              </button>
+            </article>
+          ))}
           {model.starters.map((starter) => (
             <form
               key={starter.id}
