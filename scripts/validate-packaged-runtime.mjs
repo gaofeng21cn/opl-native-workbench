@@ -22,6 +22,7 @@ assert(["cffaedfe", "feedfacf", "cafebabe", "cafebabf"].includes(magic), `packag
 
 const workbench = fs.readFileSync(workbenchPath, "utf8");
 const nativeSource = fs.readFileSync(nativeSourcePath, "utf8");
+const evidence = readJson("src/candidateContractEvidence.json");
 for (const marker of [
   'data-testid="opl-native-workbench-root"',
   'data-testid="opl-workspace-rail"',
@@ -37,6 +38,7 @@ for (const marker of [
   "window.webkit.messageHandlers.oplNativeWorkbench",
   "sendCodexMessage",
   "Codex app-server",
+  "initialize",
   "branding/opl-app-logo.png",
   "branding/opl-banner.png"
 ]) {
@@ -46,6 +48,7 @@ for (const marker of [
   "WKScriptMessageHandler",
   "codex\",",
   "app-server",
+  "initialize",
   "thread/start",
   "thread/resume",
   "turn/start",
@@ -57,12 +60,27 @@ for (const marker of [
   "approvalPolicy\": \"never\"",
   "process.terminationHandler",
   "turn timed out after",
-  "opl\", \"app\", \"state"
+  "opl\", \"app\", \"state",
+  "--dry-run"
 ]) {
   assert(nativeSource.includes(marker), `missing native bridge marker ${marker}`);
 }
 for (const marker of ["runtimeWorkspaceRoots", "excludeTurns"]) {
   assert(!nativeSource.includes(marker), `native bridge must not send unsupported app-server param ${marker}`);
+}
+for (const marker of [
+  "readState",
+  "readFullDrilldown",
+  "executeAction",
+  'data-testid="opl-runtime-action-dry-run"',
+  'data-testid="opl-runtime-action-receipt"',
+  "showView('settings')",
+  "settingsView",
+  'data-testid="opl-settings-panel"',
+  'data-testid="opl-model-access-entry"',
+  'data-testid="opl-locale-toggle"'
+]) {
+  assert(workbench.includes(marker), `missing packaged functional MVP marker ${marker}`);
 }
 for (const marker of ["delivery-grid", "starter-grid", "delivery-card", 'class="outputs"', 'class="rail"']) {
   assert(!workbench.includes(marker), `packaged workbench must not put ${marker} on the main surface`);
@@ -93,6 +111,9 @@ assert(manifest.external_layout_reference?.adapted_patterns?.includes("chat tab 
 assert(manifest.external_layout_reference?.adapted_patterns?.includes("Open Science paper-light surface, thin borders, compact message blocks, and rounded composer"), "manifest must record the Open Science visual adaptation");
 assert(manifest.functional_mvp?.codex_app_server_thread_turn === true, "manifest must record Codex app-server thread/turn MVP");
 assert(manifest.functional_mvp?.default_sandbox === "read-only", "manifest must record read-only Codex sandbox");
+for (const field of evidence.functional_mvp_closeout?.not_ready ?? []) {
+  assert(manifest[field] !== true, `candidate package must not claim ${field}`);
+}
 assert(manifest.release_ready === false, "candidate package must not claim release readiness");
 assert(manifest.live_evidence === false, "candidate package must not claim live evidence");
 

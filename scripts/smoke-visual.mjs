@@ -1,4 +1,5 @@
 import {
+  assert,
   assertNoFalseReadyFields,
   assertRendererTestIds,
   assertSourceMarkers,
@@ -20,7 +21,24 @@ const evidenceSource = read("src/candidateContractEvidence.json");
 const packageScript = read("scripts/package-native-workbench.mjs");
 const evidence = readJson("src/candidateContractEvidence.json");
 
+function assertFunctionalMvpVisualMarkers(evidence) {
+  const requirements = evidence.source_marker_requirements;
+  assert(requirements, "missing source_marker_requirements");
+  for (const group of ["chat_runtime", "state_context", "action_preview_receipt", "settings_route"]) {
+    for (const requirement of requirements[group] ?? []) {
+      const source = read(requirement.file);
+      for (const marker of requirement.contains) {
+        assert(source.includes(marker), `missing ${group} marker ${marker} in ${requirement.file}`);
+      }
+    }
+  }
+  for (const field of evidence.functional_mvp_closeout?.not_ready ?? []) {
+    assert(evidence.false_ready_boundary?.[field] === false, `${field} must stay false for functional MVP visual smoke`);
+  }
+}
+
 validateNonLiveDeliveryEvidence(evidence);
+assertFunctionalMvpVisualMarkers(evidence);
 assertRendererTestIds(rendererSource, deliverySurfaceTestIds(evidence), "visual source");
 assertSourceMarkers(rendererSource, deliverySurfaceMarkers(evidence), "visual layout");
 assertNoFalseReadyFields({

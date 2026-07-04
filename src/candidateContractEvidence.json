@@ -63,6 +63,86 @@
     "conversation_persistence": "codex_app_server_thread_id_resume_capable",
     "acp_app_server_reuse_status": "implemented_with_codex_app_server_thread_turn_stream"
   },
+  "functional_mvp_closeout": {
+    "implemented": [
+      "Codex app-server thread/turn source path with initialize, thread/start, turn/start, streaming delta, turn/completed, and thread/resume markers",
+      "OPL App state context source path using fast state, full state, full drilldown, and secondary runtime context refs",
+      "OPL App action preview path using dry-run action commands and visible preview receipt markers",
+      "Settings as a first-class route for model/account access, locale, runtime connection, project, and candidate-about controls",
+      "Source-level candidate validators for the implemented markers and false-ready boundary"
+    ],
+    "partial": [
+      "Packaged GUI artifact exists as candidate evidence, but packaged visual acceptance and clean-VM behavior are not proven here",
+      "WebUI parity is source/smoke evidence only until same-cohort live user-path evidence exists",
+      "Artifact preview, provenance, starter, confirmation, and export surfaces are refs-only candidate UI, not artifact or owner authority"
+    ],
+    "not_ready": [
+      "active_shell_adopted",
+      "release_ready",
+      "production_ready",
+      "domain_ready",
+      "clean_vm_ready",
+      "full_release_ready",
+      "live_evidence",
+      "owner_receipt",
+      "runtime_authority_transfer",
+      "domain_truth_owned"
+    ]
+  },
+  "source_marker_requirements": {
+    "chat_runtime": [
+      {
+        "file": "src/bridge/oplBridge.ts",
+        "contains": ["codex app-server --stdio", "thread/start", "turn/start", "thread/resume", "item/agentMessage/delta"]
+      },
+      {
+        "file": "scripts/native-workbench-app.swift",
+        "contains": ["initialize", "thread/start", "turn/start", "item/agentMessage/delta", "turn/completed", "thread/resume"]
+      },
+      {
+        "file": "src/workbench/App.tsx",
+        "contains": ["sendCodexMessage", "codexThreadId", "opl-codex-reply"]
+      }
+    ],
+    "state_context": [
+      {
+        "file": "src/bridge/oplBridge.ts",
+        "contains": ["opl app state --profile fast --json", "opl app state --profile full --json", "opl runtime app-operator-drilldown --detail full --json", "readState", "readFullDrilldown"]
+      },
+      {
+        "file": "src/workbench/App.tsx",
+        "contains": ["opl-secondary-runtime-context", "opl-runtime-summary", "opl-runtime-full-detail-button"]
+      },
+      {
+        "file": "src/workbench/workbenchModel.ts",
+        "contains": ["activeProjectLines", "candidate_surface_only", "Consume opl app state/action refs"]
+      }
+    ],
+    "action_preview_receipt": [
+      {
+        "file": "src/bridge/oplBridge.ts",
+        "contains": ["opl app action execute --action", "--dry-run", "executeAction"]
+      },
+      {
+        "file": "src/workbench/App.tsx",
+        "contains": ["runDryRun", "opl-runtime-action-dry-run", "opl-runtime-action-receipt", "Preview action"]
+      },
+      {
+        "file": "src/ui/workbenchPrimitives.tsx",
+        "contains": ["opl-confirmation-card", "Preview action", "preview receipts stay separate"]
+      }
+    ],
+    "settings_route": [
+      {
+        "file": "src/workbench/App.tsx",
+        "contains": ["activeView", "settings", "opl-settings-panel", "opl-model-access-entry", "opl-locale-toggle", "Back to chat"]
+      },
+      {
+        "file": "scripts/package-native-workbench.mjs",
+        "contains": ["showView('settings')", "settingsView", "opl-settings-panel", "opl-model-access-entry", "opl-locale-toggle"]
+      }
+    ]
+  },
   "user_visible_protocol_copy": {
     "copilotkit_surface": false,
     "agui": false

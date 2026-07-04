@@ -68,7 +68,35 @@ for (const script of requiredScripts) {
 const app = read("src/workbench/App.tsx");
 const rendererSource = readRendererSource();
 const evidence = readJson("src/candidateContractEvidence.json");
+
+function assertFunctionalMvpCloseout(evidence) {
+  const closeout = evidence.functional_mvp_closeout;
+  assert(closeout, "missing functional_mvp_closeout");
+  for (const key of ["implemented", "partial", "not_ready"]) {
+    assert(Array.isArray(closeout[key]) && closeout[key].length > 0, `missing functional MVP ${key} inventory`);
+  }
+  for (const field of evidence.false_ready_boundary.forbidden_true_fields) {
+    assert(closeout.not_ready.includes(field), `functional MVP closeout must mark ${field} not-ready`);
+  }
+}
+
+function assertSourceMarkerRequirements(evidence) {
+  const requirements = evidence.source_marker_requirements;
+  assert(requirements, "missing source_marker_requirements");
+  for (const group of ["chat_runtime", "state_context", "action_preview_receipt", "settings_route"]) {
+    assert(Array.isArray(requirements[group]) && requirements[group].length > 0, `missing marker group ${group}`);
+    for (const requirement of requirements[group]) {
+      const source = read(requirement.file);
+      for (const marker of requirement.contains) {
+        assert(source.includes(marker), `missing ${group} marker ${marker} in ${requirement.file}`);
+      }
+    }
+  }
+}
+
 validateNonLiveDeliveryEvidence(evidence);
+assertFunctionalMvpCloseout(evidence);
+assertSourceMarkerRequirements(evidence);
 assertRendererTestIds(app, requiredTestIds);
 assertRendererTestIds(rendererSource, deliverySurfaceTestIds(evidence));
 

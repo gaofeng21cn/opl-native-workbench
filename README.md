@@ -31,8 +31,38 @@ one-shot CLI wrapper.
 
 Settings is a first-class route in the candidate. Global controls such as
 language, model/account access, workspace, and runtime connection live there;
-the composer stays limited to prompt-local actions like attach and send. This
-is functional MVP evidence, not active-shell adoption or release readiness.
+the composer stays limited to prompt-local actions like attach and send.
+
+## Functional MVP Closeout
+
+Implemented candidate evidence:
+
+- Codex chat uses the app-server thread/turn path with source markers for
+  `initialize`, `thread/start`, `turn/start`, streaming deltas,
+  `turn/completed`, and `thread/resume`.
+- OPL state context reads stay on App state surfaces:
+  `opl app state --profile fast --json`, explicit full state, and the full
+  runtime drilldown exception.
+- App actions use dry-run preview and visible receipt markers before any
+  execution path.
+- Settings is a real route for model/account access, locale, runtime
+  connection, project, and candidate-about controls.
+- Validators enforce the chat runtime, state context, action preview/receipt,
+  settings route, and false-ready boundaries from source markers.
+
+Partial or non-live evidence:
+
+- Packaged `.app`, WebUI parity, source visual smoke, and source UI smoke are
+  candidate evidence only.
+- Artifact previews, provenance, starter forms, confirmation cards, and export
+  actions are refs-only UI; they do not own artifact bodies, domain truth, or
+  owner receipts.
+
+Explicitly not ready:
+
+- Active-shell adoption, release readiness, production readiness, domain
+  readiness, clean-VM readiness, full release readiness, live evidence, owner
+  receipt, runtime authority transfer, and domain truth ownership.
 
 ## Commands
 
