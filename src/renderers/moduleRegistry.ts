@@ -50,8 +50,8 @@ export const previewKindRendererModuleMap: Record<RendererPreviewKind, string> =
 export const rendererPreviewDescriptors: Record<RendererPreviewKind, RendererPreviewDescriptor> = {
   markdown: {
     label: "Markdown",
-    surface: "Narrative and reviewer-note preview",
-    refsOnlyNote: "Render summary prose from refs without claiming artifact body authority."
+    surface: "Narrative summary and delivery-note preview",
+    refsOnlyNote: "Render dense summary prose from refs without claiming artifact body authority."
   },
   math: {
     label: "Math",
@@ -60,17 +60,17 @@ export const rendererPreviewDescriptors: Record<RendererPreviewKind, RendererPre
   },
   mermaid: {
     label: "Mermaid",
-    surface: "Flow and routing diagram preview",
+    surface: "Trace and owner-route preview",
     refsOnlyNote: "Diagram structure comes from refs and boundaries, not domain truth ownership."
   },
   code: {
     label: "Code",
-    surface: "Read-only patch and code reference preview",
-    refsOnlyNote: "Show formatted code refs only; no executable or authoritative artifact body is transferred."
+    surface: "Read-only manifest, patch, and code reference preview",
+    refsOnlyNote: "Show formatted code-like refs only; no executable or authoritative artifact body is transferred."
   },
   json: {
     label: "JSON",
-    surface: "Structured receipt and payload preview",
+    surface: "Structured receipt and payload-envelope preview",
     refsOnlyNote: "Preview machine-readable refs in a read-only slot."
   },
   pdf: {
