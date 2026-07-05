@@ -34,6 +34,8 @@ export type WorkbenchSettings = {
   developerDetails: boolean;
 };
 
+export type RuntimeProfileSetting = WorkbenchSettings["runtimeProfile"];
+
 export type SettingsSection = {
   id: SettingsSectionId;
   title: string;
@@ -119,6 +121,14 @@ export function writeSettings(patch: WorkbenchSettingsPatch, storage = browserSt
 
 export function readSetting<Key extends SettingKey>(key: Key, storage = browserStorage()): WorkbenchSettings[Key] {
   return readSettings(storage)[key];
+}
+
+export function readRuntimeProfile(storage = browserStorage()): RuntimeProfileSetting {
+  return readSetting("runtimeProfile", storage);
+}
+
+export function normalizeRuntimeProfile(value: unknown): RuntimeProfileSetting {
+  return normalizeSetting("runtimeProfile", value);
 }
 
 export function writeSetting<Key extends SettingKey>(

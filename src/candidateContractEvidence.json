@@ -34,6 +34,9 @@
     "app_owned_settings_information_architecture",
     "secondary_runtime_context_refs",
     "conversation_event_ref_rendering",
+    "typed_runtime_readback_surface",
+    "typed_action_receipt_surface",
+    "typed_event_surface",
     "settings_persistence",
     "execute_confirmation",
     "artifact_preview_mvp",
@@ -66,8 +69,11 @@
     "native_bridge": "WKScriptMessageHandler window.webkit.messageHandlers.oplNativeWorkbench",
     "default_sandbox": "read-only",
     "conversation_persistence": "codex_app_server_thread_id_resume_capable",
-    "settings_persistence": "localStorage model with SETTINGS_STORAGE_KEY, settingsDefaults, readSettings, writeSettings, and no system write permission",
+    "settings_persistence": "localStorage model with SETTINGS_STORAGE_KEY, settingsDefaults, readSettings, writeSettings, readRuntimeProfile, and no system write permission",
     "execute_confirmation": "dry_run_first_then_explicit_confirm_before_execute",
+    "typed_runtime_readback_surface": "normalized readState/readFullDrilldown envelopes with runtime profile, app_state/drilldown payload, and command readback metadata",
+    "typed_action_receipt_surface": "normalized action receipts with requested mode, command args, parsed stdout/stderr JSON, and receipt status",
+    "typed_event_surface": "typed bridge events with process/tool/file/diff/receipt/user_input/permission classification across native bridge and web SSE",
     "artifact_preview_mvp": "rich refs-only preview adapters for markdown, math, mermaid, code, and pdf",
     "professional_starters_mvp": "research, grant, presentation, and book starter forms route to real App state action refs; preview routes are not domain execution",
     "acp_app_server_reuse_status": "implemented_with_codex_app_server_thread_turn_stream"
@@ -77,6 +83,7 @@
       "Codex app-server thread/turn source path with initialize, thread/start, turn/start, streaming delta, turn/completed, and thread/resume markers",
       "OPL App state context source path using fast state, full state, full drilldown, and secondary runtime context refs",
       "OPL App action preview path using dry-run action commands and visible preview receipt markers",
+      "Bridge helper layer normalizes runtime profile readback, action receipt shape, and typed event envelopes close to App state/action contracts",
       "Settings as a first-class route with a localStorage persistence model for model/account access, locale, runtime connection, project, and candidate-about controls",
       "Execute confirmation, rich artifact previews, and professional starters are represented as candidate MVP source markers",
       "Source-level candidate validators for the implemented markers and false-ready boundary"
@@ -402,7 +409,14 @@
       "opl-runtime-action-receipt"
     ],
     "full_detail_policy": "lazy_full_drilldown_only",
-    "action_policy": "dry_run_first_then_explicit_execute"
+    "action_policy": "dry_run_first_then_explicit_execute",
+    "typed_receipt_fields": [
+      "requestedMode",
+      "status",
+      "commandArgs",
+      "stdoutJson",
+      "stderrJson"
+    ]
   },
   "settings_information_architecture": {
     "visible_tabs": ["general", "access", "capabilities", "environment", "storage", "appearance", "advanced"],
@@ -415,6 +429,7 @@
       "system_write_permission": false,
       "release_ready": false,
       "live_evidence": false,
+      "runtime_profile_helper": "readRuntimeProfile",
       "keys": ["locale", "modelAccess", "reasoningLevel", "defaultWorkspace", "runtimeProfile", "confirmBeforeExecute", "artifactPreviewMode", "professionalStarterDefaults", "theme", "developerDetails"]
     }
   },
@@ -440,14 +455,34 @@
     "event_kinds": ["tool", "process", "diff", "file", "receipt", "user_input", "permission"],
     "display_policy": "summary_first_compact_conversation_events_or_expandable_refs",
     "forbidden_visible_protocol_copy": ["AG-UI event name", "ACP wire detail", "app-server raw frame"],
-    "renderer_testids": ["opl-conversation-event", "opl-event-feed"]
+    "renderer_testids": ["opl-conversation-event", "opl-event-feed"],
+    "typed_event_fields": ["source", "eventKind", "summary", "raw"]
   },
   "webui_parity": {
     "shared_renderer": true,
     "bridge_shape": "window.oplNativeWorkbench",
     "product_profile": "src/generated/oplProductProfile.generated.json",
     "desktop_and_webui_default_home": "chat_first_default_collapsed",
-    "evidence_status_field": "webui_parity_status"
+    "evidence_status_field": "webui_parity_status",
+    "sse_subscription_surface": "subscribeEvents uses GET /api/opl-events and normalizes message payloads to typed bridge events"
+  },
+  "bridge_readback_contract": {
+    "state_profiles": ["fast", "full"],
+    "state_readback_fields": ["profile", "app_state", "readback"],
+    "full_drilldown_fields": ["detail", "drilldown", "readback"],
+    "action_receipt_fields": [
+      "actionId",
+      "receiptKind",
+      "requestedMode",
+      "status",
+      "command",
+      "commandArgs",
+      "exitCode",
+      "stdout",
+      "stderr",
+      "timedOut"
+    ],
+    "event_surface": "normalize native bridge payloads and web SSE payloads before UI consumption"
   },
   "foundry_agent_series_display_contract": {
     "authority": "opl_framework_shared_progress_projection",

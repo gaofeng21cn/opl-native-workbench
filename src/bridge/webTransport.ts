@@ -1,21 +1,36 @@
-import { createBrowserBridge } from "./oplBridge";
+import {
+  createBrowserBridge,
+  normalizeBridgeEvent,
+  parseEventSourceMessage,
+  type OplBridgeEvent,
+  type OplNativeWorkbenchSurface
+} from "./oplBridge";
 
 declare global {
   interface Window {
-    oplNativeWorkbench?: unknown;
+    oplNativeWorkbench?: OplNativeWorkbenchSurface;
   }
+}
+
+function connectServerEvents(
+  eventSourceUrl: string,
+  onEvent: (event: OplBridgeEvent) => void
+): () => void {
+  const source = new EventSource(eventSourceUrl);
+  source.onopen = () => onEvent(normalizeBridgeEvent({ type: "bridge.ready", source: eventSourceUrl }, "web_transport_sse"));
+  source.onmessage = (message) => onEvent(parseEventSourceMessage(message.data, "web_transport_sse"));
+  source.onerror = () => onEvent(normalizeBridgeEvent({ type: "bridge.error", source: eventSourceUrl }, "web_transport_sse"));
+  return () => source.close();
 }
 
 export function installWebTransport(): void {
   const eventSourceUrl = "/api/opl-events";
   const bridge = createBrowserBridge();
+  const subscribeEvents = (onEvent: (event: OplBridgeEvent) => void) => connectServerEvents(eventSourceUrl, onEvent);
   window.oplNativeWorkbench = {
     ...bridge,
     eventSourceUrl,
-    connectEvents(onEvent: (event: unknown) => void) {
-      const source = new EventSource(eventSourceUrl);
-      source.onmessage = (message) => onEvent(JSON.parse(message.data));
-      return () => source.close();
-    }
+    subscribeEvents,
+    connectEvents: subscribeEvents
   };
 }
