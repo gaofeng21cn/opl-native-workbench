@@ -361,7 +361,7 @@
       "capability": "export_action",
       "status_field": "export_action_status",
       "live_evidence": false,
-      "layout_markers": ["artifact.export.prepare"],
+      "layout_markers": ["task_export_bundle_preview"],
       "renderer_testids": [
         "opl-export-action",
         "opl-export-action-dry-run"

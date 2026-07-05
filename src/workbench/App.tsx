@@ -41,6 +41,10 @@ const purposeLabels: Record<WorkbenchPurpose, string> = {
   review: "Prepare handoff"
 };
 
+const defaultPreviewActionId = "task_action_receipt_preview";
+const defaultExportActionId = "task_export_bundle_preview";
+const defaultRuntimeActionId = "provider_scheduler_status";
+
 const settingLabels: Record<SettingKey, string> = {
   locale: "Language",
   modelAccess: "Model access",
@@ -304,7 +308,7 @@ export function App() {
             type="button"
             onClick={() => previewAction
               ? runDryRun(previewAction.id)
-              : runDryRun("artifact.export.prepare", { refs: model.deliverables.map((item) => item.ref) })}
+              : runDryRun(defaultExportActionId, { refs: model.deliverables.map((item) => item.ref) })}
           >
             <Download aria-hidden="true" size={15} />
             Preview action
@@ -345,7 +349,7 @@ export function App() {
                     key={purpose}
                     data-testid="opl-delivery-mode-option"
                     type="button"
-                    onClick={() => runDryRun("candidate.delivery.mode", { purpose })}
+                    onClick={() => runDryRun(defaultPreviewActionId, { purpose })}
                   >
                     {purposeLabels[purpose]}
                   </button>
@@ -483,7 +487,7 @@ export function App() {
             type="button"
             onClick={() => previewAction
               ? runDryRun(previewAction.id)
-              : runDryRun("artifact.export.prepare", { refs: model.deliverables.map((item) => item.ref) })}
+              : runDryRun(defaultExportActionId, { refs: model.deliverables.map((item) => item.ref) })}
           >
             <Download aria-hidden="true" size={16} />
             Preview action
@@ -538,10 +542,11 @@ export function App() {
               <p>{starter.intent}</p>
               <button
                 type="button"
+                disabled={starter.available === false}
                 onClick={() => runDryRun(starter.dryRunAction, starterPayload(starter))}
               >
                 <Send aria-hidden="true" size={16} />
-                Preview workflow
+                {starter.available === false ? "Unavailable" : "Preview workflow"}
               </button>
             </form>
           ))}
@@ -583,7 +588,7 @@ export function App() {
           <button
             data-testid="opl-runtime-action-dry-run"
             type="button"
-            onClick={() => runDryRun("candidate.inspect", { source: "runtime-panel" })}
+            onClick={() => runDryRun(defaultRuntimeActionId, { source: "runtime-panel" })}
           >
             Preview action
           </button>

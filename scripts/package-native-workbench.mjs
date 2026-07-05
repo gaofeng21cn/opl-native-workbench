@@ -218,7 +218,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
         </div>
         <span class="spacer"></span>
         <span id="codexStatus" data-testid="opl-model-access-entry" class="status-pill">Codex connected</span>
-        <button data-testid="opl-export-action" type="button" onclick="dryRun('artifact.export.prepare')">Export</button>
+        <button data-testid="opl-export-action" type="button" onclick="dryRun('task_export_bundle_preview')">Export</button>
         <button type="button" onclick="toggleInspector(true)">Context</button>
       </header>
       <div id="chatContent" class="conversation chat-content">
@@ -232,10 +232,10 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
             <div class="status-line">Preview and export actions require confirmation</div>
             <div class="status-line">Artifact bodies remain source-owned</div>
             <div data-testid="opl-workbench-delivery-mode" class="capability-row delivery-workbench" aria-label="Suggested outputs">
-              <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('candidate.delivery.mode')">Review results</button>
-              <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('candidate.delivery.mode')">Draft grant</button>
-              <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('candidate.delivery.mode')">Build deck</button>
-              <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('candidate.delivery.mode')">Prepare handoff</button>
+              <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('task_action_receipt_preview')">Review results</button>
+              <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('task_export_bundle_preview')">Draft grant</button>
+              <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('task_export_bundle_preview')">Build deck</button>
+              <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('task_action_receipt_preview')">Prepare handoff</button>
               <span data-testid="opl-delivery-mode" hidden>research</span>
             </div>
           </article>
@@ -339,9 +339,9 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
           </button>
           <button data-testid="opl-delivery-mode-option" class="purpose-row" type="button">Grant</button>
           <button data-testid="opl-delivery-mode-option" class="purpose-row" type="button">Presentation</button>
-          <button type="button" onclick="dryRun('starter.mas.dry_run')">Research package</button>
-          <button type="button" onclick="dryRun('starter.mag.dry_run')">Grant draft</button>
-          <button type="button" onclick="dryRun('starter.rca.dry_run')">Presentation deck</button>
+          <button type="button" onclick="dryRun('task_action_receipt_preview')">Research package</button>
+          <button type="button" onclick="dryRun('task_export_bundle_preview')">Grant draft</button>
+          <button type="button" onclick="dryRun('task_export_bundle_preview')">Presentation deck</button>
         </section>
         <details data-testid="opl-provenance-drawer" open>
           <summary>Trace</summary>
@@ -350,7 +350,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
           <div data-testid="opl-confirmation-card" class="inline-card">
             <strong>Review before execution</strong>
             <p>Preview the action receipt first; execution stays behind App action confirmation.</p>
-            <button type="button" onclick="dryRun('confirmation.dry_run')">Preview action</button>
+            <button type="button" onclick="dryRun('task_action_receipt_preview')">Preview action</button>
             <button data-testid="opl-runtime-action-execute" type="button" onclick="executeConfirmedAction()">Execute confirmed</button>
           </div>
           <output id="receipt" data-testid="opl-runtime-action-receipt" class="receipt">No action preview yet.</output>
@@ -361,7 +361,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
             <header><span class="dot"></span><div><strong>Delivery export preview receipt</strong><span class="status-pill">preview ready</span></div></header>
             <p>Preview receipt ref only; no action execution is implied.</p>
             <dl>
-              <div><dt>Action</dt><dd>candidate.delivery.export</dd></div>
+              <div><dt>Action</dt><dd>task_export_bundle_preview</dd></div>
               <div><dt>Receipt ref</dt><dd>opl://receipt/dry-run</dd></div>
             </dl>
           </article>
@@ -379,7 +379,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
           <div data-testid="opl-always-on-panel"></div>
           <div data-testid="opl-runtime-summary"></div>
           <button data-testid="opl-runtime-full-detail-button" type="button">Full drilldown</button>
-          <button data-testid="opl-runtime-action-dry-run" type="button" onclick="dryRun('candidate.inspect')">Preview action</button>
+          <button data-testid="opl-runtime-action-dry-run" type="button" onclick="dryRun('provider_scheduler_status')">Preview action</button>
           <div data-testid="opl-settings-panel"></div>
           <div data-testid="opl-web-transport" class="muted">window.oplNativeWorkbench / SSE /api/opl-events</div>
         </details>
