@@ -1,5 +1,5 @@
 import * as Tabs from "@radix-ui/react-tabs";
-import { ChevronRight, Download, FileText, GitBranch, PanelRightOpen, Plus, RefreshCw, Search, Send, Settings } from "lucide-react";
+import { ChevronRight, Download, FileText, PanelRightOpen, Plus, RefreshCw, Search, Send, Settings } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createBrowserBridge } from "../bridge/oplBridge";
 import {
@@ -122,8 +122,11 @@ const workbenchStyles = `
     padding: 6px 8px;
   }
 
-  .brand-row svg {
-    color: #2b6a5d;
+  .brand-row img {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    box-shadow: 0 4px 10px rgba(32, 37, 31, 0.08);
   }
 
   .brand-row strong,
@@ -214,6 +217,86 @@ const workbenchStyles = `
     gap: 10px;
   }
 
+  .sidebar-panel {
+    display: grid;
+    gap: 10px;
+    padding: 0 8px;
+  }
+
+  .sidebar-panel-card {
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid rgba(48, 56, 51, 0.08);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.62);
+  }
+
+  .sidebar-panel-card strong,
+  .sidebar-source-item strong {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1d2521;
+  }
+
+  .sidebar-panel-card span,
+  .sidebar-panel-card small,
+  .sidebar-source-item span,
+  .sidebar-source-item code {
+    color: #66716b;
+  }
+
+  .sidebar-project-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .sidebar-project-meta {
+    display: grid;
+    gap: 4px;
+  }
+
+  .sidebar-project-pill {
+    width: fit-content;
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: 0 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(43, 106, 93, 0.16);
+    background: rgba(43, 106, 93, 0.08);
+    color: #2b6a5d;
+    font-size: 11px;
+  }
+
+  .sidebar-source-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 6px;
+  }
+
+  .sidebar-source-item {
+    display: grid;
+    gap: 4px;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid rgba(48, 56, 51, 0.08);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.72);
+    text-align: left;
+  }
+
+  .sidebar-source-item code {
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .sidebar-section-head {
     display: flex;
     align-items: center;
@@ -276,24 +359,24 @@ const workbenchStyles = `
 
   .topbar {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: 20px;
-    padding: 10px 0 18px;
+    gap: 16px;
+    padding: 4px 0 16px;
   }
 
   .topbar-copy h1 {
     margin: 2px 0 0;
-    font-size: 26px;
-    font-weight: 640;
+    font-size: 18px;
+    font-weight: 620;
     color: #17201d;
   }
 
   .topbar-meta {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     flex-wrap: wrap;
-    margin-top: 8px;
+    margin-top: 6px;
   }
 
   .topbar-status,
@@ -320,8 +403,8 @@ const workbenchStyles = `
   }
 
   .topbar-actions button {
-    height: 38px;
-    padding: 0 12px;
+    height: 34px;
+    padding: 0 10px;
     border-radius: 12px;
     display: inline-flex;
     align-items: center;
@@ -349,12 +432,12 @@ const workbenchStyles = `
 
   .workflow-strip {
     display: grid;
-    gap: 12px;
-    padding: 14px 16px;
-    margin-bottom: 18px;
+    gap: 10px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
     border: 1px solid rgba(48, 56, 51, 0.08);
     border-radius: 18px;
-    background: rgba(255, 255, 255, 0.62);
+    background: rgba(255, 255, 255, 0.54);
   }
 
   .workflow-strip-head {
@@ -389,7 +472,7 @@ const workbenchStyles = `
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
-    padding: 0 4px 4px;
+    padding: 0 2px 2px;
   }
 
   .thread-note {
@@ -466,7 +549,7 @@ const workbenchStyles = `
 
   .composer textarea {
     width: 100%;
-    min-height: 92px;
+    min-height: 84px;
     resize: vertical;
     border: 0;
     background: transparent;
@@ -795,6 +878,10 @@ const workbenchStyles = `
       border-bottom: 1px solid rgba(48, 56, 51, 0.08);
     }
 
+    .sidebar-panel {
+      padding: 0;
+    }
+
     .chat-shell {
       padding: 16px;
     }
@@ -961,6 +1048,10 @@ export function App() {
       : model.stateGeneratedAt
         ? `Loaded from opl app state --profile fast --json at ${model.stateGeneratedAt}.`
         : "Context is ready from the current App state.";
+  const currentProject = model.sessions[0]?.workspace ?? settings.defaultWorkspace ?? "Current project";
+  const currentProjectNextStep = model.sessions[0]?.nextStep ?? "Open a chat or inspect current sources.";
+  const currentProjectStatus = model.activeProjectLines[0]?.status ?? stateStatus;
+  const sidebarSources = model.contextSources.slice(0, 4);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -1212,7 +1303,7 @@ export function App() {
 
       <aside data-testid="opl-workspace-rail" className="sidebar" aria-label="Workspaces">
         <header className="brand-row">
-          <GitBranch aria-hidden="true" size={16} />
+          <img src="branding/opl-app-logo.png" alt="One Person Lab App" />
           <div>
             <strong>One Person Lab</strong>
             <small>Codex workbench</small>
@@ -1229,9 +1320,49 @@ export function App() {
           </button>
         </div>
 
+        <section className="sidebar-panel" aria-label="Current project">
+          <div className="sidebar-section-head">
+            <strong>Current project</strong>
+          </div>
+          <div className="sidebar-panel-card">
+            <div className="sidebar-project-head">
+              <div className="sidebar-project-meta">
+                <strong>{currentProject}</strong>
+                <span>{currentProjectNextStep}</span>
+              </div>
+              <span className="sidebar-project-pill">{currentProjectStatus}</span>
+            </div>
+          </div>
+        </section>
+
+        <section className="sidebar-panel" aria-label="Context materials">
+          <div className="sidebar-section-head">
+            <strong>Context</strong>
+            <span>{sidebarSources.length}</span>
+          </div>
+          <ol className="sidebar-source-list">
+            {sidebarSources.map((source) => (
+              <li key={source.id}>
+                <button
+                  type="button"
+                  className="sidebar-source-item"
+                  onClick={() => {
+                    setInspectorOpen(true);
+                    setActiveContextTab("opl-files-panel");
+                  }}
+                >
+                  <strong>{source.label}</strong>
+                  <span>{source.summary}</span>
+                  <code>{source.ref}</code>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </section>
+
         <section className="history-list" aria-label="History">
           <div className="sidebar-section-head">
-            <strong>Chats</strong>
+            <strong>Recent chats</strong>
             <span>{chatSessions.length}</span>
           </div>
           <ol data-testid="opl-session-list">
@@ -1266,8 +1397,8 @@ export function App() {
       <section className="chat-shell" aria-label="Single conversation canvas">
         <header className="topbar">
           <div className="topbar-copy">
-            <p>{activeView === "settings" ? "Workbench settings" : "Current workspace"}</p>
-            <h1>{activeView === "settings" ? "Settings" : currentSession?.title || "Current project"}</h1>
+            <p>{activeView === "settings" ? "Workbench settings" : currentProject}</p>
+            <h1>{activeView === "settings" ? "Settings" : currentSession?.title || "New chat"}</h1>
             <div className="topbar-meta">
               <span className="topbar-status" data-testid="opl-model-access-entry">
                 {stateStatus === "loading" ? "Context loading" : stateStatus === "ready" ? "Context ready" : "Context fallback"}
@@ -1281,7 +1412,6 @@ export function App() {
           <div className="topbar-actions">
             <button
               data-testid="opl-export-action"
-              className="primary-action"
               type="button"
               onClick={() => previewAction
                 ? runDryRun(previewAction.id)
@@ -1323,7 +1453,7 @@ export function App() {
                 aria-label="Suggested outputs"
               >
                 <div className="workflow-strip-head">
-                  <span>Workflow starters stay secondary until you need them.</span>
+                  <span>Common OPL actions stay secondary until you ask for them.</span>
                   <span className="delivery-mode-tag" data-testid="opl-delivery-mode">research</span>
                 </div>
                 <div className="workflow-chip-row">
@@ -1343,7 +1473,7 @@ export function App() {
 
               <div className="thread">
                 <section className="thread-intro" aria-label="Conversation guidance">
-                  <span className="thread-note">Project sources loaded</span>
+                  <span className="thread-note">{sidebarSources.length} project materials loaded</span>
                   <span className="thread-note">Preview and export actions require confirmation</span>
                   <span className="thread-note">Artifact bodies remain source-owned</span>
                 </section>

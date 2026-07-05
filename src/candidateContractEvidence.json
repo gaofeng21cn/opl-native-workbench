@@ -168,10 +168,6 @@
       {
         "file": "src/workbench/App.tsx",
         "contains": ["activeView", "settings", "opl-settings-panel", "opl-model-access-entry", "opl-locale-toggle", "Back to chat"]
-      },
-      {
-        "file": "scripts/package-native-workbench.mjs",
-        "contains": ["showView('settings')", "settingsView", "opl-settings-panel", "opl-model-access-entry", "opl-locale-toggle"]
       }
     ],
     "settings_persistence": [

@@ -18,6 +18,8 @@ const requiredFiles = [
   "src/bridge/oplBridge.ts",
   "src/bridge/webTransport.ts",
   "src/bridge/electronPreload.ts",
+  "src/main.tsx",
+  "src/renderer-shell.html",
   "src/workbench/App.tsx",
   "src/workbench/workbenchModel.ts",
   "src/workbench/settingsModel.ts",

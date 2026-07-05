@@ -7,12 +7,14 @@ const appRoot = path.join(root, "out", `${appName}.app`);
 const resourcesDir = path.join(appRoot, "Contents", "Resources");
 const executablePath = path.join(appRoot, "Contents", "MacOS", appName);
 const workbenchPath = path.join(resourcesDir, "workbench.html");
+const rendererPath = path.join(resourcesDir, "renderer.js");
 const manifestPath = path.join(resourcesDir, "package-manifest.json");
 const nativeSourcePath = path.join(root, "scripts", "native-workbench-app.swift");
 
 assert(fs.existsSync(appRoot), "missing packaged .app");
 assert(fs.existsSync(executablePath), "missing packaged executable");
 assert(fs.existsSync(workbenchPath), "missing packaged native workbench HTML");
+assert(fs.existsSync(rendererPath), "missing packaged shared renderer script");
 assert(!fs.existsSync(path.join(resourcesDir, "preview.html")), "preview-only browser page must not be packaged");
 
 const executable = fs.readFileSync(executablePath);
@@ -21,6 +23,7 @@ assert(executable.subarray(0, 2).toString() !== "#!", "packaged executable must 
 assert(["cffaedfe", "feedfacf", "cafebabe", "cafebabf"].includes(magic), `packaged executable is not Mach-O: ${magic}`);
 
 const workbench = fs.readFileSync(workbenchPath, "utf8");
+const renderer = fs.readFileSync(rendererPath, "utf8");
 const nativeSource = fs.readFileSync(nativeSourcePath, "utf8");
 const settingsModel = fs.readFileSync(path.join(root, "src", "workbench", "settingsModel.ts"), "utf8");
 const evidence = readJson("src/candidateContractEvidence.json");
@@ -31,25 +34,28 @@ assert(evidence.functional_mvp_closeout?.local_candidate_live_smoke?.boundaries?
 assert(evidence.functional_mvp_closeout?.local_candidate_live_smoke?.boundaries?.release_ready === false, "native live smoke must not claim release readiness");
 assert(evidence.functional_mvp_closeout?.local_candidate_live_smoke?.boundaries?.clean_vm_ready === false, "native live smoke must not claim clean-VM readiness");
 for (const marker of [
-  'data-testid="opl-native-workbench-root"',
-  'data-testid="opl-workspace-rail"',
-  'data-testid="opl-artifact-preview-tabs"',
-  'data-testid="opl-provenance-drawer"',
-  'data-testid="opl-confirmation-card"',
-  'data-testid="opl-renderer-module-registry"',
-  'data-layout="codex-sidebar-chat"',
-  'class="sidebar"',
-  "Persistent Codex-style left sidebar",
-  "Single conversation canvas",
-  "On-demand context panel",
-  "window.webkit.messageHandlers.oplNativeWorkbench",
-  "sendCodexMessage",
-  "Codex app-server",
-  "initialize",
-  "branding/opl-app-logo.png",
-  "branding/opl-banner.png"
+  '<div id="root"></div>',
+  './renderer.js',
+  'branding/opl-app-logo.png'
 ]) {
   assert(workbench.includes(marker), `missing packaged workbench marker ${marker}`);
+}
+for (const marker of [
+  'opl-native-workbench-root',
+  'opl-workspace-rail',
+  'opl-artifact-preview-tabs',
+  'opl-provenance-drawer',
+  'opl-confirmation-card',
+  'opl-renderer-module-registry',
+  'codex-sidebar-chat',
+  'messageHandlers?.oplNativeWorkbench',
+  'native://oplNativeWorkbench',
+  'Codex app-server',
+  'initialize',
+  '/api/opl-events',
+  'branding/opl-app-logo.png'
+]) {
+  assert(renderer.includes(marker), `missing packaged renderer marker ${marker}`);
 }
 for (const marker of [
   "WKScriptMessageHandler",
@@ -79,28 +85,23 @@ for (const marker of [
   "readState",
   "readFullDrilldown",
   "executeAction",
-  'data-testid="opl-runtime-action-dry-run"',
-  'data-testid="opl-runtime-action-receipt"',
-  "showView('settings')",
-  "settingsView",
-  'data-testid="opl-settings-panel"',
-  'data-testid="opl-model-access-entry"',
-  'data-testid="opl-locale-toggle"'
+  'opl-runtime-action-dry-run',
+  'opl-runtime-action-receipt',
+  'opl-settings-panel',
+  'opl-model-access-entry',
+  'opl-locale-toggle'
 ]) {
-  assert(workbench.includes(marker), `missing packaged functional MVP marker ${marker}`);
+  assert(renderer.includes(marker), `missing packaged functional MVP marker ${marker}`);
 }
-for (const marker of ["delivery-grid", "starter-grid", "delivery-card", 'class="outputs"', 'class="rail"']) {
-  assert(!workbench.includes(marker), `packaged workbench must not put ${marker} on the main surface`);
-}
-assert(workbench.includes('class="inspector"'), "workspace detail surface must default to an on-demand inspector");
-assert(workbench.includes('aria-hidden="true"'), "workspace inspector must default closed");
-assert(workbench.includes("toggleInspector"), "packaged workbench must expose inspector toggle");
+assert(renderer.includes("context-inspector"), "workspace detail surface must default to an on-demand inspector");
+assert(renderer.includes("aria-hidden"), "workspace inspector must default closed");
 
 for (const asset of [
   "app.icns",
   "branding/opl-app-logo.png",
   "branding/opl-banner.png",
-  "package-manifest.json"
+  "package-manifest.json",
+  "renderer-build.json"
 ]) {
   assert(fs.existsSync(path.join(resourcesDir, asset)), `missing packaged asset ${asset}`);
 }

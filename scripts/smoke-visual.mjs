@@ -20,6 +20,8 @@ const moduleRegistry = read("src/renderers/moduleRegistry.ts");
 const settingsModel = read("src/workbench/settingsModel.ts");
 const evidenceSource = read("src/candidateContractEvidence.json");
 const packageScript = read("scripts/package-native-workbench.mjs");
+const rendererEntry = read("src/main.tsx");
+const rendererShell = read("src/renderer-shell.html");
 const evidence = readJson("src/candidateContractEvidence.json");
 
 function assertFunctionalMvpVisualMarkers(evidence) {
@@ -49,7 +51,15 @@ for (const marker of [
   "opl-composer-run-state"
 ]) {
   assert(rendererSource.includes(marker), `missing polished MVP visual marker ${marker}`);
-  assert(packageScript.includes(marker), `missing packaged polished MVP visual marker ${marker}`);
+}
+for (const marker of ["buildRenderer", "workbench.html", "renderer.js", "shared_renderer_entry"]) {
+  assert(packageScript.includes(marker), `missing packaged convergence marker ${marker}`);
+}
+for (const marker of ["messageHandlers?.oplNativeWorkbench", "installWebTransport", 'document.getElementById("root")']) {
+  assert(rendererEntry.includes(marker), `missing shared renderer entry marker ${marker}`);
+}
+for (const marker of ["branding/opl-app-logo.png", '<div id="root"></div>']) {
+  assert(rendererShell.includes(marker), `missing renderer shell marker ${marker}`);
 }
 assertNoFalseReadyFields({
   "src/workbench/App.tsx": app,
@@ -58,6 +68,7 @@ assertNoFalseReadyFields({
   "src/ui/workbenchPrimitives.tsx": primitiveSource,
   "src/renderers/moduleRegistry.ts": moduleRegistry,
   "src/candidateContractEvidence.json": evidenceSource,
+  "src/main.tsx": rendererEntry,
   "scripts/package-native-workbench.mjs": packageScript
 });
 

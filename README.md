@@ -20,6 +20,25 @@ bottom composer as the primary action, and an on-demand workspace inspector for
 files, previews, provenance, workflow starters, and export receipts. K-Dense and
 Open Science are used as layout/interaction references only; their runtime,
 provider, backend, and authority surfaces are not copied.
+
+## Current UI structure
+
+The candidate now documents one stable user-facing information architecture:
+
+- Left sidebar: project/material/history organization. It carries the active
+  project line, recent conversations, and lightweight workspace session
+  navigation.
+- Center: chat-first work surface. The main conversation canvas and bottom
+  composer remain the default focus; ordinary home should open here first.
+- Right side: contextual tabs only. Artifact preview, provenance, delivery, and
+  starter/detail surfaces are secondary context tabs or drawers and stay
+  collapsed until explicitly opened.
+- Settings: a separate first-class route, not a side-tab inside chat. Global
+  controls such as language, model/account access, workspace, and runtime
+  connection live there.
+
+This README describes that candidate layout as implemented intent only. It does
+not claim App adoption, release acceptance, or live operator validation.
 The current visual refresh also has an image-generated reference mockup at
 `assets/mockups/codex-open-science-reference-2026-07-05.png`, used only as a
 design anchor for spacing, hierarchy, and panel balance.
@@ -43,6 +62,27 @@ the composer stays limited to prompt-local actions like attach and send.
 `runtimeProfile` now drives actual `opl app state` readback shape, and the
 Settings page exposes runtime readback status instead of a pure placeholder.
 
+## Renderer convergence boundary
+
+The current target is convergence, not a finished parity claim:
+
+- Source, packaged macOS candidate, and WebUI should converge on the same
+  renderer surface and the same bridge/event shape.
+- WebUI reuses the candidate renderer and adapts transport through
+  `window.oplNativeWorkbench` plus the Web transport/SSE bridge; packaged macOS
+  reuses the same renderer through the native bridge.
+- This repository can therefore describe one renderer target and one candidate
+  interaction model, but the evidence level still differs by surface.
+
+Current evidence remains intentionally bounded:
+
+- Source renderer and candidate validators are structural/source evidence.
+- WebUI parity is shared-renderer and smoke evidence only.
+- Packaged `.app` evidence is candidate packaging/smoke evidence only.
+- None of the above claims active-shell adoption, release readiness,
+  production readiness, clean-VM readiness, domain readiness, owner receipt, or
+  live user-path completion.
+
 ## Functional MVP Closeout
 
 | Area | Status | Evidence | Boundary |
@@ -58,7 +98,7 @@ Settings page exposes runtime readback status instead of a pure placeholder.
 | Artifact preview MVP | Implemented candidate evidence | Rich preview markers for markdown, math, Mermaid, code, PDF, and receipt-like refs | Refs-only preview; no artifact authority |
 | Professional starters MVP | Implemented candidate evidence | Research, grant, presentation, and book starter forms now edit fields and route to live dry-run actions when available | No domain execution authority |
 | Validator gates | Implemented candidate evidence | `npm run validate:candidate` and `npm run smoke:visual` check source markers and false-ready boundaries | Structural gates only |
-| Packaged `.app` and WebUI parity | Partial / non-live evidence | Candidate package, WebUI, source visual, and source UI smoke surfaces | Not clean-VM or same-cohort live user-path evidence |
+| Packaged `.app`, WebUI, and source convergence | Partial / non-live evidence | Shared renderer target plus candidate package, WebUI, source visual, and source UI smoke surfaces | Not clean-VM or same-cohort live user-path evidence |
 | Release and Live readiness | Not ready | False-ready fields stay false in candidate evidence and manifests | No active-shell adoption, release readiness, production readiness, domain readiness, live evidence, owner receipt, runtime authority transfer, or domain truth ownership |
 
 ## Commands
