@@ -24,6 +24,12 @@ const workbench = fs.readFileSync(workbenchPath, "utf8");
 const nativeSource = fs.readFileSync(nativeSourcePath, "utf8");
 const settingsModel = fs.readFileSync(path.join(root, "src", "workbench", "settingsModel.ts"), "utf8");
 const evidence = readJson("src/candidateContractEvidence.json");
+assert(evidence.capabilities.includes("local_candidate_live_smoke"), "candidate evidence must include local candidate live smoke capability");
+assert(evidence.functional_mvp_closeout?.local_candidate_live_smoke?.command === "npm run smoke:native-live", "candidate evidence must document native live smoke command");
+assert(evidence.functional_mvp_closeout?.local_candidate_live_smoke?.artifact === "out/native-live-smoke.json", "candidate evidence must document native live smoke artifact");
+assert(evidence.functional_mvp_closeout?.local_candidate_live_smoke?.boundaries?.active_shell_adopted === false, "native live smoke must not claim active shell adoption");
+assert(evidence.functional_mvp_closeout?.local_candidate_live_smoke?.boundaries?.release_ready === false, "native live smoke must not claim release readiness");
+assert(evidence.functional_mvp_closeout?.local_candidate_live_smoke?.boundaries?.clean_vm_ready === false, "native live smoke must not claim clean-VM readiness");
 for (const marker of [
   'data-testid="opl-native-workbench-root"',
   'data-testid="opl-workspace-rail"',

@@ -47,7 +47,8 @@
     "export_action",
     "webui_renderer_parity",
     "release_isolation",
-    "candidate_app_bundle_package"
+    "candidate_app_bundle_package",
+    "local_candidate_live_smoke"
   ],
   "framework_surfaces": {
     "state": "opl app state --profile fast --json",
@@ -86,6 +87,20 @@
       "Settings persistence is localStorage-only candidate evidence and does not request system write permission",
       "Artifact preview, provenance, starter, confirmation, and export surfaces are refs-only candidate UI, not artifact or owner authority"
     ],
+    "local_candidate_live_smoke": {
+      "command": "npm run smoke:native-live",
+      "artifact": "out/native-live-smoke.json",
+      "screenshot": "out/native-live-smoke.png",
+      "scope": "local packaged macOS .app launch smoke with process evidence",
+      "boundaries": {
+        "active_shell_adopted": false,
+        "release_ready": false,
+        "clean_vm_ready": false,
+        "domain_ready": false,
+        "runtime_authority_transfer": false,
+        "domain_truth_owned": false
+      }
+    },
     "not_ready": [
       "active_shell_adopted",
       "release_ready",

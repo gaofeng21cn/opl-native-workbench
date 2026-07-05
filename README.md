@@ -59,3 +59,16 @@ npm run package
 
 These commands are structural candidate evidence. They do not claim active-shell
 adoption, release readiness, production readiness, or live user-path evidence.
+
+```bash
+npm run smoke:native-live
+```
+
+`npm run smoke:native-live` is narrower: after `npm run package`, it opens the
+local `out/One Person Lab Native Workbench Candidate.app` with macOS `open -n`,
+waits for the packaged app process, and writes `out/native-live-smoke.json`.
+It also attempts a local screenshot at `out/native-live-smoke.png`; screenshot
+permission or window-id gaps are recorded as skipped/fallback evidence and do
+not fail the smoke. This is only local candidate packaged-app live evidence. It
+does not claim active-shell adoption, release readiness, clean-VM readiness, or
+App/domain authority transfer.

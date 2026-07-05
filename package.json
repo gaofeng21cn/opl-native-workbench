@@ -24,6 +24,7 @@
     "build": "node scripts/build-renderer.mjs",
     "build:webui": "node scripts/build-webui.mjs",
     "package": "node scripts/package-native-workbench.mjs",
+    "smoke:native-live": "node scripts/smoke-native-app-live.mjs",
     "validate:candidate": "node scripts/validate-native-workbench-candidate.mjs",
     "validate:state-model": "node scripts/validate-state-model.mjs",
     "validate:package": "node scripts/validate-packaged-runtime.mjs",
