@@ -32,6 +32,12 @@ export type RendererModuleRegistration = {
 
 export type RendererPreviewKind = "markdown" | "pdf" | "code" | "mermaid" | "math" | "json";
 
+export type RendererPreviewDescriptor = {
+  label: string;
+  surface: string;
+  refsOnlyNote: string;
+};
+
 export const previewKindRendererModuleMap: Record<RendererPreviewKind, string> = {
   markdown: "streamdown",
   math: "katex",
@@ -41,8 +47,45 @@ export const previewKindRendererModuleMap: Record<RendererPreviewKind, string> =
   pdf: "pdfjs-dist"
 };
 
+export const rendererPreviewDescriptors: Record<RendererPreviewKind, RendererPreviewDescriptor> = {
+  markdown: {
+    label: "Markdown",
+    surface: "Narrative and reviewer-note preview",
+    refsOnlyNote: "Render summary prose from refs without claiming artifact body authority."
+  },
+  math: {
+    label: "Math",
+    surface: "Formula and methods-note preview",
+    refsOnlyNote: "Render equations as local preview only; mathematical output is still refs-only."
+  },
+  mermaid: {
+    label: "Mermaid",
+    surface: "Flow and routing diagram preview",
+    refsOnlyNote: "Diagram structure comes from refs and boundaries, not domain truth ownership."
+  },
+  code: {
+    label: "Code",
+    surface: "Read-only patch and code reference preview",
+    refsOnlyNote: "Show formatted code refs only; no executable or authoritative artifact body is transferred."
+  },
+  json: {
+    label: "JSON",
+    surface: "Structured receipt and payload preview",
+    refsOnlyNote: "Preview machine-readable refs in a read-only slot."
+  },
+  pdf: {
+    label: "PDF",
+    surface: "Local export-preview shell",
+    refsOnlyNote: "Present the local preview route and file ref only; page truth stays outside this shell."
+  }
+};
+
 export function rendererModuleIdForPreviewKind(previewKind: RendererPreviewKind): string {
   return previewKindRendererModuleMap[previewKind];
+}
+
+export function rendererPreviewDescriptorForKind(previewKind: RendererPreviewKind): RendererPreviewDescriptor {
+  return rendererPreviewDescriptors[previewKind];
 }
 
 export const rendererModuleRegistry: RendererModuleRegistration[] = [
@@ -132,3 +175,8 @@ export const rendererModuleRegistry: RendererModuleRegistration[] = [
     authorityBoundary: "Component recipe only"
   }
 ];
+
+export function rendererModuleForPreviewKind(previewKind: RendererPreviewKind): RendererModuleRegistration | undefined {
+  const moduleId = rendererModuleIdForPreviewKind(previewKind);
+  return rendererModuleRegistry.find((module) => module.id === moduleId || module.packageName === moduleId);
+}
