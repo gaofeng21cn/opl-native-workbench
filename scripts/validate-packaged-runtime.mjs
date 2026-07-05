@@ -22,6 +22,7 @@ assert(["cffaedfe", "feedfacf", "cafebabe", "cafebabf"].includes(magic), `packag
 
 const workbench = fs.readFileSync(workbenchPath, "utf8");
 const nativeSource = fs.readFileSync(nativeSourcePath, "utf8");
+const settingsModel = fs.readFileSync(path.join(root, "src", "workbench", "settingsModel.ts"), "utf8");
 const evidence = readJson("src/candidateContractEvidence.json");
 for (const marker of [
   'data-testid="opl-native-workbench-root"',
@@ -116,6 +117,21 @@ for (const field of evidence.functional_mvp_closeout?.not_ready ?? []) {
 }
 assert(manifest.release_ready === false, "candidate package must not claim release readiness");
 assert(manifest.live_evidence === false, "candidate package must not claim live evidence");
+for (const marker of [
+  "SETTINGS_STORAGE_KEY",
+  "opl.nativeWorkbench.settings.v1",
+  "localStorage",
+  "readSettings",
+  "writeSettings",
+  "confirmBeforeExecute",
+  "artifactPreviewMode",
+  "professionalStarterDefaults"
+]) {
+  assert(settingsModel.includes(marker), `missing settings persistence marker ${marker}`);
+}
+assert(evidence.false_ready_boundary.settings_system_write_permission === false, "settings system write permission must stay false");
+assert(evidence.false_ready_boundary.artifact_authority === false, "artifact authority must stay false");
+assert(evidence.false_ready_boundary.starter_execution_authority === false, "starter execution authority must stay false");
 
 const rootManifest = readJson("out/opl-native-workbench-candidate-manifest.json");
 assert(rootManifest.opens_default_browser === false, "root manifest must preserve browser boundary");

@@ -20,6 +20,7 @@ const requiredFiles = [
   "src/bridge/electronPreload.ts",
   "src/workbench/App.tsx",
   "src/workbench/workbenchModel.ts",
+  "src/workbench/settingsModel.ts",
   "src/candidateContractEvidence.json",
   "scripts/validate-state-model.mjs",
   "scripts/validate-packaged-runtime.mjs",
@@ -83,7 +84,7 @@ function assertFunctionalMvpCloseout(evidence) {
 function assertSourceMarkerRequirements(evidence) {
   const requirements = evidence.source_marker_requirements;
   assert(requirements, "missing source_marker_requirements");
-  for (const group of ["chat_runtime", "state_context", "action_preview_receipt", "settings_route"]) {
+  for (const group of Object.keys(requirements)) {
     assert(Array.isArray(requirements[group]) && requirements[group].length > 0, `missing marker group ${group}`);
     for (const requirement of requirements[group]) {
       const source = read(requirement.file);
@@ -121,6 +122,10 @@ for (const capability of [
   "opl_app_action_bridge",
   "webui_renderer_parity",
   "candidate_app_bundle_package",
+  "settings_persistence",
+  "execute_confirmation",
+  "artifact_preview_mvp",
+  "professional_starters_mvp",
   "source_visual_smoke",
   "artifact_preview_tabs",
   "provenance_drawer",
@@ -136,11 +141,17 @@ assert(evidence.reuse_policy.copied_source === false, "external source must rema
 assert(evidence.reuse_policy.runtime_authority_transfer === false, "runtime authority must not transfer");
 assert(evidence.user_visible_protocol_copy.agui === false, "AGUI must not be ordinary UI copy");
 assert(evidence.user_visible_protocol_copy.copilotkit_surface === false, "CopilotKit must not be ordinary native UI copy");
+assert(evidence.settings_information_architecture?.persistence_model?.storage_key === "opl.nativeWorkbench.settings.v1", "settings persistence storage key must be recorded");
+assert(evidence.settings_information_architecture?.persistence_model?.system_write_permission === false, "settings persistence must not request system write permission");
+assert(evidence.false_ready_boundary.settings_system_write_permission === false, "settings system write permission must stay false");
+assert(evidence.false_ready_boundary.artifact_authority === false, "artifact authority must stay false");
+assert(evidence.false_ready_boundary.starter_execution_authority === false, "starter execution authority must stay false");
 
 console.log(JSON.stringify({
   status: "opl_native_workbench_candidate_valid",
   shell: "opl-native-workbench",
   non_live_delivery_surface_testids: deliverySurfaceTestIds(evidence).length,
+  settings_persistence: "localStorage_candidate_only",
   active_shell_adopted: false,
   release_ready: false,
   live_evidence: false

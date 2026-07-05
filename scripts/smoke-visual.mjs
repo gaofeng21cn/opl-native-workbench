@@ -17,6 +17,7 @@ const rendererSource = readRendererSource();
 const model = read("src/workbench/workbenchModel.ts");
 const primitiveSource = read("src/ui/workbenchPrimitives.tsx");
 const moduleRegistry = read("src/renderers/moduleRegistry.ts");
+const settingsModel = read("src/workbench/settingsModel.ts");
 const evidenceSource = read("src/candidateContractEvidence.json");
 const packageScript = read("scripts/package-native-workbench.mjs");
 const evidence = readJson("src/candidateContractEvidence.json");
@@ -24,7 +25,7 @@ const evidence = readJson("src/candidateContractEvidence.json");
 function assertFunctionalMvpVisualMarkers(evidence) {
   const requirements = evidence.source_marker_requirements;
   assert(requirements, "missing source_marker_requirements");
-  for (const group of ["chat_runtime", "state_context", "action_preview_receipt", "settings_route"]) {
+  for (const group of Object.keys(requirements)) {
     for (const requirement of requirements[group] ?? []) {
       const source = read(requirement.file);
       for (const marker of requirement.contains) {
@@ -44,6 +45,7 @@ assertSourceMarkers(rendererSource, deliverySurfaceMarkers(evidence), "visual la
 assertNoFalseReadyFields({
   "src/workbench/App.tsx": app,
   "src/workbench/workbenchModel.ts": model,
+  "src/workbench/settingsModel.ts": settingsModel,
   "src/ui/workbenchPrimitives.tsx": primitiveSource,
   "src/renderers/moduleRegistry.ts": moduleRegistry,
   "src/candidateContractEvidence.json": evidenceSource,
@@ -54,6 +56,7 @@ console.log(JSON.stringify({
   status: "source_visual_smoke_passed",
   source_visual_gate: true,
   inspected_sources: rendererSourcePaths,
+  settings_persistence: "localStorage_candidate_only",
   active_shell_adopted: false,
   release_ready: false,
   live_evidence: false

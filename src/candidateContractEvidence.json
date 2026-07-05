@@ -34,6 +34,10 @@
     "app_owned_settings_information_architecture",
     "secondary_runtime_context_refs",
     "conversation_event_ref_rendering",
+    "settings_persistence",
+    "execute_confirmation",
+    "artifact_preview_mvp",
+    "professional_starters_mvp",
     "artifact_preview_tabs",
     "provenance_drawer",
     "starter_forms",
@@ -61,6 +65,10 @@
     "native_bridge": "WKScriptMessageHandler window.webkit.messageHandlers.oplNativeWorkbench",
     "default_sandbox": "read-only",
     "conversation_persistence": "codex_app_server_thread_id_resume_capable",
+    "settings_persistence": "localStorage model with SETTINGS_STORAGE_KEY, settingsDefaults, readSettings, writeSettings, and no system write permission",
+    "execute_confirmation": "dry_run_first_then_explicit_confirm_before_execute",
+    "artifact_preview_mvp": "rich refs-only preview adapters for markdown, math, mermaid, code, and pdf",
+    "professional_starters_mvp": "research, grant, presentation, and book starter forms route to dry-run actions only",
     "acp_app_server_reuse_status": "implemented_with_codex_app_server_thread_turn_stream"
   },
   "functional_mvp_closeout": {
@@ -68,12 +76,14 @@
       "Codex app-server thread/turn source path with initialize, thread/start, turn/start, streaming delta, turn/completed, and thread/resume markers",
       "OPL App state context source path using fast state, full state, full drilldown, and secondary runtime context refs",
       "OPL App action preview path using dry-run action commands and visible preview receipt markers",
-      "Settings as a first-class route for model/account access, locale, runtime connection, project, and candidate-about controls",
+      "Settings as a first-class route with a localStorage persistence model for model/account access, locale, runtime connection, project, and candidate-about controls",
+      "Execute confirmation, rich artifact previews, and professional starters are represented as candidate MVP source markers",
       "Source-level candidate validators for the implemented markers and false-ready boundary"
     ],
     "partial": [
       "Packaged GUI artifact exists as candidate evidence, but packaged visual acceptance and clean-VM behavior are not proven here",
       "WebUI parity is source/smoke evidence only until same-cohort live user-path evidence exists",
+      "Settings persistence is localStorage-only candidate evidence and does not request system write permission",
       "Artifact preview, provenance, starter, confirmation, and export surfaces are refs-only candidate UI, not artifact or owner authority"
     ],
     "not_ready": [
@@ -141,6 +151,42 @@
         "file": "scripts/package-native-workbench.mjs",
         "contains": ["showView('settings')", "settingsView", "opl-settings-panel", "opl-model-access-entry", "opl-locale-toggle"]
       }
+    ],
+    "settings_persistence": [
+      {
+        "file": "src/workbench/settingsModel.ts",
+        "contains": ["SETTINGS_STORAGE_KEY", "settingsSections", "settingsDefaults", "localStorage", "readSettings", "writeSettings", "confirmBeforeExecute", "artifactPreviewMode", "professionalStarterDefaults"]
+      }
+    ],
+    "execute_confirmation": [
+      {
+        "file": "src/ui/workbenchPrimitives.tsx",
+        "contains": ["opl-confirmation-card", "Confirm the action before execution", "preview receipts stay separate"]
+      },
+      {
+        "file": "src/workbench/workbenchModel.ts",
+        "contains": ["needs_human_confirmation", "Preview receipt from opl app action execute --dry-run", "Discard the candidate packet request before explicit execution"]
+      }
+    ],
+    "artifact_preview_mvp": [
+      {
+        "file": "src/renderers/moduleRegistry.ts",
+        "contains": ["Markdown result preview", "Math preview", "Diagram preview", "Code and diff preview", "PDF export preview", "Refs-only artifact preview"]
+      },
+      {
+        "file": "src/workbench/App.tsx",
+        "contains": ["opl-artifact-preview-tabs", "opl-artifact-preview-panel", "data-preview-kind"]
+      }
+    ],
+    "professional_starters_mvp": [
+      {
+        "file": "src/workbench/workbenchModel.ts",
+        "contains": ["starter.mas.dry_run", "starter.mag.dry_run", "starter.rca.dry_run", "starter.bookforge.dry_run"]
+      },
+      {
+        "file": "src/workbench/App.tsx",
+        "contains": ["opl-starter-forms", "opl-starter-form", "starterPayload"]
+      }
     ]
   },
   "user_visible_protocol_copy": {
@@ -195,6 +241,9 @@
     "owner_receipt": false,
     "runtime_authority_transfer": false,
     "domain_truth_owned": false,
+    "settings_system_write_permission": false,
+    "artifact_authority": false,
+    "starter_execution_authority": false,
     "forbidden_true_fields": [
       "active_shell_adopted",
       "release_ready",
@@ -322,7 +371,16 @@
   "settings_information_architecture": {
     "visible_tabs": ["general", "access", "capabilities", "environment", "storage", "appearance", "advanced"],
     "labels_en": ["General", "Access", "Agents & Capabilities", "Local Environment", "Storage", "Appearance", "Advanced"],
-    "legacy_tabs_hidden": ["overview", "runtime", "system", "model", "agent", "assistants", "skills-hub", "tools", "display", "webui", "pet"]
+    "legacy_tabs_hidden": ["overview", "runtime", "system", "model", "agent", "assistants", "skills-hub", "tools", "display", "webui", "pet"],
+    "persistence_model": {
+      "file": "src/workbench/settingsModel.ts",
+      "storage_key": "opl.nativeWorkbench.settings.v1",
+      "storage": "localStorage",
+      "system_write_permission": false,
+      "release_ready": false,
+      "live_evidence": false,
+      "keys": ["locale", "modelAccess", "reasoningLevel", "defaultWorkspace", "runtimeProfile", "confirmBeforeExecute", "artifactPreviewMode", "professionalStarterDefaults", "theme", "developerDetails"]
+    }
   },
   "bilingual_ui": {
     "default_locale": "zh",
