@@ -14,6 +14,7 @@ import {
   type WorkbenchPurpose,
   type WorkbenchStarter
 } from "./workbenchModel";
+import { readSettings, writeSetting, type WorkbenchSettings } from "./settingsModel";
 
 const contextTabs = [
   ["opl-files-panel", "Sources"],
@@ -78,6 +79,7 @@ export function App() {
   ]);
   const [eventFeed, setEventFeed] = useState<string[]>(["bridge.ready"]);
   const [codexThreadId, setCodexThreadId] = useState<string | undefined>();
+  const [settings, setSettings] = useState<WorkbenchSettings>(() => readSettings());
   const previewAction = firstPreviewAction(model.contextActions);
 
   useEffect(() => {
@@ -158,6 +160,10 @@ export function App() {
       role: "assistant",
       text: "New OPL workbench chat. Ask for review, drafting, export, or a workflow starter."
     }]);
+  }
+
+  function updateSetting<Key extends keyof WorkbenchSettings>(key: Key, value: WorkbenchSettings[Key]) {
+    setSettings(writeSetting(key, value));
   }
 
   return (
@@ -297,11 +303,24 @@ export function App() {
                 <h2>Execution</h2>
                 <p>Codex is the local executor for this build. Model and reasoning controls belong here, not in the composer.</p>
                 <button type="button" data-testid="opl-model-access-entry">Codex CLI managed</button>
+                <button
+                  type="button"
+                  data-testid="opl-settings-reasoning"
+                  onClick={() => updateSetting("reasoningLevel", settings.reasoningLevel === "high" ? "standard" : "high")}
+                >
+                  {settings.reasoningLevel}
+                </button>
               </section>
               <section>
                 <h2>Interface</h2>
                 <p>Language is a global interface preference, not a per-message send option.</p>
-                <button data-testid="opl-locale-toggle" type="button">Chinese</button>
+                <button
+                  data-testid="opl-locale-toggle"
+                  type="button"
+                  onClick={() => updateSetting("locale", settings.locale === "zh" ? "en" : "zh")}
+                >
+                  {settings.locale === "zh" ? "Chinese" : "English"}
+                </button>
               </section>
               <section>
                 <h2>Runtime</h2>
@@ -311,6 +330,13 @@ export function App() {
               <section>
                 <h2>Project</h2>
                 <p>The default project is the OPL App repo. Artifact bodies and domain truth remain outside this shell.</p>
+                <button
+                  type="button"
+                  data-testid="opl-settings-confirm-execute"
+                  onClick={() => updateSetting("confirmBeforeExecute", !settings.confirmBeforeExecute)}
+                >
+                  Confirm before execute: {settings.confirmBeforeExecute ? "on" : "off"}
+                </button>
               </section>
               <section>
                 <h2>About</h2>
