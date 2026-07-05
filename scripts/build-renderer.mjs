@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 
 const root = path.resolve(new URL("..", import.meta.url).pathname);
 const templatePath = path.join(root, "src", "renderer-shell.html");
@@ -26,7 +27,9 @@ function copyBranding(outDir) {
 export function buildRenderer({
   outDir = path.join(root, "dist"),
   htmlName = "index.html",
-  jsName = "renderer.js"
+  jsName = "renderer.js",
+  format = "esm",
+  scriptType = "module"
 } = {}) {
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
@@ -43,7 +46,7 @@ export function buildRenderer({
       "--target",
       "browser",
       "--format",
-      "esm"
+      format
     ],
     { encoding: "utf8", cwd: root }
   );
@@ -53,7 +56,9 @@ export function buildRenderer({
 
   const html = fs.readFileSync(templatePath, "utf8").replace(
     "</body>",
-    `  <script type="module" src="./${jsName}"></script>\n</body>`
+    scriptType === "module"
+      ? `  <script type="module" src="./${jsName}"></script>\n</body>`
+      : `  <script src="./${jsName}"></script>\n</body>`
   );
   fs.writeFileSync(path.join(outDir, htmlName), html);
   const metadata = {
@@ -61,10 +66,14 @@ export function buildRenderer({
     renderer: "src/workbench/App.tsx",
     entry: "src/main.tsx",
     html: htmlName,
-    script: jsName
+    script: jsName,
+    format,
+    scriptType
   };
   fs.writeFileSync(path.join(outDir, "renderer-build.json"), JSON.stringify(metadata, null, 2));
   return metadata;
 }
 
-console.log(JSON.stringify(buildRenderer(), null, 2));
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  console.log(JSON.stringify(buildRenderer(), null, 2));
+}

@@ -4,9 +4,28 @@ import * as RadixTabs from "@radix-ui/react-tabs";
 import * as KaTeX from "katex";
 import * as LucideIcons from "lucide-react";
 import * as Mermaid from "mermaid";
-import * as PdfJs from "pdfjs-dist";
 import * as ResizablePanels from "react-resizable-panels";
 import * as Streamdown from "streamdown";
+
+const PdfJs = {
+  createValidAbsoluteUrl(value: string, baseUrl?: string) {
+    try {
+      return new URL(value, baseUrl);
+    } catch {
+      return null;
+    }
+  },
+  getFilenameFromUrl(value: string) {
+    try {
+      const pathname = new URL(value, "https://preview.local/").pathname;
+      const parts = pathname.split("/").filter(Boolean);
+      return parts.at(-1) ?? "";
+    } catch {
+      return "";
+    }
+  },
+  version: "deferred-preview-adapter"
+} as const;
 
 export const rendererModuleBindings = {
   codeMirrorView: CodeMirrorView,

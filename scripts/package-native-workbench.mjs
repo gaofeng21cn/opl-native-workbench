@@ -56,7 +56,13 @@ assertNoFalseReadyFields({
 });
 assertFile(releaseIconPath, "OPL App release icon");
 
-const rendererBuild = buildRenderer({ outDir: rendererOutDir, htmlName: "workbench.html", jsName: "renderer.js" });
+const rendererBuild = buildRenderer({
+  outDir: rendererOutDir,
+  htmlName: "workbench.html",
+  jsName: "renderer.js",
+  format: "iife",
+  scriptType: "classic"
+});
 
 fs.rmSync(appRoot, { recursive: true, force: true });
 fs.mkdirSync(macOsDir, { recursive: true });
