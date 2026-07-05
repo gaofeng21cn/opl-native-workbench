@@ -1,9 +1,37 @@
 export type OplStateProfile = "fast" | "full";
 
+export type OplActionMode = "preview" | "execute" | "rollback";
+export type OplActionReceiptKind = OplActionMode | "confirmation_required";
+
+export type OplActionPayload = Record<string, unknown> & {
+  confirmed?: boolean;
+  confirmationId?: string;
+  receiptId?: string;
+  rollbackRef?: string;
+};
+
 export type OplActionRequest = {
   actionId: string;
-  payload?: Record<string, unknown>;
+  mode?: OplActionMode;
+  payload?: OplActionPayload;
   dryRun?: boolean;
+};
+
+export type OplActionReceipt = {
+  actionId: string;
+  dryRun: boolean;
+  confirmationRequired: boolean;
+  canExecute: boolean;
+  receiptKind: OplActionReceiptKind;
+  authorityBoundary: "app_bridge_no_domain_authority";
+  command: string;
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  timedOut: boolean;
+  confirmationId?: string;
+  receiptId?: string;
+  rollbackRef?: string;
 };
 
 export type CodexMessageRequest = {
@@ -35,7 +63,7 @@ export const CODEX_APP_SERVER = {
 export type OplBridge = {
   readState(profile?: OplStateProfile): Promise<unknown>;
   readFullDrilldown(): Promise<unknown>;
-  executeAction(request: OplActionRequest): Promise<unknown>;
+  executeAction(request: OplActionRequest): Promise<OplActionReceipt>;
   sendMessage(request: CodexMessageRequest): Promise<unknown>;
   subscribeEvents(onEvent: (event: unknown) => void): () => void;
 };
@@ -57,8 +85,22 @@ export function createBrowserBridge(): OplBridge {
     },
     executeAction(request) {
       return candidate?.executeAction?.(request) ?? Promise.resolve({
+        actionId: request.actionId,
         command: buildActionCommand(request),
-        dryRun: request.dryRun !== false
+        dryRun: request.dryRun !== false,
+        confirmationRequired: request.dryRun === false ? request.payload?.confirmed !== true : true,
+        canExecute: request.dryRun === false ? request.payload?.confirmed === true : true,
+        receiptKind: request.dryRun === false && request.payload?.confirmed !== true
+          ? "confirmation_required"
+          : request.mode ?? (request.payload?.rollbackRef ? "rollback" : request.dryRun === false ? "execute" : "preview"),
+        authorityBoundary: "app_bridge_no_domain_authority",
+        exitCode: request.dryRun === false && request.payload?.confirmed !== true ? -1 : 0,
+        stdout: "",
+        stderr: request.dryRun === false && request.payload?.confirmed !== true ? "confirmation_required" : "",
+        timedOut: false,
+        confirmationId: request.payload?.confirmationId,
+        receiptId: request.payload?.receiptId,
+        rollbackRef: request.payload?.rollbackRef
       });
     },
     sendMessage(request) {

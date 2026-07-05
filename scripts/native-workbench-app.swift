@@ -449,16 +449,47 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
       guard let actionId = payload["actionId"] as? String, !actionId.isEmpty else {
         throw BridgeError.invalidPayload("missing actionId")
       }
+      let actionPayload = payload["payload"] as? [String: Any] ?? [:]
+      let dryRun = (payload["dryRun"] as? Bool) != false
+      let confirmed = actionPayload["confirmed"] as? Bool == true
+      let rollbackRef = stringValue(actionPayload["rollbackRef"])
+      let receiptKind = actionReceiptKind(mode: payload["mode"] as? String, dryRun: dryRun, confirmed: confirmed, rollbackRef: rollbackRef)
       var args = ["opl", "app", "action", "execute", "--action", actionId]
-      if let actionPayload = payload["payload"] as? [String: Any] {
+      if !actionPayload.isEmpty {
         args.append("--payload")
         args.append(jsonString(actionPayload))
       }
-      if (payload["dryRun"] as? Bool) != false {
+      if dryRun {
         args.append("--dry-run")
       }
       args.append("--json")
-      return commandPayload(command: args, input: nil, timeout: 45)
+      if !dryRun && !confirmed {
+        return actionCommandPayload(
+          actionId: actionId,
+          command: args,
+          result: CommandResult(exitCode: -1, stdout: "", stderr: "confirmation_required", timedOut: false),
+          dryRun: false,
+          confirmationRequired: true,
+          canExecute: false,
+          receiptKind: "confirmation_required",
+          confirmationId: stringValue(actionPayload["confirmationId"]),
+          receiptId: stringValue(actionPayload["receiptId"]),
+          rollbackRef: rollbackRef
+        )
+      }
+      let result = runCommand(args, input: nil, cwd: workspaceRoot, timeout: 45)
+      return actionCommandPayload(
+        actionId: actionId,
+        command: args,
+        result: result,
+        dryRun: dryRun,
+        confirmationRequired: dryRun,
+        canExecute: true,
+        receiptKind: receiptKind,
+        confirmationId: stringValue(actionPayload["confirmationId"]),
+        receiptId: stringValue(actionPayload["receiptId"]),
+        rollbackRef: rollbackRef
+      )
     case "sendMessage":
       guard let prompt = payload["prompt"] as? String, !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
         throw BridgeError.invalidPayload("missing prompt")
@@ -478,6 +509,37 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
       "stderr": result.stderr,
       "timedOut": result.timedOut
     ]
+  }
+
+  private func actionCommandPayload(
+    actionId: String,
+    command: [String],
+    result: CommandResult,
+    dryRun: Bool,
+    confirmationRequired: Bool,
+    canExecute: Bool,
+    receiptKind: String,
+    confirmationId: String?,
+    receiptId: String?,
+    rollbackRef: String?
+  ) -> [String: Any] {
+    var payload: [String: Any] = [
+      "actionId": actionId,
+      "dryRun": dryRun,
+      "confirmationRequired": confirmationRequired,
+      "canExecute": canExecute,
+      "receiptKind": receiptKind,
+      "authorityBoundary": "app_bridge_no_domain_authority",
+      "command": command.joined(separator: " "),
+      "exitCode": result.exitCode,
+      "stdout": result.stdout,
+      "stderr": result.stderr,
+      "timedOut": result.timedOut
+    ]
+    if let confirmationId { payload["confirmationId"] = confirmationId }
+    if let receiptId { payload["receiptId"] = receiptId }
+    if let rollbackRef { payload["rollbackRef"] = rollbackRef }
+    return payload
   }
 
   private func runCommand(_ args: [String], input: String?, cwd: URL, timeout: TimeInterval) -> CommandResult {
@@ -533,6 +595,19 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
 
 enum BridgeError: Error {
   case invalidPayload(String)
+}
+
+func actionReceiptKind(mode: String?, dryRun: Bool, confirmed: Bool, rollbackRef: String?) -> String {
+  if !dryRun && !confirmed { return "confirmation_required" }
+  if mode == "rollback" || rollbackRef != nil { return "rollback" }
+  if dryRun { return "preview" }
+  return "execute"
+}
+
+func stringValue(_ value: Any?) -> String? {
+  guard let value else { return nil }
+  if let string = value as? String, !string.isEmpty { return string }
+  return nil
 }
 
 func describeValue(_ value: Any?) -> String {
