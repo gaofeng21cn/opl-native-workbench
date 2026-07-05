@@ -1,6 +1,6 @@
 import * as Tabs from "@radix-ui/react-tabs";
 import { Download, FileText, GitBranch, PanelRightOpen, Plus, Search, Send, Settings } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createBrowserBridge } from "../bridge/oplBridge";
 import {
   ConfirmationCard,
@@ -29,6 +29,12 @@ const purposeLabels: Record<WorkbenchPurpose, string> = {
   grant: "Draft grant",
   presentation: "Build deck",
   review: "Prepare handoff"
+};
+
+type ChatMessage = {
+  id: string;
+  role: "user" | "assistant" | "system";
+  text: string;
 };
 
 function starterPayload(starter: WorkbenchStarter): Record<string, unknown> {
@@ -60,7 +66,17 @@ export function App() {
   const [activeView, setActiveView] = useState<"chat" | "settings">("chat");
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [lastDryRun, setLastDryRun] = useState("No action preview yet.");
-  const [lastCodexReply, setLastCodexReply] = useState("");
+  const [pendingAction, setPendingAction] = useState<{ actionId: string; payload: Record<string, unknown> } | null>(null);
+  const [prompt, setPrompt] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    { id: "seed-user", role: "user", text: "Use the current project to prepare a review or deliverable." },
+    {
+      id: "seed-assistant",
+      role: "assistant",
+      text: "Codex is connected to OPL project context.\nAsk for a result review, export draft, or workflow request. Sources, previews, trace, and receipts stay in Context; execution requires confirmation."
+    }
+  ]);
+  const [eventFeed, setEventFeed] = useState<string[]>(["bridge.ready"]);
   const [codexThreadId, setCodexThreadId] = useState<string | undefined>();
   const previewAction = firstPreviewAction(model.contextActions);
 
@@ -83,24 +99,65 @@ export function App() {
     };
   }, [bridge]);
 
+  useEffect(() => bridge.subscribeEvents((event) => {
+    setEventFeed((items) => [formatEvent(event), ...items].slice(0, 8));
+  }), [bridge]);
+
   function runDryRun(actionId: string, payload: Record<string, unknown> = {}) {
+    setPendingAction({ actionId, payload });
     void bridge
       .executeAction({ actionId, payload, dryRun: true })
       .then((receipt) => setLastDryRun(formatReceipt(receipt)))
       .catch((error) => setLastDryRun(formatReceipt({ actionId, dryRun: true, error: String(error) })));
   }
 
-  function sendCodexMessage(prompt: string) {
+  function executeConfirmedAction() {
+    if (!pendingAction) return;
     void bridge
-      .sendMessage({ prompt, threadId: codexThreadId })
+      .executeAction({
+        actionId: pendingAction.actionId,
+        payload: { ...pendingAction.payload, confirmed: true },
+        dryRun: false
+      })
+      .then((receipt) => setLastDryRun(formatReceipt(receipt)))
+      .catch((error) => setLastDryRun(formatReceipt({ ...pendingAction, dryRun: false, error: String(error) })));
+  }
+
+  function sendCodexMessage(event?: FormEvent) {
+    event?.preventDefault();
+    const text = prompt.trim();
+    if (!text) return;
+    const userMessage: ChatMessage = { id: `user-${Date.now()}`, role: "user", text };
+    const pendingId = `assistant-${Date.now()}`;
+    setMessages((items) => [...items, userMessage, { id: pendingId, role: "system", text: "Codex is working..." }]);
+    setPrompt("");
+    void bridge
+      .sendMessage({ prompt: text, threadId: codexThreadId })
       .then((reply) => {
         const nextThreadId = typeof reply === "object" && reply && "threadId" in reply
           ? String((reply as { threadId?: unknown }).threadId ?? "")
           : "";
         if (nextThreadId) setCodexThreadId(nextThreadId);
-        setLastCodexReply(formatReceipt(reply));
+        const finalMessage = typeof reply === "object" && reply && "finalMessage" in reply
+          ? String((reply as { finalMessage?: unknown }).finalMessage ?? "")
+          : "";
+        setMessages((items) => items.map((item) => item.id === pendingId
+          ? { id: pendingId, role: "assistant", text: finalMessage || formatReceipt(reply) }
+          : item));
       })
-      .catch((error) => setLastCodexReply(formatReceipt({ executor: "codex_app_server", error: String(error) })));
+      .catch((error) => setMessages((items) => items.map((item) => item.id === pendingId
+        ? { id: pendingId, role: "system", text: formatReceipt({ executor: "codex_app_server", error: String(error) }) }
+        : item)));
+  }
+
+  function startNewChat() {
+    setCodexThreadId(undefined);
+    setPrompt("");
+    setMessages([{
+      id: `assistant-${Date.now()}`,
+      role: "assistant",
+      text: "New OPL workbench chat. Ask for review, drafting, export, or a workflow starter."
+    }]);
   }
 
   return (
@@ -119,7 +176,7 @@ export function App() {
         </header>
 
         <div className="quick-actions">
-          <button type="button" onClick={() => runDryRun("candidate.workspace.new")}>
+          <button type="button" onClick={startNewChat}>
             <Plus aria-hidden="true" size={15} />
             New chat
           </button>
@@ -180,19 +237,22 @@ export function App() {
 
         {activeView === "chat" ? <section className="conversation">
           <div className="thread">
-            <article className="message user">Use the current project to prepare a review or deliverable.</article>
+            {messages.map((message) => (
+              <article
+                key={message.id}
+                data-testid={message.role === "assistant" ? "opl-conversation-event" : undefined}
+                className={`message ${message.role}`}
+              >
+                {message.role === "assistant" ? <small>One Person Lab</small> : null}
+                <p>{message.text}</p>
+                {message.role === "assistant" ? <span data-testid="opl-codex-reply" hidden /> : null}
+              </article>
+            ))}
 
-            <article data-testid="opl-conversation-event" className="message assistant">
-              <small>One Person Lab</small>
-              <h2>Codex is connected to OPL project context.</h2>
-              <p>
-                Ask for a result review, export draft, or workflow request. OPL keeps sources,
-                previews, trace, and receipts available in the context panel, and asks before execution.
-              </p>
+            <article className="message assistant">
               <div className="event-line">Project sources loaded</div>
               <div className="event-line">Preview and export actions require confirmation</div>
               <div className="event-line">Artifact bodies remain source-owned</div>
-              {lastCodexReply ? <pre data-testid="opl-codex-reply">{lastCodexReply}</pre> : null}
               <section
                 data-testid="opl-workbench-delivery-mode"
                 className="delivery-workbench capability-row inline-context"
@@ -212,13 +272,18 @@ export function App() {
               </section>
             </article>
 
-            <form className="composer">
-              <textarea aria-label="Prompt" placeholder="Ask OPL to review, draft, export, or start a workflow" />
+            <form className="composer" onSubmit={sendCodexMessage}>
+              <textarea
+                aria-label="Prompt"
+                placeholder="Ask OPL to review, draft, export, or start a workflow"
+                value={prompt}
+                onChange={(event) => setPrompt(event.currentTarget.value)}
+              />
               <footer>
                 <button type="button" aria-label="Attach">
                   <Plus aria-hidden="true" size={15} />
                 </button>
-                <button type="button" onClick={() => sendCodexMessage("Answer from OPL App context. Keep it concise.")}>
+                <button type="submit" disabled={!prompt.trim()}>
                   <Send aria-hidden="true" size={16} />
                   Send
                 </button>
@@ -349,6 +414,14 @@ export function App() {
             <Download aria-hidden="true" size={16} />
             Preview action
           </button>
+          <button
+            data-testid="opl-runtime-action-execute"
+            type="button"
+            disabled={!pendingAction}
+            onClick={executeConfirmedAction}
+          >
+            Execute confirmed
+          </button>
           <output data-testid="opl-runtime-action-receipt">{lastDryRun}</output>
         </section>
 
@@ -437,10 +510,20 @@ export function App() {
           </button>
         </section>
         <div data-testid="opl-web-transport">window.oplNativeWorkbench / SSE /api/opl-events</div>
-        <div data-testid="opl-event-feed">tool process diff file receipt user_input permission</div>
+        <div data-testid="opl-event-feed">{eventFeed.join(" / ")} tool process diff file receipt user_input permission</div>
       </aside>
     </main>
   );
+}
+
+function formatEvent(event: unknown): string {
+  if (typeof event === "object" && event && "method" in event) {
+    return String((event as { method?: unknown }).method);
+  }
+  if (typeof event === "object" && event && "type" in event) {
+    return String((event as { type?: unknown }).type);
+  }
+  return "event";
 }
 
 export default App;

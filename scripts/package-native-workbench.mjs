@@ -180,7 +180,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
         </div>
       </div>
       <div class="quick-actions">
-        <button type="button">New chat</button>
+        <button type="button" onclick="startNewChat()">New chat</button>
         <button type="button" aria-label="Search">Search</button>
       </div>
       <nav class="nav" aria-label="Primary">
@@ -248,12 +248,12 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
           <section>
             <h2>Execution</h2>
             <p>Codex is the local executor for this build. Model and reasoning controls belong in settings, not beside Send.</p>
-            <button data-testid="opl-model-access-entry" type="button">Codex CLI managed</button>
+            <label class="row"><span>Model</span><input data-testid="opl-settings-model" data-setting-key="model" value="Codex CLI managed" /></label>
           </section>
           <section>
             <h2>Interface</h2>
             <p>Language is a global interface preference.</p>
-            <button data-testid="opl-locale-toggle" type="button">Chinese</button>
+            <button data-testid="opl-locale-toggle" type="button" onclick="toggleLocale()">Chinese</button>
           </section>
           <section>
             <h2>Runtime</h2>
@@ -263,6 +263,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
           <section>
             <h2>Project</h2>
             <p>The default project is the OPL App repo. Domain truth and artifact bodies remain outside this shell.</p>
+            <label class="row"><span>Workspace</span><input data-testid="opl-settings-workspace" data-setting-key="workspace" value="one-person-lab-app" /></label>
           </section>
           <section>
             <h2>About</h2>
@@ -312,6 +313,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
             <strong>Review before execution</strong>
             <p>Preview the action receipt first; execution stays behind App action confirmation.</p>
             <button type="button" onclick="dryRun('confirmation.dry_run')">Preview action</button>
+            <button data-testid="opl-runtime-action-execute" type="button" onclick="executeConfirmedAction()">Execute confirmed</button>
           </div>
           <output id="receipt" data-testid="opl-runtime-action-receipt" class="receipt">No action preview yet.</output>
         </details>
@@ -339,6 +341,8 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
   <script>
     const pendingNativeCalls = new Map();
     let currentCodexThreadId = null;
+    let pendingAction = null;
+    const settingsStorageKey = "opl-native-workbench.settings.v1";
     window.__oplNativeWorkbenchResolve = function(id, ok, payload) {
       const pending = pendingNativeCalls.get(id);
       if (!pending) return;
@@ -396,6 +400,11 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
       article.scrollIntoView({ block: "end", behavior: "smooth" });
       return article;
     }
+    function startNewChat() {
+      currentCodexThreadId = null;
+      document.querySelector(".thread").replaceChildren();
+      appendMessage("", "New OPL workbench chat. Ask for review, drafting, export, or a workflow starter.");
+    }
     async function sendCodexMessage() {
       const input = document.getElementById("promptInput");
       const prompt = input.value.trim();
@@ -420,6 +429,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
     }
     async function dryRun(actionId) {
       const receipt = document.getElementById("receipt");
+      pendingAction = { actionId };
       receipt.textContent = "Preparing preview...";
       try {
         const result = await window.oplNativeWorkbench.executeAction({ actionId, dryRun: true });
@@ -427,6 +437,51 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
       } catch (error) {
         receipt.textContent = JSON.stringify(error, null, 2);
       }
+    }
+    async function executeConfirmedAction() {
+      const receipt = document.getElementById("receipt");
+      if (!pendingAction) {
+        receipt.textContent = "Preview an action before execution.";
+        return;
+      }
+      receipt.textContent = "Executing confirmed action...";
+      try {
+        const result = await window.oplNativeWorkbench.executeAction({
+          actionId: pendingAction.actionId,
+          payload: { confirmed: true },
+          dryRun: false
+        });
+        receipt.textContent = JSON.stringify(result, null, 2);
+      } catch (error) {
+        receipt.textContent = JSON.stringify(error, null, 2);
+      }
+    }
+    function loadSettings() {
+      try {
+        return JSON.parse(localStorage.getItem(settingsStorageKey) || "{}");
+      } catch {
+        return {};
+      }
+    }
+    function saveSettings(next) {
+      localStorage.setItem(settingsStorageKey, JSON.stringify(next));
+    }
+    function hydrateSettings() {
+      const settings = loadSettings();
+      document.querySelectorAll("[data-setting-key]").forEach((node) => {
+        const key = node.dataset.settingKey;
+        if (typeof settings[key] === "string") node.value = settings[key];
+        node.addEventListener("change", () => saveSettings({ ...loadSettings(), [key]: node.value }));
+      });
+      const locale = settings.locale || "Chinese";
+      const button = document.querySelector("[data-testid='opl-locale-toggle']");
+      if (button) button.textContent = locale;
+    }
+    function toggleLocale() {
+      const settings = loadSettings();
+      const locale = settings.locale === "English" ? "Chinese" : "English";
+      saveSettings({ ...settings, locale });
+      document.querySelector("[data-testid='opl-locale-toggle']").textContent = locale;
     }
     function objectValue(value) {
       return value && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -514,6 +569,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
       document.getElementById("contextTrace").append(row("Context fallback", String(error)));
       document.getElementById("codexStatus").textContent = "Local runtime";
     });
+    hydrateSettings();
   </script>
 </body>
 </html>
