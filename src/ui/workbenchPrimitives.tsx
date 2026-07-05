@@ -1,13 +1,16 @@
 import {
   ClipboardCheck,
+  FileCode,
   FileText,
   PackageCheck,
   ReceiptText,
   RotateCcw,
   ShieldQuestion
 } from "lucide-react";
-import { rendererModuleRegistry } from "../renderers/moduleRegistry";
+import { previewKindRendererModuleMap, rendererModuleRegistry } from "../renderers/moduleRegistry";
 import type {
+  ActionReceiptSummary as ActionReceiptSummaryModel,
+  ArtifactPreview,
   ConfirmationCard as ConfirmationCardModel,
   InterviewQuestion,
   WorkbenchArtifactRef
@@ -57,6 +60,48 @@ export function QuestionCard({ question }: QuestionCardProps) {
       </header>
       <p>{question.whyItMatters}</p>
       <small>{question.answerType}</small>
+    </article>
+  );
+}
+
+export function ArtifactPreviewCard({ preview }: { preview: ArtifactPreview }) {
+  return (
+    <article data-testid="opl-artifact-preview-card" className="artifact-preview-card">
+      <header>
+        <FileCode aria-hidden="true" size={18} />
+        <div>
+          <h3>{preview.title}</h3>
+          <StatusPill status={preview.previewKind} />
+        </div>
+      </header>
+      <p>{preview.summary}</p>
+      <dl>
+        <dt>Renderer</dt>
+        <dd>{preview.rendererModuleId}</dd>
+        <dt>Ref</dt>
+        <dd>{preview.ref}</dd>
+      </dl>
+    </article>
+  );
+}
+
+export function ActionReceiptSummary({ receipt }: { receipt: ActionReceiptSummaryModel }) {
+  return (
+    <article data-testid="opl-action-receipt-summary" className="action-receipt-summary">
+      <header>
+        <ReceiptText aria-hidden="true" size={18} />
+        <div>
+          <h3>{receipt.title}</h3>
+          <StatusPill status={receipt.status} />
+        </div>
+      </header>
+      <p>{receipt.summary}</p>
+      <dl>
+        <dt>Action</dt>
+        <dd>{receipt.actionId}</dd>
+        <dt>Receipt ref</dt>
+        <dd>{receipt.receiptRef}</dd>
+      </dl>
     </article>
   );
 }
@@ -122,9 +167,18 @@ export function RendererModuleRegistryPanel() {
             <strong>{module.packageName}</strong>
             <span>{module.surface}</span>
             <small>{module.adapter}</small>
+            {module.previewKinds?.length ? <code>{module.previewKinds.join(", ")}</code> : null}
           </li>
         ))}
       </ul>
+      <dl>
+        {Object.entries(previewKindRendererModuleMap).map(([kind, moduleId]) => (
+          <div key={kind}>
+            <dt>{kind}</dt>
+            <dd>{moduleId}</dd>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }

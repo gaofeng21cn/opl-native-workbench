@@ -25,9 +25,25 @@ export type RendererModuleRegistration = {
   packageName: string;
   surface: string;
   adapter: string;
+  previewKinds?: RendererPreviewKind[];
   evidenceTestId: string;
   authorityBoundary: string;
 };
+
+export type RendererPreviewKind = "markdown" | "pdf" | "code" | "mermaid" | "math" | "json";
+
+export const previewKindRendererModuleMap: Record<RendererPreviewKind, string> = {
+  markdown: "streamdown",
+  math: "katex",
+  mermaid: "mermaid",
+  code: "@codemirror/view",
+  json: "@codemirror/view",
+  pdf: "pdfjs-dist"
+};
+
+export function rendererModuleIdForPreviewKind(previewKind: RendererPreviewKind): string {
+  return previewKindRendererModuleMap[previewKind];
+}
 
 export const rendererModuleRegistry: RendererModuleRegistration[] = [
   {
@@ -67,6 +83,7 @@ export const rendererModuleRegistry: RendererModuleRegistration[] = [
     packageName: "streamdown",
     surface: "Markdown result preview",
     adapter: "Streaming markdown renderer slot",
+    previewKinds: ["markdown"],
     evidenceTestId: "opl-artifact-preview-tabs",
     authorityBoundary: "Refs-only artifact preview"
   },
@@ -75,6 +92,7 @@ export const rendererModuleRegistry: RendererModuleRegistration[] = [
     packageName: "katex",
     surface: "Math preview",
     adapter: "Formula renderer slot",
+    previewKinds: ["math"],
     evidenceTestId: "opl-artifact-preview-tabs",
     authorityBoundary: "Refs-only artifact preview"
   },
@@ -83,6 +101,7 @@ export const rendererModuleRegistry: RendererModuleRegistration[] = [
     packageName: "mermaid",
     surface: "Diagram preview",
     adapter: "Diagram renderer slot",
+    previewKinds: ["mermaid"],
     evidenceTestId: "opl-artifact-preview-tabs",
     authorityBoundary: "Refs-only artifact preview"
   },
@@ -91,6 +110,7 @@ export const rendererModuleRegistry: RendererModuleRegistration[] = [
     packageName: "@codemirror/view",
     surface: "Code and diff preview",
     adapter: "EditorView-based read-only code slot",
+    previewKinds: ["code", "json"],
     evidenceTestId: "opl-artifact-preview-tabs",
     authorityBoundary: "Refs-only artifact preview"
   },
@@ -99,6 +119,7 @@ export const rendererModuleRegistry: RendererModuleRegistration[] = [
     packageName: "pdfjs-dist",
     surface: "PDF export preview",
     adapter: "PDF.js document preview slot",
+    previewKinds: ["pdf"],
     evidenceTestId: "opl-artifact-preview-tabs",
     authorityBoundary: "Local preview only"
   },

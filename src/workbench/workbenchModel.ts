@@ -1,11 +1,17 @@
+import {
+  rendererModuleIdForPreviewKind,
+  type RendererPreviewKind
+} from "../renderers/moduleRegistry";
+
 export type WorkbenchPurpose = "research" | "grant" | "presentation" | "review";
+export type WorkbenchPreviewKind = RendererPreviewKind;
 
 export type WorkbenchArtifactRef = {
   id: string;
   title: string;
   kind: "result" | "file" | "receipt" | "deliverable";
   status: "ready" | "needs_review" | "blocked";
-  previewKind: "markdown" | "pdf" | "code" | "mermaid" | "math";
+  previewKind: WorkbenchPreviewKind;
   ref: string;
   summary: string;
   provenance: string[];
@@ -23,6 +29,7 @@ export type WorkspaceSession = {
 export type ArtifactPreview = {
   id: string;
   label: string;
+  previewKind: WorkbenchPreviewKind;
   rendererModuleId: string;
   title: string;
   ref: string;
@@ -43,6 +50,10 @@ export type WorkbenchActionRef = {
   payloadFields: string[];
   mutates: string;
   dryRunSupported: boolean;
+  owner?: string;
+  delegatedSurface?: string;
+  canSubmitToSafeActionShell?: boolean;
+  routeRequiresPayload?: boolean;
 };
 
 export type WorkbenchTraceRef = {
@@ -68,6 +79,10 @@ export type WorkbenchStarter = {
   intent: string;
   fields: WorkbenchStarterField[];
   dryRunAction: string;
+  available?: boolean;
+  status?: string;
+  sourceRef?: string;
+  previewActionId?: string;
 };
 
 export type ConfirmationCard = {
@@ -99,6 +114,30 @@ export type ActiveProjectLine = {
   nextForcedDelta: string;
 };
 
+export type DeliveryPackage = {
+  id: string;
+  title: string;
+  status: "ready" | "needs_review" | "blocked";
+  summary: string;
+  previewActionId: string;
+  deliverableRefs: string[];
+  receiptRefs: string[];
+  sourceRefs: string[];
+  runtimeStatus: string;
+  authorityBoundary: string;
+};
+
+export type ActionReceiptSummary = {
+  id: string;
+  title: string;
+  actionId: string;
+  route: string;
+  status: "preview_ready" | "payload_required" | "unavailable";
+  mutates: string;
+  receiptRef: string;
+  summary: string;
+};
+
 export type WorkbenchModel = {
   purposes: WorkbenchPurpose[];
   sessions: WorkspaceSession[];
@@ -106,6 +145,8 @@ export type WorkbenchModel = {
   deliverables: WorkbenchArtifactRef[];
   receipts: WorkbenchArtifactRef[];
   artifactPreviews: ArtifactPreview[];
+  deliveryPackages: DeliveryPackage[];
+  actionReceipts: ActionReceiptSummary[];
   starters: WorkbenchStarter[];
   confirmations: ConfirmationCard[];
   questions: InterviewQuestion[];
@@ -206,6 +247,7 @@ export const initialWorkbenchModel: WorkbenchModel = {
     {
       id: "preview-markdown",
       label: "Markdown",
+      previewKind: "markdown",
       rendererModuleId: "streamdown",
       title: "Result narrative",
       ref: "artifact://candidate/result-summary.md",
@@ -214,6 +256,7 @@ export const initialWorkbenchModel: WorkbenchModel = {
     {
       id: "preview-math",
       label: "Math",
+      previewKind: "math",
       rendererModuleId: "katex",
       title: "Methods note",
       ref: "artifact://candidate/methods-equation.tex",
@@ -222,6 +265,7 @@ export const initialWorkbenchModel: WorkbenchModel = {
     {
       id: "preview-diagram",
       label: "Mermaid",
+      previewKind: "mermaid",
       rendererModuleId: "mermaid",
       title: "Delivery flow",
       ref: "artifact://candidate/delivery-flow.mmd",
@@ -230,6 +274,7 @@ export const initialWorkbenchModel: WorkbenchModel = {
     {
       id: "preview-code",
       label: "Code",
+      previewKind: "code",
       rendererModuleId: "@codemirror/view",
       title: "Patch excerpt",
       ref: "artifact://candidate/patch-ref.ts",
@@ -238,10 +283,37 @@ export const initialWorkbenchModel: WorkbenchModel = {
     {
       id: "preview-pdf",
       label: "PDF",
+      previewKind: "pdf",
       rendererModuleId: "pdfjs-dist",
       title: "Export proof",
       ref: "artifact://candidate/export-preview.pdf",
       summary: "PDF.js preview slot for local export artifacts."
+    }
+  ],
+  deliveryPackages: [
+    {
+      id: "delivery-package",
+      title: "Delivery package",
+      status: "needs_review",
+      summary: "Refs-only package shell for deliverable refs, receipt refs, and source refs.",
+      previewActionId: "candidate.delivery.export",
+      deliverableRefs: ["opl://delivery/package", "opl://delivery/owner-brief"],
+      receiptRefs: ["opl://receipt/dry-run"],
+      sourceRefs: ["opl app state --profile fast --json"],
+      runtimeStatus: "candidate_surface_only",
+      authorityBoundary: "No artifact body, owner receipt, domain truth, or release authority."
+    }
+  ],
+  actionReceipts: [
+    {
+      id: "receipt-candidate-delivery-export",
+      title: "Delivery export preview receipt",
+      actionId: "candidate.delivery.export",
+      route: "opl app action execute --action candidate.delivery.export --dry-run --json",
+      status: "preview_ready",
+      mutates: "none_read_only",
+      receiptRef: "opl://receipt/dry-run",
+      summary: "Preview receipt ref only; no action execution is implied."
     }
   ],
   starters: [
@@ -401,6 +473,10 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map(asString).filter((item): item is string => Boolean(item)) : [];
 }
 
+function asBoolean(value: unknown): boolean {
+  return value === true || asString(value) === "true";
+}
+
 function uniqueByRef<T extends { ref?: string; route?: string; id: string }>(items: T[]): T[] {
   const seen = new Set<string>();
   return items.filter((item) => {
@@ -414,6 +490,67 @@ function uniqueByRef<T extends { ref?: string; route?: string; id: string }>(ite
 function sourceRef(id: string, label: string, ref: unknown, summary: string): WorkbenchSourceRef | null {
   const value = asString(ref);
   return value ? { id, label, ref: value, summary } : null;
+}
+
+function actionText(action: WorkbenchActionRef): string {
+  return `${action.id} ${action.label} ${action.route} ${action.delegatedSurface ?? ""}`.toLowerCase();
+}
+
+function isDeliveryAction(action: WorkbenchActionRef): boolean {
+  return /deliver|export|bundle|result|review|handoff|package/.test(actionText(action));
+}
+
+function isReceiptAction(action: WorkbenchActionRef): boolean {
+  return /receipt|preview|dry.?run|export|bundle/.test(actionText(action));
+}
+
+function inferPreviewKind(action: WorkbenchActionRef): WorkbenchPreviewKind {
+  const text = actionText(action);
+  if (/pdf/.test(text)) return "pdf";
+  if (/mermaid|diagram|flow/.test(text)) return "mermaid";
+  if (/math|latex|katex|equation/.test(text)) return "math";
+  if (/markdown|brief|review|result|handoff|summary/.test(text)) return "markdown";
+  if (/code|diff|patch/.test(text)) return "code";
+  return "json";
+}
+
+function actionStatus(action: WorkbenchActionRef): ActionReceiptSummary["status"] {
+  if (!action.dryRunSupported) return "unavailable";
+  return action.payloadFields.length ? "payload_required" : "preview_ready";
+}
+
+function firstPreviewAction(actions: WorkbenchActionRef[]): WorkbenchActionRef | undefined {
+  return actions.find((action) => action.dryRunSupported && isDeliveryAction(action))
+    ?? actions.find((action) => action.dryRunSupported && action.payloadFields.length === 0)
+    ?? actions.find((action) => action.dryRunSupported);
+}
+
+function moduleKey(value: string): WorkbenchStarter["id"] | null {
+  const key = value.toLowerCase();
+  if (key.includes("medautoscience") || key.includes("med auto science")) return "mas";
+  if (key.includes("medautogrant") || key.includes("med auto grant")) return "mag";
+  if (key.includes("redcube") || key.includes("redcube ai")) return "rca";
+  if (key.includes("oplbookforge") || key.includes("opl book forge") || key.includes("bookforge")) return "bookforge";
+  return null;
+}
+
+function starterPreviewAction(starter: WorkbenchStarter, actions: WorkbenchActionRef[]): WorkbenchActionRef | undefined {
+  const exactIds = [`starter.${starter.id}`, `starter_${starter.id}`, `${starter.id}_starter`];
+  return actions.find((action) => action.dryRunSupported && exactIds.some((id) => action.id.includes(id)));
+}
+
+function pickActiveProjectLines(value: unknown, fallback: ActiveProjectLine[]): ActiveProjectLine[] {
+  const rawLines = Array.isArray(value) ? value : Array.isArray(asRecord(value)?.items) ? asRecord(value)?.items : [];
+  const lines = rawLines.map(asRecord).filter(Boolean).map((line): ActiveProjectLine => ({
+    status: asString(line?.status) ?? "unknown",
+    activeRunId: asString(line?.active_run_id) ?? asString(line?.activeRunId),
+    nextVisibleStep: asString(line?.next_visible_step) ?? asString(line?.nextVisibleStep) ?? "Review current refs",
+    progressDeltaClassification: asString(line?.progress_delta_classification) ?? asString(line?.progressDeltaClassification) ?? "platform_or_observability_delta",
+    deliverableProgressDelta: asString(line?.deliverable_progress_delta) ?? asString(line?.deliverableProgressDelta) ?? "refs visible",
+    platformRepairDelta: asString(line?.platform_repair_delta) ?? asString(line?.platformRepairDelta) ?? "none",
+    nextForcedDelta: asString(line?.next_forced_delta) ?? asString(line?.nextForcedDelta) ?? "owner adoption gate"
+  }));
+  return lines.length ? lines : fallback;
 }
 
 function pickAppState(state: unknown): Record<string, unknown> | null {
@@ -464,19 +601,126 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
       route: asString(item?.route) ?? `opl app action execute --action ${id}`,
       payloadFields: asStringArray(item?.payload_fields),
       mutates: asString(item?.mutates) ?? "unknown",
-      dryRunSupported: item?.dry_run_supported === true || asString(item?.dry_run_supported) === "true"
+      dryRunSupported: asBoolean(item?.dry_run_supported),
+      owner: asString(item?.owner) ?? undefined,
+      delegatedSurface: asString(item?.delegated_surface) ?? undefined,
+      canSubmitToSafeActionShell: asBoolean(item?.can_submit_to_safe_action_shell),
+      routeRequiresPayload: asBoolean(item?.route_requires_domain_or_app_payload)
     };
   }).filter((item): item is WorkbenchActionRef => Boolean(item));
 
-  const previewActions = contextActions.filter((action) => action.dryRunSupported).slice(0, 5);
+  const deliveryActions = contextActions.filter(isDeliveryAction);
+  const receiptActions = contextActions.filter((action) => action.dryRunSupported && isReceiptAction(action));
+  const previewAction = firstPreviewAction(contextActions);
+  const previewActions = uniqueByRef([
+    ...(previewAction ? [previewAction] : []),
+    ...receiptActions,
+    ...contextActions.filter((action) => action.dryRunSupported)
+  ]).slice(0, 5);
   const artifactPreviews = previewActions.length ? previewActions.map((action): ArtifactPreview => ({
     id: `preview-${action.id}`,
     label: action.label,
-    rendererModuleId: "json",
+    previewKind: inferPreviewKind(action),
+    rendererModuleId: rendererModuleIdForPreviewKind(inferPreviewKind(action)),
     title: action.label,
     ref: action.route,
-    summary: `Dry-run supported; mutates: ${action.mutates}.`
+    summary: `Refs-only preview from ${action.owner ?? "OPL action"}; mutates: ${action.mutates}.`
   })) : fallback.artifactPreviews;
+
+  const deliverables = deliveryActions.length ? deliveryActions.slice(0, 6).map((action): WorkbenchArtifactRef => ({
+    id: `deliverable-${action.id}`,
+    title: action.label,
+    kind: "deliverable",
+    status: action.dryRunSupported ? "needs_review" : "blocked",
+    previewKind: inferPreviewKind(action),
+    ref: action.route,
+    summary: `${action.delegatedSurface ?? action.route} as a refs-only deliverable/action ref.`,
+    provenance: [runtimeSource?.normal_gui_state_surface, action.owner, action.delegatedSurface].map(asString).filter((item): item is string => Boolean(item)),
+    actions: action.dryRunSupported ? ["Preview action receipt", "Attach source refs"] : ["Requires App action payload"]
+  })) : fallback.deliverables;
+
+  const receipts = receiptActions.length ? receiptActions.slice(0, 6).map((action): WorkbenchArtifactRef => ({
+    id: `receipt-${action.id}`,
+    title: `${action.label} receipt`,
+    kind: "receipt",
+    status: action.payloadFields.length ? "needs_review" : "ready",
+    previewKind: "json",
+    ref: `receipt://${action.id}/dry-run`,
+    summary: `Dry-run receipt ref for ${action.route}; no execution receipt is claimed.`,
+    provenance: [runtimeSource?.action_boundary_surface, action.owner, action.delegatedSurface].map(asString).filter((item): item is string => Boolean(item)),
+    actions: ["Preview receipt", "Compare payload"]
+  })) : fallback.receipts;
+
+  const actionReceipts = receiptActions.length ? receiptActions.slice(0, 8).map((action): ActionReceiptSummary => ({
+    id: `action-receipt-${action.id}`,
+    title: `${action.label} receipt preview`,
+    actionId: action.id,
+    route: `${action.route} --dry-run --json`,
+    status: actionStatus(action),
+    mutates: action.mutates,
+    receiptRef: `receipt://${action.id}/dry-run`,
+    summary: action.payloadFields.length
+      ? `Dry-run route exists; payload required: ${action.payloadFields.join(", ")}.`
+      : "Dry-run route can preview a refs-only receipt without a domain artifact body."
+  })) : fallback.actionReceipts;
+
+  const moduleAvailability = new Map<WorkbenchStarter["id"], { status: string; sourceRef: string }>();
+  for (const item of moduleItems) {
+    const moduleId = asString(item?.module_id) ?? "";
+    const label = asString(item?.label) ?? "";
+    const key = moduleKey(`${moduleId} ${label}`);
+    if (!key) continue;
+    const installed = asBoolean(item?.installed);
+    const health = asString(item?.health_status) ?? "unknown";
+    moduleAvailability.set(key, {
+      status: installed ? health : "not_installed",
+      sourceRef: asString(item?.checkout_path) ?? asString(item?.repo_url) ?? moduleId
+    });
+  }
+
+  const starters = fallback.starters.map((starter): WorkbenchStarter => {
+    const availability = moduleAvailability.get(starter.id);
+    const starterAction = starterPreviewAction(starter, contextActions);
+    return {
+      ...starter,
+      available: Boolean(availability),
+      status: availability?.status ?? "fallback",
+      sourceRef: availability?.sourceRef ?? starter.sourceRef,
+      previewActionId: starterAction?.id ?? starter.previewActionId ?? starter.dryRunAction,
+      dryRunAction: starterAction?.id ?? starter.dryRunAction
+    };
+  });
+
+  const runtimeStatus = asString(asRecord(operator?.summary)?.runtime_status)
+    ?? asString(asRecord(operator?.summary)?.provider_status)
+    ?? asString(asRecord(appState.provider)?.status)
+    ?? "unknown";
+
+  const effectiveContextSources = contextSources.length ? contextSources : fallback.contextSources;
+  const sourceRefs = effectiveContextSources.map((source) => source.ref);
+  const deliveryPackages: DeliveryPackage[] = contextActions.length || contextSources.length ? [
+    {
+      id: "delivery-package",
+      title: "Delivery package",
+      status: deliverables.length || receipts.length ? "needs_review" : "blocked",
+      summary: "Derived from App state action refs, deliverable refs, receipt refs, and runtime status; artifact bodies stay source-owned.",
+      previewActionId: previewAction?.id ?? fallback.deliveryPackages[0]?.previewActionId ?? "artifact.export.prepare",
+      deliverableRefs: deliverables.map((item) => item.ref),
+      receiptRefs: receipts.map((item) => item.ref),
+      sourceRefs,
+      runtimeStatus,
+      authorityBoundary: "Refs-only delivery context; no artifact body, owner receipt, domain truth, or release authority."
+    }
+  ] : fallback.deliveryPackages;
+
+  const confirmations = fallback.confirmations.map((card, index): ConfirmationCard => index === 0 && previewAction ? {
+    ...card,
+    question: `Preview ${previewAction.label} as a refs-only delivery package?`,
+    risks: [`Runtime status: ${runtimeStatus}`, "Preview receipt is not owner acceptance"],
+    willChange: [`Create dry-run request for ${previewAction.id}`, "Attach current App state refs"],
+    receipt: `${previewAction.route} --dry-run --json`,
+    dryRunAction: previewAction.id
+  } : card);
 
   const contextTrace = [
     { id: "profile", label: "Profile", value: asString(meta?.profile) ?? "" },
@@ -489,8 +733,15 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
 
   return {
     ...fallback,
+    deliverables,
+    receipts,
     artifactPreviews,
-    contextSources: contextSources.length ? contextSources : fallback.contextSources,
+    deliveryPackages,
+    actionReceipts,
+    starters,
+    confirmations,
+    activeProjectLines: pickActiveProjectLines(appState.active_project_lines, fallback.activeProjectLines),
+    contextSources: effectiveContextSources,
     contextActions: contextActions.length ? contextActions : fallback.contextActions,
     contextTrace: contextTrace.length ? contextTrace : fallback.contextTrace,
     stateGeneratedAt: asString(meta?.generated_at) ?? fallback.stateGeneratedAt
