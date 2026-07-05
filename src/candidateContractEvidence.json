@@ -209,6 +209,12 @@
         "file": "src/workbench/App.tsx",
         "contains": ["opl-starter-forms", "opl-starter-form", "starterPayload"]
       }
+    ],
+    "workbench_model_live_derivation": [
+      {
+        "file": "src/workbench/workbenchModel.ts",
+        "contains": ["settings_control_center", "task_drilldowns", "current_owner_delta_next_action", "action_receipt", "artifact_or_blocker", "review_receipt"]
+      }
     ]
   },
   "starter_action_ref_policy": {
@@ -521,5 +527,23 @@
       "full_release_ready",
       "active_shell_adopted"
     ]
+  },
+  "workbench_model_live_derivation": {
+    "authority": "opl app state --profile fast --json",
+    "required_projections": [
+      "app_state.actions",
+      "app_state.modules.items",
+      "app_state.operator.workbench.task_drilldowns",
+      "app_state.settings_control_center.task_entries"
+    ],
+    "required_task_domains_for_starters": [
+      "medautoscience",
+      "medautogrant",
+      "redcube",
+      "oplbookforge"
+    ],
+    "starter_payload_policy": "starter payload fields must derive from live action payload_fields plus task/module refs when available",
+    "receipt_ref_policy": "receipt summaries and preview refs must derive from task_drilldowns action_receipt review_receipt and artifact_or_blocker surfaces",
+    "context_policy": "context sources and actions must prefer live App state refs over static candidate copy while staying refs-only"
   }
 }

@@ -493,6 +493,10 @@ function asBoolean(value: unknown): boolean {
   return value === true || asString(value) === "true";
 }
 
+function asRecordArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.map(asRecord).filter((item): item is Record<string, unknown> => Boolean(item)) : [];
+}
+
 function uniqueByRef<T extends { ref?: string; route?: string; id: string }>(items: T[]): T[] {
   const seen = new Set<string>();
   return items.filter((item) => {
@@ -512,6 +516,20 @@ function actionText(action: WorkbenchActionRef): string {
   return `${action.id} ${action.label} ${action.route} ${action.delegatedSurface ?? ""}`.toLowerCase();
 }
 
+function previewKindFromText(value: string): WorkbenchPreviewKind {
+  const text = value.toLowerCase();
+  if (/pdf/.test(text)) return "pdf";
+  if (/mermaid|diagram|flow/.test(text)) return "mermaid";
+  if (/math|latex|katex|equation/.test(text)) return "math";
+  if (/json|receipt|preview|diff|patch|code/.test(text)) return "code";
+  if (/markdown|brief|review|result|handoff|summary|workflow|artifact|export/.test(text)) return "markdown";
+  return "json";
+}
+
+function previewKindFromRef(ref: string, summary = ""): WorkbenchPreviewKind {
+  return previewKindFromText(`${ref} ${summary}`);
+}
+
 function isDeliveryAction(action: WorkbenchActionRef): boolean {
   return /deliver|export|bundle|result|review|handoff|package/.test(actionText(action));
 }
@@ -521,13 +539,7 @@ function isReceiptAction(action: WorkbenchActionRef): boolean {
 }
 
 function inferPreviewKind(action: WorkbenchActionRef): WorkbenchPreviewKind {
-  const text = actionText(action);
-  if (/pdf/.test(text)) return "pdf";
-  if (/mermaid|diagram|flow/.test(text)) return "mermaid";
-  if (/math|latex|katex|equation/.test(text)) return "math";
-  if (/markdown|brief|review|result|handoff|summary/.test(text)) return "markdown";
-  if (/code|diff|patch/.test(text)) return "code";
-  return "json";
+  return previewKindFromText(actionText(action));
 }
 
 function actionStatus(action: WorkbenchActionRef): ActionReceiptSummary["status"] {
@@ -584,15 +596,189 @@ function pickAppState(state: unknown): Record<string, unknown> | null {
   return asRecord(root?.app_state) ?? root;
 }
 
+function compactText(value: unknown, fallback: string, max = 160): string {
+  const text = asString(value)?.replace(/\s+/g, " ").trim() ?? fallback;
+  return text.length > max ? `${text.slice(0, max - 1)}...` : text;
+}
+
+function artifactStatus(value: unknown): WorkbenchArtifactRef["status"] {
+  const text = (asString(value) ?? "").toLowerCase();
+  if (/ready|completed|complete|healthy|available/.test(text)) return "ready";
+  if (/blocked|dirty|error|attention/.test(text)) return "blocked";
+  return "needs_review";
+}
+
+function fieldLabel(name: string): string {
+  const labels: Record<string, string> = {
+    task_id: "Task ID",
+    action_ref: "Action ref",
+    export_bundle_ref: "Export bundle ref",
+    agent_id: "Agent ID",
+    workspace_root_optional: "Workspace root",
+    workspace_id: "Workspace ID",
+    project_id: "Project ID",
+    mode: "Mode",
+    title: "Title"
+  };
+  return labels[name] ?? name.replace(/_/g, " ");
+}
+
+function fieldInput(name: string): WorkbenchStarterField["input"] {
+  if (name === "mode") return "select";
+  if (/ref|path|prompt|question|summary|note|description|title/.test(name)) return "textarea";
+  return "text";
+}
+
+function fieldOptions(name: string): string[] | undefined {
+  if (name === "mode") return ["existing", "create"];
+  return undefined;
+}
+
+function ensureDryRunJsonRoute(route: string): string {
+  const withDryRun = route.includes("--dry-run") ? route : `${route} --dry-run`;
+  return withDryRun.includes("--json") ? withDryRun : `${withDryRun} --json`;
+}
+
+function extractActionId(ref: unknown): string | null {
+  const value = asString(ref);
+  if (!value) return null;
+  const match = value.match(/#([A-Za-z0-9_.-]+)$/);
+  return match?.[1] ?? null;
+}
+
+function pickTaskKey(task: Record<string, unknown>): WorkbenchStarter["id"] | null {
+  return moduleKey(
+    `${asString(task.domain_id) ?? ""} ${asString(task.domain_label) ?? ""} ${asString(task.title) ?? ""}`
+  );
+}
+
+function starterFieldValue(
+  fieldName: string,
+  task: Record<string, unknown> | null,
+  moduleItem: Record<string, unknown> | null
+): string {
+  const actionReceipt = asRecord(task?.action_receipt);
+  const artifact = asRecord(task?.artifact_or_blocker);
+  const exportBundleRefs = asStringArray(artifact?.export_bundle_refs);
+  if (fieldName === "task_id") return asString(task?.task_id) ?? asString(task?.domain_id) ?? "";
+  if (fieldName === "action_ref") return asString(actionReceipt?.preview_ref) ?? "";
+  if (fieldName === "export_bundle_ref") return exportBundleRefs[0] ?? asString(artifact?.export_ref) ?? "";
+  if (fieldName === "agent_id") return asString(task?.domain_id) ?? asString(moduleItem?.module_id) ?? "";
+  if (fieldName === "workspace_root_optional" || fieldName === "workspace_path") {
+    return asString(task?.workspace_path) ?? asString(moduleItem?.checkout_path) ?? "";
+  }
+  if (fieldName === "workspace_id") return asString(task?.task_id) ?? asString(moduleItem?.module_id) ?? "";
+  if (fieldName === "project_id") return asString(task?.task_id) ?? asString(moduleItem?.module_id) ?? "";
+  if (fieldName === "mode") return "existing";
+  if (fieldName === "title") return asString(task?.title) ?? asString(moduleItem?.label) ?? "";
+  return asString(task?.title) ?? asString(moduleItem?.label) ?? "";
+}
+
+function buildStarterFields(
+  starter: WorkbenchStarter,
+  action: WorkbenchActionRef | undefined,
+  task: Record<string, unknown> | null,
+  moduleItem: Record<string, unknown> | null
+): WorkbenchStarterField[] {
+  if (!action?.payloadFields.length) return starter.fields;
+  return action.payloadFields.map((name) => ({
+    name,
+    label: fieldLabel(name),
+    input: fieldInput(name),
+    value: starterFieldValue(name, task, moduleItem),
+    options: fieldOptions(name)
+  }));
+}
+
+function buildTaskSourceRefs(taskDrilldowns: Record<string, unknown>[]): WorkbenchSourceRef[] {
+  return taskDrilldowns.flatMap((task) => {
+    const taskId = asString(task.task_id) ?? "task";
+    const title = asString(task.title) ?? taskId;
+    const artifact = asRecord(task.artifact_or_blocker);
+    const workflowRefs = asRecord(task.workflow_refs);
+    const reviewReceipt = asRecord(task.review_receipt);
+    const actionReceipt = asRecord(task.action_receipt);
+    return [
+      sourceRef(
+        `task-${taskId}`,
+        `${title} task`,
+        artifact?.current_ref ?? workflowRefs?.current_workflow_ref ?? asString(task.workspace_path),
+        compactText(task.next_visible_step, "Task status ref.")
+      ),
+      sourceRef(
+        `workflow-${taskId}`,
+        `${title} workflow`,
+        workflowRefs?.current_workflow_ref ?? workflowRefs?.stage_workflow_ref,
+        compactText(workflowRefs?.content_policy, "Refs-only workflow ref.")
+      ),
+      sourceRef(
+        `review-${taskId}`,
+        `${title} review receipt`,
+        reviewReceipt?.receipt_ref,
+        compactText(reviewReceipt?.authority_policy, "Reviewer receipt ref only.")
+      ),
+      sourceRef(
+        `preview-${taskId}`,
+        `${title} action preview`,
+        actionReceipt?.preview_ref,
+        compactText(actionReceipt?.content_policy, "Dry-run action preview ref.")
+      )
+    ].filter((item): item is WorkbenchSourceRef => Boolean(item));
+  });
+}
+
+function buildResultsFromTasks(taskDrilldowns: Record<string, unknown>[]): WorkbenchArtifactRef[] {
+  const items = taskDrilldowns.flatMap((task) => {
+    const taskId = asString(task.task_id);
+    const title = asString(task.title);
+    const artifact = asRecord(task.artifact_or_blocker);
+    const reviewReceipt = asRecord(task.review_receipt);
+    const actionReceipt = asRecord(task.action_receipt);
+    if (!taskId || !title) return [];
+    return [
+      {
+        id: `result-${taskId}`,
+        title: `${title} delta`,
+        kind: "result" as const,
+        status: artifactStatus(task.status ?? task.state),
+        previewKind: previewKindFromRef(
+          asString(artifact?.current_ref) ?? asString(artifact?.canonical_ref) ?? title,
+          asString(task.next_visible_step) ?? title
+        ),
+        ref: asString(artifact?.current_ref) ?? asString(artifact?.canonical_ref) ?? `opl://task/${taskId}`,
+        summary: compactText(task.next_visible_step, `${title} task status ref.`),
+        provenance: [
+          asString(task.workspace_path),
+          asString(task.runtime_readback_source),
+          asString(reviewReceipt?.receipt_ref)
+        ].filter((item): item is string => Boolean(item)),
+        actions: [
+          asString(actionReceipt?.action_id) ? "Preview task receipt" : null,
+          asString(reviewReceipt?.receipt_ref) ? "Open review receipt ref" : null
+        ].filter((item): item is string => Boolean(item))
+      }
+    ];
+  });
+  return items.length ? items.slice(0, 6) : initialWorkbenchModel.results;
+}
+
 export function deriveWorkbenchModelFromState(state: unknown, fallback: WorkbenchModel = initialWorkbenchModel): WorkbenchModel {
   const appState = pickAppState(state);
   if (!appState) return fallback;
 
   const runtimeSource = asRecord(appState.runtime_source);
   const operator = asRecord(appState.operator);
+  const workbench = asRecord(operator?.workbench);
   const modules = asRecord(appState.modules);
-  const moduleItems = Array.isArray(modules?.items) ? modules.items.map(asRecord).filter(Boolean) : [];
-  const actions = Array.isArray(appState.actions) ? appState.actions.map(asRecord).filter(Boolean) : [];
+  const settingsControlCenter = asRecord(appState.settings_control_center);
+  const moduleItems = asRecordArray(modules?.items);
+  const actions = asRecordArray(appState.actions);
+  const taskDrilldowns = asRecordArray(workbench?.task_drilldowns);
+  const settingsTaskEntries = asRecordArray(settingsControlCenter?.task_entries);
+  const settingsSections = asRecordArray(settingsControlCenter?.action_sections);
+  const safeActionRoutes = asRecordArray(workbench?.safe_action_routes);
+  const currentOwnerDelta = asRecord(workbench?.current_owner_delta);
+  const currentOwnerDeltaNextAction = asRecord(workbench?.current_owner_delta_next_action);
   const meta = asRecord(appState.meta);
 
   const runtimeSources = [
@@ -602,23 +788,25 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     sourceRef("full-drilldown", "Full drilldown", runtimeSource?.full_drilldown_exception_surface, "Runtime drilldown exception.")
   ].filter((item): item is WorkbenchSourceRef => Boolean(item));
 
-  const operatorSources = Array.isArray(operator?.refs)
-    ? operator.refs.map((item, index) => {
-        const ref = asRecord(item);
-        return sourceRef(`operator-ref-${index}`, asString(ref?.label) ?? "Operator ref", ref?.ref, asString(ref?.node_kind) ?? "OPL operator ref.");
-      }).filter((item): item is WorkbenchSourceRef => Boolean(item))
-    : [];
+  const workbenchSources = buildTaskSourceRefs(taskDrilldowns);
+
+  const settingsSources = settingsSections.map((item, index) => sourceRef(
+    `settings-section-${asString(item.section_id) ?? index}`,
+    asString(item.label) ?? `Settings section ${index + 1}`,
+    item.source_ref,
+    compactText(item.description, "Settings control center section.")
+  )).filter((item): item is WorkbenchSourceRef => Boolean(item));
 
   const moduleSources = moduleItems.slice(0, 5).map((item, index) => sourceRef(
     `module-${asString(item?.module_id) ?? index}`,
     asString(item?.label) ?? asString(item?.module_id) ?? "Module",
     asString(item?.checkout_path) ?? asString(item?.repo_url),
-    asString(item?.health_status) ? `Module health: ${item?.health_status}` : "Managed OPL module ref."
+    compactText(item?.description, asString(item?.health_status) ? `Module health: ${item?.health_status}` : "Managed OPL module ref.")
   )).filter((item): item is WorkbenchSourceRef => Boolean(item));
 
-  const contextSources = uniqueByRef([...runtimeSources, ...operatorSources, ...moduleSources]);
+  const contextSources = uniqueByRef([...runtimeSources, ...settingsSources, ...moduleSources, ...workbenchSources]);
 
-  const contextActions = actions.map((item): WorkbenchActionRef | null => {
+  const baseActions = actions.map((item): WorkbenchActionRef | null => {
     const id = asString(item?.action_id);
     if (!id) return null;
     return {
@@ -635,70 +823,256 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     };
   }).filter((item): item is WorkbenchActionRef => Boolean(item));
 
-  const deliveryActions = contextActions.filter(isDeliveryAction);
-  const receiptActions = contextActions.filter((action) => action.dryRunSupported && isReceiptAction(action));
-  const previewAction = firstPreviewAction(contextActions);
-  const previewActions = uniqueByRef([
-    ...(previewAction ? [previewAction] : []),
-    ...receiptActions,
-    ...contextActions.filter((action) => action.dryRunSupported)
-  ]).slice(0, 5);
-  const artifactPreviews = previewActions.length ? previewActions.map((action): ArtifactPreview => ({
-    id: `preview-${action.id}`,
-    label: action.label,
-    previewKind: inferPreviewKind(action),
-    rendererModuleId: rendererModuleIdForPreviewKind(inferPreviewKind(action)),
-    title: action.label,
-    ref: action.route,
-    summary: `Refs-only preview from ${action.owner ?? "OPL action"}; mutates: ${action.mutates}.`
+  const actionOverrides = new Map<string, Partial<WorkbenchActionRef>>();
+  for (const entry of settingsTaskEntries) {
+    const id = asString(entry.action_id) ?? asString(entry.task_id);
+    if (!id) continue;
+    actionOverrides.set(id, {
+      label: asString(entry.label) ?? id,
+      route: asString(entry.route) ?? `opl app action execute --action ${id}`,
+      payloadFields: asStringArray(entry.payload_fields),
+      mutates: asString(entry.mutates) ?? "unknown",
+      dryRunSupported: asBoolean(entry.dry_run_supported),
+      delegatedSurface: asString(entry.delegated_surface) ?? asString(entry.dry_run_route) ?? undefined,
+      routeRequiresPayload: asBoolean(entry.payload_required)
+    });
+  }
+  for (const route of safeActionRoutes) {
+    const id = asString(route.action_id);
+    if (!id) continue;
+    const existing = actionOverrides.get(id) ?? {};
+    actionOverrides.set(id, {
+      ...existing,
+      label: asString(route.label) ?? existing.label ?? id,
+      route: asString(route.route) ?? existing.route ?? `opl app action execute --action ${id}`,
+      owner: asString(route.owner) ?? existing.owner,
+      dryRunSupported: true
+    });
+  }
+
+  const actionMap = new Map<string, WorkbenchActionRef>();
+  for (const action of baseActions) {
+    const override = actionOverrides.get(action.id);
+    actionMap.set(action.id, {
+      ...action,
+      ...(override ?? {})
+    });
+  }
+  for (const [id, override] of actionOverrides.entries()) {
+    if (actionMap.has(id)) continue;
+    actionMap.set(id, {
+      id,
+      label: override.label ?? id,
+      route: override.route ?? `opl app action execute --action ${id}`,
+      payloadFields: override.payloadFields ?? [],
+      mutates: override.mutates ?? "unknown",
+      dryRunSupported: override.dryRunSupported ?? true,
+      owner: override.owner,
+      delegatedSurface: override.delegatedSurface,
+      canSubmitToSafeActionShell: override.canSubmitToSafeActionShell,
+      routeRequiresPayload: override.routeRequiresPayload
+    });
+  }
+
+  const priorityActionIds = uniqueByRef(taskDrilldowns.flatMap((task) => {
+    const actionReceipt = asRecord(task.action_receipt);
+    const taskActionId = asString(actionReceipt?.action_id);
+    const exportActionId = asString(actionReceipt?.export_bundle_action_id)
+      ?? extractActionId(asRecord(task.artifact_or_blocker)?.export_bundle_action_ref);
+    return [taskActionId, exportActionId].filter((item): item is string => Boolean(item)).map((id) => ({
+      id,
+      ref: id
+    }));
+  }).concat(
+    settingsTaskEntries
+      .filter((entry) => ["workspace", "capabilities", "packages", "model_access"].includes(asString(entry.section_id) ?? ""))
+      .map((entry) => ({ id: asString(entry.action_id) ?? asString(entry.task_id) ?? "", ref: asString(entry.action_id) ?? asString(entry.task_id) ?? "" })),
+    [
+      { id: "workspace_ensure", ref: "workspace_ensure" },
+      { id: "settings_sync_capabilities", ref: "settings_sync_capabilities" },
+      { id: "task_action_receipt_preview", ref: "task_action_receipt_preview" },
+      { id: "task_export_bundle_preview", ref: "task_export_bundle_preview" }
+    ]
+  )).map((item) => item.id);
+
+  const contextActions = uniqueByRef([
+    ...priorityActionIds.map((id) => actionMap.get(id)).filter((item): item is WorkbenchActionRef => Boolean(item)),
+    ...Array.from(actionMap.values())
+      .filter((action) => action.dryRunSupported && (isDeliveryAction(action) || isReceiptAction(action)))
+      .slice(0, 8)
+  ]);
+
+  const taskDeliverables = taskDrilldowns.flatMap((task) => {
+    const taskId = asString(task.task_id);
+    const title = asString(task.title);
+    const artifact = asRecord(task.artifact_or_blocker);
+    const workflowRefs = asRecord(task.workflow_refs);
+    if (!taskId || !title || !artifact) return [];
+    const refs = [
+      {
+        id: `deliverable-${taskId}-canonical`,
+        title: `${title} canonical ref`,
+        ref: asString(artifact.canonical_ref),
+        summary: compactText(artifact.content_policy, "Refs-only canonical artifact ref."),
+        previewKind: previewKindFromRef(asString(artifact.canonical_ref) ?? title, asString(artifact.content_policy) ?? title)
+      },
+      {
+        id: `deliverable-${taskId}-export`,
+        title: `${title} export ref`,
+        ref: asString(artifact.export_ref),
+        summary: compactText(task.next_visible_step, "Export ref derived from operator workbench."),
+        previewKind: previewKindFromRef(asString(artifact.export_ref) ?? title, asString(task.next_visible_step) ?? title)
+      },
+      {
+        id: `deliverable-${taskId}-workflow`,
+        title: `${title} workflow ref`,
+        ref: asString(workflowRefs?.current_workflow_ref),
+        summary: compactText(workflowRefs?.content_policy, "Workflow ref only."),
+        previewKind: previewKindFromRef(asString(workflowRefs?.current_workflow_ref) ?? title, asString(workflowRefs?.content_policy) ?? title)
+      }
+    ];
+    return refs
+      .filter((item) => item.ref)
+      .map((item): WorkbenchArtifactRef => ({
+        id: item.id,
+        title: item.title,
+        kind: "deliverable",
+        status: artifactStatus(task.status ?? task.state),
+        previewKind: item.previewKind,
+        ref: item.ref!,
+        summary: item.summary,
+        provenance: [
+          asString(task.workspace_path),
+          asString(artifact.lineage_ref),
+          asString(artifact.conformance_ref)
+        ].filter((value): value is string => Boolean(value)),
+        actions: ["Preview ref", "Attach receipt ref"]
+      }));
+  });
+  const deliverables = taskDeliverables.length ? uniqueByRef(taskDeliverables).slice(0, 6) : fallback.deliverables;
+
+  const taskReceipts = taskDrilldowns.flatMap((task) => {
+    const taskId = asString(task.task_id);
+    const title = asString(task.title);
+    const actionReceipt = asRecord(task.action_receipt);
+    const reviewReceipt = asRecord(task.review_receipt);
+    const artifact = asRecord(task.artifact_or_blocker);
+    if (!taskId || !title) return [];
+    const items = [
+      {
+        id: `receipt-${taskId}-action`,
+        title: `${title} action preview`,
+        ref: asString(actionReceipt?.preview_ref),
+        summary: compactText(actionReceipt?.content_policy, "Dry-run action receipt ref."),
+        status: actionReceipt?.preview_ref ? "needs_review" : "blocked"
+      },
+      {
+        id: `receipt-${taskId}-review`,
+        title: `${title} review receipt`,
+        ref: asString(reviewReceipt?.receipt_ref),
+        summary: compactText(reviewReceipt?.authority_policy, "Review receipt summary ref."),
+        status: artifactStatus(reviewReceipt?.status ?? task.status ?? task.state)
+      },
+      {
+        id: `receipt-${taskId}-artifact`,
+        title: `${title} artifact receipt`,
+        ref: asString(artifact?.receipt_ref),
+        summary: compactText(artifact?.content_policy, "Artifact receipt ref only."),
+        status: artifactStatus(task.status ?? task.state)
+      }
+    ];
+    return items
+      .filter((item) => item.ref)
+      .map((item): WorkbenchArtifactRef => ({
+        id: item.id,
+        title: item.title,
+        kind: "receipt",
+        status: item.status as WorkbenchArtifactRef["status"],
+        previewKind: "code",
+        ref: item.ref!,
+        summary: item.summary,
+        provenance: [
+          asString(task.runtime_readback_source),
+          asString(task.workspace_path),
+          asString(reviewReceipt?.check_ref)
+        ].filter((value): value is string => Boolean(value)),
+        actions: ["Preview receipt", "Compare refs"]
+      }));
+  });
+  const receipts = taskReceipts.length ? uniqueByRef(taskReceipts).slice(0, 6) : fallback.receipts;
+
+  const previewCandidates = uniqueByRef([
+    ...deliverables.map((item) => ({ id: item.id, ref: item.ref, label: item.title, summary: item.summary, previewKind: item.previewKind })),
+    ...receipts.map((item) => ({ id: item.id, ref: item.ref, label: item.title, summary: item.summary, previewKind: item.previewKind })),
+    ...contextActions
+      .filter((action) => action.dryRunSupported)
+      .map((action) => ({
+        id: `preview-action-${action.id}`,
+        ref: action.route,
+        label: action.label,
+        summary: `Refs-only preview from ${action.owner ?? "OPL action"}; mutates: ${action.mutates}.`,
+        previewKind: inferPreviewKind(action)
+      }))
+  ]).slice(0, 6);
+  const artifactPreviews = previewCandidates.length ? previewCandidates.map((item): ArtifactPreview => ({
+    id: item.id,
+    label: item.label,
+    previewKind: item.previewKind,
+    rendererModuleId: rendererModuleIdForPreviewKind(item.previewKind),
+    title: item.label,
+    ref: item.ref,
+    summary: item.summary
   })) : fallback.artifactPreviews;
 
-  const deliverables = deliveryActions.length ? deliveryActions.slice(0, 6).map((action): WorkbenchArtifactRef => ({
-    id: `deliverable-${action.id}`,
-    title: action.label,
-    kind: "deliverable",
-    status: action.dryRunSupported ? "needs_review" : "blocked",
-    previewKind: inferPreviewKind(action),
-    ref: action.route,
-    summary: `${action.delegatedSurface ?? action.route} as a refs-only deliverable/action ref.`,
-    provenance: [runtimeSource?.normal_gui_state_surface, action.owner, action.delegatedSurface].map(asString).filter((item): item is string => Boolean(item)),
-    actions: action.dryRunSupported ? ["Preview action receipt", "Attach source refs"] : ["Requires App action payload"]
-  })) : fallback.deliverables;
-
-  const receipts = receiptActions.length ? receiptActions.slice(0, 6).map((action): WorkbenchArtifactRef => ({
-    id: `receipt-${action.id}`,
-    title: `${action.label} receipt`,
-    kind: "receipt",
-    status: action.payloadFields.length ? "needs_review" : "ready",
-    previewKind: "json",
-    ref: `receipt://${action.id}/dry-run`,
-    summary: `Dry-run receipt ref for ${action.route}; no execution receipt is claimed.`,
-    provenance: [runtimeSource?.action_boundary_surface, action.owner, action.delegatedSurface].map(asString).filter((item): item is string => Boolean(item)),
-    actions: ["Preview receipt", "Compare payload"]
-  })) : fallback.receipts;
-
-  const receiptPreviewActions = uniqueByRef([
-    ...receiptActions,
-    ...contextActions.filter((action) => action.dryRunSupported)
-  ]);
-  const actionReceipts = receiptPreviewActions.length ? receiptPreviewActions.slice(0, 8).map((action): ActionReceiptSummary => ({
-    id: `action-receipt-${action.id}`,
-    title: `${action.label} receipt preview`,
-    actionId: action.id,
-    route: `${action.route} --dry-run --json`,
-    status: actionStatus(action),
-    mutates: action.mutates,
-    receiptRef: `receipt://${action.id}/dry-run`,
-    summary: action.payloadFields.length
-      ? `Dry-run route exists; payload required: ${action.payloadFields.join(", ")}.`
-      : "Dry-run route can preview a refs-only receipt without a domain artifact body."
-  })) : fallback.actionReceipts.map((receipt): ActionReceiptSummary => ({
-    ...receipt,
-    status: receipt.status === "preview_ready" ? "payload_required" : receipt.status,
-    summary: `${receipt.summary} Fallback only; live App state action refs were not available.`
-  }));
+  const taskReceiptSummaries = taskDrilldowns.flatMap((task) => {
+    const taskId = asString(task.task_id);
+    const title = asString(task.title);
+    const actionReceipt = asRecord(task.action_receipt);
+    const artifact = asRecord(task.artifact_or_blocker);
+    if (!taskId || !title || !actionReceipt) return [];
+    const exportRoute = asString(actionReceipt.export_bundle_route);
+    const exportBundleRef = asStringArray(artifact?.export_bundle_refs)[0];
+    return [
+      {
+        id: `action-receipt-${taskId}`,
+        title: `${title} receipt preview`,
+        actionId: asString(actionReceipt.action_id) ?? "task_action_receipt_preview",
+        route: ensureDryRunJsonRoute(asString(actionReceipt.route) ?? "opl app action execute --action task_action_receipt_preview"),
+        status: "payload_required" as const,
+        mutates: "none_read_only",
+        receiptRef: asString(actionReceipt.preview_ref) ?? `receipt://${taskId}/preview`,
+        summary: compactText(task.next_visible_step, "Task preview receipt derived from operator workbench.")
+      },
+      ...(exportRoute && exportBundleRef ? [{
+        id: `action-export-${taskId}`,
+        title: `${title} export bundle preview`,
+        actionId: asString(actionReceipt.export_bundle_action_id) ?? "task_export_bundle_preview",
+        route: ensureDryRunJsonRoute(exportRoute),
+        status: "payload_required" as const,
+        mutates: "none_read_only",
+        receiptRef: exportBundleRef,
+        summary: compactText(artifact?.content_policy, "Export bundle preview uses refs only.")
+      }] : [])
+    ];
+  });
+  const genericReceiptSummaries = contextActions
+    .filter((action) => action.dryRunSupported)
+    .map((action): ActionReceiptSummary => ({
+      id: `action-generic-${action.id}`,
+      title: `${action.label} receipt preview`,
+      actionId: action.id,
+      route: ensureDryRunJsonRoute(action.route),
+      status: actionStatus(action),
+      mutates: action.mutates,
+      receiptRef: `receipt://${action.id}/dry-run`,
+      summary: action.payloadFields.length
+        ? `Dry-run route exists; payload required: ${action.payloadFields.join(", ")}.`
+        : "Dry-run route can preview a refs-only receipt without a domain artifact body."
+    }));
+  const actionReceipts = uniqueByRef([...taskReceiptSummaries, ...genericReceiptSummaries]).slice(0, 8);
 
   const moduleAvailability = new Map<WorkbenchStarter["id"], { status: string; sourceRef: string }>();
+  const moduleRecords = new Map<WorkbenchStarter["id"], Record<string, unknown>>();
   for (const item of moduleItems) {
     const moduleId = asString(item?.module_id) ?? "";
     const label = asString(item?.label) ?? "";
@@ -710,19 +1084,53 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
       status: installed ? health : "not_installed",
       sourceRef: asString(item?.checkout_path) ?? asString(item?.repo_url) ?? moduleId
     });
+    moduleRecords.set(key, item);
+  }
+
+  const starterTasks = new Map<WorkbenchStarter["id"], Record<string, unknown>>();
+  for (const task of taskDrilldowns) {
+    const key = pickTaskKey(task);
+    if (!key) continue;
+    const current = starterTasks.get(key);
+    const taskId = asString(task.task_id);
+    const domainId = asString(task.domain_id);
+    if (!current || (taskId && domainId && taskId === domainId)) {
+      starterTasks.set(key, task);
+    }
   }
 
   const starters = fallback.starters.map((starter): WorkbenchStarter => {
     const availability = moduleAvailability.get(starter.id);
-    const starterAction = starterPreviewAction(starter, contextActions);
+    const moduleRecord = moduleRecords.get(starter.id) ?? null;
+    const task = starterTasks.get(starter.id) ?? null;
+    const taskAction = actionMap.get(asString(asRecord(task?.action_receipt)?.action_id) ?? "");
+    const exportAction = actionMap.get(
+      asString(asRecord(task?.action_receipt)?.export_bundle_action_id)
+      ?? extractActionId(asRecord(task?.artifact_or_blocker)?.export_bundle_action_ref)
+      ?? ""
+    );
+    const starterAction = taskAction ?? exportAction ?? starterPreviewAction(starter, contextActions);
     const routeStatus = starterAction
       ? `${actionStatus(starterAction)}_preview_route_not_domain_execution`
       : "unavailable_no_live_app_action_ref";
+    const taskArtifact = asRecord(task?.artifact_or_blocker);
+    const taskActionReceipt = asRecord(task?.action_receipt);
+    const starterTitle = asString(task?.title)
+      ? `${starter.title.split("/")[0]?.trim() ?? starter.title} / ${asString(task?.title)}`
+      : starter.title;
     return {
       ...starter,
+      title: starterTitle,
+      module: asString(moduleRecord?.label) ?? starter.module,
+      intent: compactText(task?.next_visible_step, asString(moduleRecord?.description) ?? starter.intent),
+      fields: buildStarterFields(starter, starterAction, task, moduleRecord),
       available: Boolean(starterAction?.dryRunSupported),
-      status: `${availability?.status ?? "module_unknown"}:${routeStatus}`,
-      sourceRef: starterAction?.route ?? availability?.sourceRef ?? starter.sourceRef,
+      status: `${asString(task?.status) ?? asString(task?.state) ?? availability?.status ?? "module_unknown"}:${routeStatus}`,
+      sourceRef: asString(taskActionReceipt?.preview_ref)
+        ?? asString(taskArtifact?.current_ref)
+        ?? starterAction?.route
+        ?? availability?.sourceRef
+        ?? starter.sourceRef,
       previewActionId: starterAction?.id,
       dryRunAction: starterAction?.id ?? starter.dryRunAction
     };
@@ -730,17 +1138,19 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
 
   const runtimeStatus = asString(asRecord(operator?.summary)?.runtime_status)
     ?? asString(asRecord(operator?.summary)?.provider_status)
+    ?? asString(currentOwnerDeltaNextAction?.action_kind)
     ?? asString(asRecord(appState.provider)?.status)
     ?? "unknown";
 
   const effectiveContextSources = contextSources.length ? contextSources : fallback.contextSources;
   const sourceRefs = effectiveContextSources.map((source) => source.ref);
-  const deliveryPackages: DeliveryPackage[] = contextActions.length || contextSources.length ? [
+  const previewAction = firstPreviewAction(contextActions);
+  const deliveryPackages: DeliveryPackage[] = (deliverables.length || receipts.length || contextActions.length) ? [
     {
       id: "delivery-package",
       title: "Delivery package",
       status: deliverables.length || receipts.length ? "needs_review" : "blocked",
-      summary: "Derived from App state action refs, deliverable refs, receipt refs, and runtime status; artifact bodies stay source-owned.",
+      summary: "Derived from live App action refs, operator task drilldowns, receipt refs, and runtime status; artifact bodies stay source-owned.",
       previewActionId: previewAction?.id ?? fallback.deliveryPackages[0]?.previewActionId ?? "task_export_bundle_preview",
       deliverableRefs: deliverables.map((item) => item.ref),
       receiptRefs: receipts.map((item) => item.ref),
@@ -750,14 +1160,39 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     }
   ] : fallback.deliveryPackages;
 
+  const leadTask = taskDrilldowns[0];
+  const leadTaskTitle = asString(leadTask?.title) ?? "current task";
+  const leadTaskNextStep = compactText(leadTask?.next_visible_step, "Review current App refs before execution.");
   const confirmations = fallback.confirmations.map((card, index): ConfirmationCard => index === 0 && previewAction ? {
     ...card,
-    question: `Preview ${previewAction.label} as a refs-only delivery package?`,
-    risks: [`Runtime status: ${runtimeStatus}`, "Preview receipt is not owner acceptance"],
+    title: `Preview ${leadTaskTitle} package`,
+    question: `Preview ${previewAction.label} for ${leadTaskTitle} as a refs-only delivery package?`,
+    risks: [`Runtime status: ${runtimeStatus}`, leadTaskNextStep, "Preview receipt is not owner acceptance"],
     willChange: [`Create dry-run request for ${previewAction.id}`, "Attach current App state refs"],
-    receipt: `${previewAction.route} --dry-run --json`,
+    receipt: ensureDryRunJsonRoute(previewAction.route),
     dryRunAction: previewAction.id
   } : card);
+
+  const questions = [
+    {
+      id: "question-owner-shape",
+      question: compactText(currentOwnerDelta?.desired_delta_description, leadTaskNextStep),
+      whyItMatters: compactText(currentOwnerDeltaNextAction?.action_kind, "Current owner delta defines the next legal answer shape."),
+      answerType: asStringArray(currentOwnerDelta?.accepted_answer_shape).join(", ") || "typed owner answer"
+    },
+    {
+      id: "question-review-receipt",
+      question: `Which receipt ref should stay attached to ${leadTaskTitle}?`,
+      whyItMatters: "Review receipts stay refs-only and do not transfer domain authority.",
+      answerType: "receipt ref"
+    },
+    {
+      id: "question-package-export",
+      question: "Which export bundle ref should be previewed next?",
+      whyItMatters: "Export bundle previews remain App-owned dry-run refs, not artifact bodies.",
+      answerType: "export bundle ref"
+    }
+  ];
 
   const contextTrace = [
     { id: "profile", label: "Profile", value: asString(meta?.profile) ?? "" },
@@ -765,11 +1200,36 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     { id: "owner", label: "Owner", value: asString(runtimeSource?.owner) ?? "" },
     { id: "app-owner", label: "App truth owner", value: asString(runtimeSource?.app_repo_truth_owner) ?? "" },
     { id: "provider", label: "Provider status", value: asString(asRecord(operator?.summary)?.provider_status) ?? "" },
-    { id: "runtime", label: "Runtime status", value: asString(asRecord(operator?.summary)?.runtime_status) ?? "" }
+    { id: "runtime", label: "Runtime status", value: asString(asRecord(operator?.summary)?.runtime_status) ?? "" },
+    { id: "current-owner", label: "Current owner", value: asString(currentOwnerDelta?.owner) ?? asString(workbench?.operator_next_action_owner) ?? "" },
+    { id: "next-action", label: "Next action kind", value: asString(currentOwnerDeltaNextAction?.action_kind) ?? asString(workbench?.operator_next_action_kind) ?? "" },
+    { id: "hard-gate", label: "Hard gate", value: asString(asRecord(currentOwnerDelta?.hard_gate)?.state) ?? "" }
   ].filter((item) => item.value);
+
+  const sessions = taskDrilldowns.length
+    ? taskDrilldowns.slice(0, 3).map((task): WorkspaceSession => ({
+        id: asString(task.task_id) ?? `session-${Math.random()}`,
+        workspace: asString(task.workspace_path) ?? asString(task.domain_label) ?? "Current project",
+        session: asString(task.title) ?? asString(task.task_id) ?? "Delivery review",
+        status: asString(task.status) ?? asString(task.state) ?? "candidate_surface_only",
+        nextStep: compactText(task.next_visible_step, "Review current refs")
+      }))
+    : fallback.sessions;
+
+  const derivedActiveProjectLines = taskDrilldowns.length ? taskDrilldowns.slice(0, 6).map((task): ActiveProjectLine => ({
+    status: asString(task.status) ?? asString(task.state) ?? "unknown",
+    activeRunId: asString(task.active_run_id),
+    nextVisibleStep: compactText(task.next_visible_step, "Review current refs"),
+    progressDeltaClassification: asString(task.priority_bucket) ?? asString(asRecord(task.progress)?.status) ?? "platform_or_observability_delta",
+    deliverableProgressDelta: asString(asRecord(task.artifact_or_blocker)?.content_policy) ?? "refs_only_no_artifact_body",
+    platformRepairDelta: asString(task.runtime_attempt_status) ?? "none",
+    nextForcedDelta: asString(asRecord(task.review_receipt)?.next_action) ?? asString(currentOwnerDeltaNextAction?.action_kind) ?? "owner adoption gate"
+  })) : pickActiveProjectLines(appState.active_project_lines, fallback.activeProjectLines);
 
   return {
     ...fallback,
+    sessions,
+    results: buildResultsFromTasks(taskDrilldowns),
     deliverables,
     receipts,
     artifactPreviews,
@@ -777,7 +1237,8 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     actionReceipts,
     starters,
     confirmations,
-    activeProjectLines: pickActiveProjectLines(appState.active_project_lines, fallback.activeProjectLines),
+    questions,
+    activeProjectLines: derivedActiveProjectLines,
     contextSources: effectiveContextSources,
     contextActions: contextActions.length ? contextActions : fallback.contextActions,
     contextTrace: contextTrace.length ? contextTrace : fallback.contextTrace,
