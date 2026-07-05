@@ -29,21 +29,31 @@ thread/turn JSON-RPC flow (`initialize`, `thread/start`, `turn/start`,
 deltas, and thread resume use the Codex control plane instead of a shell-owned
 one-shot CLI wrapper.
 
+The current candidate also keeps a local chat-session ledger in `localStorage`.
+The left sidebar is no longer static mock data: it can reopen recent chats,
+reuse the saved `threadId`, and show the latest locally-persisted draft even
+before active-shell adoption.
+
 Settings is a first-class route in the candidate. Global controls such as
 language, model/account access, workspace, and runtime connection live there;
 the composer stays limited to prompt-local actions like attach and send.
+`runtimeProfile` now drives actual `opl app state` readback shape, and the
+Settings page exposes runtime readback status instead of a pure placeholder.
 
 ## Functional MVP Closeout
 
 | Area | Status | Evidence | Boundary |
 | --- | --- | --- | --- |
 | Codex chat runtime | Implemented candidate evidence | App-server thread/turn markers for `initialize`, `thread/start`, `turn/start`, streaming deltas, `turn/completed`, and `thread/resume` | Does not replace the Codex control plane |
+| Chat history and session resume | Implemented candidate evidence | Local persisted session list, reusable `threadId`, and sidebar reopen path | Local candidate persistence only |
 | OPL state context | Implemented candidate evidence | `opl app state --profile fast --json`, explicit full state, and full runtime drilldown exception markers | Reads App/Framework truth only |
 | App action flow | Implemented candidate evidence | Dry-run action preview, visible receipt markers, and confirmation card markers | No execution without explicit confirmation |
+| Execute / rollback preview loop | Implemented candidate evidence | Explicit confirmed execute plus rollback-preview request path | Candidate receipt shell only; no owner receipt authority |
 | Settings route | Implemented candidate evidence | Settings page markers for model/account access, locale, runtime connection, project, and candidate-about controls | UI candidate only |
 | Settings persistence model | Implemented candidate evidence | `src/workbench/settingsModel.ts` defines sections, keys, defaults, `SETTINGS_STORAGE_KEY`, and localStorage read/write helpers | localStorage only; no system write permission |
-| Artifact preview MVP | Implemented candidate evidence | Rich preview markers for markdown, math, Mermaid, code, and PDF refs | Refs-only preview; no artifact authority |
-| Professional starters MVP | Implemented candidate evidence | Research, grant, presentation, and book starter forms route to dry-run actions | No domain execution authority |
+| Runtime readback helpers | Implemented candidate evidence | Bridge-normalized state/drilldown/action envelopes plus typed event surface | Structural/runtime readback helper only |
+| Artifact preview MVP | Implemented candidate evidence | Rich preview markers for markdown, math, Mermaid, code, PDF, and receipt-like refs | Refs-only preview; no artifact authority |
+| Professional starters MVP | Implemented candidate evidence | Research, grant, presentation, and book starter forms now edit fields and route to live dry-run actions when available | No domain execution authority |
 | Validator gates | Implemented candidate evidence | `npm run validate:candidate` and `npm run smoke:visual` check source markers and false-ready boundaries | Structural gates only |
 | Packaged `.app` and WebUI parity | Partial / non-live evidence | Candidate package, WebUI, source visual, and source UI smoke surfaces | Not clean-VM or same-cohort live user-path evidence |
 | Release and Live readiness | Not ready | False-ready fields stay false in candidate evidence and manifests | No active-shell adoption, release readiness, production readiness, domain readiness, live evidence, owner receipt, runtime authority transfer, or domain truth ownership |

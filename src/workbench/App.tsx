@@ -1,11 +1,12 @@
 import * as Tabs from "@radix-ui/react-tabs";
 import { Download, FileText, GitBranch, PanelRightOpen, Plus, Search, Send, Settings } from "lucide-react";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createBrowserBridge } from "../bridge/oplBridge";
 import {
   ActionReceiptSummary,
   ArtifactPreviewCard,
   ConfirmationCard,
+  DeliveryCard,
   RendererModuleRegistryPanel,
   StatusPill
 } from "../ui/workbenchPrimitives";
@@ -44,6 +45,7 @@ const purposeLabels: Record<WorkbenchPurpose, string> = {
 const defaultPreviewActionId = "task_action_receipt_preview";
 const defaultExportActionId = "task_export_bundle_preview";
 const defaultRuntimeActionId = "provider_scheduler_status";
+const chatSessionsStorageKey = "opl.nativeWorkbench.chatSessions.v1";
 
 const settingLabels: Record<SettingKey, string> = {
   locale: "Language",
@@ -64,11 +66,19 @@ type ChatMessage = {
   text: string;
 };
 
-function starterPayload(starter: WorkbenchStarter): Record<string, unknown> {
+type ChatSession = {
+  id: string;
+  title: string;
+  threadId?: string;
+  messages: ChatMessage[];
+  updatedAt: string;
+};
+
+function starterPayloadFromDraft(starter: WorkbenchStarter, draft: Record<string, string>): Record<string, unknown> {
   return {
     starterId: starter.id,
     module: starter.module,
-    fields: Object.fromEntries(starter.fields.map((field) => [field.name, field.value]))
+    fields: Object.fromEntries(starter.fields.map((field) => [field.name, draft[field.name] ?? field.value]))
   };
 }
 
@@ -85,8 +95,114 @@ function firstPreviewAction(actions: WorkbenchActionRef[]): WorkbenchActionRef |
     ?? actions.find((action) => action.dryRunSupported);
 }
 
+function createIntroMessages(): ChatMessage[] {
+  return [{
+    id: "seed-user",
+    role: "user",
+    text: "Use the current project to prepare a review or deliverable."
+  }, {
+    id: "seed-assistant",
+    role: "assistant",
+    text: "Codex is connected to OPL project context.\nAsk for a result review, export draft, or workflow request. Sources, previews, trace, and receipts stay in Context; execution requires confirmation."
+  }];
+}
+
+function sessionStorage() {
+  return globalThis.localStorage;
+}
+
+function normalizeChatSession(value: unknown): ChatSession | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<ChatSession>;
+  if (typeof candidate.id !== "string" || !candidate.id) return null;
+  const messages = Array.isArray(candidate.messages)
+    ? candidate.messages.filter((message): message is ChatMessage => Boolean(message && typeof message === "object" && typeof (message as ChatMessage).id === "string"))
+    : [];
+  return {
+    id: candidate.id,
+    title: typeof candidate.title === "string" && candidate.title ? candidate.title : "New chat",
+    threadId: typeof candidate.threadId === "string" && candidate.threadId ? candidate.threadId : undefined,
+    messages: messages.length ? messages : createIntroMessages(),
+    updatedAt: typeof candidate.updatedAt === "string" && candidate.updatedAt ? candidate.updatedAt : new Date(0).toISOString()
+  };
+}
+
+function readChatSessions(): ChatSession[] {
+  try {
+    const raw = sessionStorage()?.getItem(chatSessionsStorageKey);
+    if (!raw) {
+      return [{
+        id: "session-initial",
+        title: "Current project",
+        messages: createIntroMessages(),
+        updatedAt: new Date().toISOString()
+      }];
+    }
+    const parsed = JSON.parse(raw);
+    const sessions = Array.isArray(parsed) ? parsed.map(normalizeChatSession).filter((session): session is ChatSession => Boolean(session)) : [];
+    return sessions.length ? sessions.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)) : [{
+      id: "session-initial",
+      title: "Current project",
+      messages: createIntroMessages(),
+      updatedAt: new Date().toISOString()
+    }];
+  } catch {
+    return [{
+      id: "session-initial",
+      title: "Current project",
+      messages: createIntroMessages(),
+      updatedAt: new Date().toISOString()
+    }];
+  }
+}
+
+function writeChatSessions(sessions: ChatSession[]) {
+  sessionStorage()?.setItem(chatSessionsStorageKey, JSON.stringify(sessions));
+}
+
+function sessionTitleFromMessages(messages: ChatMessage[]): string {
+  const firstUser = messages.find((message) => message.role === "user" && message.text.trim());
+  return firstUser?.text.trim().slice(0, 40) || "New chat";
+}
+
+function formatTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Local draft";
+  return date.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function eventMethod(event: unknown): string {
+  if (typeof event === "object" && event && "method" in event && typeof (event as { method?: unknown }).method === "string") {
+    return (event as { method: string }).method;
+  }
+  if (typeof event === "object" && event && "type" in event && typeof (event as { type?: unknown }).type === "string") {
+    return (event as { type: string }).type;
+  }
+  return "";
+}
+
+function eventParams(event: unknown): Record<string, unknown> {
+  return typeof event === "object" && event && "params" in event && typeof (event as { params?: unknown }).params === "object"
+    ? ((event as { params: Record<string, unknown> }).params ?? {})
+    : {};
+}
+
+function eventDelta(event: unknown): string {
+  const params = eventParams(event);
+  return typeof params.delta === "string" ? params.delta : "";
+}
+
+function eventCompletedText(event: unknown): string {
+  const params = eventParams(event);
+  const item = typeof params.item === "object" && params.item ? params.item as Record<string, unknown> : {};
+  return typeof item.text === "string" ? item.text : "";
+}
+
 export function App() {
   const bridge = useMemo(() => createBrowserBridge(), []);
+  const initialSessions = useMemo(() => readChatSessions(), []);
+  const pendingAssistantIdRef = useRef<string | null>(null);
+  const messagesRef = useRef<ChatMessage[]>(initialSessions[0]?.messages ?? createIntroMessages());
   const [model, setModel] = useState(initialWorkbenchModel);
   const [stateStatus, setStateStatus] = useState<"loading" | "ready" | "error">("loading");
   const [stateError, setStateError] = useState("");
@@ -97,40 +213,82 @@ export function App() {
   const [prompt, setPrompt] = useState("");
   const [sendState, setSendState] = useState<"idle" | "running" | "error">("idle");
   const [sendError, setSendError] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: "seed-user", role: "user", text: "Use the current project to prepare a review or deliverable." },
-    {
-      id: "seed-assistant",
-      role: "assistant",
-      text: "Codex is connected to OPL project context.\nAsk for a result review, export draft, or workflow request. Sources, previews, trace, and receipts stay in Context; execution requires confirmation."
-    }
-  ]);
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>(initialSessions);
+  const [currentSessionId, setCurrentSessionId] = useState(initialSessions[0]?.id ?? "session-initial");
+  const [messages, setMessages] = useState<ChatMessage[]>(initialSessions[0]?.messages ?? createIntroMessages());
   const [eventFeed, setEventFeed] = useState<string[]>(["bridge.ready"]);
-  const [codexThreadId, setCodexThreadId] = useState<string | undefined>();
+  const [codexThreadId, setCodexThreadId] = useState<string | undefined>(initialSessions[0]?.threadId);
   const [settings, setSettings] = useState<WorkbenchSettings>(() => readSettings());
+  const [starterDrafts, setStarterDrafts] = useState<Record<string, Record<string, string>>>({});
   const previewAction = firstPreviewAction(model.contextActions);
 
   useEffect(() => {
-    let cancelled = false;
-    bridge
-      .readState("fast")
+    messagesRef.current = messages;
+  }, [messages]);
+
+  function commitSession(nextMessages: ChatMessage[], nextThreadId: string | undefined, sessionId = currentSessionId) {
+    const nextSession: ChatSession = {
+      id: sessionId,
+      title: sessionTitleFromMessages(nextMessages),
+      threadId: nextThreadId,
+      messages: nextMessages,
+      updatedAt: new Date().toISOString()
+    };
+    setMessages(nextMessages);
+    setCodexThreadId(nextThreadId);
+    setChatSessions((current) => {
+      const merged = [nextSession, ...current.filter((session) => session.id !== sessionId)]
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+      writeChatSessions(merged);
+      return merged;
+    });
+  }
+
+  function loadState(profile = settings.runtimeProfile) {
+    setStateStatus("loading");
+    setStateError("");
+    return bridge
+      .readState(profile)
       .then((state) => {
-        if (cancelled) return;
         setModel(deriveWorkbenchModelFromState(state));
         setStateStatus("ready");
       })
       .catch((error) => {
-        if (cancelled) return;
         setStateStatus("error");
         setStateError(String(error));
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [bridge]);
+  }
+
+  useEffect(() => {
+    void loadState(settings.runtimeProfile);
+  }, [bridge, settings.runtimeProfile]);
+
+  useEffect(() => {
+    setStarterDrafts((current) => Object.fromEntries(model.starters.map((starter) => [
+      starter.id,
+      current[starter.id] ?? Object.fromEntries(starter.fields.map((field) => [field.name, field.value]))
+    ])));
+  }, [model.starters]);
 
   useEffect(() => bridge.subscribeEvents((event) => {
+    const method = eventMethod(event);
     setEventFeed((items) => [formatEvent(event), ...items].slice(0, 8));
+    if (!pendingAssistantIdRef.current) return;
+    if (method === "item/agentMessage/delta") {
+      const delta = eventDelta(event);
+      if (!delta) return;
+      setMessages((items) => items.map((item) => item.id === pendingAssistantIdRef.current
+        ? { ...item, role: "assistant", text: item.text + delta }
+        : item));
+      return;
+    }
+    if (method === "item/completed") {
+      const completedText = eventCompletedText(event);
+      if (!completedText) return;
+      setMessages((items) => items.map((item) => item.id === pendingAssistantIdRef.current
+        ? { ...item, role: "assistant", text: completedText }
+        : item));
+    }
   }), [bridge]);
 
   function runDryRun(actionId: string, payload: Record<string, unknown> = {}) {
@@ -143,14 +301,29 @@ export function App() {
 
   function executeConfirmedAction() {
     if (!pendingAction) return;
+    const receiptId = `${pendingAction.actionId}:${Date.now()}`;
+    const rollbackRef = `rollback://${receiptId}`;
     void bridge
       .executeAction({
         actionId: pendingAction.actionId,
-        payload: { ...pendingAction.payload, confirmed: true },
+        payload: { ...pendingAction.payload, confirmed: true, receiptId, rollbackRef },
         dryRun: false
       })
       .then((receipt) => setLastDryRun(formatReceipt(receipt)))
       .catch((error) => setLastDryRun(formatReceipt({ ...pendingAction, dryRun: false, error: String(error) })));
+  }
+
+  function previewRollback() {
+    if (!pendingAction) return;
+    void bridge
+      .executeAction({
+        actionId: pendingAction.actionId,
+        mode: "rollback",
+        payload: { ...pendingAction.payload, rollbackRef: `rollback://${pendingAction.actionId}` },
+        dryRun: true
+      })
+      .then((receipt) => setLastDryRun(formatReceipt(receipt)))
+      .catch((error) => setLastDryRun(formatReceipt({ ...pendingAction, mode: "rollback", error: String(error) })));
   }
 
   function sendCodexMessage(event?: FormEvent) {
@@ -159,7 +332,10 @@ export function App() {
     if (!text || sendState === "running") return;
     const userMessage: ChatMessage = { id: `user-${Date.now()}`, role: "user", text };
     const pendingId = `assistant-${Date.now()}`;
-    setMessages((items) => [...items, userMessage, { id: pendingId, role: "system", text: "Codex is working..." }]);
+    const pendingMessage: ChatMessage = { id: pendingId, role: "assistant", text: "" };
+    const pendingMessages = messagesRef.current.concat([userMessage, pendingMessage]);
+    pendingAssistantIdRef.current = pendingId;
+    setMessages(pendingMessages);
     setPrompt("");
     setSendState("running");
     setSendError("");
@@ -169,33 +345,67 @@ export function App() {
         const nextThreadId = typeof reply === "object" && reply && "threadId" in reply
           ? String((reply as { threadId?: unknown }).threadId ?? "")
           : "";
-        if (nextThreadId) setCodexThreadId(nextThreadId);
         const finalMessage = typeof reply === "object" && reply && "finalMessage" in reply
           ? String((reply as { finalMessage?: unknown }).finalMessage ?? "")
           : "";
-        setMessages((items) => items.map((item) => item.id === pendingId
+        const nextMessages = messagesRef.current.map((item) => item.id === pendingId
           ? { id: pendingId, role: "assistant", text: finalMessage || formatReceipt(reply) }
-          : item));
+          : item);
+        setMessages(nextMessages);
+        commitSession(
+          nextMessages,
+          nextThreadId || codexThreadId
+        );
+        pendingAssistantIdRef.current = null;
         setSendState("idle");
       })
       .catch((error) => {
         const message = String(error);
         setSendError(message);
         setSendState("error");
-        setMessages((items) => items.map((item) => item.id === pendingId
-          ? { id: pendingId, role: "system", text: formatReceipt({ executor: "codex_app_server", error: message }) }
-          : item));
+        const errorMessage: ChatMessage = { id: pendingId, role: "system", text: formatReceipt({ executor: "codex_app_server", error: message }) };
+        const nextMessages = messagesRef.current.map((item) => item.id === pendingId ? errorMessage : item);
+        setMessages(nextMessages);
+        commitSession(nextMessages, codexThreadId);
+        pendingAssistantIdRef.current = null;
       });
   }
 
   function startNewChat() {
-    setCodexThreadId(undefined);
-    setPrompt("");
-    setMessages([{
+    const sessionId = `session-${Date.now()}`;
+    const nextMessages = [{
       id: `assistant-${Date.now()}`,
       role: "assistant",
       text: "New OPL workbench chat. Ask for review, drafting, export, or a workflow starter."
-    }]);
+    }] satisfies ChatMessage[];
+    setCurrentSessionId(sessionId);
+    setPrompt("");
+    setPendingAction(null);
+    setLastDryRun("No action preview yet.");
+    setSendState("idle");
+    setSendError("");
+    commitSession(nextMessages, undefined, sessionId);
+  }
+
+  function openSession(sessionId: string) {
+    const session = chatSessions.find((item) => item.id === sessionId);
+    if (!session) return;
+    setCurrentSessionId(session.id);
+    setMessages(session.messages);
+    setCodexThreadId(session.threadId);
+    setPrompt("");
+    setSendState("idle");
+    setSendError("");
+  }
+
+  function updateStarterField(starterId: string, fieldName: string, value: string) {
+    setStarterDrafts((current) => ({
+      ...current,
+      [starterId]: {
+        ...(current[starterId] ?? {}),
+        [fieldName]: value
+      }
+    }));
   }
 
   function updateSetting<Key extends keyof WorkbenchSettings>(key: Key, value: WorkbenchSettings[Key]) {
@@ -274,11 +484,13 @@ export function App() {
         <section className="history-list" aria-label="History">
           <h3>Chats</h3>
           <ol data-testid="opl-session-list">
-            {model.sessions.map((session, index) => (
-              <li key={session.id} className={index === 1 ? "active" : undefined}>
-                <strong>{session.session}</strong>
-                <span>{session.workspace}</span>
-                <small>{session.nextStep}</small>
+            {chatSessions.map((session) => (
+              <li key={session.id} className={session.id === currentSessionId ? "active" : undefined}>
+                <button type="button" onClick={() => openSession(session.id)}>
+                  <strong>{session.title}</strong>
+                  <span>{session.threadId ? "Codex resumable thread" : "Local draft session"}</span>
+                  <small>{formatTimestamp(session.updatedAt)}</small>
+                </button>
               </li>
             ))}
           </ol>
@@ -313,6 +525,7 @@ export function App() {
             <Download aria-hidden="true" size={15} />
             Preview action
           </button>
+          <button type="button" onClick={() => void loadState(settings.runtimeProfile)}>Refresh context</button>
           {activeView === "settings" ? (
             <button data-testid="opl-skip-to-chat" type="button" onClick={() => setActiveView("chat")}>Back to chat</button>
           ) : null}
@@ -330,7 +543,7 @@ export function App() {
                 className={`message ${message.role}`}
               >
                 {message.role === "assistant" ? <small>One Person Lab</small> : null}
-                <p>{message.text}</p>
+                <p>{message.text || (sendState === "running" ? "Codex is working..." : "Waiting for reply.")}</p>
                 {message.role === "assistant" ? <span data-testid="opl-codex-reply" hidden /> : null}
               </article>
             ))}
@@ -383,6 +596,20 @@ export function App() {
         </section> : (
           <section data-testid="opl-settings-panel" className="settings-page" aria-label="Settings">
             <div className="settings-content">
+              <section data-testid="opl-settings-section" data-section="runtime-readback">
+                <h2>Runtime readback</h2>
+                <dl>
+                  <div>
+                    <dt>State profile</dt>
+                    <dd>{settings.runtimeProfile}<small>Drives `opl app state --profile ...` reads.</small></dd>
+                  </div>
+                  <div>
+                    <dt>Context state</dt>
+                    <dd>{stateStatus}<small>{stateError || model.stateGeneratedAt || "No current readback timestamp."}</small></dd>
+                  </div>
+                </dl>
+                <button type="button" onClick={() => void loadState(settings.runtimeProfile)}>Refresh state now</button>
+              </section>
               {settingsSections.map((section) => (
                 <section key={section.id} data-testid="opl-settings-section" data-section={section.id}>
                   <h2>{section.title}</h2>
@@ -466,6 +693,12 @@ export function App() {
           ))}
         </Tabs.Root>
 
+        <section className="delivery-cards">
+          <h3>Deliverables</h3>
+          {model.deliverables.slice(0, 3).map((item) => <DeliveryCard key={item.id} item={item} />)}
+          {model.receipts.slice(0, 2).map((item) => <DeliveryCard key={item.id} item={item} />)}
+        </section>
+
         <section data-testid="opl-provenance-drawer" className="provenance-drawer">
           <header>
             <PanelRightOpen aria-hidden="true" size={18} />
@@ -500,6 +733,7 @@ export function App() {
           >
             Execute confirmed
           </button>
+          <button type="button" disabled={!pendingAction} onClick={previewRollback}>Preview rollback</button>
           <output data-testid="opl-runtime-action-receipt">{lastDryRun}</output>
         </section>
 
@@ -534,16 +768,47 @@ export function App() {
               data-testid="opl-starter-form"
               data-starter-testid={`opl-starter-form-${starter.purpose}`}
               data-starter={starter.id}
+              onSubmit={(event) => {
+                event.preventDefault();
+                runDryRun(
+                  starter.previewActionId ?? starter.dryRunAction,
+                  starterPayloadFromDraft(starter, starterDrafts[starter.id] ?? {})
+                );
+              }}
             >
               <header>
                 <h3>{starter.title}</h3>
                 <span>{starter.module}</span>
               </header>
               <p>{starter.intent}</p>
+              {starter.fields.map((field) => (
+                <label key={field.name} className="starter-field">
+                  <span>{field.label}</span>
+                  {field.input === "textarea" ? (
+                    <textarea
+                      value={starterDrafts[starter.id]?.[field.name] ?? field.value}
+                      onChange={(event) => updateStarterField(starter.id, field.name, event.currentTarget.value)}
+                    />
+                  ) : field.input === "select" ? (
+                    <select
+                      value={starterDrafts[starter.id]?.[field.name] ?? field.value}
+                      onChange={(event) => updateStarterField(starter.id, field.name, event.currentTarget.value)}
+                    >
+                      {field.options?.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={starterDrafts[starter.id]?.[field.name] ?? field.value}
+                      onChange={(event) => updateStarterField(starter.id, field.name, event.currentTarget.value)}
+                    />
+                  )}
+                </label>
+              ))}
+              <small>{starter.sourceRef ?? starter.status ?? "No App action source ref."}</small>
               <button
-                type="button"
+                type="submit"
                 disabled={starter.available === false}
-                onClick={() => runDryRun(starter.dryRunAction, starterPayload(starter))}
               >
                 <Send aria-hidden="true" size={16} />
                 {starter.available === false ? "Unavailable" : "Preview workflow"}

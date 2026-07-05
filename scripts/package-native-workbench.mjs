@@ -198,11 +198,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
       </nav>
       <section class="section">
         <h3>Recent</h3>
-        <div data-testid="opl-session-list" class="list">
-          <button class="session-row active" type="button"><strong>Delivery review</strong><small>Current project refs</small></button>
-          <button class="session-row" type="button"><strong>Result package</strong><small>Trace and export draft</small></button>
-          <button class="session-row" type="button"><strong>Workflow setup</strong><small>Research, grant, presentation</small></button>
-        </div>
+        <div id="sessionList" data-testid="opl-session-list" class="list"></div>
       </section>
       <div class="sidebar-footer">
         <button type="button" onclick="toggleInspector(true)">Context</button>
@@ -219,6 +215,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
         <span class="spacer"></span>
         <span id="codexStatus" data-testid="opl-model-access-entry" class="status-pill">Codex connected</span>
         <button data-testid="opl-export-action" type="button" onclick="dryRun('task_export_bundle_preview')">Export</button>
+        <button type="button" onclick="refreshContext()">Refresh context</button>
         <button type="button" onclick="toggleInspector(true)">Context</button>
       </header>
       <div id="chatContent" class="conversation chat-content">
@@ -255,6 +252,14 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
       </form>
       <section id="settingsView" data-testid="opl-settings-panel" class="settings-page" aria-label="Settings">
         <div class="settings-content">
+          <section data-testid="opl-settings-section" data-section="runtime-readback">
+            <h2>Runtime readback</h2>
+            <dl>
+              <div><dt>State profile</dt><dd id="runtimeProfileSummary">fast</dd></div>
+              <div><dt>Context status</dt><dd id="runtimeContextSummary">No readback yet.</dd></div>
+            </dl>
+            <button type="button" onclick="refreshContext()">Refresh state now</button>
+          </section>
           <section data-testid="opl-settings-section" data-section="general">
             <h2>General</h2>
             <dl>
@@ -352,6 +357,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
             <p>Preview the action receipt first; execution stays behind App action confirmation.</p>
             <button type="button" onclick="dryRun('task_action_receipt_preview')">Preview action</button>
             <button data-testid="opl-runtime-action-execute" type="button" onclick="executeConfirmedAction()">Execute confirmed</button>
+            <button type="button" onclick="previewRollback()">Preview rollback</button>
           </div>
           <output id="receipt" data-testid="opl-runtime-action-receipt" class="receipt">No action preview yet.</output>
         </details>
@@ -391,7 +397,10 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
     const pendingNativeCalls = new Map();
     let currentCodexThreadId = null;
     let pendingAction = null;
-    const settingsStorageKey = "opl-native-workbench.settings.v1";
+    let pendingReplyNode = null;
+    let currentSessionId = "session-initial";
+    const settingsStorageKey = "opl.nativeWorkbench.settings.v1";
+    const sessionStorageKey = "opl.nativeWorkbench.chatSessions.v1";
     const settingsDefaults = {
       locale: "zh",
       modelAccess: "codex_cli_managed",
@@ -404,6 +413,72 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
       theme: "system",
       developerDetails: false
     };
+    function introMessages() {
+      return [
+        { role: "user", text: "Use the current project to prepare a review or deliverable." },
+        { role: "assistant", text: "Codex is connected to OPL project context. Ask for a result review, export draft, or workflow request." }
+      ];
+    }
+    function readSessions() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(sessionStorageKey) || "[]");
+        return Array.isArray(parsed) && parsed.length ? parsed : [{
+          id: "session-initial",
+          title: "Current project",
+          threadId: null,
+          updatedAt: new Date().toISOString(),
+          messages: introMessages()
+        }];
+      } catch {
+        return [{
+          id: "session-initial",
+          title: "Current project",
+          threadId: null,
+          updatedAt: new Date().toISOString(),
+          messages: introMessages()
+        }];
+      }
+    }
+    function writeSessions(sessions) {
+      localStorage.setItem(sessionStorageKey, JSON.stringify(sessions));
+    }
+    function sessionTitle(messages) {
+      const user = messages.find((message) => message.role === "user" && message.text.trim());
+      return user ? user.text.trim().slice(0, 40) : "New chat";
+    }
+    function renderSessions(activeId = currentSessionId) {
+      const root = document.getElementById("sessionList");
+      if (!root) return;
+      root.replaceChildren(...readSessions().map((session) => {
+        const button = document.createElement("button");
+        button.className = "session-row" + (session.id === activeId ? " active" : "");
+        button.type = "button";
+        button.onclick = () => openSession(session.id);
+        const title = document.createElement("strong");
+        title.textContent = session.title;
+        const mode = document.createElement("small");
+        mode.textContent = session.threadId ? "Codex resumable thread" : "Local draft session";
+        button.append(title, mode);
+        return button;
+      }));
+    }
+    function persistCurrentSession() {
+      const thread = document.querySelector(".thread");
+      const messages = [...thread.querySelectorAll(".message")].map((node) => ({
+        role: node.classList.contains("user") ? "user" : node.classList.contains("system") ? "system" : "assistant",
+        text: node.textContent || ""
+      }));
+      const nextSession = {
+        id: currentSessionId,
+        title: sessionTitle(messages),
+        threadId: currentCodexThreadId,
+        updatedAt: new Date().toISOString(),
+        messages
+      };
+      const sessions = [nextSession, ...readSessions().filter((session) => session.id !== currentSessionId)];
+      writeSessions(sessions);
+      renderSessions();
+    }
     window.__oplNativeWorkbenchResolve = function(id, ok, payload) {
       const pending = pendingNativeCalls.get(id);
       if (!pending) return;
@@ -475,8 +550,23 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
     }
     function startNewChat() {
       currentCodexThreadId = null;
+      currentSessionId = "session-" + Date.now();
       document.querySelector(".thread").replaceChildren();
       appendMessage("", "New OPL workbench chat. Ask for review, drafting, export, or a workflow starter.");
+      persistCurrentSession();
+    }
+    function openSession(sessionId) {
+      const session = readSessions().find((item) => item.id === sessionId);
+      if (!session) return;
+      currentSessionId = session.id;
+      currentCodexThreadId = session.threadId || null;
+      const thread = document.querySelector(".thread");
+      thread.replaceChildren();
+      for (const message of session.messages) {
+        appendMessage(message.role === "user" ? "user" : message.role === "system" ? "system" : "", message.text, message.role === "assistant" ? "codex-reply" : "");
+      }
+      renderSessions(session.id);
+      setComposerState("idle");
     }
     async function sendCodexMessage() {
       const input = document.getElementById("promptInput");
@@ -484,7 +574,8 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
       if (!prompt) return;
       input.value = "";
       appendMessage("user", prompt);
-      const reply = appendMessage("", "Codex is working...", "codex-reply");
+      const reply = appendMessage("", "", "codex-reply");
+      pendingReplyNode = reply;
       setComposerState("running");
       try {
         const result = await window.oplNativeWorkbench.sendMessage({ prompt, threadId: currentCodexThreadId });
@@ -493,10 +584,14 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
         reply.textContent = text;
         reply.dataset.testid = "opl-codex-reply";
         if (result.error) reply.classList.add("error");
+        pendingReplyNode = null;
+        persistCurrentSession();
         setComposerState(result.error ? "error" : "idle", result.error || "");
       } catch (error) {
         reply.textContent = JSON.stringify(error, null, 2);
         reply.classList.add("error");
+        pendingReplyNode = null;
+        persistCurrentSession();
         setComposerState("error", String(error));
       }
     }
@@ -519,10 +614,30 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
       }
       receipt.textContent = "Executing confirmed action...";
       try {
+        const receiptId = pendingAction.actionId + ":" + Date.now();
         const result = await window.oplNativeWorkbench.executeAction({
           actionId: pendingAction.actionId,
-          payload: { confirmed: true },
+          payload: { confirmed: true, receiptId, rollbackRef: "rollback://" + receiptId },
           dryRun: false
+        });
+        receipt.textContent = JSON.stringify(result, null, 2);
+      } catch (error) {
+        receipt.textContent = JSON.stringify(error, null, 2);
+      }
+    }
+    async function previewRollback() {
+      const receipt = document.getElementById("receipt");
+      if (!pendingAction) {
+        receipt.textContent = "Preview an action before rollback.";
+        return;
+      }
+      receipt.textContent = "Preparing rollback preview...";
+      try {
+        const result = await window.oplNativeWorkbench.executeAction({
+          actionId: pendingAction.actionId,
+          mode: "rollback",
+          payload: { rollbackRef: "rollback://" + pendingAction.actionId },
+          dryRun: true
         });
         receipt.textContent = JSON.stringify(result, null, 2);
       } catch (error) {
@@ -550,6 +665,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
     }
     function hydrateSettings() {
       const settings = loadSettings();
+      document.getElementById("runtimeProfileSummary").textContent = settings.runtimeProfile;
       document.querySelectorAll("[data-setting-key]").forEach((node) => {
         const key = node.dataset.settingKey;
         setSettingNode(node, key, settings[key]);
@@ -570,6 +686,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
         : settings[key];
       saveSettings({ ...settings, [key]: nextValue });
       hydrateSettings();
+      if (key === "runtimeProfile") refreshContext();
     }
     function objectValue(value) {
       return value && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -653,14 +770,28 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
         ["Provider", objectValue(operator.summary).provider_status]
       ].filter((item) => stringValue(item[1])).map((item) => row(item[0], item[1])));
     }
-    window.oplNativeWorkbench.readState("fast").then((state) => {
-      renderContextState(state);
-      document.getElementById("codexStatus").textContent = "Context ready";
-    }).catch((error) => {
-      document.getElementById("contextTrace").append(row("Context fallback", String(error)));
-      document.getElementById("codexStatus").textContent = "Local runtime";
+    async function refreshContext() {
+      const profile = loadSettings().runtimeProfile || "fast";
+      document.getElementById("runtimeContextSummary").textContent = "Loading " + profile + " profile...";
+      try {
+        const state = await window.oplNativeWorkbench.readState(profile);
+        renderContextState(state);
+        document.getElementById("codexStatus").textContent = "Context ready";
+        document.getElementById("runtimeContextSummary").textContent = "Context loaded via opl app state --profile " + profile;
+      } catch (error) {
+        document.getElementById("contextTrace").append(row("Context fallback", String(error)));
+        document.getElementById("codexStatus").textContent = "Local runtime";
+        document.getElementById("runtimeContextSummary").textContent = String(error);
+      }
+    }
+    window.oplNativeWorkbench.subscribeEvents((event) => {
+      if (event && event.method === "item/agentMessage/delta" && pendingReplyNode && typeof event.params?.delta === "string") {
+        pendingReplyNode.textContent += event.params.delta;
+      }
     });
     hydrateSettings();
+    renderSessions();
+    refreshContext();
     document.getElementById("promptInput").addEventListener("input", () => setComposerState("idle"));
   </script>
 </body>
