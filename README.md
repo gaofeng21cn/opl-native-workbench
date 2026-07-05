@@ -20,6 +20,9 @@ bottom composer as the primary action, and an on-demand workspace inspector for
 files, previews, provenance, workflow starters, and export receipts. K-Dense and
 Open Science are used as layout/interaction references only; their runtime,
 provider, backend, and authority surfaces are not copied.
+The current visual refresh also has an image-generated reference mockup at
+`assets/mockups/codex-open-science-reference-2026-07-05.png`, used only as a
+design anchor for spacing, hierarchy, and panel balance.
 
 The packaged macOS MVP includes a native `WKScriptMessageHandler` bridge. The
 renderer can read `opl app state`, request App action dry-runs, and talk to

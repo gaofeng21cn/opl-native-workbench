@@ -83,99 +83,163 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
   <link rel="preload" as="image" href="branding/opl-banner.png" />
   <title>${escapeHtml(appName)}</title>
   <style>
-    :root { color-scheme: light; --bg: #f7f8f7; --sidebar: #f0f3f4; --surface: #ffffff; --surface-2: #eef3f4; --border: #dde4e6; --text: #20242d; --muted: #737d88; --subtle: #8b949f; --accent: #0f8a9d; --accent-soft: #e7f5f7; --accent-fg: #ffffff; --shadow: 0 1px 2px rgba(30,36,44,.04), 0 18px 48px rgba(30,36,44,.08); }
+    :root { color-scheme: light; --bg: #f4f1eb; --bg-2: #fbfaf7; --sidebar: rgba(255,255,255,.9); --surface: rgba(255,255,255,.94); --surface-2: #f5f4ef; --surface-3: #fbfaf7; --border: rgba(83,92,78,.13); --border-strong: rgba(83,92,78,.2); --text: #20251f; --muted: #677063; --subtle: #8a9386; --accent: #1f8a6a; --accent-soft: rgba(31,138,106,.1); --accent-fg: #ffffff; --shadow: 0 18px 46px rgba(61,70,53,.08); }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+    body { margin: 0; background: radial-gradient(circle at top, rgba(31,138,106,.08), transparent 28%), linear-gradient(180deg, #fbfaf7 0%, #f4f1eb 100%); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
     button, textarea { font: inherit; }
-    button { border: 0; background: transparent; color: inherit; border-radius: 8px; cursor: default; }
-    button:hover { background: rgba(32,36,45,.06); }
-    button.primary { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 30px; border-radius: 9px; background: var(--accent); color: var(--accent-fg); }
-    h1 { margin: 0; font-size: 14px; font-weight: 650; letter-spacing: 0; }
-    h2 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: 0; }
-    h3 { margin: 0 0 8px; color: var(--muted); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; }
+    button { border: 0; background: transparent; color: inherit; border-radius: 12px; cursor: default; transition: background .16s ease, border-color .16s ease, color .16s ease; }
+    button:hover { background: rgba(32,37,31,.045); }
+    button.primary { display: inline-flex; align-items: center; justify-content: center; min-width: 40px; height: 40px; border-radius: 999px; background: var(--accent); color: var(--accent-fg); box-shadow: 0 10px 20px rgba(31,138,106,.18); }
+    h1 { margin: 0; font-size: 13px; font-weight: 650; letter-spacing: 0; }
+    h2 { margin: 0; font-size: 13px; font-weight: 620; letter-spacing: 0; }
+    h3 { margin: 0 0 10px; color: var(--subtle); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
     p { margin: 0; color: var(--muted); line-height: 1.55; }
     small, .muted { color: var(--muted); }
-    .opl-native-workbench { height: 100vh; display: grid; grid-template-columns: 236px minmax(0, 1fr); overflow: hidden; }
-    .sidebar { display: flex; min-height: 0; flex-direction: column; border-right: 1px solid var(--border); background: var(--sidebar); padding: 10px 8px; }
-    .brand { display: flex; align-items: center; gap: 8px; padding: 2px 6px 10px; }
-    .logo { width: 22px; height: 22px; border-radius: 6px; }
-    .brand-title { display: grid; gap: 1px; min-width: 0; }
-    .brand-title small { font-size: 11px; }
-    .quick-actions { display: grid; grid-template-columns: 1fr 56px; gap: 4px; margin-bottom: 8px; }
-    .quick-actions button, .nav button, .session-row, .file-row, .purpose-row, .sidebar-footer button { min-height: 30px; padding: 6px 8px; text-align: left; font-size: 12px; }
-    .nav { display: grid; gap: 2px; margin-bottom: 12px; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .opl-native-workbench { height: 100vh; display: grid; grid-template-columns: 276px minmax(0, 1fr); overflow: hidden; }
+    .sidebar { display: flex; min-height: 0; flex-direction: column; border-right: 1px solid var(--border); background: linear-gradient(180deg, rgba(255,255,255,.94), rgba(251,250,247,.9)); padding: 14px 12px 12px; }
+    .brand { display: flex; align-items: center; gap: 10px; padding: 10px 10px 14px; margin-bottom: 8px; border-bottom: 1px solid rgba(83,92,78,.08); background: linear-gradient(180deg, rgba(255,255,255,.72), rgba(255,255,255,0)), url("branding/opl-banner.png") center/cover no-repeat; border-radius: 18px; }
+    .logo { width: 26px; height: 26px; border-radius: 8px; box-shadow: 0 4px 12px rgba(32,37,31,.08); }
+    .brand-title { display: grid; gap: 2px; min-width: 0; }
+    .brand-title small { font-size: 11px; color: var(--subtle); }
+    .badge { width: fit-content; border: 1px solid rgba(31,138,106,.18); background: rgba(255,255,255,.8); color: var(--accent); border-radius: 999px; padding: 2px 8px; font-size: 11px; }
+    .quick-actions { display: grid; grid-template-columns: minmax(0, 1fr) 56px; gap: 6px; margin-bottom: 10px; }
+    .quick-actions button, .nav button, .session-row, .file-row, .purpose-row, .sidebar-footer button { min-height: 36px; padding: 8px 10px; text-align: left; font-size: 12px; }
+    .new-chat { border: 1px solid var(--border); background: rgba(255,255,255,.78); box-shadow: inset 0 1px 0 rgba(255,255,255,.75); }
+    .nav { display: grid; gap: 4px; margin-bottom: 14px; }
     .nav button, .session-row, .file-row, .purpose-row { width: 100%; display: flex; align-items: center; gap: 8px; }
-    .nav .active, .session-row.active, .file-row.active, .purpose-row.active, .sidebar-footer .active { background: rgba(255,255,255,.72); box-shadow: inset 0 0 0 1px rgba(221,228,230,.7); }
-    .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--accent); opacity: .78; }
-    .section { padding: 9px 0; border-top: 1px solid rgba(221,228,230,.85); }
-    .list { display: grid; gap: 2px; }
-    .session-row { align-items: flex-start; flex-direction: column; gap: 2px; border-radius: 8px; }
-    .session-row strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 560; }
-    .session-row small { font-size: 11px; }
-    .file-row { justify-content: space-between; border-radius: 8px; color: #3e4751; }
-    .purpose-row { border-radius: 8px; color: #3e4751; }
-    .sidebar-footer { margin-top: auto; display: grid; gap: 2px; padding-top: 10px; border-top: 1px solid rgba(221,228,230,.85); }
-    .sidebar-footer button { width: 100%; display: flex; align-items: center; justify-content: space-between; color: #3e4751; }
-    .sidebar-note { padding: 5px 8px 0; color: var(--subtle); font-size: 11px; line-height: 1.35; }
-    .status-pill { width: fit-content; border: 1px solid #cfe7ec; background: var(--accent-soft); color: #0b6876; border-radius: 999px; padding: 3px 8px; font-size: 11px; }
-    .chat-shell { position: relative; min-width: 0; min-height: 0; display: grid; grid-template-rows: 44px 1fr auto; }
-    .topbar { display: flex; align-items: center; gap: 8px; padding: 0 20px; border-bottom: 1px solid rgba(221,228,230,.78); background: rgba(255,255,255,.72); backdrop-filter: blur(18px); }
-    .topbar-title { min-width: 0; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 560; }
-    .spacer { flex: 1; }
-    .topbar button, .composer-footer button, .chip { padding: 5px 8px; color: var(--muted); font-size: 12px; }
-    .topbar .status-pill { margin-left: 4px; }
-    .conversation { overflow: auto; padding: 34px 20px 18px; }
-    .thread { margin: 0 auto; width: min(760px, 100%); display: grid; gap: 18px; }
-    .message { display: grid; gap: 8px; max-width: 720px; font-size: 14px; }
-    .message.user { justify-self: end; max-width: 560px; border-radius: 16px; background: var(--surface-2); padding: 10px 13px; }
-    .assistant-head { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
-    .assistant-head::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: var(--accent); opacity: .75; }
+    .nav .active, .session-row.active, .file-row.active, .purpose-row.active, .sidebar-footer .active { background: rgba(255,255,255,.88); box-shadow: inset 0 0 0 1px rgba(83,92,78,.12); }
+    .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--accent); opacity: .8; flex: none; }
+    .section { padding: 10px 0 0; border-top: 1px solid rgba(83,92,78,.08); }
+    .list { display: grid; gap: 4px; }
+    .section-head { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 8px; }
+    .section-head button { min-height: auto; padding: 2px 6px; color: var(--subtle); }
+    .session-row { align-items: center; justify-content: space-between; border-radius: 14px; background: transparent; }
+    .session-row strong { max-width: 156px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 540; }
+    .session-row small { font-size: 11px; color: var(--subtle); }
+    .session-meta { min-width: 0; display: grid; gap: 3px; flex: 1; }
+    .session-icon { width: 16px; height: 16px; border: 1px solid rgba(83,92,78,.18); border-radius: 999px; background: rgba(255,255,255,.8); }
+    .file-row { justify-content: space-between; align-items: flex-start; border-radius: 12px; color: #3c443b; background: rgba(255,255,255,.42); }
+    .file-row strong { font-size: 12px; font-weight: 560; }
+    .file-row small { display: block; font-size: 11px; color: var(--subtle); }
+    .purpose-row { border-radius: 12px; color: #3c443b; background: rgba(255,255,255,.48); }
+    .sidebar-footer { margin-top: auto; display: grid; gap: 6px; padding-top: 12px; border-top: 1px solid rgba(83,92,78,.08); }
+    .sidebar-footer button { width: 100%; display: flex; align-items: center; justify-content: space-between; color: #3c443b; }
+    .sidebar-note { padding: 4px 8px 0; color: var(--subtle); font-size: 11px; line-height: 1.35; }
+    .status-pill { width: fit-content; border: 1px solid rgba(31,138,106,.14); background: var(--accent-soft); color: #16694f; border-radius: 999px; padding: 4px 9px; font-size: 11px; }
+    .chat-shell { position: relative; min-width: 0; min-height: 0; display: grid; grid-template-rows: 60px 1fr auto; background: linear-gradient(180deg, rgba(255,255,255,.22), transparent 20%); }
+    .topbar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: 0 24px; border-bottom: 1px solid rgba(83,92,78,.08); background: rgba(251,250,247,.72); backdrop-filter: blur(18px); }
+    .topbar-title { justify-self: center; min-width: 0; display: grid; gap: 3px; text-align: center; font-size: 12px; color: var(--muted); }
+    .topbar-title strong { font-size: 14px; font-weight: 620; color: var(--text); }
+    .topbar-left, .topbar-right { display: flex; align-items: center; gap: 8px; }
+    .topbar-right { justify-self: end; }
+    .topbar button, .composer-footer button, .chip { padding: 6px 10px; color: var(--muted); font-size: 12px; }
+    .topbar button, .composer-footer button, .chip, .inspector-tab { border: 1px solid transparent; }
+    .ghost-button { border-color: var(--border); background: rgba(255,255,255,.68); }
+    .conversation { overflow: auto; padding: 28px 24px 18px; }
+    .thread { margin: 0 auto; width: min(820px, 100%); display: grid; gap: 20px; }
+    .message { display: grid; gap: 10px; max-width: 760px; font-size: 14px; }
+    .message.user { justify-self: start; grid-template-columns: 28px minmax(0, 1fr); max-width: 100%; }
+    .message.user::before { content: "You"; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 999px; background: rgba(31,138,106,.14); color: #16694f; font-size: 11px; font-weight: 650; }
+    .message.user { color: var(--text); }
+    .message.user:not(.codex-reply) { align-items: start; }
+    .message.user:not(.codex-reply) { }
+    .message.user:not(.codex-reply) { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user > :last-child, .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .message.user { }
+    .assistant-head { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
+    .assistant-head::before { content: ""; width: 28px; height: 28px; border-radius: 999px; background: linear-gradient(180deg, rgba(31,138,106,.94), rgba(18,113,86,.94)); box-shadow: 0 6px 18px rgba(31,138,106,.18); }
+    .assistant-head .meta-pill { border: 1px solid var(--border); background: rgba(255,255,255,.76); border-radius: 999px; padding: 3px 8px; font-size: 11px; color: var(--muted); }
+    .message-block { display: grid; gap: 10px; padding-left: 38px; }
+    .message.user .message-block { padding-left: 0; padding-top: 3px; }
+    .user-bubble { max-width: 620px; border-radius: 18px; background: rgba(255,255,255,.74); border: 1px solid rgba(83,92,78,.08); padding: 12px 14px; box-shadow: 0 8px 18px rgba(61,70,53,.05); }
     .status-line { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
-    .status-line::before { content: ""; width: 4px; height: 4px; border-radius: 999px; background: #a1abb5; }
-    .inline-card { margin-top: 4px; border: 1px solid var(--border); background: rgba(255,255,255,.78); border-radius: 13px; padding: 11px 12px; box-shadow: 0 1px 2px rgba(30,36,44,.04); }
-    .inline-card strong { display: block; margin-bottom: 4px; font-size: 13px; }
-    .inline-card button { margin-top: 8px; padding: 6px 9px; background: var(--accent-soft); color: #0b6876; }
-    .artifact-preview-card, .action-receipt-summary { display: grid; gap: 8px; border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,.82); padding: 11px 12px; }
+    .status-line::before { content: ""; width: 5px; height: 5px; border-radius: 999px; background: #9ca596; }
+    .inline-card { margin-top: 2px; border: 1px solid var(--border); background: rgba(255,255,255,.78); border-radius: 16px; padding: 12px 13px; box-shadow: 0 8px 18px rgba(61,70,53,.04); }
+    .inline-card strong { display: block; margin-bottom: 4px; font-size: 13px; color: var(--text); }
+    .inline-card button { margin-top: 8px; padding: 7px 10px; background: var(--accent-soft); color: #16694f; }
+    .artifact-preview-card, .action-receipt-summary { display: grid; gap: 8px; border: 1px solid var(--border); border-radius: 14px; background: rgba(255,255,255,.84); padding: 12px; }
     .artifact-preview-card header, .action-receipt-summary header { display: flex; align-items: center; gap: 8px; }
     .artifact-preview-card dl, .action-receipt-summary dl, .settings-content dl { display: grid; gap: 8px; margin: 0; }
     .artifact-preview-card div, .action-receipt-summary div, .settings-content dl div { display: grid; gap: 2px; }
     .artifact-preview-card dt, .action-receipt-summary dt, .settings-content dt { color: var(--subtle); font-size: 11px; }
-    .artifact-preview-card dd, .action-receipt-summary dd, .settings-content dd { margin: 0; color: #3e4751; font-size: 12px; }
-    .capability-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 3px; }
-    .capability-row button { border: 1px solid var(--border); background: rgba(255,255,255,.8); padding: 6px 9px; color: #33404b; font-size: 12px; }
-    .codex-reply { white-space: pre-wrap; border: 1px solid var(--border); background: var(--surface); border-radius: 13px; padding: 12px; line-height: 1.55; }
+    .artifact-preview-card dd, .action-receipt-summary dd, .settings-content dd { margin: 0; color: #3c443b; font-size: 12px; }
+    .capability-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+    .capability-row button { border: 1px solid var(--border); background: rgba(255,255,255,.8); padding: 8px 11px; color: #334039; font-size: 12px; }
+    .codex-reply { white-space: pre-wrap; border: 1px solid rgba(83,92,78,.08); background: rgba(255,255,255,.72); border-radius: 18px; padding: 14px 16px; line-height: 1.62; box-shadow: 0 8px 18px rgba(61,70,53,.04); }
     .codex-reply.error { border-color: #efc9c9; color: #9f2b2b; }
-    .composer { padding: 10px 20px 22px; }
-    .composer-box { margin: 0 auto; width: min(760px, 100%); overflow: hidden; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
-    textarea { width: 100%; min-height: 78px; border: 0; padding: 14px 15px; resize: none; outline: none; background: transparent; color: var(--text); }
-    .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-    .composer-footer { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-top: 1px solid var(--border); }
+    .composer { padding: 10px 24px 24px; }
+    .composer-box { margin: 0 auto; width: min(820px, 100%); overflow: hidden; border: 1px solid rgba(83,92,78,.12); border-radius: 28px; background: rgba(255,255,255,.92); box-shadow: var(--shadow); }
+    textarea { width: 100%; min-height: 92px; border: 0; padding: 18px 18px 12px; resize: none; outline: none; background: transparent; color: var(--text); }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .composer-footer { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px 12px; border-top: 1px solid rgba(83,92,78,.08); }
     .composer-footer .row { color: var(--muted); font-size: 12px; }
+    .composer-toolbar button { min-width: 34px; min-height: 34px; border-radius: 999px; }
     .composer-status { color: var(--muted); font-size: 12px; }
     .composer-status.error { color: #9f2b2b; }
     button:disabled, textarea:disabled { opacity: .55; }
-    .inspector { position: absolute; inset: 0 0 0 auto; width: min(396px, 88vw); transform: translateX(calc(100% + 16px)); transition: transform .18s ease; border-left: 1px solid var(--border); background: rgba(255,255,255,.95); box-shadow: var(--shadow); backdrop-filter: blur(18px); z-index: 4; overflow: auto; }
+    .inspector { position: absolute; inset: 0 0 0 auto; width: min(340px, 84vw); transform: translateX(calc(100% + 16px)); transition: transform .18s ease; border-left: 1px solid var(--border); background: rgba(251,250,247,.94); box-shadow: var(--shadow); backdrop-filter: blur(18px); z-index: 4; overflow: auto; }
     .inspector.open { transform: translateX(0); }
-    .inspector-head { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; padding: 12px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,.92); backdrop-filter: blur(14px); }
-    .panel { padding: 12px; border-bottom: 1px solid var(--border); }
-    .preview { border: 1px solid var(--border); border-radius: 13px; background: #fbfcfc; padding: 16px; }
-    details { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    .inspector-head { position: sticky; top: 0; display: grid; gap: 14px; padding: 14px 14px 12px; border-bottom: 1px solid var(--border); background: rgba(251,250,247,.92); backdrop-filter: blur(14px); }
+    .inspector-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .inspector-tabs { display: flex; gap: 8px; }
+    .inspector-tab { padding: 7px 0; border-radius: 0; border-bottom: 2px solid transparent; color: var(--muted); background: transparent; }
+    .inspector-tab.active { border-color: var(--accent); color: var(--text); }
+    .panel { padding: 14px; border-bottom: 1px solid rgba(83,92,78,.08); }
+    .preview { border: 1px solid var(--border); border-radius: 14px; background: rgba(255,255,255,.7); padding: 16px; }
+    details { padding: 12px 14px; border-bottom: 1px solid rgba(83,92,78,.08); }
     summary { color: var(--muted); font-size: 13px; }
     .receipt { margin-top: 8px; white-space: pre-wrap; background: #111827; color: #e9eef6; border-radius: 12px; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
-    .settings-page { display: none; overflow: auto; padding: 34px 20px; }
+    .settings-page { display: none; overflow: auto; padding: 34px 24px; }
     .settings-page.active { display: block; }
-    .settings-content { margin: 0 auto; width: min(820px, 100%); display: grid; gap: 14px; }
-    .settings-content section { border-bottom: 1px solid var(--border); padding: 0 0 14px; }
+    .settings-content { margin: 0 auto; width: min(860px, 100%); display: grid; gap: 18px; }
+    .settings-content section { border: 1px solid rgba(83,92,78,.08); border-radius: 16px; background: rgba(255,255,255,.7); padding: 14px; }
     .settings-content h2 { margin-bottom: 6px; }
     .settings-content button { padding: 6px 9px; background: var(--surface-2); }
     .settings-content code { display: inline-block; border: 1px solid var(--border); border-radius: 8px; padding: 5px 7px; color: #3e4751; background: #fbfcfc; }
     .settings-content small { display: block; margin-top: 4px; }
     .chat-content.hidden, .composer.hidden { display: none; }
+    @media (max-width: 980px) {
+      .opl-native-workbench { grid-template-columns: 244px minmax(0, 1fr); }
+      .inspector { width: min(320px, 88vw); }
+    }
     @media (max-width: 760px) {
       .opl-native-workbench { grid-template-columns: 1fr; }
       .sidebar { display: none; }
-      .topbar { padding: 0 12px; }
-      .conversation, .composer { padding-left: 12px; padding-right: 12px; }
+      .topbar { grid-template-columns: 1fr; justify-items: stretch; height: auto; padding: 12px; }
+      .topbar-left, .topbar-right, .topbar-title { justify-self: stretch; }
+      .topbar-title { text-align: left; }
+      .conversation, .composer, .settings-page { padding-left: 12px; padding-right: 12px; }
+      .composer-box { border-radius: 22px; }
     }
   </style>
 </head>
@@ -188,16 +252,20 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
           <h1>One Person Lab</h1>
           <small>Codex workbench</small>
         </div>
+        <span class="badge">Beta</span>
       </div>
       <div class="quick-actions">
-        <button type="button" onclick="startNewChat()">New chat</button>
-        <button type="button" aria-label="Search">Search</button>
+        <button class="new-chat" type="button" onclick="startNewChat()">+ New chat</button>
+        <button class="ghost-button" type="button" aria-label="Search">Search</button>
       </div>
       <nav class="nav" aria-label="Primary">
         <button id="chatNav" class="active" type="button" onclick="showView('chat')"><span class="dot"></span>Chats</button>
       </nav>
       <section class="section">
-        <h3>Recent</h3>
+        <div class="section-head">
+          <h3>Recent</h3>
+          <button type="button" aria-label="Recent chats">List</button>
+        </div>
         <div id="sessionList" data-testid="opl-session-list" class="list"></div>
       </section>
       <div class="sidebar-footer">
@@ -208,32 +276,37 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
     </aside>
     <section class="chat-shell" aria-label="Single conversation canvas">
       <header class="topbar">
-        <div class="topbar-title">
-          <span class="dot"></span>
-          <span id="viewTitle">Current project</span>
+        <div class="topbar-left">
+          <span id="codexStatus" data-testid="opl-model-access-entry" class="status-pill">Codex connected</span>
         </div>
-        <span class="spacer"></span>
-        <span id="codexStatus" data-testid="opl-model-access-entry" class="status-pill">Codex connected</span>
-        <button data-testid="opl-export-action" type="button" onclick="dryRun('task_export_bundle_preview')">Export</button>
-        <button type="button" onclick="refreshContext()">Refresh context</button>
-        <button type="button" onclick="toggleInspector(true)">Context</button>
+        <div class="topbar-title">
+          <strong id="viewTitle">Current project</strong>
+          <span>Review, draft, export, and confirm from one chat-first surface.</span>
+        </div>
+        <div class="topbar-right">
+          <button data-testid="opl-export-action" class="ghost-button" type="button" onclick="dryRun('task_export_bundle_preview')">Export</button>
+          <button class="ghost-button" type="button" onclick="refreshContext()">Refresh</button>
+          <button class="ghost-button" type="button" onclick="toggleInspector(true)">Inspector</button>
+        </div>
       </header>
       <div id="chatContent" class="conversation chat-content">
         <div class="thread">
-          <article class="message user">Use the current project to prepare a review or deliverable.</article>
+          <article class="message user"><div class="user-bubble">Use the current project to prepare a review or deliverable.</div></article>
           <article data-testid="opl-conversation-event" class="message">
-            <div class="assistant-head">One Person Lab</div>
-            <h2>Codex is connected to OPL project context.</h2>
-            <p>Ask for a result review, export draft, or workflow request. OPL keeps sources, previews, trace, and receipts available in the context panel, and asks before execution.</p>
-            <div class="status-line">Project sources loaded</div>
-            <div class="status-line">Preview and export actions require confirmation</div>
-            <div class="status-line">Artifact bodies remain source-owned</div>
-            <div data-testid="opl-workbench-delivery-mode" class="capability-row delivery-workbench" aria-label="Suggested outputs">
-              <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('task_action_receipt_preview')">Review results</button>
-              <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('task_export_bundle_preview')">Draft grant</button>
-              <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('task_export_bundle_preview')">Build deck</button>
-              <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('task_action_receipt_preview')">Prepare handoff</button>
-              <span data-testid="opl-delivery-mode" hidden>research</span>
+            <div class="assistant-head">One Person Lab <span class="meta-pill">Context ready</span></div>
+            <div class="message-block">
+              <h2>Codex is connected to OPL project context.</h2>
+              <p>Ask for a review, export draft, or workflow request. Sources, previews, trace, and receipts stay in the inspector and execution still goes through App confirmation.</p>
+              <div class="status-line">Project sources loaded</div>
+              <div class="status-line">Preview and export actions require confirmation</div>
+              <div class="status-line">Artifact bodies remain source-owned</div>
+              <div data-testid="opl-workbench-delivery-mode" class="capability-row delivery-workbench" aria-label="Suggested outputs">
+                <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('task_action_receipt_preview')">Review results</button>
+                <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('task_export_bundle_preview')">Draft grant</button>
+                <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('task_export_bundle_preview')">Build deck</button>
+                <button data-testid="opl-delivery-mode-option" type="button" onclick="dryRun('task_action_receipt_preview')">Prepare handoff</button>
+                <span data-testid="opl-delivery-mode" hidden>research</span>
+              </div>
             </div>
           </article>
         </div>
@@ -242,8 +315,10 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
         <div class="composer-box">
           <textarea id="promptInput" aria-label="Prompt" placeholder="Ask OPL to review, draft, export, or start a workflow"></textarea>
           <div class="composer-footer">
-            <div class="row">
+            <div class="row composer-toolbar">
               <button type="button" aria-label="Attach">+</button>
+              <button type="button" aria-label="Network">O</button>
+              <button type="button" aria-label="Tools">Tools</button>
               <span id="composerStatus" data-testid="opl-composer-run-state" class="composer-status">Ready</span>
             </div>
             <button id="sendButton" type="button" class="primary" onclick="sendCodexMessage()" aria-label="Send" disabled>Send</button>
@@ -310,8 +385,14 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
       </section>
       <aside id="inspector" class="inspector" aria-label="On-demand context panel" aria-hidden="true">
         <div class="inspector-head">
-          <strong>Context</strong>
-          <button type="button" onclick="toggleInspector(false)">Close</button>
+          <div class="inspector-bar">
+            <strong>Inspector</strong>
+            <button type="button" onclick="toggleInspector(false)">Close</button>
+          </div>
+          <div class="inspector-tabs">
+            <button class="inspector-tab active" type="button">Inspector</button>
+            <button class="inspector-tab" type="button">Session</button>
+          </div>
         </div>
         <section data-testid="opl-files-panel" class="panel">
           <h3>Sources</h3>

@@ -47,9 +47,36 @@ const stackedListStyle = {
   paddingLeft: 18
 } as const;
 
+const inlineMetaListStyle = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 8,
+  margin: 0,
+  padding: 0,
+  listStyle: "none"
+} as const;
+
 const shellStyle = {
   display: "grid",
   gap: 12
+} as const;
+
+const panelHeaderStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12
+} as const;
+
+const denseCodeStyle = {
+  margin: 0,
+  padding: 12,
+  borderRadius: 8,
+  background: "rgba(15, 23, 42, 0.05)",
+  border: "1px solid rgba(148, 163, 184, 0.25)",
+  overflowX: "auto",
+  fontSize: "0.82rem",
+  lineHeight: 1.55
 } as const;
 
 function compactRef(value: string): string {
@@ -57,22 +84,38 @@ function compactRef(value: string): string {
 }
 
 function refsOnlyBoundaryText(preview: ArtifactPreview): string {
-  return `${preview.title} stays refs-only. The workbench renders a richer local view but does not claim artifact body authority.`;
+  return preview.authorityBoundary
+    ?? `${preview.title} stays refs-only. The workbench renders a richer local view but does not claim artifact body authority.`;
 }
 
 function previewMarkdown(preview: ArtifactPreview): string {
+  if (preview.content?.trim()) return preview.content;
   return [
     `### ${preview.title}`,
     "",
     preview.summary,
     "",
-    `- Ref: \`${preview.ref}\``,
-    `- Renderer: \`${preview.rendererModuleId}\``,
+    ...(preview.fields?.map((field) => `- ${field.label}: ${field.value}`) ?? []),
+    ...(preview.bullets?.length ? ["", "#### Notes", ...preview.bullets.map((item) => `- ${item}`)] : []),
+    "",
+    `- Ref: \`${compactRef(preview.ref)}\``,
+    ...(preview.sourceRefs?.slice(0, 3).map((ref) => `- Source: \`${compactRef(ref)}\``) ?? []),
     `- Boundary: ${refsOnlyBoundaryText(preview)}`
   ].join("\n");
 }
 
 function mermaidSource(preview: ArtifactPreview): string {
+  if (preview.traceSteps?.length) {
+    const steps = preview.traceSteps.slice(0, 6).map((step, index) => ({
+      id: `s${index}`,
+      label: step.replaceAll('"', "'")
+    }));
+    return [
+      "flowchart TD",
+      ...steps.map((step) => `  ${step.id}["${step.label}"]`),
+      ...steps.slice(1).map((step, index) => `  s${index} --> ${step.id}`)
+    ].join("\n");
+  }
   const refLabel = compactRef(preview.ref).replaceAll('"', "'");
   const titleLabel = preview.title.replaceAll('"', "'");
   return [
@@ -84,6 +127,7 @@ function mermaidSource(preview: ArtifactPreview): string {
 }
 
 function previewCode(preview: ArtifactPreview): string {
+  if (preview.content?.trim()) return preview.content;
   return [
     "export const previewRef = {",
     `  title: ${JSON.stringify(preview.title)},`,
@@ -91,18 +135,22 @@ function previewCode(preview: ArtifactPreview): string {
     `  rendererModuleId: ${JSON.stringify(preview.rendererModuleId)},`,
     `  ref: ${JSON.stringify(preview.ref)},`,
     `  summary: ${JSON.stringify(preview.summary)},`,
+    `  sourceRefs: ${JSON.stringify(preview.sourceRefs ?? [], null, 2)},`,
     '  authorityBoundary: "refs-only preview; no artifact body ownership"',
     "};"
   ].join("\n");
 }
 
 function previewJson(preview: ArtifactPreview): string {
+  if (preview.content?.trim()) return preview.content;
   return JSON.stringify({
     title: preview.title,
     preview_kind: preview.previewKind,
     renderer_module: preview.rendererModuleId,
     ref: preview.ref,
     summary: preview.summary,
+    fields: preview.fields ?? [],
+    source_refs: preview.sourceRefs ?? [],
     authority_boundary: "refs-only preview"
   }, null, 2);
 }
@@ -117,9 +165,18 @@ function PreviewMeta({ preview }: { preview: ArtifactPreview }) {
   const moduleRegistration = rendererModuleForPreviewKind(preview.previewKind);
   return (
     <section style={sectionStyle}>
-      <strong>{descriptor.surface}</strong>
+      <div style={panelHeaderStyle}>
+        <strong>{descriptor.surface}</strong>
+        <StatusPill status={preview.label || descriptor.label} />
+      </div>
       <p>{descriptor.refsOnlyNote}</p>
       <dl style={keyValueGridStyle}>
+        {preview.fields?.map((field) => (
+          <div key={`${preview.id}-${field.label}`}>
+            <dt>{field.label}</dt>
+            <dd>{field.value}</dd>
+          </div>
+        ))}
         <div>
           <dt>Renderer</dt>
           <dd>{preview.rendererModuleId}</dd>
@@ -133,6 +190,24 @@ function PreviewMeta({ preview }: { preview: ArtifactPreview }) {
           <dd>{moduleRegistration?.authorityBoundary ?? "Refs-only preview"}</dd>
         </div>
       </dl>
+      {preview.sourceRefs?.length ? (
+        <>
+          <p><strong>Source refs</strong></p>
+          <ul style={stackedListStyle}>
+            {preview.sourceRefs.slice(0, 4).map((ref) => (
+              <li key={`${preview.id}-${ref}`}><code>{compactRef(ref)}</code></li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      {preview.bullets?.length ? (
+        <>
+          <p><strong>Preview notes</strong></p>
+          <ul style={stackedListStyle}>
+            {preview.bullets.map((item) => <li key={`${preview.id}-${item}`}>{item}</li>)}
+          </ul>
+        </>
+      ) : null}
     </section>
   );
 }
@@ -206,6 +281,11 @@ function MermaidPreview({ preview }: { preview: ArtifactPreview }) {
             {" "}
             {error}
           </p>
+        ) : null}
+        {preview.traceSteps?.length ? (
+          <ol style={stackedListStyle}>
+            {preview.traceSteps.map((step) => <li key={`${preview.id}-${step}`}>{step}</li>)}
+          </ol>
         ) : null}
       </div>
       <PreviewMeta preview={preview} />
@@ -308,7 +388,7 @@ export function StatusPill({ status }: { status: string }) {
 export function DeliveryCard({ item }: { item: WorkbenchArtifactRef }) {
   const Icon = item.kind === "receipt" ? ReceiptText : item.kind === "deliverable" ? PackageCheck : FileText;
   return (
-    <article className="delivery-card" data-kind={item.kind}>
+    <article className="delivery-card" data-kind={item.kind} style={sectionStyle}>
       <header>
         <Icon aria-hidden="true" size={18} />
         <div>
@@ -317,15 +397,15 @@ export function DeliveryCard({ item }: { item: WorkbenchArtifactRef }) {
         </div>
       </header>
       <p>{item.summary}</p>
-      <dl>
+      <dl style={keyValueGridStyle}>
         <dt>Ref</dt>
-        <dd>{item.ref}</dd>
+        <dd><code>{compactRef(item.ref)}</code></dd>
         <dt>Trace</dt>
-        <dd>{item.provenance.join(" / ")}</dd>
+        <dd>{item.provenance.length ? item.provenance.slice(0, 3).join(" / ") : "No trace refs"}</dd>
       </dl>
-      <ul>
+      <ul style={inlineMetaListStyle}>
         {item.actions.map((action) => (
-          <li key={action}>{action}</li>
+          <li key={action}><code>{action}</code></li>
         ))}
       </ul>
     </article>
@@ -351,7 +431,7 @@ export function QuestionCard({ question }: QuestionCardProps) {
 
 export function ArtifactPreviewCard({ preview }: { preview: ArtifactPreview }) {
   return (
-    <article data-testid="opl-artifact-preview-card" className="artifact-preview-card">
+    <article data-testid="opl-artifact-preview-card" className="artifact-preview-card" style={{ display: "grid", gap: 12 }}>
       <header>
         <FileCode aria-hidden="true" size={18} />
         <div>
@@ -382,7 +462,7 @@ export function ActionReceiptSummary({ receipt }: { receipt: ActionReceiptSummar
   };
 
   return (
-    <article data-testid="opl-action-receipt-summary" className="action-receipt-summary">
+    <article data-testid="opl-action-receipt-summary" className="action-receipt-summary" style={{ ...sectionStyle, display: "grid", gap: 12 }}>
       <header>
         <ReceiptText aria-hidden="true" size={18} />
         <div>
@@ -402,19 +482,37 @@ export function ActionReceiptSummary({ receipt }: { receipt: ActionReceiptSummar
             <dd>{receipt.mutates}</dd>
           </div>
           <div>
+            <dt>Owner</dt>
+            <dd>{receipt.owner ?? "opl_app"}</dd>
+          </div>
+          <div>
             <dt>Receipt ref</dt>
-            <dd><code>{receipt.receiptRef}</code></dd>
+            <dd><code>{compactRef(receipt.receiptRef)}</code></dd>
+          </div>
+          <div>
+            <dt>Payload</dt>
+            <dd>{receipt.payloadFields.length ? receipt.payloadFields.join(", ") : "none"}</dd>
           </div>
         </dl>
         <p><strong>Preview route</strong></p>
-        <code>{receipt.route}</code>
+        <pre style={denseCodeStyle}>{receipt.route}</pre>
+        <p><strong>Boundary</strong></p>
+        <p>{receipt.authorityBoundary}</p>
       </section>
       <section style={sectionStyle}>
         <h4>Workbench checks</h4>
         <ul style={stackedListStyle}>
-          {statusNotes[receipt.status].map((item) => <li key={item}>{item}</li>)}
+          {[...statusNotes[receipt.status], ...receipt.checks].map((item) => <li key={item}>{item}</li>)}
         </ul>
       </section>
+      {receipt.sourceRefs.length ? (
+        <section style={sectionStyle}>
+          <h4>Source refs</h4>
+          <ul style={stackedListStyle}>
+            {receipt.sourceRefs.map((item) => <li key={item}><code>{compactRef(item)}</code></li>)}
+          </ul>
+        </section>
+      ) : null}
     </article>
   );
 }

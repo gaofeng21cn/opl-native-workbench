@@ -34,6 +34,12 @@ export type ArtifactPreview = {
   title: string;
   ref: string;
   summary: string;
+  content?: string;
+  fields?: { label: string; value: string }[];
+  bullets?: string[];
+  sourceRefs?: string[];
+  traceSteps?: string[];
+  authorityBoundary?: string;
 };
 
 export type WorkbenchSourceRef = {
@@ -136,6 +142,11 @@ export type ActionReceiptSummary = {
   mutates: string;
   receiptRef: string;
   summary: string;
+  payloadFields: string[];
+  owner?: string;
+  authorityBoundary: string;
+  sourceRefs: string[];
+  checks: string[];
 };
 
 export type WorkbenchModel = {
@@ -314,6 +325,12 @@ export const initialWorkbenchModel: WorkbenchModel = {
       mutates: "none_read_only",
       receiptRef: "opl://receipt/dry-run",
       summary: "App action preview route only; task_id and export_bundle_ref payload are required."
+      ,
+      payloadFields: ["task_id", "export_bundle_ref"],
+      owner: "opl_framework",
+      authorityBoundary: "Structured preview receipt only; no export execution authority.",
+      sourceRefs: ["opl://receipt/dry-run", "opl app action execute --action task_export_bundle_preview --dry-run --json"],
+      checks: ["Bind task_id and export_bundle_ref before previewing the receipt.", "Dry-run does not create an owner receipt or artifact body."]
     }
   ],
   starters: [
@@ -599,6 +616,115 @@ function pickAppState(state: unknown): Record<string, unknown> | null {
 function compactText(value: unknown, fallback: string, max = 160): string {
   const text = asString(value)?.replace(/\s+/g, " ").trim() ?? fallback;
   return text.length > max ? `${text.slice(0, max - 1)}...` : text;
+}
+
+function compactRef(value: string, max = 56): string {
+  return value.length > max ? `${value.slice(0, max - 1)}...` : value;
+}
+
+function previewField(label: string, value: unknown): { label: string; value: string } | null {
+  const text = asString(value);
+  return text ? { label, value: text } : null;
+}
+
+function uniqueStrings(values: Array<string | null | undefined>): string[] {
+  return [...new Set(values.filter((value): value is string => Boolean(value)))];
+}
+
+function formatTimestamp(value: unknown): string | null {
+  const text = asString(value);
+  if (!text) return null;
+  return text.replace("T", " ").replace(".000Z", "Z");
+}
+
+function usageSummary(usage: Record<string, unknown> | null): string | null {
+  if (!usage) return null;
+  const telemetry = asString(usage.telemetry_status) ?? "unknown";
+  const calls = usage.api_call_count_observed ?? usage.observed_attempt_count;
+  const duration = usage.duration_ms_observed;
+  const sourceRefs = usage.source_ref_count;
+  const parts = [
+    `telemetry ${telemetry}`,
+    typeof calls === "number" ? `${calls} calls` : null,
+    typeof duration === "number" && duration > 0 ? `${duration} ms` : null,
+    typeof sourceRefs === "number" ? `${sourceRefs} refs` : null
+  ];
+  return uniqueStrings(parts).join(" | ");
+}
+
+function taskAcceptedShapes(task: Record<string, unknown>, currentOwnerDelta: Record<string, unknown> | null): string[] {
+  const stageRun = asRecord(task.stage_run_cockpit_summary) ?? asRecord(task.stage_run_current_owner_delta) ?? asRecord(task.stage_run_cockpit);
+  return uniqueStrings([
+    ...asStringArray(currentOwnerDelta?.accepted_answer_shape),
+    ...asStringArray(stageRun?.accepted_return_shapes),
+    ...asStringArray(stageRun?.required_return_shapes)
+  ]);
+}
+
+function previewAuthorityBoundary(previewKind: WorkbenchPreviewKind, fallback = "Refs-only preview; body remains source-owned."): string {
+  if (previewKind === "json") return "Structured receipt envelope only; no receipt body authority.";
+  if (previewKind === "code") return "Manifest and patch-style projection only; no executable artifact body authority.";
+  if (previewKind === "mermaid") return "Trace projection only; no workflow truth transfer.";
+  if (previewKind === "pdf") return "Local export shell only; final file authority remains outside the workbench.";
+  return fallback;
+}
+
+function artifactPreviewFromItem(item: WorkbenchArtifactRef): ArtifactPreview {
+  return {
+    id: item.id,
+    label: item.kind === "receipt" ? "Receipt" : item.kind === "deliverable" ? "Deliverable" : item.title,
+    previewKind: item.previewKind,
+    rendererModuleId: rendererModuleIdForPreviewKind(item.previewKind),
+    title: item.title,
+    ref: item.ref,
+    summary: item.summary,
+    fields: [
+      { label: "Kind", value: item.kind },
+      { label: "Status", value: item.status.replaceAll("_", " ") },
+      { label: "Primary ref", value: compactRef(item.ref) }
+    ],
+    bullets: item.actions,
+    sourceRefs: uniqueStrings([item.ref, ...item.provenance]),
+    authorityBoundary: previewAuthorityBoundary(item.previewKind)
+  };
+}
+
+function actionPreviewFromAction(action: WorkbenchActionRef): ArtifactPreview {
+  const route = ensureDryRunJsonRoute(action.route);
+  return {
+    id: `preview-action-${action.id}`,
+    label: "Action",
+    previewKind: inferPreviewKind(action),
+    rendererModuleId: rendererModuleIdForPreviewKind(inferPreviewKind(action)),
+    title: action.label,
+    ref: route,
+    summary: `Dry-run route derived from ${action.owner ?? "OPL App"}; mutates ${action.mutates}.`,
+    content: JSON.stringify({
+      action_id: action.id,
+      label: action.label,
+      route,
+      payload_fields: action.payloadFields,
+      mutates: action.mutates,
+      delegated_surface: action.delegatedSurface,
+      owner: action.owner,
+      route_requires_payload: action.routeRequiresPayload ?? false,
+      dry_run_supported: action.dryRunSupported
+    }, null, 2),
+    fields: [
+      { label: "Action", value: action.id },
+      { label: "Owner", value: action.owner ?? "opl_app" },
+      { label: "Mutation", value: action.mutates },
+      { label: "Payload", value: action.payloadFields.length ? action.payloadFields.join(", ") : "none" }
+    ],
+    bullets: [
+      action.dryRunSupported
+        ? "Dry-run route can be inspected before any confirmed execute."
+        : "This route is not safe-action dry-run capable.",
+      action.delegatedSurface ? `Delegated surface: ${action.delegatedSurface}` : "No delegated surface readback."
+    ],
+    sourceRefs: uniqueStrings([route, action.delegatedSurface, action.owner]),
+    authorityBoundary: "Action preview only; no domain authority is expanded in the renderer."
+  };
 }
 
 function artifactStatus(value: unknown): WorkbenchArtifactRef["status"] {
@@ -1001,34 +1127,192 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
   });
   const receipts = taskReceipts.length ? uniqueByRef(taskReceipts).slice(0, 6) : fallback.receipts;
 
-  const previewCandidates = uniqueByRef([
-    ...deliverables.map((item) => ({ id: item.id, ref: item.ref, label: item.title, summary: item.summary, previewKind: item.previewKind })),
-    ...receipts.map((item) => ({ id: item.id, ref: item.ref, label: item.title, summary: item.summary, previewKind: item.previewKind })),
+  const leadTask = taskDrilldowns[0] ?? null;
+  const leadTaskTitle = asString(leadTask?.title) ?? "Current task";
+  const leadArtifact = asRecord(leadTask?.artifact_or_blocker);
+  const leadActionReceipt = asRecord(leadTask?.action_receipt);
+  const leadStageRun = asRecord(leadTask?.stage_run_cockpit_summary)
+    ?? asRecord(leadTask?.stage_run_current_owner_delta)
+    ?? asRecord(leadTask?.stage_run_cockpit);
+  const leadAcceptedShapes = taskAcceptedShapes(leadTask ?? {}, currentOwnerDelta);
+  const leadUsageSummary = usageSummary(asRecord(leadTask?.current_stage_usage));
+  const leadTaskTotalUsage = usageSummary(asRecord(leadTask?.task_total_usage));
+  const leadTraceSteps = uniqueStrings([
+    leadTaskTitle,
+    asString(leadTask?.active_stage_label) ?? asString(leadTask?.active_stage_id),
+    asString(leadTask?.status_label) ?? asString(leadTask?.status),
+    asString(currentOwnerDelta?.owner) ?? asString(leadStageRun?.current_owner),
+    compactText(leadTask?.next_visible_step, "Review current refs before execution.", 88),
+    leadAcceptedShapes.length ? `Return ${leadAcceptedShapes.join(" | ")}` : null
+  ]);
+
+  const leadPreviewCandidates: ArtifactPreview[] = leadTask ? [
+    {
+      id: `preview-summary-${asString(leadTask.task_id) ?? "current"}`,
+      label: "Summary",
+      previewKind: "markdown",
+      rendererModuleId: rendererModuleIdForPreviewKind("markdown"),
+      title: `${leadTaskTitle} workbench summary`,
+      ref: asString(leadArtifact?.current_ref) ?? `opl://task/${asString(leadTask.task_id) ?? "current"}`,
+      summary: compactText(leadTask.next_visible_step, "Task-derived summary preview."),
+      content: [
+        `### ${leadTaskTitle}`,
+        "",
+        compactText(leadTask.next_visible_step, "Review current refs before execution."),
+        "",
+        "#### Workbench reading",
+        `- Status: ${(asString(leadTask.status_label) ?? asString(leadTask.status) ?? "unknown").replaceAll("_", " ")}`,
+        `- Owner: ${asString(currentOwnerDelta?.owner) ?? asString(leadStageRun?.current_owner) ?? "unknown"}`,
+        `- Stage: ${asString(leadTask.active_stage_label) ?? asString(leadTask.active_stage_id) ?? "unknown"}`,
+        `- Runtime source: ${asString(leadTask.runtime_readback_source) ?? "unknown"}`,
+        ...(leadAcceptedShapes.length ? [`- Required return: ${leadAcceptedShapes.join(", ")}`] : []),
+        ...(leadUsageSummary ? [`- Stage usage: ${leadUsageSummary}`] : []),
+        ...(leadTaskTotalUsage ? [`- Task usage: ${leadTaskTotalUsage}`] : [])
+      ].join("\n"),
+      fields: [
+        previewField("Task", asString(leadTask.task_id)),
+        previewField("Primary state", asString(leadTask.primary_state_label) ?? asString(leadTask.primary_state)),
+        previewField("Automation", asString(leadTask.automation_state_label) ?? asString(leadTask.automation_state)),
+        previewField("Last heartbeat", formatTimestamp(leadTask.last_heartbeat_at)),
+        previewField("Last progress", formatTimestamp(leadTask.last_progress_at))
+      ].filter((item): item is { label: string; value: string } => Boolean(item)),
+      bullets: uniqueStrings([
+        asString(leadTask.typed_blocker_summary),
+        asString(leadTask.resolution_route),
+        asString(leadStageRun?.running_proof_summary)
+      ]),
+      sourceRefs: uniqueStrings([
+        asString(leadArtifact?.current_ref),
+        asString(leadTask.workspace_path),
+        asString(leadTask.gateway_status_ref),
+        asString(leadStageRun?.typed_blocker_resolution_ref)
+      ]),
+      authorityBoundary: "Summary projection only; task truth, receipts, and artifact bodies remain source-owned."
+    },
+    {
+      id: `preview-receipt-${asString(leadTask.task_id) ?? "current"}`,
+      label: "Receipt",
+      previewKind: "json",
+      rendererModuleId: rendererModuleIdForPreviewKind("json"),
+      title: `${leadTaskTitle} action receipt envelope`,
+      ref: asString(leadActionReceipt?.preview_ref) ?? ensureDryRunJsonRoute(asString(leadActionReceipt?.route) ?? "opl app action execute --action task_action_receipt_preview"),
+      summary: compactText(leadActionReceipt?.content_policy, "Structured preview receipt metadata."),
+      content: JSON.stringify({
+        task_id: asString(leadTask.task_id),
+        action_id: asString(leadActionReceipt?.action_id) ?? "task_action_receipt_preview",
+        preview_ref: asString(leadActionReceipt?.preview_ref),
+        dry_run_route: ensureDryRunJsonRoute(asString(leadActionReceipt?.route) ?? "opl app action execute --action task_action_receipt_preview"),
+        export_bundle_action_id: asString(leadActionReceipt?.export_bundle_action_id),
+        export_bundle_route: ensureDryRunJsonRoute(asString(leadActionReceipt?.export_bundle_route) ?? "opl app action execute --action task_export_bundle_preview"),
+        export_bundle_ref: asStringArray(leadArtifact?.export_bundle_refs)[0] ?? asString(leadArtifact?.export_ref),
+        content_policy: asString(leadActionReceipt?.content_policy) ?? "refs_only_no_action_receipt_body",
+        required_return_shapes: leadAcceptedShapes
+      }, null, 2),
+      fields: [
+        previewField("Action", asString(leadActionReceipt?.action_id) ?? "task_action_receipt_preview"),
+        previewField("Export action", asString(leadActionReceipt?.export_bundle_action_id)),
+        previewField("Payload", "task_id, action_ref"),
+        previewField("Boundary", asString(leadActionReceipt?.content_policy) ?? "refs_only_no_action_receipt_body")
+      ].filter((item): item is { label: string; value: string } => Boolean(item)),
+      bullets: [
+        "Dry-run preview route only; no action receipt body is transferred into the renderer.",
+        "Use the preview ref and export bundle ref together when preparing a confirmable action."
+      ],
+      sourceRefs: uniqueStrings([
+        asString(leadActionReceipt?.preview_ref),
+        asString(leadArtifact?.export_bundle_action_ref),
+        asStringArray(leadArtifact?.export_bundle_refs)[0],
+        asString(leadArtifact?.receipt_ref)
+      ]),
+      authorityBoundary: "Receipt envelope only; execute, owner receipt, and rollback truth remain outside the shell."
+    },
+    {
+      id: `preview-trace-${asString(leadTask.task_id) ?? "current"}`,
+      label: "Trace",
+      previewKind: "mermaid",
+      rendererModuleId: rendererModuleIdForPreviewKind("mermaid"),
+      title: `${leadTaskTitle} owner-route trace`,
+      ref: asString(leadStageRun?.source_ref) ?? asString(leadArtifact?.current_ref) ?? `opl://task/${asString(leadTask.task_id) ?? "current"}/trace`,
+      summary: compactText(asString(currentOwnerDelta?.desired_delta_description) ?? asString(leadTask?.resolution_route), "Owner-route trace derived from App state."),
+      fields: [
+        previewField("Current owner", asString(currentOwnerDelta?.owner) ?? asString(leadStageRun?.current_owner)),
+        previewField("Hard gate", asString(asRecord(currentOwnerDelta?.hard_gate)?.state)),
+        previewField("Next safe action", asString(leadStageRun?.next_safe_action_ref)),
+        previewField("Runtime", asString(leadTask?.runtime_attempt_status))
+      ].filter((item): item is { label: string; value: string } => Boolean(item)),
+      bullets: uniqueStrings([
+        asString(currentOwnerDelta?.desired_delta_description),
+        asString(leadStageRun?.resolution_route),
+        asString(leadTask?.typed_blocker_summary)
+      ]),
+      sourceRefs: uniqueStrings([
+        asString(leadStageRun?.source_ref),
+        asString(leadStageRun?.typed_blocker_resolution_ref),
+        asString(leadTask?.gateway_status_ref)
+      ]),
+      traceSteps: leadTraceSteps,
+      authorityBoundary: "Trace projection only; stage transition still requires owner receipt or typed blocker."
+    },
+    {
+      id: `preview-manifest-${asString(leadTask.task_id) ?? "current"}`,
+      label: "Manifest",
+      previewKind: "code",
+      rendererModuleId: rendererModuleIdForPreviewKind("code"),
+      title: `${leadTaskTitle} deliverable manifest`,
+      ref: asStringArray(leadArtifact?.export_bundle_refs)[0] ?? asString(leadArtifact?.export_ref) ?? asString(leadArtifact?.canonical_ref) ?? `opl://task/${asString(leadTask.task_id) ?? "current"}/deliverable`,
+      summary: compactText(leadArtifact?.content_policy, "Manifest-style delivery projection from refs."),
+      content: [
+        "export const workbenchDeliveryProjection = {",
+        `  taskId: ${JSON.stringify(asString(leadTask.task_id) ?? null)},`,
+        `  title: ${JSON.stringify(leadTaskTitle)},`,
+        `  currentRef: ${JSON.stringify(asString(leadArtifact?.current_ref) ?? null)},`,
+        `  canonicalRef: ${JSON.stringify(asString(leadArtifact?.canonical_ref) ?? null)},`,
+        `  exportRef: ${JSON.stringify(asString(leadArtifact?.export_ref) ?? null)},`,
+        `  exportBundleRef: ${JSON.stringify(asStringArray(leadArtifact?.export_bundle_refs)[0] ?? null)},`,
+        `  receiptRef: ${JSON.stringify(asString(leadArtifact?.receipt_ref) ?? null)},`,
+        `  lineageRef: ${JSON.stringify(asString(leadArtifact?.lineage_ref) ?? null)},`,
+        `  conformanceRef: ${JSON.stringify(asString(leadArtifact?.conformance_ref) ?? null)},`,
+        `  sourceRefCount: ${JSON.stringify(leadTask.source_ref_count ?? null)},`,
+        `  safeActionRefCount: ${JSON.stringify(leadTask.safe_action_ref_count ?? null)},`,
+        '  authorityBoundary: "refs_only_no_artifact_body"',
+        "};"
+      ].join("\n"),
+      fields: [
+        previewField("Current ref", compactRef(asString(leadArtifact?.current_ref) ?? "")),
+        previewField("Export bundle", compactRef(asStringArray(leadArtifact?.export_bundle_refs)[0] ?? asString(leadArtifact?.export_ref) ?? "")),
+        previewField("Lineage", compactRef(asString(leadArtifact?.lineage_ref) ?? "")),
+        previewField("Conformance", compactRef(asString(leadArtifact?.conformance_ref) ?? ""))
+      ].filter((item): item is { label: string; value: string } => Boolean(item)),
+      bullets: [
+        "This is a manifest-style projection for export/readback, not an owned artifact body.",
+        "Conformance and lineage stay as refs so the workbench can show delivery context without copying truth."
+      ],
+      sourceRefs: uniqueStrings([
+        asString(leadArtifact?.current_ref),
+        asString(leadArtifact?.canonical_ref),
+        asStringArray(leadArtifact?.export_bundle_refs)[0],
+        asString(leadArtifact?.lineage_ref),
+        asString(leadArtifact?.conformance_ref)
+      ]),
+      authorityBoundary: "Manifest projection only; artifact bytes and release authority remain external."
+    }
+  ] : [];
+
+  const genericArtifactPreviews = uniqueByRef([
+    ...deliverables.map(artifactPreviewFromItem),
+    ...receipts.map(artifactPreviewFromItem),
     ...contextActions
       .filter((action) => action.dryRunSupported)
-      .map((action) => ({
-        id: `preview-action-${action.id}`,
-        ref: action.route,
-        label: action.label,
-        summary: `Refs-only preview from ${action.owner ?? "OPL action"}; mutates: ${action.mutates}.`,
-        previewKind: inferPreviewKind(action)
-      }))
-  ]).slice(0, 6);
-  const artifactPreviews = previewCandidates.length ? previewCandidates.map((item): ArtifactPreview => ({
-    id: item.id,
-    label: item.label,
-    previewKind: item.previewKind,
-    rendererModuleId: rendererModuleIdForPreviewKind(item.previewKind),
-    title: item.label,
-    ref: item.ref,
-    summary: item.summary
-  })) : fallback.artifactPreviews;
+      .map(actionPreviewFromAction)
+  ]);
+  const artifactPreviews = uniqueByRef([...leadPreviewCandidates, ...genericArtifactPreviews]).slice(0, 6);
 
   const taskReceiptSummaries = taskDrilldowns.flatMap((task) => {
     const taskId = asString(task.task_id);
     const title = asString(task.title);
     const actionReceipt = asRecord(task.action_receipt);
     const artifact = asRecord(task.artifact_or_blocker);
+    const acceptedShapes = taskAcceptedShapes(task, currentOwnerDelta);
     if (!taskId || !title || !actionReceipt) return [];
     const exportRoute = asString(actionReceipt.export_bundle_route);
     const exportBundleRef = asStringArray(artifact?.export_bundle_refs)[0];
@@ -1041,7 +1325,19 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
         status: "payload_required" as const,
         mutates: "none_read_only",
         receiptRef: asString(actionReceipt.preview_ref) ?? `receipt://${taskId}/preview`,
-        summary: compactText(task.next_visible_step, "Task preview receipt derived from operator workbench.")
+        summary: compactText(task.next_visible_step, "Task preview receipt derived from operator workbench."),
+        payloadFields: ["task_id", "action_ref"],
+        owner: asString(task.typed_blocker_owner) ?? asString(currentOwnerDelta?.owner) ?? asString(task.domain_id),
+        authorityBoundary: "Task receipt preview only; no domain execution or owner receipt is implied.",
+        sourceRefs: uniqueStrings([
+          asString(actionReceipt.preview_ref),
+          asString(artifact?.current_ref),
+          asString(task.workspace_path)
+        ]),
+        checks: uniqueStrings([
+          "Bind task_id and action_ref before previewing the receipt.",
+          acceptedShapes.length ? `Accepted return shapes: ${acceptedShapes.join(", ")}` : null
+        ])
       },
       ...(exportRoute && exportBundleRef ? [{
         id: `action-export-${taskId}`,
@@ -1051,7 +1347,19 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
         status: "payload_required" as const,
         mutates: "none_read_only",
         receiptRef: exportBundleRef,
-        summary: compactText(artifact?.content_policy, "Export bundle preview uses refs only.")
+        summary: compactText(artifact?.content_policy, "Export bundle preview uses refs only."),
+        payloadFields: ["task_id", "export_bundle_ref"],
+        owner: asString(task.domain_id),
+        authorityBoundary: "Export preview only; bundle contents remain source-owned.",
+        sourceRefs: uniqueStrings([
+          exportBundleRef,
+          asString(artifact?.export_ref),
+          asString(artifact?.conformance_ref)
+        ]),
+        checks: [
+          "Confirm the export bundle ref is current before any execute step.",
+          "Dry-run does not imply package-ready or owner acceptance."
+        ]
       }] : [])
     ];
   });
@@ -1068,6 +1376,15 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
       summary: action.payloadFields.length
         ? `Dry-run route exists; payload required: ${action.payloadFields.join(", ")}.`
         : "Dry-run route can preview a refs-only receipt without a domain artifact body."
+      ,
+      payloadFields: action.payloadFields,
+      owner: action.owner,
+      authorityBoundary: "Generic action receipt preview only; submit/execute stays outside the renderer.",
+      sourceRefs: uniqueStrings([ensureDryRunJsonRoute(action.route), action.delegatedSurface]),
+      checks: uniqueStrings([
+        action.payloadFields.length ? `Required payload: ${action.payloadFields.join(", ")}` : "No payload required for a preview receipt.",
+        action.canSubmitToSafeActionShell ? "Safe-action shell can submit this preview lane." : "Safe-action shell submission is not declared for this route."
+      ])
     }));
   const actionReceipts = uniqueByRef([...taskReceiptSummaries, ...genericReceiptSummaries]).slice(0, 8);
 
@@ -1160,8 +1477,6 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     }
   ] : fallback.deliveryPackages;
 
-  const leadTask = taskDrilldowns[0];
-  const leadTaskTitle = asString(leadTask?.title) ?? "current task";
   const leadTaskNextStep = compactText(leadTask?.next_visible_step, "Review current App refs before execution.");
   const confirmations = fallback.confirmations.map((card, index): ConfirmationCard => index === 0 && previewAction ? {
     ...card,
@@ -1195,23 +1510,20 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
   ];
 
   const contextTrace = [
-    { id: "profile", label: "Profile", value: asString(meta?.profile) ?? "" },
-    { id: "generated", label: "Generated", value: asString(meta?.generated_at) ?? "" },
-    { id: "owner", label: "Owner", value: asString(runtimeSource?.owner) ?? "" },
-    { id: "app-owner", label: "App truth owner", value: asString(runtimeSource?.app_repo_truth_owner) ?? "" },
-    { id: "provider", label: "Provider status", value: asString(asRecord(operator?.summary)?.provider_status) ?? "" },
-    { id: "runtime", label: "Runtime status", value: asString(asRecord(operator?.summary)?.runtime_status) ?? "" },
-    { id: "current-owner", label: "Current owner", value: asString(currentOwnerDelta?.owner) ?? asString(workbench?.operator_next_action_owner) ?? "" },
-    { id: "next-action", label: "Next action kind", value: asString(currentOwnerDeltaNextAction?.action_kind) ?? asString(workbench?.operator_next_action_kind) ?? "" },
-    { id: "hard-gate", label: "Hard gate", value: asString(asRecord(currentOwnerDelta?.hard_gate)?.state) ?? "" }
+    { id: "profile", label: "Profile", value: `${asString(meta?.profile) ?? "fast"} | ${formatTimestamp(meta?.generated_at) ?? "no timestamp"}` },
+    { id: "owner", label: "Owner route", value: `${asString(currentOwnerDelta?.owner) ?? asString(workbench?.operator_next_action_owner) ?? "unknown"} -> ${asString(currentOwnerDeltaNextAction?.action_kind) ?? asString(workbench?.operator_next_action_kind) ?? "unknown next action"}` },
+    { id: "runtime", label: "Runtime", value: `${asString(asRecord(operator?.summary)?.runtime_status) ?? "unknown"} | provider ${asString(asRecord(operator?.summary)?.provider_status) ?? "unknown"}` },
+    { id: "boundary", label: "Boundary", value: `${asString(runtimeSource?.owner) ?? "opl_framework"} via ${asString(runtimeSource?.app_repo_truth_owner) ?? "one-person-lab-app"} | refs only` },
+    { id: "hard-gate", label: "Hard gate", value: `${asString(asRecord(currentOwnerDelta?.hard_gate)?.state) ?? "unknown"}${leadAcceptedShapes.length ? ` | return ${leadAcceptedShapes.join(", ")}` : ""}` },
+    { id: "task", label: "Lead task", value: `${leadTaskTitle} | ${compactText(leadTask?.next_visible_step, "Review current refs", 72)}` }
   ].filter((item) => item.value);
 
   const sessions = taskDrilldowns.length
     ? taskDrilldowns.slice(0, 3).map((task): WorkspaceSession => ({
         id: asString(task.task_id) ?? `session-${Math.random()}`,
-        workspace: asString(task.workspace_path) ?? asString(task.domain_label) ?? "Current project",
-        session: asString(task.title) ?? asString(task.task_id) ?? "Delivery review",
-        status: asString(task.status) ?? asString(task.state) ?? "candidate_surface_only",
+        workspace: `${asString(task.domain_label) ?? "OPL"}${asString(task.workspace_label) ? ` / ${asString(task.workspace_label)}` : ""}`,
+        session: `${asString(task.title) ?? asString(task.task_id) ?? "Delivery review"}${asString(task.active_stage_label) ? ` · ${asString(task.active_stage_label)}` : ""}`,
+        status: `${asString(task.status) ?? asString(task.state) ?? "candidate_surface_only"}${asString(task.priority_bucket) ? ` · ${asString(task.priority_bucket)}` : ""}`,
         nextStep: compactText(task.next_visible_step, "Review current refs")
       }))
     : fallback.sessions;
