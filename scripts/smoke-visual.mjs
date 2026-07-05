@@ -42,6 +42,15 @@ validateNonLiveDeliveryEvidence(evidence);
 assertFunctionalMvpVisualMarkers(evidence);
 assertRendererTestIds(rendererSource, deliverySurfaceTestIds(evidence), "visual source");
 assertSourceMarkers(rendererSource, deliverySurfaceMarkers(evidence), "visual layout");
+for (const marker of [
+  "opl-artifact-preview-card",
+  "opl-action-receipt-summary",
+  "opl-settings-section",
+  "opl-composer-run-state"
+]) {
+  assert(rendererSource.includes(marker), `missing polished MVP visual marker ${marker}`);
+  assert(packageScript.includes(marker), `missing packaged polished MVP visual marker ${marker}`);
+}
 assertNoFalseReadyFields({
   "src/workbench/App.tsx": app,
   "src/workbench/workbenchModel.ts": model,

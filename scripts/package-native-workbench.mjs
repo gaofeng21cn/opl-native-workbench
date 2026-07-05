@@ -135,6 +135,12 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
     .inline-card { margin-top: 4px; border: 1px solid var(--border); background: rgba(255,255,255,.78); border-radius: 13px; padding: 11px 12px; box-shadow: 0 1px 2px rgba(30,36,44,.04); }
     .inline-card strong { display: block; margin-bottom: 4px; font-size: 13px; }
     .inline-card button { margin-top: 8px; padding: 6px 9px; background: var(--accent-soft); color: #0b6876; }
+    .artifact-preview-card, .action-receipt-summary { display: grid; gap: 8px; border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,.82); padding: 11px 12px; }
+    .artifact-preview-card header, .action-receipt-summary header { display: flex; align-items: center; gap: 8px; }
+    .artifact-preview-card dl, .action-receipt-summary dl, .settings-content dl { display: grid; gap: 8px; margin: 0; }
+    .artifact-preview-card div, .action-receipt-summary div, .settings-content dl div { display: grid; gap: 2px; }
+    .artifact-preview-card dt, .action-receipt-summary dt, .settings-content dt { color: var(--subtle); font-size: 11px; }
+    .artifact-preview-card dd, .action-receipt-summary dd, .settings-content dd { margin: 0; color: #3e4751; font-size: 12px; }
     .capability-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 3px; }
     .capability-row button { border: 1px solid var(--border); background: rgba(255,255,255,.8); padding: 6px 9px; color: #33404b; font-size: 12px; }
     .codex-reply { white-space: pre-wrap; border: 1px solid var(--border); background: var(--surface); border-radius: 13px; padding: 12px; line-height: 1.55; }
@@ -145,6 +151,9 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
     .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
     .composer-footer { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-top: 1px solid var(--border); }
     .composer-footer .row { color: var(--muted); font-size: 12px; }
+    .composer-status { color: var(--muted); font-size: 12px; }
+    .composer-status.error { color: #9f2b2b; }
+    button:disabled, textarea:disabled { opacity: .55; }
     .inspector { position: absolute; inset: 0 0 0 auto; width: min(396px, 88vw); transform: translateX(calc(100% + 16px)); transition: transform .18s ease; border-left: 1px solid var(--border); background: rgba(255,255,255,.95); box-shadow: var(--shadow); backdrop-filter: blur(18px); z-index: 4; overflow: auto; }
     .inspector.open { transform: translateX(0); }
     .inspector-head { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; padding: 12px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,.92); backdrop-filter: blur(14px); }
@@ -158,8 +167,9 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
     .settings-content { margin: 0 auto; width: min(820px, 100%); display: grid; gap: 14px; }
     .settings-content section { border-bottom: 1px solid var(--border); padding: 0 0 14px; }
     .settings-content h2 { margin-bottom: 6px; }
-    .settings-content button { margin-top: 8px; padding: 6px 9px; background: var(--surface-2); }
-    .settings-content code { display: inline-block; margin-top: 8px; border: 1px solid var(--border); border-radius: 8px; padding: 5px 7px; color: #3e4751; background: #fbfcfc; }
+    .settings-content button { padding: 6px 9px; background: var(--surface-2); }
+    .settings-content code { display: inline-block; border: 1px solid var(--border); border-radius: 8px; padding: 5px 7px; color: #3e4751; background: #fbfcfc; }
+    .settings-content small { display: block; margin-top: 4px; }
     .chat-content.hidden, .composer.hidden { display: none; }
     @media (max-width: 760px) {
       .opl-native-workbench { grid-template-columns: 1fr; }
@@ -237,37 +247,59 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
           <div class="composer-footer">
             <div class="row">
               <button type="button" aria-label="Attach">+</button>
-              <span>OPL tools available</span>
+              <span id="composerStatus" data-testid="opl-composer-run-state" class="composer-status">Ready</span>
             </div>
-            <button type="button" class="primary" onclick="sendCodexMessage()" aria-label="Send">Send</button>
+            <button id="sendButton" type="button" class="primary" onclick="sendCodexMessage()" aria-label="Send" disabled>Send</button>
           </div>
         </div>
       </form>
       <section id="settingsView" data-testid="opl-settings-panel" class="settings-page" aria-label="Settings">
         <div class="settings-content">
-          <section>
-            <h2>Execution</h2>
-            <p>Codex is the local executor for this build. Model and reasoning controls belong in settings, not beside Send.</p>
-            <label class="row"><span>Model</span><input data-testid="opl-settings-model" data-setting-key="model" value="Codex CLI managed" /></label>
+          <section data-testid="opl-settings-section" data-section="general">
+            <h2>General</h2>
+            <dl>
+              <div><dt>Language</dt><dd><button data-testid="opl-locale-toggle" type="button" onclick="toggleSetting('locale')">Chinese</button><small>Default: zh</small></dd></div>
+              <div><dt>Default workspace</dt><dd><code data-setting-key="defaultWorkspace">opl_app</code><small>Default: opl_app</small></dd></div>
+            </dl>
           </section>
-          <section>
-            <h2>Interface</h2>
-            <p>Language is a global interface preference.</p>
-            <button data-testid="opl-locale-toggle" type="button" onclick="toggleLocale()">Chinese</button>
+          <section data-testid="opl-settings-section" data-section="access">
+            <h2>Access</h2>
+            <dl>
+              <div><dt>Model access</dt><dd><code data-testid="opl-model-access-entry" data-setting-key="modelAccess">codex_cli_managed</code><small>Default: codex_cli_managed</small></dd></div>
+              <div><dt>Reasoning</dt><dd><button data-testid="opl-settings-reasoning" type="button" onclick="toggleSetting('reasoningLevel')">standard</button><small>Default: standard</small></dd></div>
+            </dl>
           </section>
-          <section>
-            <h2>Runtime</h2>
-            <p>This build uses Codex app-server JSON-RPC for initialize, thread/start, turn/start, streaming deltas, and thread resume.</p>
-            <code>codex app-server --stdio</code>
+          <section data-testid="opl-settings-section" data-section="capabilities">
+            <h2>Agents & Capabilities</h2>
+            <dl>
+              <div><dt>Starter defaults</dt><dd><code data-setting-key="professionalStarterDefaults">research_grant_presentation</code><small>Default: research_grant_presentation</small></dd></div>
+            </dl>
           </section>
-          <section>
-            <h2>Project</h2>
-            <p>The default project is the OPL App repo. Domain truth and artifact bodies remain outside this shell.</p>
-            <label class="row"><span>Workspace</span><input data-testid="opl-settings-workspace" data-setting-key="workspace" value="one-person-lab-app" /></label>
+          <section data-testid="opl-settings-section" data-section="environment">
+            <h2>Local Environment</h2>
+            <dl>
+              <div><dt>State profile</dt><dd><button type="button" onclick="toggleSetting('runtimeProfile')">fast</button><small>Default: fast</small></dd></div>
+              <div><dt>Executor</dt><dd><code>Codex app-server --stdio</code><small>initialize / thread/start / turn/start / thread/resume</small></dd></div>
+            </dl>
           </section>
-          <section>
-            <h2>About</h2>
-            <p>This is a local candidate build. AionUI remains the active shell until release gates pass.</p>
+          <section data-testid="opl-settings-section" data-section="storage">
+            <h2>Storage</h2>
+            <dl>
+              <div><dt>Confirm before execute</dt><dd><button data-testid="opl-settings-confirm-execute" type="button" onclick="toggleSetting('confirmBeforeExecute')">on</button><small>Default: true</small></dd></div>
+            </dl>
+          </section>
+          <section data-testid="opl-settings-section" data-section="appearance">
+            <h2>Appearance</h2>
+            <dl>
+              <div><dt>Theme</dt><dd><button type="button" onclick="toggleSetting('theme')">system</button><small>Default: system</small></dd></div>
+              <div><dt>Preview mode</dt><dd><code data-setting-key="artifactPreviewMode">rich_refs_only</code><small>Default: rich_refs_only</small></dd></div>
+            </dl>
+          </section>
+          <section data-testid="opl-settings-section" data-section="advanced">
+            <h2>Advanced</h2>
+            <dl>
+              <div><dt>Developer details</dt><dd><button type="button" onclick="toggleSetting('developerDetails')">off</button><small>Default: false</small></dd></div>
+            </dl>
           </section>
         </div>
       </section>
@@ -288,8 +320,14 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
           <h3>Output preview</h3>
           <section id="previewPanel" data-testid="opl-artifact-preview-tabs" class="preview artifact-preview-tabs">
             <div data-testid="opl-artifact-preview-panel" class="artifact-preview" data-preview-kind="streamdown">
-              <p><strong>report.md</strong></p>
-              <p>Selected result or export previews appear here.</p>
+              <article data-testid="opl-artifact-preview-card" class="artifact-preview-card">
+                <header><span class="dot"></span><div><strong>Result narrative</strong><span class="status-pill">markdown</span></div></header>
+                <p>Selected result or export previews appear here as refs-only cards.</p>
+                <dl>
+                  <div><dt>Renderer</dt><dd>streamdown</dd></div>
+                  <div><dt>Ref</dt><dd>artifact://candidate/result-summary.md</dd></div>
+                </dl>
+              </article>
             </div>
           </section>
         </section>
@@ -317,6 +355,17 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
           </div>
           <output id="receipt" data-testid="opl-runtime-action-receipt" class="receipt">No action preview yet.</output>
         </details>
+        <section data-testid="opl-action-receipt-summary-list" class="panel">
+          <h3>Action receipts</h3>
+          <article data-testid="opl-action-receipt-summary" class="action-receipt-summary">
+            <header><span class="dot"></span><div><strong>Delivery export preview receipt</strong><span class="status-pill">preview ready</span></div></header>
+            <p>Preview receipt ref only; no action execution is implied.</p>
+            <dl>
+              <div><dt>Action</dt><dd>candidate.delivery.export</dd></div>
+              <div><dt>Receipt ref</dt><dd>opl://receipt/dry-run</dd></div>
+            </dl>
+          </article>
+        </section>
         <details data-testid="opl-renderer-module-registry">
           <summary>Preview engines</summary>
           <p>Streamdown, KaTeX, Mermaid, CodeMirror, and PDF.js stay as candidate adapters.</p>
@@ -343,6 +392,18 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
     let currentCodexThreadId = null;
     let pendingAction = null;
     const settingsStorageKey = "opl-native-workbench.settings.v1";
+    const settingsDefaults = {
+      locale: "zh",
+      modelAccess: "codex_cli_managed",
+      reasoningLevel: "standard",
+      defaultWorkspace: "opl_app",
+      runtimeProfile: "fast",
+      confirmBeforeExecute: true,
+      artifactPreviewMode: "rich_refs_only",
+      professionalStarterDefaults: "research_grant_presentation",
+      theme: "system",
+      developerDetails: false
+    };
     window.__oplNativeWorkbenchResolve = function(id, ok, payload) {
       const pending = pendingNativeCalls.get(id);
       if (!pending) return;
@@ -400,6 +461,18 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
       article.scrollIntoView({ block: "end", behavior: "smooth" });
       return article;
     }
+    function setComposerState(state, detail = "") {
+      const status = document.getElementById("composerStatus");
+      const button = document.getElementById("sendButton");
+      const input = document.getElementById("promptInput");
+      const hasPrompt = Boolean(input.value.trim());
+      status.className = "composer-status " + state;
+      status.textContent = state === "running" ? "Codex running" : state === "error" ? "Codex error: " + detail : "Ready";
+      button.textContent = state === "running" ? "Running" : state === "error" ? "Retry" : "Send";
+      button.disabled = state === "running" || !hasPrompt;
+      input.disabled = state === "running";
+      document.getElementById("codexStatus").textContent = state === "running" ? "Codex running" : state === "error" ? "Codex error" : "Codex ready";
+    }
     function startNewChat() {
       currentCodexThreadId = null;
       document.querySelector(".thread").replaceChildren();
@@ -412,7 +485,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
       input.value = "";
       appendMessage("user", prompt);
       const reply = appendMessage("", "Codex is working...", "codex-reply");
-      document.getElementById("codexStatus").textContent = "Codex running";
+      setComposerState("running");
       try {
         const result = await window.oplNativeWorkbench.sendMessage({ prompt, threadId: currentCodexThreadId });
         if (result.threadId) currentCodexThreadId = result.threadId;
@@ -420,11 +493,11 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
         reply.textContent = text;
         reply.dataset.testid = "opl-codex-reply";
         if (result.error) reply.classList.add("error");
-        document.getElementById("codexStatus").textContent = result.finalMessage ? "Codex ready" : "Codex returned";
+        setComposerState(result.error ? "error" : "idle", result.error || "");
       } catch (error) {
         reply.textContent = JSON.stringify(error, null, 2);
         reply.classList.add("error");
-        document.getElementById("codexStatus").textContent = "Codex error";
+        setComposerState("error", String(error));
       }
     }
     async function dryRun(actionId) {
@@ -458,30 +531,45 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
     }
     function loadSettings() {
       try {
-        return JSON.parse(localStorage.getItem(settingsStorageKey) || "{}");
+        return { ...settingsDefaults, ...JSON.parse(localStorage.getItem(settingsStorageKey) || "{}") };
       } catch {
-        return {};
+        return { ...settingsDefaults };
       }
     }
     function saveSettings(next) {
       localStorage.setItem(settingsStorageKey, JSON.stringify(next));
     }
+    function labelForSetting(key, value) {
+      if (key === "locale") return value === "zh" ? "Chinese" : "English";
+      if (key === "confirmBeforeExecute" || key === "developerDetails") return value ? "on" : "off";
+      return String(value);
+    }
+    function setSettingNode(node, key, value) {
+      if (!node) return;
+      node.textContent = labelForSetting(key, value);
+    }
     function hydrateSettings() {
       const settings = loadSettings();
       document.querySelectorAll("[data-setting-key]").forEach((node) => {
         const key = node.dataset.settingKey;
-        if (typeof settings[key] === "string") node.value = settings[key];
-        node.addEventListener("change", () => saveSettings({ ...loadSettings(), [key]: node.value }));
+        setSettingNode(node, key, settings[key]);
       });
-      const locale = settings.locale || "Chinese";
-      const button = document.querySelector("[data-testid='opl-locale-toggle']");
-      if (button) button.textContent = locale;
+      for (const key of ["locale", "reasoningLevel", "runtimeProfile", "confirmBeforeExecute", "theme", "developerDetails"]) {
+        const button = document.querySelector("[onclick=\\"toggleSetting('" + key + "')\\"]");
+        setSettingNode(button, key, settings[key]);
+      }
     }
-    function toggleLocale() {
+    function toggleSetting(key) {
       const settings = loadSettings();
-      const locale = settings.locale === "English" ? "Chinese" : "English";
-      saveSettings({ ...settings, locale });
-      document.querySelector("[data-testid='opl-locale-toggle']").textContent = locale;
+      const nextValue = key === "locale" ? settings.locale === "zh" ? "en" : "zh"
+        : key === "reasoningLevel" ? settings.reasoningLevel === "high" ? "standard" : "high"
+        : key === "runtimeProfile" ? settings.runtimeProfile === "fast" ? "full" : "fast"
+        : key === "confirmBeforeExecute" ? !settings.confirmBeforeExecute
+        : key === "theme" ? settings.theme === "system" ? "light" : "system"
+        : key === "developerDetails" ? !settings.developerDetails
+        : settings[key];
+      saveSettings({ ...settings, [key]: nextValue });
+      hydrateSettings();
     }
     function objectValue(value) {
       return value && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -543,12 +631,15 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
           panel.dataset.testid = "opl-artifact-preview-panel";
           panel.className = "artifact-preview";
           panel.dataset.previewKind = "json";
-          const title = document.createElement("p");
-          title.innerHTML = "<strong></strong>";
-          title.firstElementChild.textContent = stringValue(action.label) || action.action_id;
+          const card = document.createElement("article");
+          card.dataset.testid = "opl-artifact-preview-card";
+          card.className = "artifact-preview-card";
+          const title = document.createElement("strong");
+          title.textContent = stringValue(action.label) || action.action_id;
           const route = document.createElement("p");
           route.textContent = stringValue(action.route) || "opl app action execute --action " + action.action_id;
-          panel.append(title, route);
+          card.append(title, route);
+          panel.append(card);
           return panel;
         }));
       }
@@ -570,6 +661,7 @@ fs.writeFileSync(path.join(resourcesDir, "workbench.html"), `<!doctype html>
       document.getElementById("codexStatus").textContent = "Local runtime";
     });
     hydrateSettings();
+    document.getElementById("promptInput").addEventListener("input", () => setComposerState("idle"));
   </script>
 </body>
 </html>

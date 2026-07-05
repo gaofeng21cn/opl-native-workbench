@@ -3,6 +3,8 @@ import { Download, FileText, GitBranch, PanelRightOpen, Plus, Search, Send, Sett
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createBrowserBridge } from "../bridge/oplBridge";
 import {
+  ActionReceiptSummary,
+  ArtifactPreviewCard,
   ConfirmationCard,
   RendererModuleRegistryPanel,
   StatusPill
@@ -14,7 +16,14 @@ import {
   type WorkbenchPurpose,
   type WorkbenchStarter
 } from "./workbenchModel";
-import { readSettings, writeSetting, type WorkbenchSettings } from "./settingsModel";
+import {
+  readSettings,
+  settingsDefaults,
+  settingsSections,
+  writeSetting,
+  type SettingKey,
+  type WorkbenchSettings
+} from "./settingsModel";
 
 const contextTabs = [
   ["opl-files-panel", "Sources"],
@@ -30,6 +39,19 @@ const purposeLabels: Record<WorkbenchPurpose, string> = {
   grant: "Draft grant",
   presentation: "Build deck",
   review: "Prepare handoff"
+};
+
+const settingLabels: Record<SettingKey, string> = {
+  locale: "Language",
+  modelAccess: "Model access",
+  reasoningLevel: "Reasoning",
+  defaultWorkspace: "Default workspace",
+  runtimeProfile: "State profile",
+  confirmBeforeExecute: "Confirm before execute",
+  artifactPreviewMode: "Preview mode",
+  professionalStarterDefaults: "Starter defaults",
+  theme: "Theme",
+  developerDetails: "Developer details"
 };
 
 type ChatMessage = {
@@ -69,6 +91,8 @@ export function App() {
   const [lastDryRun, setLastDryRun] = useState("No action preview yet.");
   const [pendingAction, setPendingAction] = useState<{ actionId: string; payload: Record<string, unknown> } | null>(null);
   const [prompt, setPrompt] = useState("");
+  const [sendState, setSendState] = useState<"idle" | "running" | "error">("idle");
+  const [sendError, setSendError] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: "seed-user", role: "user", text: "Use the current project to prepare a review or deliverable." },
     {
@@ -128,11 +152,13 @@ export function App() {
   function sendCodexMessage(event?: FormEvent) {
     event?.preventDefault();
     const text = prompt.trim();
-    if (!text) return;
+    if (!text || sendState === "running") return;
     const userMessage: ChatMessage = { id: `user-${Date.now()}`, role: "user", text };
     const pendingId = `assistant-${Date.now()}`;
     setMessages((items) => [...items, userMessage, { id: pendingId, role: "system", text: "Codex is working..." }]);
     setPrompt("");
+    setSendState("running");
+    setSendError("");
     void bridge
       .sendMessage({ prompt: text, threadId: codexThreadId })
       .then((reply) => {
@@ -146,10 +172,16 @@ export function App() {
         setMessages((items) => items.map((item) => item.id === pendingId
           ? { id: pendingId, role: "assistant", text: finalMessage || formatReceipt(reply) }
           : item));
+        setSendState("idle");
       })
-      .catch((error) => setMessages((items) => items.map((item) => item.id === pendingId
-        ? { id: pendingId, role: "system", text: formatReceipt({ executor: "codex_app_server", error: String(error) }) }
-        : item)));
+      .catch((error) => {
+        const message = String(error);
+        setSendError(message);
+        setSendState("error");
+        setMessages((items) => items.map((item) => item.id === pendingId
+          ? { id: pendingId, role: "system", text: formatReceipt({ executor: "codex_app_server", error: message }) }
+          : item));
+      });
   }
 
   function startNewChat() {
@@ -164,6 +196,50 @@ export function App() {
 
   function updateSetting<Key extends keyof WorkbenchSettings>(key: Key, value: WorkbenchSettings[Key]) {
     setSettings(writeSetting(key, value));
+  }
+
+  function renderSettingControl(key: SettingKey) {
+    const value = settings[key];
+    if (typeof value === "boolean") {
+      return (
+        <button type="button" onClick={() => updateSetting(key, !value)}>
+          {value ? "on" : "off"}
+        </button>
+      );
+    }
+    if (key === "locale") {
+      return (
+        <button data-testid="opl-locale-toggle" type="button" onClick={() => updateSetting("locale", value === "zh" ? "en" : "zh")}>
+          {value === "zh" ? "Chinese" : "English"}
+        </button>
+      );
+    }
+    if (key === "reasoningLevel") {
+      return (
+        <button type="button" data-testid="opl-settings-reasoning" onClick={() => updateSetting("reasoningLevel", value === "high" ? "standard" : "high")}>
+          {value}
+        </button>
+      );
+    }
+    if (key === "runtimeProfile") {
+      return (
+        <button type="button" onClick={() => updateSetting("runtimeProfile", value === "fast" ? "full" : "fast")}>
+          {value}
+        </button>
+      );
+    }
+    if (key === "theme") {
+      return (
+        <button type="button" onClick={() => updateSetting("theme", value === "system" ? "light" : "system")}>
+          {value}
+        </button>
+      );
+    }
+    return (
+      <code data-testid={key === "modelAccess" ? "opl-model-access-entry" : undefined}>
+        {String(value)}
+      </code>
+    );
   }
 
   return (
@@ -284,14 +360,18 @@ export function App() {
                 placeholder="Ask OPL to review, draft, export, or start a workflow"
                 value={prompt}
                 onChange={(event) => setPrompt(event.currentTarget.value)}
+                disabled={sendState === "running"}
               />
               <footer>
+                <span className={`composer-status ${sendState}`} data-testid="opl-composer-run-state">
+                  {sendState === "running" ? "Codex running" : sendState === "error" ? `Codex error: ${sendError}` : "Ready"}
+                </span>
                 <button type="button" aria-label="Attach">
                   <Plus aria-hidden="true" size={15} />
                 </button>
-                <button type="submit" disabled={!prompt.trim()}>
+                <button type="submit" disabled={!prompt.trim() || sendState === "running"}>
                   <Send aria-hidden="true" size={16} />
-                  Send
+                  {sendState === "running" ? "Running" : sendState === "error" ? "Retry" : "Send"}
                 </button>
               </footer>
             </form>
@@ -299,49 +379,22 @@ export function App() {
         </section> : (
           <section data-testid="opl-settings-panel" className="settings-page" aria-label="Settings">
             <div className="settings-content">
-              <section>
-                <h2>Execution</h2>
-                <p>Codex is the local executor for this build. Model and reasoning controls belong here, not in the composer.</p>
-                <button type="button" data-testid="opl-model-access-entry">Codex CLI managed</button>
-                <button
-                  type="button"
-                  data-testid="opl-settings-reasoning"
-                  onClick={() => updateSetting("reasoningLevel", settings.reasoningLevel === "high" ? "standard" : "high")}
-                >
-                  {settings.reasoningLevel}
-                </button>
-              </section>
-              <section>
-                <h2>Interface</h2>
-                <p>Language is a global interface preference, not a per-message send option.</p>
-                <button
-                  data-testid="opl-locale-toggle"
-                  type="button"
-                  onClick={() => updateSetting("locale", settings.locale === "zh" ? "en" : "zh")}
-                >
-                  {settings.locale === "zh" ? "Chinese" : "English"}
-                </button>
-              </section>
-              <section>
-                <h2>Runtime</h2>
-                <p>Conversation backend uses Codex app-server JSON-RPC: initialize, thread/start, turn/start, stream deltas, and thread resume.</p>
-                <code>codex app-server --stdio</code>
-              </section>
-              <section>
-                <h2>Project</h2>
-                <p>The default project is the OPL App repo. Artifact bodies and domain truth remain outside this shell.</p>
-                <button
-                  type="button"
-                  data-testid="opl-settings-confirm-execute"
-                  onClick={() => updateSetting("confirmBeforeExecute", !settings.confirmBeforeExecute)}
-                >
-                  Confirm before execute: {settings.confirmBeforeExecute ? "on" : "off"}
-                </button>
-              </section>
-              <section>
-                <h2>About</h2>
-                <p>This is a local candidate build. AionUI remains the active shell until release gates pass.</p>
-              </section>
+              {settingsSections.map((section) => (
+                <section key={section.id} data-testid="opl-settings-section" data-section={section.id}>
+                  <h2>{section.title}</h2>
+                  <dl>
+                    {section.keys.map((key) => (
+                      <div key={key}>
+                        <dt>{settingLabels[key]}</dt>
+                        <dd>
+                          {renderSettingControl(key)}
+                          <small>Default: {String(settingsDefaults[key])}</small>
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </section>
+              ))}
             </div>
           </section>
         )}
@@ -404,12 +457,7 @@ export function App() {
               data-testid="opl-artifact-preview-panel"
               className="artifact-preview"
             >
-              <header>
-                <h3>{preview.title}</h3>
-                <span>{preview.rendererModuleId}</span>
-              </header>
-              <p>{preview.summary}</p>
-              <code>{preview.ref}</code>
+              <ArtifactPreviewCard preview={preview} />
             </Tabs.Content>
           ))}
         </Tabs.Root>
@@ -449,6 +497,11 @@ export function App() {
             Execute confirmed
           </button>
           <output data-testid="opl-runtime-action-receipt">{lastDryRun}</output>
+        </section>
+
+        <section data-testid="opl-action-receipt-summary-list" className="action-receipt-summary-list">
+          <h3>Action receipts</h3>
+          {model.actionReceipts.map((receipt) => <ActionReceiptSummary key={receipt.id} receipt={receipt} />)}
         </section>
 
         <ConfirmationCard
