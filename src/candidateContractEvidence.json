@@ -68,7 +68,7 @@
     "settings_persistence": "localStorage model with SETTINGS_STORAGE_KEY, settingsDefaults, readSettings, writeSettings, and no system write permission",
     "execute_confirmation": "dry_run_first_then_explicit_confirm_before_execute",
     "artifact_preview_mvp": "rich refs-only preview adapters for markdown, math, mermaid, code, and pdf",
-    "professional_starters_mvp": "research, grant, presentation, and book starter forms route to dry-run actions only",
+    "professional_starters_mvp": "research, grant, presentation, and book starter forms route to real App state action refs; preview routes are not domain execution",
     "acp_app_server_reuse_status": "implemented_with_codex_app_server_thread_turn_stream"
   },
   "functional_mvp_closeout": {
@@ -181,12 +181,33 @@
     "professional_starters_mvp": [
       {
         "file": "src/workbench/workbenchModel.ts",
-        "contains": ["starter.mas.dry_run", "starter.mag.dry_run", "starter.rca.dry_run", "starter.bookforge.dry_run"]
+        "contains": ["task_action_receipt_preview", "task_export_bundle_preview", "workspace_ensure", "settings_sync_capabilities", "preview_route_not_domain_execution"]
       },
       {
         "file": "src/workbench/App.tsx",
         "contains": ["opl-starter-forms", "opl-starter-form", "starterPayload"]
       }
+    ]
+  },
+  "starter_action_ref_policy": {
+    "authority": "opl app state --profile fast --json actions",
+    "policy": "professional starters must bind to real App action refs; fallback fake starter ids are unavailable only and must not be presented as ready routes",
+    "required_live_action_refs": [
+      "task_action_receipt_preview",
+      "task_export_bundle_preview",
+      "workspace_ensure",
+      "settings_sync_capabilities"
+    ],
+    "fake_starter_action_ids_rejected": [
+      "starter.mas.dry_run",
+      "starter.mag.dry_run",
+      "starter.rca.dry_run",
+      "starter.bookforge.dry_run"
+    ],
+    "fallback_allowed_statuses": [
+      "fallback_unavailable_fake_action_id",
+      "unavailable_no_live_app_action_ref",
+      "payload_required_preview_route_not_domain_execution"
     ]
   },
   "user_visible_protocol_copy": {

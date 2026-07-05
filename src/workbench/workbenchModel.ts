@@ -178,8 +178,8 @@ export const initialWorkbenchModel: WorkbenchModel = {
       id: "workspace-starters",
       workspace: "Workflow setup",
       session: "Research, grant, presentation",
-      status: "starter_ready",
-      nextStep: "Choose a module form without executing domain CLI"
+      status: "starter_preview_routes_payload_required",
+      nextStep: "Choose a module form and preview through App action refs, not domain CLI"
     }
   ],
   results: [
@@ -295,8 +295,8 @@ export const initialWorkbenchModel: WorkbenchModel = {
       id: "delivery-package",
       title: "Delivery package",
       status: "needs_review",
-      summary: "Refs-only package shell for deliverable refs, receipt refs, and source refs.",
-      previewActionId: "candidate.delivery.export",
+      summary: "Refs-only package shell for deliverable refs, receipt refs, and source refs; preview route requires App payload.",
+      previewActionId: "task_export_bundle_preview",
       deliverableRefs: ["opl://delivery/package", "opl://delivery/owner-brief"],
       receiptRefs: ["opl://receipt/dry-run"],
       sourceRefs: ["opl app state --profile fast --json"],
@@ -306,14 +306,14 @@ export const initialWorkbenchModel: WorkbenchModel = {
   ],
   actionReceipts: [
     {
-      id: "receipt-candidate-delivery-export",
-      title: "Delivery export preview receipt",
-      actionId: "candidate.delivery.export",
-      route: "opl app action execute --action candidate.delivery.export --dry-run --json",
-      status: "preview_ready",
+      id: "receipt-task-export-bundle-preview",
+      title: "Export bundle preview receipt",
+      actionId: "task_export_bundle_preview",
+      route: "opl app action execute --action task_export_bundle_preview --dry-run --json",
+      status: "payload_required",
       mutates: "none_read_only",
       receiptRef: "opl://receipt/dry-run",
-      summary: "Preview receipt ref only; no action execution is implied."
+      summary: "App action preview route only; task_id and export_bundle_ref payload are required."
     }
   ],
   starters: [
@@ -329,7 +329,10 @@ export const initialWorkbenchModel: WorkbenchModel = {
         { name: "question", label: "Scientific question", input: "textarea", value: "What evidence package should be reviewed next?" },
         { name: "output", label: "Output", input: "select", value: "decision_packet", options: ["decision_packet", "figure_refs", "review_response"] }
       ],
-      dryRunAction: "starter.mas.dry_run"
+      dryRunAction: "starter.mas.dry_run",
+      available: false,
+      status: "fallback_unavailable_fake_action_id",
+      sourceRef: "fallback:no live App state action ref"
     },
     {
       id: "mag",
@@ -343,7 +346,10 @@ export const initialWorkbenchModel: WorkbenchModel = {
         { name: "aim", label: "Aim", input: "textarea", value: "Draft specific aims from approved refs only." },
         { name: "stage", label: "Stage", input: "select", value: "outline", options: ["outline", "significance", "approach"] }
       ],
-      dryRunAction: "starter.mag.dry_run"
+      dryRunAction: "starter.mag.dry_run",
+      available: false,
+      status: "fallback_unavailable_fake_action_id",
+      sourceRef: "fallback:no live App state action ref"
     },
     {
       id: "rca",
@@ -357,7 +363,10 @@ export const initialWorkbenchModel: WorkbenchModel = {
         { name: "assets", label: "Assets", input: "textarea", value: "Use approved local refs; no generated authority claim." },
         { name: "format", label: "Format", input: "select", value: "slide_panel", options: ["slide_panel", "poster_panel", "figure_panel"] }
       ],
-      dryRunAction: "starter.rca.dry_run"
+      dryRunAction: "starter.rca.dry_run",
+      available: false,
+      status: "fallback_unavailable_fake_action_id",
+      sourceRef: "fallback:no live App state action ref"
     },
     {
       id: "bookforge",
@@ -371,7 +380,10 @@ export const initialWorkbenchModel: WorkbenchModel = {
         { name: "chapter", label: "Chapter brief", input: "textarea", value: "Turn confirmed results into a chapter outline." },
         { name: "mode", label: "Mode", input: "select", value: "outline", options: ["outline", "section_draft", "revision_map"] }
       ],
-      dryRunAction: "starter.bookforge.dry_run"
+      dryRunAction: "starter.bookforge.dry_run",
+      available: false,
+      status: "fallback_unavailable_fake_action_id",
+      sourceRef: "fallback:no live App state action ref"
     }
   ],
   confirmations: [
@@ -384,7 +396,7 @@ export const initialWorkbenchModel: WorkbenchModel = {
       willNotChange: ["No domain artifact body is written", "No owner receipt or release claim is created"],
       receipt: "Preview receipt from opl app action execute --dry-run",
       rollback: "Discard the candidate packet request before explicit execution",
-      dryRunAction: "candidate.delivery.export"
+      dryRunAction: "task_export_bundle_preview"
     },
     {
       id: "confirm-owner-question",
@@ -395,7 +407,7 @@ export const initialWorkbenchModel: WorkbenchModel = {
       willNotChange: ["No active-shell adoption", "No runtime/domain truth transfer"],
       receipt: "Question dry-run receipt with source refs",
       rollback: "Remove the question card from the draft packet",
-      dryRunAction: "candidate.owner.question"
+      dryRunAction: "task_action_receipt_preview"
     }
   ],
   questions: [
@@ -445,12 +457,16 @@ export const initialWorkbenchModel: WorkbenchModel = {
   ],
   contextActions: [
     {
-      id: "candidate.inspect",
-      label: "Preview context inspect",
-      route: "opl app action execute --action candidate.inspect --dry-run --json",
-      payloadFields: [],
+      id: "task_action_receipt_preview",
+      label: "Preview task action receipt",
+      route: "opl app action execute --action task_action_receipt_preview",
+      payloadFields: ["task_id", "action_ref"],
       mutates: "none_read_only",
-      dryRunSupported: true
+      dryRunSupported: true,
+      owner: "opl_framework",
+      delegatedSurface: "opl task action receipt preview",
+      canSubmitToSafeActionShell: false,
+      routeRequiresPayload: true
     }
   ],
   contextTrace: [
@@ -519,6 +535,13 @@ function actionStatus(action: WorkbenchActionRef): ActionReceiptSummary["status"
   return action.payloadFields.length ? "payload_required" : "preview_ready";
 }
 
+const starterPreviewRouteIds: Record<WorkbenchStarter["id"], string[]> = {
+  mas: ["task_action_receipt_preview", "task_export_bundle_preview", "settings_sync_capabilities"],
+  mag: ["task_export_bundle_preview", "task_action_receipt_preview", "settings_sync_capabilities"],
+  rca: ["task_export_bundle_preview", "task_action_receipt_preview", "settings_sync_capabilities"],
+  bookforge: ["workspace_ensure", "task_export_bundle_preview", "settings_sync_capabilities"]
+};
+
 function firstPreviewAction(actions: WorkbenchActionRef[]): WorkbenchActionRef | undefined {
   return actions.find((action) => action.dryRunSupported && isDeliveryAction(action))
     ?? actions.find((action) => action.dryRunSupported && action.payloadFields.length === 0)
@@ -536,7 +559,10 @@ function moduleKey(value: string): WorkbenchStarter["id"] | null {
 
 function starterPreviewAction(starter: WorkbenchStarter, actions: WorkbenchActionRef[]): WorkbenchActionRef | undefined {
   const exactIds = [`starter.${starter.id}`, `starter_${starter.id}`, `${starter.id}_starter`];
-  return actions.find((action) => action.dryRunSupported && exactIds.some((id) => action.id.includes(id)));
+  const dedicated = actions.find((action) => action.dryRunSupported && exactIds.some((id) => action.id.includes(id)));
+  if (dedicated) return dedicated;
+  const routeIds = starterPreviewRouteIds[starter.id];
+  return routeIds.map((id) => actions.find((action) => action.id === id && action.dryRunSupported)).find(Boolean);
 }
 
 function pickActiveProjectLines(value: unknown, fallback: ActiveProjectLine[]): ActiveProjectLine[] {
@@ -651,7 +677,11 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     actions: ["Preview receipt", "Compare payload"]
   })) : fallback.receipts;
 
-  const actionReceipts = receiptActions.length ? receiptActions.slice(0, 8).map((action): ActionReceiptSummary => ({
+  const receiptPreviewActions = uniqueByRef([
+    ...receiptActions,
+    ...contextActions.filter((action) => action.dryRunSupported)
+  ]);
+  const actionReceipts = receiptPreviewActions.length ? receiptPreviewActions.slice(0, 8).map((action): ActionReceiptSummary => ({
     id: `action-receipt-${action.id}`,
     title: `${action.label} receipt preview`,
     actionId: action.id,
@@ -662,7 +692,11 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     summary: action.payloadFields.length
       ? `Dry-run route exists; payload required: ${action.payloadFields.join(", ")}.`
       : "Dry-run route can preview a refs-only receipt without a domain artifact body."
-  })) : fallback.actionReceipts;
+  })) : fallback.actionReceipts.map((receipt): ActionReceiptSummary => ({
+    ...receipt,
+    status: receipt.status === "preview_ready" ? "payload_required" : receipt.status,
+    summary: `${receipt.summary} Fallback only; live App state action refs were not available.`
+  }));
 
   const moduleAvailability = new Map<WorkbenchStarter["id"], { status: string; sourceRef: string }>();
   for (const item of moduleItems) {
@@ -681,12 +715,15 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
   const starters = fallback.starters.map((starter): WorkbenchStarter => {
     const availability = moduleAvailability.get(starter.id);
     const starterAction = starterPreviewAction(starter, contextActions);
+    const routeStatus = starterAction
+      ? `${actionStatus(starterAction)}_preview_route_not_domain_execution`
+      : "unavailable_no_live_app_action_ref";
     return {
       ...starter,
-      available: Boolean(availability),
-      status: availability?.status ?? "fallback",
-      sourceRef: availability?.sourceRef ?? starter.sourceRef,
-      previewActionId: starterAction?.id ?? starter.previewActionId ?? starter.dryRunAction,
+      available: Boolean(starterAction?.dryRunSupported),
+      status: `${availability?.status ?? "module_unknown"}:${routeStatus}`,
+      sourceRef: starterAction?.route ?? availability?.sourceRef ?? starter.sourceRef,
+      previewActionId: starterAction?.id,
       dryRunAction: starterAction?.id ?? starter.dryRunAction
     };
   });
@@ -704,7 +741,7 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
       title: "Delivery package",
       status: deliverables.length || receipts.length ? "needs_review" : "blocked",
       summary: "Derived from App state action refs, deliverable refs, receipt refs, and runtime status; artifact bodies stay source-owned.",
-      previewActionId: previewAction?.id ?? fallback.deliveryPackages[0]?.previewActionId ?? "artifact.export.prepare",
+      previewActionId: previewAction?.id ?? fallback.deliveryPackages[0]?.previewActionId ?? "task_export_bundle_preview",
       deliverableRefs: deliverables.map((item) => item.ref),
       receiptRefs: receipts.map((item) => item.ref),
       sourceRefs,
