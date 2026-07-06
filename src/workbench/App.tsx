@@ -74,6 +74,14 @@ type ChatSession = {
   updatedAt: string;
 };
 
+type SidebarDisplayItem = {
+  id: string;
+  label: string;
+  ref: string;
+  summary: string;
+  previewId?: string;
+};
+
 const workbenchStyles = `
   :root {
     color-scheme: light;
@@ -1006,6 +1014,14 @@ const workbenchStyles = `
     min-height: 34px;
   }
 
+  .project-selector {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    text-align: left;
+  }
+
   .sidebar-project-meta {
     grid-template-columns: auto 1fr;
     align-items: center;
@@ -1041,6 +1057,25 @@ const workbenchStyles = `
     border: 0;
     border-radius: 0;
     background: transparent;
+  }
+
+  .sidebar-attachment-list .sidebar-source-item::before {
+    border-radius: 2px;
+    border-color: #7a807b;
+    background: linear-gradient(180deg, transparent 45%, #7a807b 45%, #7a807b 55%, transparent 55%);
+  }
+
+  .sidebar-add-item {
+    width: 100%;
+    min-height: 30px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #5f6661;
+    text-align: left;
   }
 
   .history-list {
@@ -1128,6 +1163,28 @@ const workbenchStyles = `
 
   .topbar-copy h1 {
     color: #1f2321;
+  }
+
+  .topbar-config {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+  }
+
+  .topbar-config button {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #5f6661;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .topbar-config button + button::before {
+    content: "•";
+    margin-right: 16px;
+    color: #8b908c;
   }
 
   .topbar-copy h1::before {
@@ -1471,6 +1528,29 @@ function createIntroMessages(): ChatMessage[] {
   }];
 }
 
+function projectInputItems(sourceRefs: { ref: string; summary: string }[]): SidebarDisplayItem[] {
+  const inputNames = ["Project brief.md", "Literature notes", "Data inventory.csv", "Results summary.md"];
+  return inputNames.map((label, index) => ({
+    id: `project-input-${index}`,
+    label,
+    ref: `project-context://${label}`,
+    summary: sourceRefs[index]?.summary ?? "Optional project input"
+  }));
+}
+
+function projectAttachmentItems(
+  items: { id: string; title: string; ref: string; summary: string }[],
+  previews: { id: string; previewKind: string }[]
+): SidebarDisplayItem[] {
+  return items.slice(0, 4).map((item, index) => ({
+    id: item.id,
+    label: item.title,
+    ref: item.ref,
+    summary: item.summary,
+    previewId: previews[index % Math.max(previews.length, 1)]?.id
+  }));
+}
+
 function sessionStorage() {
   return globalThis.localStorage;
 }
@@ -1600,7 +1680,6 @@ export function App() {
   const currentProject = model.sessions[0]?.workspace ?? settings.defaultWorkspace ?? "Current project";
   const currentProjectNextStep = model.sessions[0]?.nextStep ?? "Open a chat or inspect current sources.";
   const currentProjectStatus = model.activeProjectLines[0]?.status ?? stateStatus;
-  const sidebarSources = model.contextSources.slice(0, 4);
   const topbarModelLabel = settings.modelAccess === "codex_cli_managed" ? "Codex CLI" : settings.modelAccess;
   const previewItems = useMemo(() => [...model.artifactPreviews].sort((left, right) => {
     if (left.previewKind === right.previewKind) return 0;
@@ -1610,6 +1689,11 @@ export function App() {
     if (right.previewKind === "pdf") return 1;
     return 0;
   }), [model.artifactPreviews]);
+  const [selectedPreviewId, setSelectedPreviewId] = useState<string | undefined>(previewItems[0]?.id);
+  const selectedPreview = previewItems.find((preview) => preview.id === selectedPreviewId) ?? previewItems[0];
+  const projectInputs = projectInputItems(model.contextSources);
+  const projectAttachments = projectAttachmentItems([...model.deliverables, ...model.results, ...model.receipts], previewItems);
+  const sidebarSources = projectInputs;
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -1884,19 +1968,20 @@ export function App() {
             <strong>Current project</strong>
           </div>
           <div className="sidebar-panel-card">
-            <div className="sidebar-project-head">
+            <button className="sidebar-project-head project-selector" type="button">
               <div className="sidebar-project-meta">
                 <strong>{currentProject}</strong>
                 <span>{currentProjectNextStep}</span>
               </div>
               <span className="sidebar-project-pill">{currentProjectStatus}</span>
-            </div>
+              <ChevronRight aria-hidden="true" size={14} />
+            </button>
           </div>
         </section>
 
-        <section className="sidebar-panel" aria-label="Context materials">
+        <section data-testid="opl-project-inputs" className="sidebar-panel" aria-label="Project inputs">
           <div className="sidebar-section-head">
-            <strong>Context</strong>
+            <strong>Context inputs</strong>
             <span>{sidebarSources.length}</span>
           </div>
           <ol className="sidebar-source-list">
@@ -1917,11 +2002,48 @@ export function App() {
               </li>
             ))}
           </ol>
+          <button
+            type="button"
+            className="sidebar-add-item"
+            onClick={() => {
+              setInspectorOpen(true);
+              setActiveContextTab("opl-files-panel");
+            }}
+          >
+            <Plus aria-hidden="true" size={15} />
+            Add context
+          </button>
         </section>
 
-        <section className="history-list" aria-label="History">
+        <section data-testid="opl-project-attachments" className="sidebar-panel" aria-label="Project attachments and outputs">
           <div className="sidebar-section-head">
-            <strong>Recent chats</strong>
+            <strong>Attachments / outputs</strong>
+            <span>{projectAttachments.length}</span>
+          </div>
+          <ol className="sidebar-source-list sidebar-attachment-list">
+            {projectAttachments.map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  className="sidebar-source-item"
+                  onClick={() => {
+                    setInspectorOpen(true);
+                    setActiveContextTab("opl-artifact-preview-tabs");
+                    setSelectedPreviewId(item.previewId);
+                  }}
+                >
+                  <strong>{item.label}</strong>
+                  <span>{item.summary}</span>
+                  <code>{item.ref}</code>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section data-testid="opl-project-chats" className="history-list" aria-label="Project chats">
+          <div className="sidebar-section-head">
+            <strong>Project chats</strong>
             <span>{chatSessions.length}</span>
           </div>
           <ol data-testid="opl-session-list">
@@ -1938,13 +2060,6 @@ export function App() {
         </section>
 
         <footer className="sidebar-footer" aria-label="Sidebar controls">
-          <button type="button" onClick={() => {
-            setInspectorOpen(true);
-            setActiveContextTab("opl-files-panel");
-          }}>
-            <FileText aria-hidden="true" size={14} />
-            Context
-          </button>
           <button type="button" aria-current={activeView === "settings" ? "page" : undefined} onClick={() => setActiveView("settings")}>
             <Settings aria-hidden="true" size={14} />
             Settings
@@ -1957,12 +2072,14 @@ export function App() {
         <header className="topbar">
           <div className="topbar-copy">
             <h1>OPL</h1>
-            <p>{topbarModelLabel}</p>
-            <p>Enterprise</p>
-            <p>{settings.runtimeProfile === "full" ? "Full state" : "BYOK"}</p>
-            <p>{activeView === "settings" ? "Settings" : currentProject}</p>
+            <nav data-testid="opl-topbar-model-config" className="topbar-config" aria-label="Conversation configuration">
+              <button data-testid="opl-model-access-entry" type="button">{topbarModelLabel}</button>
+              <button type="button">Enterprise</button>
+              <button type="button">{settings.runtimeProfile === "full" ? "Full state" : "BYOK"}</button>
+              <button type="button">{activeView === "settings" ? "Settings" : currentProject}</button>
+            </nav>
             <div className="topbar-meta">
-              <span className="topbar-status" data-testid="opl-model-access-entry">
+              <span className="topbar-status">
                 {stateStatus === "loading" ? "Context loading" : stateStatus === "ready" ? "Context ready" : "Context fallback"}
               </span>
             </div>
@@ -2054,13 +2171,14 @@ export function App() {
                       <p>{message.text || (sendState === "running" ? "Codex is working..." : "Waiting for reply.")}</p>
                     </div>
                     {message.role === "assistant" ? (
-                      <section className="assistant-artifact-card" aria-label="Draft artifact">
+                      <section data-testid="opl-assistant-artifact-card" className="assistant-artifact-card" aria-label="Draft artifact">
                         <header>
                           <FileText aria-hidden="true" size={16} />
-                          <strong>{previewItems[0]?.label ?? "Current preview"}</strong>
+                          <strong>{selectedPreview?.label ?? "Current preview"}</strong>
                           <button type="button" onClick={() => {
                             setInspectorOpen(true);
                             setActiveContextTab("opl-artifact-preview-tabs");
+                            setSelectedPreviewId(selectedPreview?.id);
                           }}>
                             Open preview
                           </button>
@@ -2200,10 +2318,11 @@ export function App() {
 
           <section className="context-block" hidden={activeContextTab !== "opl-artifact-preview-tabs"}>
             <Tabs.Root
-              key={previewItems[0]?.id}
+              key={previewItems.map((preview) => preview.id).join(":")}
               data-testid="opl-artifact-preview-tabs"
               className="artifact-preview-tabs"
-              defaultValue={previewItems[0]?.id}
+              value={selectedPreview?.id}
+              onValueChange={setSelectedPreviewId}
             >
               <Tabs.List aria-label="Artifact previews">
                 {previewItems.slice(0, 3).map((preview, index) => (
@@ -2218,8 +2337,10 @@ export function App() {
                   value={preview.id}
                   data-preview-kind={preview.rendererModuleId}
                   data-testid="opl-artifact-preview-panel"
+                  data-selected={preview.id === selectedPreview?.id}
                   className="artifact-preview"
                 >
+                  {preview.id === selectedPreview?.id ? <span data-testid="opl-selected-artifact-preview" hidden /> : null}
                   <ArtifactPreviewCard preview={preview} />
                 </Tabs.Content>
               ))}

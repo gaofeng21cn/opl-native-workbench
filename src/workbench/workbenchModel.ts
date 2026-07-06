@@ -173,7 +173,7 @@ export const initialWorkbenchModel: WorkbenchModel = {
   sessions: [
     {
       id: "workspace-current",
-      workspace: "Current project",
+      workspace: "GlycoFold",
       session: "Delivery review",
       status: "candidate_surface_only",
       nextStep: "Draft from project refs, then preview the action"
