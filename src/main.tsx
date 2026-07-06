@@ -73,7 +73,7 @@ function installNativeTransport(): boolean {
   return true;
 }
 
-if (!installNativeTransport()) {
+if (!installNativeTransport() && window.location.protocol !== "file:") {
   installWebTransport();
 }
 
