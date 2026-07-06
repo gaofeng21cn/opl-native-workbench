@@ -42,9 +42,9 @@ const purposeLabels: Record<WorkbenchPurpose, string> = {
   review: "Prepare handoff"
 };
 
-const defaultPreviewActionId = "task_action_receipt_preview";
-const defaultExportActionId = "task_export_bundle_preview";
-const defaultRuntimeActionId = "provider_scheduler_status";
+const previewActionRefId = "task_action_receipt_preview";
+const exportActionRefId = "task_export_bundle_preview";
+const runtimeActionRefId = "provider_scheduler_status";
 const chatSessionsStorageKey = "opl.nativeWorkbench.chatSessions.v1";
 
 const settingLabels: Record<SettingKey, string> = {
@@ -1586,6 +1586,9 @@ export function App() {
   const [starterDrafts, setStarterDrafts] = useState<Record<string, Record<string, string>>>({});
   const [activeContextTab, setActiveContextTab] = useState<(typeof contextTabs)[number][0]>(contextTabs[1][0]);
   const previewAction = firstPreviewAction(model.contextActions);
+  const exportAction = model.contextActions.find((action) => action.id === exportActionRefId && action.dryRunSupported) ?? previewAction;
+  const purposePreviewAction = model.contextActions.find((action) => action.id === previewActionRefId && action.dryRunSupported) ?? previewAction;
+  const runtimeAction = model.contextActions.find((action) => action.id === runtimeActionRefId && action.dryRunSupported);
   const currentSession = chatSessions.find((session) => session.id === currentSessionId) ?? chatSessions[0];
   const contextStatusText = stateStatus === "loading"
     ? "Loading OPL fast state..."
@@ -1969,9 +1972,10 @@ export function App() {
             <button
               data-testid="opl-export-action"
               type="button"
-              onClick={() => previewAction
-                ? runDryRun(previewAction.id)
-                : runDryRun(defaultExportActionId, { refs: model.deliverables.map((item) => item.ref) })}
+              disabled={!exportAction}
+              onClick={() => {
+                if (exportAction) runDryRun(exportAction.id, { refs: model.deliverables.map((item) => item.ref) });
+              }}
             >
               <Download aria-hidden="true" size={15} />
               Preview action
@@ -2019,7 +2023,10 @@ export function App() {
                       data-testid="opl-delivery-mode-option"
                       className="workflow-chip"
                       type="button"
-                      onClick={() => runDryRun(defaultPreviewActionId, { purpose })}
+                      disabled={!purposePreviewAction}
+                      onClick={() => {
+                        if (purposePreviewAction) runDryRun(purposePreviewAction.id, { purpose });
+                      }}
                     >
                       {purposeLabels[purpose]}
                     </button>
@@ -2250,9 +2257,10 @@ export function App() {
               <button
                 data-testid="opl-export-action-dry-run"
                 type="button"
-                onClick={() => previewAction
-                  ? runDryRun(previewAction.id)
-                  : runDryRun(defaultExportActionId, { refs: model.deliverables.map((item) => item.ref) })}
+                disabled={!exportAction}
+                onClick={() => {
+                  if (exportAction) runDryRun(exportAction.id, { refs: model.deliverables.map((item) => item.ref) });
+                }}
               >
                 <Download aria-hidden="true" size={16} />
                 Preview action
@@ -2309,10 +2317,13 @@ export function App() {
                   data-starter={starter.id}
                   onSubmit={(event) => {
                     event.preventDefault();
-                    runDryRun(
-                      starter.previewActionId ?? starter.dryRunAction,
-                      starterPayloadFromDraft(starter, starterDrafts[starter.id] ?? {})
-                    );
+                    const actionId = starter.previewActionId ?? starter.dryRunAction;
+                    if (actionId) {
+                      runDryRun(
+                        actionId,
+                        starterPayloadFromDraft(starter, starterDrafts[starter.id] ?? {})
+                      );
+                    }
                   }}
                 >
                   <header>
@@ -2345,7 +2356,7 @@ export function App() {
                     </label>
                   ))}
                   <small>{starter.sourceRef ?? starter.status ?? "No App action source ref."}</small>
-                  <button type="submit" disabled={starter.available === false}>
+                  <button type="submit" disabled={starter.available === false || !(starter.previewActionId ?? starter.dryRunAction)}>
                     <Send aria-hidden="true" size={16} />
                     {starter.available === false ? "Unavailable" : "Preview workflow"}
                   </button>
@@ -2378,7 +2389,10 @@ export function App() {
               <button
                 data-testid="opl-runtime-action-dry-run"
                 type="button"
-                onClick={() => runDryRun(defaultRuntimeActionId, { source: "runtime-panel" })}
+                disabled={!runtimeAction}
+                onClick={() => {
+                  if (runtimeAction) runDryRun(runtimeAction.id, { source: "runtime-panel" });
+                }}
               >
                 Preview action
               </button>

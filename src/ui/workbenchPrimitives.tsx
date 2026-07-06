@@ -447,7 +447,7 @@ export function ArtifactPreviewCard({ preview }: { preview: ArtifactPreview }) {
 
 export function ActionReceiptSummary({ receipt }: { receipt: ActionReceiptSummaryModel }) {
   const statusNotes: Record<ActionReceiptSummaryModel["status"], string[]> = {
-    preview_ready: [
+    preview: [
       "Dry-run route is ready to inspect in the current workbench shell.",
       "Receipt stays separate from real execution until an explicit submit step."
     ],
@@ -475,7 +475,7 @@ export function ActionReceiptSummary({ receipt }: { receipt: ActionReceiptSummar
         <dl style={keyValueGridStyle}>
           <div>
             <dt>Action</dt>
-            <dd><code>{receipt.actionId}</code></dd>
+            <dd>{receipt.actionId ? <code>{receipt.actionId}</code> : "No live App action ref"}</dd>
           </div>
           <div>
             <dt>Mutation</dt>
@@ -495,7 +495,7 @@ export function ActionReceiptSummary({ receipt }: { receipt: ActionReceiptSummar
           </div>
         </dl>
         <p><strong>Preview route</strong></p>
-        <pre style={denseCodeStyle}>{receipt.route}</pre>
+        <pre style={denseCodeStyle}>{receipt.route ?? "Unavailable until App state provides an action route."}</pre>
         <p><strong>Boundary</strong></p>
         <p>{receipt.authorityBoundary}</p>
       </section>
@@ -544,7 +544,7 @@ export function ConfirmationCard({ card, question, onDryRun }: ConfirmationCardP
         <dl style={keyValueGridStyle}>
           <div>
             <dt>Dry-run action</dt>
-            <dd><code>{card.dryRunAction}</code></dd>
+            <dd>{card.dryRunAction ? <code>{card.dryRunAction}</code> : "No live App action ref"}</dd>
           </div>
           <div>
             <dt>Receipt surface</dt>
@@ -579,9 +579,12 @@ export function ConfirmationCard({ card, question, onDryRun }: ConfirmationCardP
         </span>
         <button
           type="button"
-          onClick={() => onDryRun(card.dryRunAction, { confirmationId: card.id, questionId: question.id })}
+          disabled={!card.dryRunAction}
+          onClick={() => {
+            if (card.dryRunAction) onDryRun(card.dryRunAction, { confirmationId: card.id, questionId: question.id });
+          }}
         >
-          Preview action
+          {card.dryRunAction ? "Preview action" : "Unavailable"}
         </button>
       </footer>
     </article>

@@ -31,6 +31,7 @@ const fakeStarterActionIds = [
   "starter.rca.dry_run",
   "starter.bookforge.dry_run"
 ];
+const allowedStarterFallbackStatuses = ["preview", "payload_required", "unavailable"];
 const requiredStarterActionRefs = [
   "task_action_receipt_preview",
   "task_export_bundle_preview",
@@ -71,17 +72,11 @@ for (const fakeActionId of fakeStarterActionIds) {
   assert(starterPolicy.fake_starter_action_ids_rejected.includes(fakeActionId), `missing fake starter reject ${fakeActionId}`);
   const markerRequirements = JSON.stringify(evidence.source_marker_requirements ?? {});
   assert(!markerRequirements.includes(fakeActionId), `source marker requirements still accept fake starter action ${fakeActionId}`);
-  const escapedFakeActionId = fakeActionId.replaceAll(".", "\\.");
-  const fallbackBlock = new RegExp(
-    `dryRunAction:\\s*"${escapedFakeActionId}"[\\s\\S]{0,180}available:\\s*false[\\s\\S]{0,180}status:\\s*"fallback_unavailable_fake_action_id"`,
-    "m"
-  );
-  assert(fallbackBlock.test(workbenchModelSource), `fake starter action ${fakeActionId} must only remain as unavailable fallback`);
-  const readyRoute = new RegExp(
-    `(previewActionId:\\s*"${escapedFakeActionId}"|status:\\s*"[^"]*ready[^"]*"[\\s\\S]{0,220}dryRunAction:\\s*"${escapedFakeActionId}")`,
-    "m"
-  );
-  assert(!readyRoute.test(workbenchModelSource), `fake starter action ${fakeActionId} is still presented as ready route`);
+  assert(!workbenchModelSource.includes(fakeActionId), `workbench model still constructs fake starter action ${fakeActionId}`);
+}
+assert(!workbenchModelSource.includes("fallback_unavailable_fake_action_id"), "workbench fallback still emits fake-action fallback status");
+for (const status of allowedStarterFallbackStatuses) {
+  assert(workbenchModelSource.includes(`status: "${status}"`) || workbenchModelSource.includes(`: "${status}"`), `workbench model missing starter fallback status ${status}`);
 }
 
 assert(liveDerivationPolicy?.authority === "opl app state --profile fast --json", "live derivation authority mismatch");
