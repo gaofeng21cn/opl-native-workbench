@@ -15,9 +15,10 @@ The shell keeps App truth in the App repository:
   `contracts/app-shell-adapter.json` and release gates pass.
 
 The current candidate keeps the visual contract intentionally close to Codex
-App: persistent left sidebar for navigation/history, one centered chat canvas,
-bottom composer as the primary action, and an on-demand workspace inspector for
-files, previews, provenance, workflow starters, and export receipts. K-Dense and
+App: persistent left sidebar for navigation/history, one chat canvas, bottom
+composer as the primary action, and a right workspace inspector with Preview
+open by default for files, previews, provenance, workflow starters, and export
+receipts. K-Dense and
 Open Science are used as layout/interaction references only; their runtime,
 provider, backend, and authority surfaces are not copied.
 
@@ -30,9 +31,9 @@ The candidate now documents one stable user-facing information architecture:
   navigation.
 - Center: chat-first work surface. The main conversation canvas and bottom
   composer remain the default focus; ordinary home should open here first.
-- Right side: contextual tabs only. Artifact preview, provenance, delivery, and
-  starter/detail surfaces are secondary context tabs or drawers and stay
-  collapsed until explicitly opened.
+- Right side: contextual tabs only. Artifact preview opens by default to match
+  the accepted reference mockup; provenance, delivery, starter/detail, and
+  runtime views stay secondary tabs.
 - Settings: a separate first-class route, not a side-tab inside chat. Global
   controls such as language, model/account access, workspace, and runtime
   connection live there.

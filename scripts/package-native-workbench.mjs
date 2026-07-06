@@ -131,7 +131,7 @@ const manifest = {
     adapted_patterns: [
       "persistent Codex-style left sidebar for navigation and chat history",
       "single conversation canvas with centered max-width thread and bottom composer",
-      "secondary files, preview, provenance, workflows, and export live in on-demand inspector surfaces",
+      "secondary files, preview, provenance, workflows, and export live in a right inspector with Preview open by default",
       "chat tab strip and bottom composer as primary interaction",
       "artifact preview and provenance stay on-demand",
       "workflow/export/interview surfaces are secondary, not dashboard cards",

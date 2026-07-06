@@ -93,8 +93,8 @@ for (const marker of [
 ]) {
   assert(renderer.includes(marker), `missing packaged functional MVP marker ${marker}`);
 }
-assert(renderer.includes("context-inspector"), "workspace detail surface must default to an on-demand inspector");
-assert(renderer.includes("aria-hidden"), "workspace inspector must default closed");
+assert(renderer.includes("context-inspector"), "workspace detail surface must use a right inspector");
+assert(renderer.includes("useState(true)"), "workspace inspector must default open against the accepted visual reference");
 
 for (const asset of [
   "app.icns",
@@ -114,7 +114,7 @@ assert(manifest.external_layout_reference?.repo === "https://github.com/K-Dense-
 assert(manifest.external_layout_reference?.companion_repo === "https://github.com/ai4s-research/open-science", "manifest must record the Open Science visual reference");
 assert(manifest.external_layout_reference?.adapted_patterns?.includes("persistent Codex-style left sidebar for navigation and chat history"), "manifest must record the Codex-style sidebar adaptation");
 assert(manifest.external_layout_reference?.adapted_patterns?.includes("single conversation canvas with centered max-width thread and bottom composer"), "manifest must record the Codex-style conversation adaptation");
-assert(manifest.external_layout_reference?.adapted_patterns?.includes("secondary files, preview, provenance, workflows, and export live in on-demand inspector surfaces"), "manifest must record the on-demand inspector adaptation");
+assert(manifest.external_layout_reference?.adapted_patterns?.includes("secondary files, preview, provenance, workflows, and export live in a right inspector with Preview open by default"), "manifest must record the right preview inspector adaptation");
 assert(manifest.external_layout_reference?.adapted_patterns?.includes("chat tab strip and bottom composer as primary interaction"), "manifest must record the chat-first K-Dense adaptation");
 assert(manifest.external_layout_reference?.adapted_patterns?.includes("Open Science paper-light surface, thin borders, compact message blocks, and rounded composer"), "manifest must record the Open Science visual adaptation");
 assert(manifest.functional_mvp?.codex_app_server_thread_turn === true, "manifest must record Codex app-server thread/turn MVP");
