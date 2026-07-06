@@ -48,6 +48,12 @@ const requiredScripts = [
 
 const requiredTestIds = [
   "opl-workspace-rail",
+  "opl-project-inputs",
+  "opl-project-attachments",
+  "opl-project-chats",
+  "opl-topbar-model-config",
+  "opl-assistant-artifact-card",
+  "opl-selected-artifact-preview",
   "opl-session-list",
   "opl-context-tabs",
   "opl-files-panel",

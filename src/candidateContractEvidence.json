@@ -256,11 +256,11 @@
       "right_side": "Preview inspector default-open",
       "implementation_markers": {
         "current_project": ["Current project", "currentProject", "activeProjectLines"],
-        "context_inputs": ["Context", "contextSources", "opl-files-panel"],
-        "attachments_outputs": ["Suggested outputs", "opl-artifact-preview-tabs", "Deliverables"],
-        "recent_chats_per_project": ["Recent chats", "chatSessions", "threadId"],
-        "top_model_config": ["topbarModelLabel", "opl-model-access-entry", "settings.modelAccess"],
-        "right_preview_inspector": ["context-inspector", "useState(true)", "opl-artifact-preview-panel"]
+        "context_inputs": ["Context inputs", "opl-project-inputs", "projectInputItems"],
+        "attachments_outputs": ["Attachments / outputs", "opl-project-attachments", "projectAttachmentItems"],
+        "recent_chats_per_project": ["Project chats", "opl-project-chats", "chatSessions"],
+        "top_model_config": ["topbarModelLabel", "opl-topbar-model-config", "opl-model-access-entry"],
+        "right_preview_inspector": ["context-inspector", "useState(true)", "opl-selected-artifact-preview"]
       }
     }
   },
