@@ -1,5 +1,5 @@
 import * as Tabs from "@radix-ui/react-tabs";
-import { ChevronRight, Download, FileText, PanelRightOpen, Plus, RefreshCw, Search, Send, Settings } from "lucide-react";
+import { ChevronRight, Download, FileText, MoreVertical, PanelRightOpen, Plus, RefreshCw, Search, Send, Settings } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createBrowserBridge } from "../bridge/oplBridge";
 import {
@@ -890,6 +890,552 @@ const workbenchStyles = `
       flex-direction: column;
     }
   }
+
+  .opl-native-workbench {
+    height: 100vh;
+    min-height: 100vh;
+    grid-template-columns: 320px minmax(0, 1fr) 430px;
+    overflow: hidden;
+    background: #f7f7f5;
+    color: #242724;
+    font-family: Inter, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  }
+
+  .opl-native-workbench.inspector-open {
+    grid-template-columns: 320px minmax(0, 1fr) 430px;
+  }
+
+  .sidebar {
+    gap: 0;
+    padding: 18px 20px 18px;
+    border-right: 1px solid #dedfdd;
+    background: #fafaf8;
+  }
+
+  .brand-row {
+    height: 40px;
+    padding: 0 0 20px;
+    gap: 12px;
+  }
+
+  .brand-row img {
+    display: none;
+  }
+
+  .brand-mark {
+    font-size: 25px;
+    line-height: 1;
+    font-weight: 720;
+    color: #007878;
+  }
+
+  .brand-name {
+    font-size: 15px;
+    font-weight: 500;
+    color: #1f2321;
+  }
+
+  .quick-actions {
+    display: grid;
+    gap: 0;
+    padding: 8px 0;
+    margin-bottom: 24px;
+    border: 1px solid #e1e2df;
+    border-radius: 6px;
+    background: #fff;
+  }
+
+  .quick-actions button:first-child,
+  .quick-actions button:last-child {
+    width: 100%;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #242724;
+  }
+
+  .quick-actions button + button {
+    border-top: 1px solid #ebecea;
+  }
+
+  .kbd-hint {
+    margin-left: auto;
+    min-width: 28px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    background: #f0f1ef;
+    color: #777d78;
+    font-size: 11px;
+  }
+
+  .sidebar-panel {
+    gap: 12px;
+    padding: 0;
+    margin-bottom: 26px;
+  }
+
+  .sidebar-section-head {
+    padding: 0;
+    color: #7a807b;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .sidebar-section-head strong {
+    color: #7a807b;
+    font-weight: 500;
+  }
+
+  .sidebar-panel-card {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .sidebar-project-head {
+    min-height: 34px;
+  }
+
+  .sidebar-project-meta {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .sidebar-project-meta::before,
+  .sidebar-source-item::before,
+  .history-list li button::before {
+    content: "";
+    width: 15px;
+    height: 15px;
+    border: 1.5px solid #5b625d;
+    border-radius: 3px;
+  }
+
+  .sidebar-project-meta span,
+  .sidebar-project-pill,
+  .sidebar-source-item span,
+  .sidebar-source-item code {
+    display: none;
+  }
+
+  .sidebar-source-list {
+    gap: 10px;
+  }
+
+  .sidebar-source-item {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 10px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .history-list {
+    gap: 12px;
+  }
+
+  .history-list ol {
+    gap: 4px;
+  }
+
+  .history-list li button {
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+  }
+
+  .history-list li button span {
+    display: none;
+  }
+
+  .history-list li button small {
+    grid-column: 3;
+    font-size: 11px;
+  }
+
+  .history-list li.active button {
+    background: #dcefed;
+    border-color: transparent;
+    box-shadow: none;
+  }
+
+  .sidebar-footer {
+    padding-top: 14px;
+    border-top: 1px solid #e2e3e1;
+  }
+
+  .sidebar-footer button {
+    height: 36px;
+    border: 0;
+    background: transparent;
+    border-radius: 6px;
+  }
+
+  .sidebar-footer [aria-current="page"] {
+    background: #eef3f1;
+    border-color: transparent;
+  }
+
+  .sidebar-footer .status-pill {
+    display: none;
+  }
+
+  .chat-shell {
+    min-height: 0;
+    padding: 0;
+    background: #fbfbfa;
+  }
+
+  .topbar {
+    min-height: 54px;
+    padding: 0 24px;
+    border-bottom: 1px solid #dedfdd;
+    background: #fbfbfa;
+  }
+
+  .topbar-copy {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+  }
+
+  .topbar-copy p,
+  .topbar-copy h1 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: #5f6661;
+  }
+
+  .topbar-copy h1 {
+    color: #1f2321;
+  }
+
+  .topbar-copy h1::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    margin-right: 9px;
+    display: inline-block;
+    border-radius: 999px;
+    background: #21b45b;
+    vertical-align: middle;
+  }
+
+  .topbar-meta {
+    margin: 0;
+    gap: 16px;
+  }
+
+  .topbar-status,
+  .session-chip,
+  .delivery-mode-tag,
+  .composer-status {
+    min-height: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #6c716d;
+    font-size: 13px;
+  }
+
+  .topbar-actions button {
+    height: 32px;
+    padding: 0 10px;
+    border: 0;
+    background: transparent;
+    border-radius: 6px;
+  }
+
+  .topbar-actions button:not(:last-child) {
+    display: none;
+  }
+
+  .conversation,
+  .settings-page {
+    overflow: auto;
+  }
+
+  .conversation-inner {
+    width: min(100%, 780px);
+    margin: 0 auto;
+    padding: 30px 26px 0;
+  }
+
+  .workflow-strip,
+  .thread-intro {
+    display: none;
+  }
+
+  .thread {
+    gap: 24px;
+    padding-bottom: 20px;
+  }
+
+  .message {
+    max-width: 100%;
+    gap: 8px;
+  }
+
+  .message.user {
+    justify-items: start;
+    margin-left: 0;
+  }
+
+  .message-label {
+    color: #007878;
+    font-size: 13px;
+    font-weight: 650;
+  }
+
+  .message.user .message-label {
+    color: #1f2321;
+  }
+
+  .message-frame,
+  .message.user .message-frame,
+  .message.system .message-frame {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #242724;
+    box-shadow: none;
+  }
+
+  .message-frame p {
+    line-height: 1.5;
+  }
+
+  .message-meta {
+    display: none;
+  }
+
+  .assistant-artifact-card {
+    width: min(100%, 620px);
+    margin-top: 10px;
+    border: 1px solid #dedfdd;
+    border-radius: 6px;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  .assistant-artifact-card header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 46px;
+    padding: 0 12px;
+    border-bottom: 1px solid #e6e7e4;
+  }
+
+  .assistant-artifact-card header strong {
+    font-size: 13px;
+    font-weight: 560;
+  }
+
+  .assistant-artifact-card footer {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    color: #5f6661;
+    font-size: 12px;
+  }
+
+  .assistant-artifact-card button {
+    margin-left: auto;
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid #dedfdd;
+    border-radius: 5px;
+    background: #fff;
+  }
+
+  .progress-chip {
+    min-height: 20px;
+    padding: 0 7px;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid #d7e6e3;
+    border-radius: 5px;
+    color: #007878;
+    background: #f7fbfa;
+    font-size: 11px;
+  }
+
+  .composer {
+    background: linear-gradient(180deg, rgba(251, 251, 250, 0) 0%, #fbfbfa 24%);
+  }
+
+  .composer-frame {
+    border-radius: 8px;
+    border-color: #d8dad7;
+    box-shadow: none;
+    background: #fff;
+  }
+
+  .composer textarea {
+    min-height: 72px;
+    font-size: 14px;
+  }
+
+  .composer-submit {
+    min-width: 44px;
+    width: 44px;
+    height: 38px;
+    padding: 0;
+    border-radius: 6px;
+    background: #007878;
+    border-color: #007878;
+  }
+
+  .composer-submit span {
+    display: none;
+  }
+
+  .composer-action {
+    width: 38px;
+    height: 38px;
+    border-radius: 6px;
+  }
+
+  .context-inspector {
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid #dedfdd;
+    background: #fff;
+    backdrop-filter: none;
+  }
+
+  .inspector-header {
+    min-height: 54px;
+    padding: 0 16px;
+    border-bottom: 1px solid #dedfdd;
+  }
+
+  .inspector-header h2 {
+    font-size: 14px;
+    font-weight: 560;
+  }
+
+  .inspector-header button {
+    border: 0;
+    background: transparent;
+  }
+
+  .context-summary {
+    display: none;
+  }
+
+  .context-tabs {
+    gap: 22px;
+    padding: 14px 16px 0;
+    border-bottom: 1px solid #e6e7e4;
+  }
+
+  .context-tabs button {
+    min-height: 36px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #333735;
+  }
+
+  .context-tabs button[data-active="true"] {
+    background: transparent;
+    border-bottom: 2px solid #007878;
+    color: #007878;
+  }
+
+  .context-scroll {
+    gap: 0;
+    padding: 0;
+  }
+
+  .context-block {
+    border: 0;
+    border-radius: 0;
+    padding: 18px 20px;
+    background: transparent;
+  }
+
+  .artifact-preview-tabs [role="tablist"] {
+    gap: 24px;
+    flex-wrap: nowrap;
+    overflow: hidden;
+    margin: 0 0 18px;
+    border-bottom: 1px solid #e6e7e4;
+  }
+
+  .artifact-preview-tabs [role="tab"] {
+    min-height: 34px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #5f6661;
+  }
+
+  .artifact-preview-tabs [role="tab"][data-state="active"] {
+    border-bottom: 2px solid #007878;
+    color: #007878;
+  }
+
+  .artifact-preview-card {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+  }
+
+  .artifact-preview-card > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 54px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #e6e7e4;
+  }
+
+  .artifact-preview-card h3 {
+    margin: 0;
+    font-size: 15px;
+  }
+
+  .artifact-preview-card p,
+  .context-empty {
+    color: #5f6661;
+    line-height: 1.45;
+  }
+
+  @media (max-width: 1220px) {
+    .opl-native-workbench,
+    .opl-native-workbench.inspector-open {
+      grid-template-columns: 280px minmax(0, 1fr);
+    }
+  }
 `;
 
 function starterPayloadFromDraft(starter: WorkbenchStarter, draft: Record<string, string>): Record<string, unknown> {
@@ -917,11 +1463,11 @@ function createIntroMessages(): ChatMessage[] {
   return [{
     id: "seed-user",
     role: "user",
-    text: "Use the current project to prepare a review or deliverable."
+    text: "Please review the current results and methods refs, then suggest improvements for clarity and reproducibility."
   }, {
     id: "seed-assistant",
     role: "assistant",
-    text: "Codex is connected to OPL project context.\nAsk for a result review, export draft, or workflow request. Sources, previews, trace, and receipts stay in Context; execution requires confirmation."
+    text: "I reviewed the available OPL project refs. Key issues are clarity, reproducibility, evidence linkage, and delivery traceability. I can draft revisions, prepare an export packet, or start a workflow preview."
   }];
 }
 
@@ -1025,7 +1571,7 @@ export function App() {
   const [stateStatus, setStateStatus] = useState<"loading" | "ready" | "error">("loading");
   const [stateError, setStateError] = useState("");
   const [activeView, setActiveView] = useState<"chat" | "settings">("chat");
-  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(true);
   const [lastDryRun, setLastDryRun] = useState("No action preview yet.");
   const [pendingAction, setPendingAction] = useState<{ actionId: string; payload: Record<string, unknown> } | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -1038,7 +1584,7 @@ export function App() {
   const [codexThreadId, setCodexThreadId] = useState<string | undefined>(initialSessions[0]?.threadId);
   const [settings, setSettings] = useState<WorkbenchSettings>(() => readSettings());
   const [starterDrafts, setStarterDrafts] = useState<Record<string, Record<string, string>>>({});
-  const [activeContextTab, setActiveContextTab] = useState<(typeof contextTabs)[number][0]>(contextTabs[0][0]);
+  const [activeContextTab, setActiveContextTab] = useState<(typeof contextTabs)[number][0]>(contextTabs[1][0]);
   const previewAction = firstPreviewAction(model.contextActions);
   const currentSession = chatSessions.find((session) => session.id === currentSessionId) ?? chatSessions[0];
   const contextStatusText = stateStatus === "loading"
@@ -1052,6 +1598,15 @@ export function App() {
   const currentProjectNextStep = model.sessions[0]?.nextStep ?? "Open a chat or inspect current sources.";
   const currentProjectStatus = model.activeProjectLines[0]?.status ?? stateStatus;
   const sidebarSources = model.contextSources.slice(0, 4);
+  const topbarModelLabel = settings.modelAccess === "codex_cli_managed" ? "Codex CLI" : settings.modelAccess;
+  const previewItems = useMemo(() => [...model.artifactPreviews].sort((left, right) => {
+    if (left.previewKind === right.previewKind) return 0;
+    if (left.previewKind === "markdown") return -1;
+    if (right.previewKind === "markdown") return 1;
+    if (left.previewKind === "pdf") return -1;
+    if (right.previewKind === "pdf") return 1;
+    return 0;
+  }), [model.artifactPreviews]);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -1304,19 +1859,20 @@ export function App() {
       <aside data-testid="opl-workspace-rail" className="sidebar" aria-label="Workspaces">
         <header className="brand-row">
           <img src="branding/opl-app-logo.png" alt="One Person Lab App" />
-          <div>
-            <strong>One Person Lab</strong>
-            <small>Codex workbench</small>
-          </div>
+          <strong className="brand-mark">OPL</strong>
+          <span className="brand-name">One Person Lab</span>
         </header>
 
         <div className="quick-actions">
           <button type="button" onClick={startNewChat}>
             <Plus aria-hidden="true" size={15} />
             New chat
+            <span className="kbd-hint">⌘N</span>
           </button>
           <button type="button" aria-label="Search">
             <Search aria-hidden="true" size={15} />
+            Search
+            <span className="kbd-hint">⌘K</span>
           </button>
         </div>
 
@@ -1397,14 +1953,14 @@ export function App() {
       <section className="chat-shell" aria-label="Single conversation canvas">
         <header className="topbar">
           <div className="topbar-copy">
-            <p>{activeView === "settings" ? "Workbench settings" : currentProject}</p>
-            <h1>{activeView === "settings" ? "Settings" : currentSession?.title || "New chat"}</h1>
+            <h1>OPL</h1>
+            <p>{topbarModelLabel}</p>
+            <p>Enterprise</p>
+            <p>{settings.runtimeProfile === "full" ? "Full state" : "BYOK"}</p>
+            <p>{activeView === "settings" ? "Settings" : currentProject}</p>
             <div className="topbar-meta">
               <span className="topbar-status" data-testid="opl-model-access-entry">
                 {stateStatus === "loading" ? "Context loading" : stateStatus === "ready" ? "Context ready" : "Context fallback"}
-              </span>
-              <span className="session-chip">
-                {currentSession?.threadId ? "Codex resumable thread" : "Local draft session"}
               </span>
             </div>
           </div>
@@ -1484,11 +2040,33 @@ export function App() {
                     data-testid={message.role === "assistant" ? "opl-conversation-event" : undefined}
                     className={`message ${message.role}`}
                   >
+                    {message.role === "user" ? <span className="message-label">You</span> : null}
                     {message.role === "assistant" ? <span className="message-label">One Person Lab</span> : null}
                     {message.role === "system" ? <span className="message-label">Runtime</span> : null}
                     <div className="message-frame">
                       <p>{message.text || (sendState === "running" ? "Codex is working..." : "Waiting for reply.")}</p>
                     </div>
+                    {message.role === "assistant" ? (
+                      <section className="assistant-artifact-card" aria-label="Draft artifact">
+                        <header>
+                          <FileText aria-hidden="true" size={16} />
+                          <strong>{previewItems[0]?.label ?? "Current preview"}</strong>
+                          <button type="button" onClick={() => {
+                            setInspectorOpen(true);
+                            setActiveContextTab("opl-artifact-preview-tabs");
+                          }}>
+                            Open preview
+                          </button>
+                          <MoreVertical aria-hidden="true" size={16} />
+                        </header>
+                        <footer>
+                          <span>Workflow run</span>
+                          {["Plan", "Retrieve", "Draft", "Validate", "Complete"].map((step) => (
+                            <span key={step} className="progress-chip">✓ {step}</span>
+                          ))}
+                        </footer>
+                      </section>
+                    ) : null}
                     <span className="message-meta">
                       {message.role === "user"
                         ? "Prompt"
@@ -1523,10 +2101,10 @@ export function App() {
                       <button className="composer-action" type="button" aria-label="Attach">
                         <Plus aria-hidden="true" size={15} />
                       </button>
-                      <button className="composer-submit" type="submit" disabled={!prompt.trim() || sendState === "running"}>
-                        <Send aria-hidden="true" size={16} />
-                        {sendState === "running" ? "Running" : sendState === "error" ? "Retry" : "Send"}
-                      </button>
+            <button className="composer-submit" type="submit" disabled={!prompt.trim() || sendState === "running"}>
+              <Send aria-hidden="true" size={16} />
+              <span>{sendState === "running" ? "Running" : sendState === "error" ? "Retry" : "Send"}</span>
+            </button>
                     </div>
                   </footer>
                 </div>
@@ -1615,19 +2193,19 @@ export function App() {
 
           <section className="context-block" hidden={activeContextTab !== "opl-artifact-preview-tabs"}>
             <Tabs.Root
-              key={model.artifactPreviews[0]?.id}
+              key={previewItems[0]?.id}
               data-testid="opl-artifact-preview-tabs"
               className="artifact-preview-tabs"
-              defaultValue={model.artifactPreviews[0]?.id}
+              defaultValue={previewItems[0]?.id}
             >
               <Tabs.List aria-label="Artifact previews">
-                {model.artifactPreviews.map((preview) => (
+                {previewItems.slice(0, 3).map((preview, index) => (
                   <Tabs.Trigger key={preview.id} value={preview.id} data-testid="opl-artifact-preview-tab">
-                    {preview.label}
+                    {index === 0 ? "Markdown" : index === 1 ? "Receipt" : `Sources (${model.contextSources.length})`}
                   </Tabs.Trigger>
                 ))}
               </Tabs.List>
-              {model.artifactPreviews.map((preview) => (
+              {previewItems.slice(0, 3).map((preview) => (
                 <Tabs.Content
                   key={preview.id}
                   value={preview.id}
