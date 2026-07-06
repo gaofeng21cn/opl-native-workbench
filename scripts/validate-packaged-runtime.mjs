@@ -121,9 +121,9 @@ assert(manifest.external_layout_reference?.companion_repo === "https://github.co
 assert(manifest.external_layout_reference?.adapted_patterns?.includes("project-first persistent left sidebar for Current project, context inputs, attachments/outputs, and recent chats per project"), "manifest must record the project-first sidebar adaptation");
 assert(manifest.external_layout_reference?.adapted_patterns?.includes("single conversation canvas with centered max-width thread and bottom composer"), "manifest must record the Codex-style conversation adaptation");
 assert(manifest.external_layout_reference?.adapted_patterns?.includes("top model/access configuration stays in the center topbar"), "manifest must record the top model configuration adaptation");
-assert(manifest.external_layout_reference?.adapted_patterns?.includes("attachments, outputs, preview, provenance, workflows, and export live in a right inspector with Preview open by default"), "manifest must record the right preview inspector adaptation");
+assert(manifest.external_layout_reference?.adapted_patterns?.includes("attachments, outputs, preview, provenance, workflows, and export live in a right inspector with Preview open by default and collapsible"), "manifest must record the right preview inspector adaptation");
 assert(manifest.external_layout_reference?.adapted_patterns?.includes("chat tab strip and bottom composer as primary interaction"), "manifest must record the chat-first K-Dense adaptation");
-assert(manifest.external_layout_reference?.adapted_patterns?.includes("right Preview inspector is default-open, not collapsed"), "manifest must record the default-open inspector adaptation");
+assert(manifest.external_layout_reference?.adapted_patterns?.includes("right Preview inspector is default-open and collapsible"), "manifest must record the default-open collapsible inspector adaptation");
 assert(manifest.external_layout_reference?.adapted_patterns?.includes("Open Science paper-light surface, thin borders, compact message blocks, and rounded composer"), "manifest must record the Open Science visual adaptation");
 assert(manifest.functional_mvp?.codex_app_server_thread_turn === true, "manifest must record Codex app-server thread/turn MVP");
 assert(manifest.functional_mvp?.default_sandbox === "read-only", "manifest must record read-only Codex sandbox");

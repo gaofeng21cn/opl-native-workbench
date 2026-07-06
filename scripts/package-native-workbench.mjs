@@ -132,9 +132,9 @@ const manifest = {
       "project-first persistent left sidebar for Current project, context inputs, attachments/outputs, and recent chats per project",
       "single conversation canvas with centered max-width thread and bottom composer",
       "top model/access configuration stays in the center topbar",
-      "attachments, outputs, preview, provenance, workflows, and export live in a right inspector with Preview open by default",
+      "attachments, outputs, preview, provenance, workflows, and export live in a right inspector with Preview open by default and collapsible",
       "chat tab strip and bottom composer as primary interaction",
-      "right Preview inspector is default-open, not collapsed",
+      "right Preview inspector is default-open and collapsible",
       "workflow/export/interview surfaces are secondary, not dashboard cards",
       "Open Science paper-light surface, thin borders, compact message blocks, and rounded composer"
     ]

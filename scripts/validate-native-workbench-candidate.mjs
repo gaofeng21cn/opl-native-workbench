@@ -114,9 +114,9 @@ function assertImagegenProjectFirstIa(evidence, app, readme) {
     "Recent chats per project"
   ]), "imagegen mockup left sidebar order must be project-first");
   assert(alignment.center_top === "model/access configuration", "top model/access configuration placement must be recorded");
-  assert(alignment.right_side === "Preview inspector default-open", "right Preview inspector default-open placement must be recorded");
+  assert(alignment.right_side === "Preview inspector default-open and collapsible", "right Preview inspector default-open collapsible placement must be recorded");
   assert(readme.includes("Current project -> Context inputs -> Attachments/outputs -> Recent chats per"), "README must record project-first imagegen IA order");
-  assert(readme.includes("Preview inspector default-open"), "README must record default-open Preview inspector");
+  assert(readme.includes("Preview inspector default-open and collapsible"), "README must record default-open collapsible Preview inspector");
   assert(!readme.includes("on-demand/collapsed inspector"), "README must not use the old on-demand/collapsed inspector wording");
   assert(!JSON.stringify(evidence).includes("on-demand workspace/file/artifact inspector"), "candidate evidence must not keep the old on-demand inspector pattern");
   for (const markers of Object.values(alignment.implementation_markers ?? {})) {

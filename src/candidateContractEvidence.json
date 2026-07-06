@@ -240,7 +240,7 @@
     "agui": false
   },
   "default_home_layout": {
-    "policy": "ordinary home opens with a project-first persistent left sidebar, a single chat canvas with model/access configuration in the top bar, and the Preview inspector open by default to match the accepted imagegen Codex/Open Science reference mockup",
+    "policy": "ordinary home opens with a project-first persistent left sidebar, a single chat canvas with model/access configuration in the top bar, and the Preview inspector open by default but collapsible to match the accepted imagegen Codex/Open Science reference mockup",
     "stage_classes": ["codex-sidebar-chat", "inspector-open"],
     "workspace_rail_default_open": true,
     "inspector_default_open": true,
@@ -253,7 +253,7 @@
         "Recent chats per project"
       ],
       "center_top": "model/access configuration",
-      "right_side": "Preview inspector default-open",
+      "right_side": "Preview inspector default-open and collapsible",
       "implementation_markers": {
         "current_project": ["Current project", "currentProject", "activeProjectLines"],
         "context_inputs": ["Context inputs", "opl-project-inputs", "projectInputItems"],
@@ -280,7 +280,7 @@
     "adopted_patterns": [
       "project-first persistent left sidebar",
       "single centered conversation canvas",
-      "default-open Preview inspector",
+      "default-open collapsible Preview inspector",
       "left sidebar order: Current project -> Context inputs -> Attachments/outputs -> Recent chats per project",
       "top model/access configuration",
       "project sandbox organization",

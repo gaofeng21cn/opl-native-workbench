@@ -31,8 +31,7 @@ const contextTabs = [
   ["opl-artifact-preview-tabs", "Preview"],
   ["opl-provenance-drawer", "Trace"],
   ["opl-starter-forms", "Workflows"],
-  ["opl-runtime-summary", "Runtime"],
-  ["opl-settings-panel", "Settings"]
+  ["opl-runtime-summary", "Runtime"]
 ] as const;
 
 const purposeLabels: Record<WorkbenchPurpose, string> = {
@@ -902,22 +901,29 @@ const workbenchStyles = `
   .opl-native-workbench {
     height: 100vh;
     min-height: 100vh;
-    grid-template-columns: 320px minmax(0, 1fr) 430px;
+    grid-template-columns: 300px minmax(0, 1fr) 410px;
     overflow: hidden;
     background: #f7f7f5;
     color: #242724;
     font-family: Inter, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.42;
   }
 
   .opl-native-workbench.inspector-open {
-    grid-template-columns: 320px minmax(0, 1fr) 430px;
+    grid-template-columns: 300px minmax(0, 1fr) 410px;
+  }
+
+  .opl-native-workbench.inspector-closed {
+    grid-template-columns: 300px minmax(0, 1fr) 0;
   }
 
   .sidebar {
     gap: 0;
-    padding: 18px 20px 18px;
+    padding: 18px 18px 18px;
     border-right: 1px solid #dedfdd;
     background: #fafaf8;
+    font-size: 14px;
   }
 
   .brand-row {
@@ -938,7 +944,7 @@ const workbenchStyles = `
   }
 
   .brand-name {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 500;
     color: #1f2321;
   }
@@ -994,13 +1000,19 @@ const workbenchStyles = `
   .sidebar-section-head {
     padding: 0;
     color: #7a807b;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
+    line-height: 1.2;
   }
 
   .sidebar-section-head strong {
     color: #7a807b;
     font-weight: 500;
+    font-size: 12px;
+  }
+
+  .sidebar-section-head span {
+    font-size: 12px;
   }
 
   .sidebar-panel-card {
@@ -1043,6 +1055,17 @@ const workbenchStyles = `
   .sidebar-source-item span,
   .sidebar-source-item code {
     display: none;
+  }
+
+  .sidebar-project-meta strong,
+  .sidebar-source-item strong,
+  .history-list li button strong,
+  .sidebar-add-item,
+  .quick-actions button,
+  .sidebar-footer button {
+    font-size: 14px;
+    font-weight: 450;
+    line-height: 1.28;
   }
 
   .sidebar-source-list {
@@ -1103,7 +1126,8 @@ const workbenchStyles = `
 
   .history-list li button small {
     grid-column: 3;
-    font-size: 11px;
+    font-size: 12px;
+    color: #7a807b;
   }
 
   .history-list li.active button {
@@ -1238,6 +1262,11 @@ const workbenchStyles = `
     padding: 30px 26px 0;
   }
 
+  .settings-content {
+    width: min(100%, 760px);
+    padding: 24px 26px 44px;
+  }
+
   .workflow-strip,
   .thread-intro {
     display: none;
@@ -1246,6 +1275,30 @@ const workbenchStyles = `
   .thread {
     gap: 24px;
     padding-bottom: 20px;
+  }
+
+  .empty-thread {
+    min-height: calc(100vh - 260px);
+    display: grid;
+    place-items: center;
+    color: #6c716d;
+    text-align: center;
+  }
+
+  .empty-thread-inner {
+    display: grid;
+    gap: 8px;
+    max-width: 480px;
+  }
+
+  .empty-thread strong {
+    color: #1f2321;
+    font-size: 16px;
+    font-weight: 560;
+  }
+
+  .empty-thread p {
+    margin: 0;
   }
 
   .message {
@@ -1384,6 +1437,12 @@ const workbenchStyles = `
     border-left: 1px solid #dedfdd;
     background: #fff;
     backdrop-filter: none;
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  .context-inspector:not(.open) {
+    display: none;
   }
 
   .inspector-header {
@@ -1430,6 +1489,7 @@ const workbenchStyles = `
   .context-scroll {
     gap: 0;
     padding: 0;
+    min-width: 0;
   }
 
   .context-block {
@@ -1437,6 +1497,40 @@ const workbenchStyles = `
     border-radius: 0;
     padding: 18px 20px;
     background: transparent;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .context-list,
+  .context-list li,
+  .trace-list,
+  .trace-list div,
+  .delivery-stack,
+  .starter-stack,
+  .utility-stack,
+  .artifact-preview-tabs {
+    min-width: 0;
+  }
+
+  .context-code,
+  .context-list code,
+  .trace-list dd,
+  .settings-inline-list dd,
+  .runtime-note,
+  .delivery-note,
+  output,
+  pre,
+  code {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  output {
+    display: block;
+    white-space: pre-wrap;
+    font-size: 12px;
+    line-height: 1.45;
   }
 
   .artifact-preview-tabs [role="tablist"] {
@@ -1465,6 +1559,7 @@ const workbenchStyles = `
     border: 0 !important;
     border-radius: 0 !important;
     background: transparent !important;
+    min-width: 0 !important;
   }
 
   .artifact-preview-card > header {
@@ -1487,9 +1582,78 @@ const workbenchStyles = `
     line-height: 1.45;
   }
 
+  .delivery-card {
+    min-width: 0;
+  }
+
+  .delivery-card header {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .delivery-card header > div {
+    min-width: 0;
+  }
+
+  .delivery-card h3 {
+    margin: 0 0 4px;
+    font-size: 14px;
+    line-height: 1.25;
+  }
+
+  .delivery-card dl {
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+  }
+
+  .delivery-card dd,
+  .delivery-card dt {
+    margin: 0;
+  }
+
+  .delivery-card .status-pill {
+    width: fit-content;
+  }
+
+  .artifact-preview-card .status-pill,
+  .delivery-card .status-pill {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .segmented-control {
+    width: fit-content;
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid #d8dad7;
+    border-radius: 8px;
+    background: #f4f5f3;
+  }
+
+  .segmented-control button {
+    min-height: 30px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #5f6661;
+  }
+
+  .segmented-control button[data-active="true"] {
+    background: #fff;
+    color: #007878;
+    box-shadow: 0 1px 3px rgba(36, 39, 36, 0.08);
+  }
+
   @media (max-width: 1220px) {
     .opl-native-workbench,
     .opl-native-workbench.inspector-open {
+      grid-template-columns: 280px minmax(0, 1fr);
+    }
+
+    .opl-native-workbench.inspector-closed {
       grid-template-columns: 280px minmax(0, 1fr);
     }
   }
@@ -1517,15 +1681,12 @@ function firstPreviewAction(actions: WorkbenchActionRef[]): WorkbenchActionRef |
 }
 
 function createIntroMessages(): ChatMessage[] {
-  return [{
-    id: "seed-user",
-    role: "user",
-    text: "Please review the current results and methods refs, then suggest improvements for clarity and reproducibility."
-  }, {
-    id: "seed-assistant",
-    role: "assistant",
-    text: "I reviewed the available OPL project refs. Key issues are clarity, reproducibility, evidence linkage, and delivery traceability. I can draft revisions, prepare an export packet, or start a workflow preview."
-  }];
+  return [];
+}
+
+function isDesignExampleMessage(message: ChatMessage): boolean {
+  return message.text === "Please review the current results and methods refs, then suggest improvements for clarity and reproducibility."
+    || message.text === "I reviewed the available OPL project refs. Key issues are clarity, reproducibility, evidence linkage, and delivery traceability. I can draft revisions, prepare an export packet, or start a workflow preview.";
 }
 
 function projectInputItems(sourceRefs: { ref: string; summary: string }[]): SidebarDisplayItem[] {
@@ -1562,11 +1723,12 @@ function normalizeChatSession(value: unknown): ChatSession | null {
   const messages = Array.isArray(candidate.messages)
     ? candidate.messages.filter((message): message is ChatMessage => Boolean(message && typeof message === "object" && typeof (message as ChatMessage).id === "string"))
     : [];
+  const visibleMessages = messages.filter((message) => !isDesignExampleMessage(message));
   return {
     id: candidate.id,
     title: typeof candidate.title === "string" && candidate.title ? candidate.title : "New chat",
     threadId: typeof candidate.threadId === "string" && candidate.threadId ? candidate.threadId : undefined,
-    messages: messages.length ? messages : createIntroMessages(),
+    messages: visibleMessages.length ? visibleMessages : createIntroMessages(),
     updatedAt: typeof candidate.updatedAt === "string" && candidate.updatedAt ? candidate.updatedAt : new Date(0).toISOString()
   };
 }
@@ -1852,11 +2014,7 @@ export function App() {
 
   function startNewChat() {
     const sessionId = `session-${Date.now()}`;
-    const nextMessages = [{
-      id: `assistant-${Date.now()}`,
-      role: "assistant",
-      text: "New OPL workbench chat. Ask for review, drafting, export, or a workflow starter."
-    }] satisfies ChatMessage[];
+    const nextMessages = createIntroMessages();
     setCurrentSessionId(sessionId);
     setPrompt("");
     setPendingAction(null);
@@ -1902,9 +2060,14 @@ export function App() {
     }
     if (key === "locale") {
       return (
-        <button className="setting-toggle" data-testid="opl-locale-toggle" type="button" onClick={() => updateSetting("locale", value === "zh" ? "en" : "zh")}>
-          {value === "zh" ? "Chinese" : "English"}
-        </button>
+        <div className="segmented-control" data-testid="opl-locale-toggle" aria-label="Language">
+          <button type="button" data-active={value === "zh"} onClick={() => updateSetting("locale", "zh")}>
+            中文
+          </button>
+          <button type="button" data-active={value === "en"} onClick={() => updateSetting("locale", "en")}>
+            English
+          </button>
+        </div>
       );
     }
     if (key === "reasoningLevel") {
@@ -2110,10 +2273,11 @@ export function App() {
             <button
               type="button"
               onClick={() => {
-                setInspectorOpen(true);
+                setInspectorOpen((open) => !open);
                 setActiveContextTab("opl-files-panel");
               }}
               aria-label="Open workspace"
+              aria-pressed={inspectorOpen}
             >
               <PanelRightOpen aria-hidden="true" size={16} />
               Context
@@ -2157,6 +2321,15 @@ export function App() {
                   <span className="thread-note">Preview and export actions require confirmation</span>
                   <span className="thread-note">Artifact bodies remain source-owned</span>
                 </section>
+
+                {messages.length === 0 ? (
+                  <section className="empty-thread" aria-label="Empty conversation">
+                    <div className="empty-thread-inner">
+                      <strong>{currentProject}</strong>
+                      <p>Ask OPL to review, draft, export, or start a workflow from the selected project context.</p>
+                    </div>
+                  </section>
+                ) : null}
 
                 {messages.map((message) => (
                   <article
@@ -2544,29 +2717,6 @@ export function App() {
             <div className="visually-hidden" data-testid="opl-event-feed">{eventFeed.join(" / ")} tool process diff file receipt user_input permission</div>
           </section>
 
-          <section data-testid="opl-settings-panel" className="context-block settings-inline-panel" hidden={activeContextTab !== "opl-settings-panel"}>
-            <div className="context-list-head">
-              <strong>Settings</strong>
-              <span className="settings-hint">Primary route stays in the main column.</span>
-            </div>
-            <dl className="settings-inline-list">
-              <div>
-                <dt>Language</dt>
-                <dd>{settings.locale}</dd>
-              </div>
-              <div>
-                <dt>State profile</dt>
-                <dd>{settings.runtimeProfile}</dd>
-              </div>
-              <div>
-                <dt>Confirm before execute</dt>
-                <dd>{String(settings.confirmBeforeExecute)}</dd>
-              </div>
-            </dl>
-            <button className="context-button" type="button" onClick={() => setActiveView("settings")}>
-              Open full settings
-            </button>
-          </section>
         </div>
       </aside>
     </main>
