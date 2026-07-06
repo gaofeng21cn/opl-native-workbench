@@ -26,14 +26,16 @@ provider, backend, and authority surfaces are not copied.
 
 The candidate now documents one stable user-facing information architecture:
 
-- Left sidebar: project/material/history organization. It carries the active
-  project line, recent conversations, and lightweight workspace session
-  navigation.
+- Left sidebar: project-first organization. The imagegen design mockup order is
+  `Current project -> Context inputs -> Attachments/outputs -> Recent chats per
+  project`. Current source markers render those as the current project card,
+  context source refs, preview/deliverable refs, and resumable recent chats.
 - Center: chat-first work surface. The main conversation canvas and bottom
-  composer remain the default focus; ordinary home should open here first.
-- Right side: contextual tabs only. Artifact preview opens by default to match
-  the accepted reference mockup; provenance, delivery, starter/detail, and
-  runtime views stay secondary tabs.
+  composer remain the default focus; the top bar carries model/access
+  configuration before project-local status.
+- Right side: Preview inspector default-open. Artifact preview opens by default
+  to match the accepted reference mockup; provenance, delivery, starter/detail,
+  and runtime views stay secondary tabs.
 - Settings: a separate first-class route, not a side-tab inside chat. Global
   controls such as language, model/account access, workspace, and runtime
   connection live there.

@@ -97,9 +97,33 @@ function assertSourceMarkerRequirements(evidence) {
   }
 }
 
+function assertImagegenProjectFirstIa(evidence, app, readme) {
+  const alignment = evidence.default_home_layout?.imagegen_mockup_alignment;
+  assert(alignment, "missing imagegen project-first IA alignment evidence");
+  assert(alignment.source === "assets/mockups/codex-open-science-reference-2026-07-05.png", "imagegen mockup source must be recorded");
+  assert(JSON.stringify(alignment.left_sidebar_order) === JSON.stringify([
+    "Current project",
+    "Context inputs",
+    "Attachments/outputs",
+    "Recent chats per project"
+  ]), "imagegen mockup left sidebar order must be project-first");
+  assert(alignment.center_top === "model/access configuration", "top model/access configuration placement must be recorded");
+  assert(alignment.right_side === "Preview inspector default-open", "right Preview inspector default-open placement must be recorded");
+  assert(readme.includes("Current project -> Context inputs -> Attachments/outputs -> Recent chats per"), "README must record project-first imagegen IA order");
+  assert(readme.includes("Preview inspector default-open"), "README must record default-open Preview inspector");
+  assert(!readme.includes("on-demand/collapsed inspector"), "README must not use the old on-demand/collapsed inspector wording");
+  assert(!JSON.stringify(evidence).includes("on-demand workspace/file/artifact inspector"), "candidate evidence must not keep the old on-demand inspector pattern");
+  for (const markers of Object.values(alignment.implementation_markers ?? {})) {
+    for (const marker of markers) {
+      assert(app.includes(marker), `missing imagegen IA implementation marker ${marker}`);
+    }
+  }
+}
+
 validateNonLiveDeliveryEvidence(evidence);
 assertFunctionalMvpCloseout(evidence);
 assertSourceMarkerRequirements(evidence);
+assertImagegenProjectFirstIa(evidence, app, read("README.md"));
 assertRendererTestIds(app, requiredTestIds);
 assertRendererTestIds(rendererSource, deliverySurfaceTestIds(evidence));
 
@@ -122,6 +146,7 @@ for (const capability of [
   "results_and_delivery_first_presentation",
   "opl_app_state_bridge",
   "opl_app_action_bridge",
+  "imagegen_project_first_information_architecture",
   "webui_renderer_parity",
   "candidate_app_bundle_package",
   "settings_persistence",

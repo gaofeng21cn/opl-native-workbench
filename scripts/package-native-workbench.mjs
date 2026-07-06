@@ -129,11 +129,12 @@ const manifest = {
       "apps/desktop/src/index.css"
     ],
     adapted_patterns: [
-      "persistent Codex-style left sidebar for navigation and chat history",
+      "project-first persistent left sidebar for Current project, context inputs, attachments/outputs, and recent chats per project",
       "single conversation canvas with centered max-width thread and bottom composer",
-      "secondary files, preview, provenance, workflows, and export live in a right inspector with Preview open by default",
+      "top model/access configuration stays in the center topbar",
+      "attachments, outputs, preview, provenance, workflows, and export live in a right inspector with Preview open by default",
       "chat tab strip and bottom composer as primary interaction",
-      "artifact preview and provenance stay on-demand",
+      "right Preview inspector is default-open, not collapsed",
       "workflow/export/interview surfaces are secondary, not dashboard cards",
       "Open Science paper-light surface, thin borders, compact message blocks, and rounded composer"
     ]
