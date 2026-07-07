@@ -106,6 +106,7 @@ Current evidence remains intentionally bounded:
 | Settings route | Implemented candidate evidence | Settings page markers for model/account access, locale, runtime connection, project, and candidate-about controls | UI candidate only |
 | Settings persistence model | Implemented candidate evidence | `src/workbench/settingsModel.ts` defines sections, keys, defaults, `SETTINGS_STORAGE_KEY`, and localStorage read/write helpers | localStorage only; no system write permission |
 | Runtime readback helpers | Implemented candidate evidence | Bridge-normalized state/drilldown/action envelopes plus typed event surface | Structural/runtime readback helper only |
+| Browser fallback boundary | Implemented candidate evidence | Browser placeholder receipts are preview-only, non-executable, and surfaced as bridge unavailable without `preview_ready` execution semantics | Fallback/simulated data cannot promote App/root readiness |
 | Artifact preview MVP | Implemented candidate evidence | Rich preview markers for markdown, math, Mermaid, code, PDF, and receipt-like refs | Refs-only preview; no artifact authority |
 | Professional starters MVP | Implemented candidate evidence | Research, grant, presentation, and book starter forms now edit fields and route to live dry-run actions when available | No domain execution authority |
 | Validator gates | Implemented candidate evidence | `npm run validate:candidate` and `npm run smoke:visual` check source markers and false-ready boundaries | Structural gates only |

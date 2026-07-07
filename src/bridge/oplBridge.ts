@@ -437,13 +437,18 @@ function createPlaceholderActionReceipt(request: OplActionRequest): OplActionRec
   const commandArgs = buildActionCommandArgs(request);
   const receiptKind = actionReceiptKind(request);
   const dryRun = request.dryRun !== false;
-  const exitCode = receiptKind === "confirmation_required" ? -1 : 0;
-  const stderr = receiptKind === "confirmation_required" ? "confirmation_required" : "";
+  const exitCode = -1;
+  const stderr = receiptKind === "confirmation_required"
+    ? "confirmation_required"
+    : JSON.stringify({
+        error: "bridge_unavailable_placeholder",
+        boundary: "preview_only_no_native_action_record"
+      });
   return {
     actionId: request.actionId,
     dryRun,
     confirmationRequired: receiptKind === "confirmation_required",
-    canExecute: receiptKind !== "confirmation_required",
+    canExecute: false,
     receiptKind,
     authorityBoundary: "app_bridge_no_domain_authority",
     requestedMode: actionMode(request),
@@ -461,6 +466,17 @@ function createPlaceholderActionReceipt(request: OplActionRequest): OplActionRec
     receiptId: request.payload?.receiptId,
     rollbackRef: request.payload?.rollbackRef
   };
+}
+
+function hasActionReceiptRecord(record: Record<string, unknown>): boolean {
+  return Boolean(
+    asString(record.actionId)
+      || asString(record.command)
+      || typeof record.exitCode === "number"
+      || typeof record.stdout === "string"
+      || typeof record.stderr === "string"
+      || asString(record.receiptKind)
+  );
 }
 
 function normalizeCommandReadback(
@@ -591,7 +607,7 @@ export function normalizeFullDrilldownReadback(value: unknown): OplFullDrilldown
 export function normalizeActionReceipt(value: unknown, request: OplActionRequest): OplActionReceipt {
   const fallback = createPlaceholderActionReceipt(request);
   const record = asRecord(value);
-  if (!record) return fallback;
+  if (!record || !hasActionReceiptRecord(record)) return fallback;
   const readback = normalizeCommandReadback(record, fallback.command, fallback.commandArgs);
   const receiptKind = (asString(record.receiptKind) as OplActionReceiptKind | undefined) ?? fallback.receiptKind;
   return {
@@ -631,7 +647,7 @@ export function normalizeSendMessageResponse(value: unknown, request: CodexMessa
   const completed = asRecord(record?.completed) ?? {
     turn: {
       id: turnId,
-      status: "completed"
+      status: "preview_only"
     }
   };
   return {
@@ -639,7 +655,7 @@ export function normalizeSendMessageResponse(value: unknown, request: CodexMessa
     transport: "stdio_json_rpc",
     threadId,
     turnId,
-    finalMessage: asString(record?.finalMessage) ?? "Simulated Codex app-server reply from browser placeholder.",
+    finalMessage: asString(record?.finalMessage) ?? "Preview-only browser placeholder reply. Native bridge unavailable.",
     eventCount: asNumber(record?.eventCount) ?? 0,
     completed,
     cwd: asString(record?.cwd),
@@ -722,12 +738,12 @@ export function createBrowserBridge(): OplBridge {
         turnCompleted: CODEX_APP_SERVER.turnCompleted,
         threadId: request.threadId ?? "simulated-thread",
         turnId: "simulated-turn",
-        finalMessage: "Simulated Codex app-server reply from browser placeholder.",
+        finalMessage: "Preview-only browser placeholder reply. Native bridge unavailable.",
         eventCount: 4,
         completed: {
           turn: {
             id: "simulated-turn",
-            status: "completed"
+            status: "preview_only"
           }
         },
         defaultSandbox: CODEX_APP_SERVER.defaultSandbox,
@@ -742,7 +758,7 @@ export function createBrowserBridge(): OplBridge {
       if (candidate?.subscribeEvents) {
         return candidate.subscribeEvents((event) => onEvent(normalizeBridgeEvent(event, "native_bridge")));
       }
-      onEvent(normalizeBridgeEvent({ type: "bridge.ready", source: "browser-placeholder" }, "browser-placeholder"));
+      onEvent(normalizeBridgeEvent({ type: "bridge.preview_only", source: "browser-placeholder" }, "browser-placeholder"));
       return () => undefined;
     }
   };

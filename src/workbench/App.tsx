@@ -1822,7 +1822,7 @@ export function App() {
   const [chatSessions, setChatSessions] = useState<ChatSession[]>(initialSessions);
   const [currentSessionId, setCurrentSessionId] = useState(initialSessions[0]?.id ?? "session-initial");
   const [messages, setMessages] = useState<ChatMessage[]>(initialSessions[0]?.messages ?? createIntroMessages());
-  const [eventFeed, setEventFeed] = useState<string[]>(["bridge.ready"]);
+  const [eventFeed, setEventFeed] = useState<string[]>(["bridge.preview_only"]);
   const [codexThreadId, setCodexThreadId] = useState<string | undefined>(initialSessions[0]?.threadId);
   const [settings, setSettings] = useState<WorkbenchSettings>(() => readSettings());
   const [starterDrafts, setStarterDrafts] = useState<Record<string, Record<string, string>>>({});
@@ -1833,12 +1833,17 @@ export function App() {
   const runtimeAction = model.contextActions.find((action) => action.id === runtimeActionRefId && action.dryRunSupported);
   const currentSession = chatSessions.find((session) => session.id === currentSessionId) ?? chatSessions[0];
   const contextStatusText = stateStatus === "loading"
-    ? "Loading OPL fast state..."
+    ? "Loading OPL App state..."
     : stateStatus === "error"
-      ? `Using fallback context model. ${stateError}`
+      ? `Bridge unavailable. Preview only. ${stateError}`
       : model.stateGeneratedAt
-        ? `Loaded from opl app state --profile fast --json at ${model.stateGeneratedAt}.`
-        : "Context is ready from the current App state.";
+        ? `App state loaded from opl app state --profile fast --json at ${model.stateGeneratedAt}.`
+        : "App state loaded from the current App state.";
+  const shellBoundaryStatus = stateStatus === "loading"
+    ? "App state loading"
+    : stateStatus === "ready"
+      ? "App state loaded"
+      : "Bridge unavailable";
   const currentProject = model.sessions[0]?.workspace ?? settings.defaultWorkspace ?? "Current project";
   const currentProjectNextStep = model.sessions[0]?.nextStep ?? "Open a chat or inspect current sources.";
   const currentProjectStatus = model.activeProjectLines[0]?.status ?? stateStatus;
@@ -2227,7 +2232,7 @@ export function App() {
             <Settings aria-hidden="true" size={14} />
             Settings
           </button>
-          <StatusPill status="connected" />
+          <StatusPill status={shellBoundaryStatus} />
         </footer>
       </aside>
 
@@ -2243,7 +2248,7 @@ export function App() {
             </nav>
             <div className="topbar-meta">
               <span className="topbar-status">
-                {stateStatus === "loading" ? "Context loading" : stateStatus === "ready" ? "Context ready" : "Context fallback"}
+                {stateStatus === "loading" ? "App state loading" : stateStatus === "ready" ? "App state loaded" : "Preview only"}
               </span>
             </div>
           </div>
@@ -2372,7 +2377,7 @@ export function App() {
                           ? "Action or runtime event"
                           : currentSession?.threadId
                             ? "Streaming via codex app-server"
-                            : "Connected to project context"}
+                            : "Project context loaded"}
                     </span>
                     {message.role === "assistant" ? <span data-testid="opl-codex-reply" hidden /> : null}
                   </article>
@@ -2391,7 +2396,7 @@ export function App() {
                   <footer>
                     <div className="composer-meta">
                       <span className={`composer-status ${sendState}`} data-testid="opl-composer-run-state">
-                        {sendState === "running" ? "Codex running" : sendState === "error" ? `Codex error: ${sendError}` : "Ready"}
+                        {sendState === "running" ? "Codex running" : sendState === "error" ? `Codex error: ${sendError}` : "Preview only"}
                       </span>
                       <span className="thread-note">Context and receipts stay in the right inspector.</span>
                     </div>

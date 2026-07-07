@@ -6,6 +6,8 @@ const evidence = JSON.parse(fs.readFileSync(path.join(root, "src/candidateContra
 const stateModel = evidence.active_project_line_state_model;
 const liveDerivationPolicy = evidence.workbench_model_live_derivation;
 const workbenchModelSource = fs.readFileSync(path.join(root, "src/workbench/workbenchModel.ts"), "utf8");
+const appSource = fs.readFileSync(path.join(root, "src/workbench/App.tsx"), "utf8");
+const bridgeSource = fs.readFileSync(path.join(root, "src/bridge/oplBridge.ts"), "utf8");
 const sampleStatePath = "/tmp/opl-native-workbench-state-final.json";
 const sampleState = JSON.parse(fs.readFileSync(sampleStatePath, "utf8"));
 
@@ -75,6 +77,14 @@ for (const fakeActionId of fakeStarterActionIds) {
   assert(!workbenchModelSource.includes(fakeActionId), `workbench model still constructs fake starter action ${fakeActionId}`);
 }
 assert(!workbenchModelSource.includes("fallback_unavailable_fake_action_id"), "workbench fallback still emits fake-action fallback status");
+assert(!workbenchModelSource.includes('if (/ready|completed|complete|healthy|available/.test(text)) return "ready";'), "artifactStatus still upgrades generic ready text");
+assert(workbenchModelSource.includes("nonReadyBoundaryStatusPattern"), "artifactStatus missing fallback/simulated downgrade guard");
+assert(workbenchModelSource.includes('"app_canonical"'), "artifactStatus missing explicit canonical ready source");
+assert(!appSource.includes("Context ready"), "fallback UI still displays Context ready");
+assert(!appSource.includes('status="connected"'), "fallback UI still displays connected status");
+assert(!appSource.includes(': "Ready"'), "composer idle state still displays Ready");
+assert(!bridgeSource.includes('canExecute: receiptKind !== "confirmation_required"'), "placeholder receipt still allows execution by default");
+assert(bridgeSource.includes("bridge_unavailable_placeholder"), "placeholder receipt missing bridge unavailable boundary");
 for (const status of allowedStarterFallbackStatuses) {
   assert(workbenchModelSource.includes(`status: "${status}"`) || workbenchModelSource.includes(`: "${status}"`), `workbench model missing starter fallback status ${status}`);
 }

@@ -705,10 +705,17 @@ function actionPreviewFromAction(action: WorkbenchActionRef): ArtifactPreview {
   };
 }
 
-function artifactStatus(value: unknown): WorkbenchArtifactRef["status"] {
+type ArtifactStatusSource = "derived" | "app_canonical";
+
+const nonReadyBoundaryStatusPattern = /candidate|fallback|placeholder|simulat|preview|dry.?run|refs.?only|non.?live|no.?live|local.?draft/i;
+const blockedStatusPattern = /blocked|dirty|error|attention|unavailable|failed|failure|timed.?out|missing/i;
+const explicitReadyStatusPattern = /^(ready|succeeded|success|completed|complete)$/i;
+
+function artifactStatus(value: unknown, source: ArtifactStatusSource = "derived"): WorkbenchArtifactRef["status"] {
   const text = (asString(value) ?? "").toLowerCase();
-  if (/ready|completed|complete|healthy|available/.test(text)) return "ready";
-  if (/blocked|dirty|error|attention/.test(text)) return "blocked";
+  if (blockedStatusPattern.test(text)) return "blocked";
+  if (nonReadyBoundaryStatusPattern.test(text)) return "needs_review";
+  if (source === "app_canonical" && explicitReadyStatusPattern.test(text)) return "ready";
   return "needs_review";
 }
 
@@ -844,7 +851,10 @@ function buildResultsFromTasks(taskDrilldowns: Record<string, unknown>[]): Workb
         id: `result-${taskId}`,
         title: `${title} delta`,
         kind: "result" as const,
-        status: artifactStatus(task.status ?? task.state),
+        status: artifactStatus(
+          artifact?.status ?? artifact?.canonical_status ?? artifact?.export_status,
+          "app_canonical"
+        ),
         previewKind: previewKindFromRef(
           asString(artifact?.current_ref) ?? asString(artifact?.canonical_ref) ?? title,
           asString(task.next_visible_step) ?? title
@@ -1041,7 +1051,10 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
         id: item.id,
         title: item.title,
         kind: "deliverable",
-        status: artifactStatus(task.status ?? task.state),
+        status: artifactStatus(
+          artifact.status ?? artifact.canonical_status ?? artifact.export_status,
+          "app_canonical"
+        ),
         previewKind: item.previewKind,
         ref: item.ref!,
         summary: item.summary,
@@ -1082,7 +1095,10 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
         title: `${title} artifact receipt`,
         ref: asString(artifact?.receipt_ref),
         summary: compactText(artifact?.content_policy, "Artifact receipt ref only."),
-        status: artifactStatus(task.status ?? task.state)
+        status: artifactStatus(
+          artifact?.status ?? artifact?.receipt_status ?? artifact?.canonical_status,
+          "app_canonical"
+        )
       }
     ];
     return items

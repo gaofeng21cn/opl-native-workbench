@@ -29,7 +29,10 @@ const falseReadyFields = [
   "live_evidence",
   "owner_receipt",
   "runtime_authority_transfer",
-  "domain_truth_owned"
+  "domain_truth_owned",
+  "fallback_runtime_ready",
+  "placeholder_action_can_execute",
+  "simulated_ready_claim"
 ];
 
 export function read(relativePath) {
@@ -110,5 +113,28 @@ export function assertNoFalseReadyFields(namedSources) {
       const pattern = new RegExp(`["']?${field}["']?\\s*:\\s*true\\b`);
       assert(!pattern.test(source), `${name} must not set ${field}=true`);
     }
+  }
+}
+
+export function assertFallbackBoundaryDowngrades(namedSources) {
+  const app = namedSources["src/workbench/App.tsx"] ?? "";
+  const bridge = namedSources["src/bridge/oplBridge.ts"] ?? "";
+  const model = namedSources["src/workbench/workbenchModel.ts"] ?? "";
+
+  assert(!app.includes("Context ready"), "fallback UI must not display Context ready");
+  assert(!app.includes('status="connected"'), "fallback UI must not display connected status");
+  assert(!app.includes(': "Ready"'), "composer idle state must not display Ready");
+  for (const marker of ["App state loaded", "Preview only", "Bridge unavailable"]) {
+    assert(app.includes(marker), `fallback UI missing downgrade marker ${marker}`);
+  }
+
+  assert(!bridge.includes('canExecute: receiptKind !== "confirmation_required"'), "placeholder receipt must not be executable by default");
+  assert(bridge.includes("bridge_unavailable_placeholder"), "placeholder receipt must expose bridge unavailable boundary");
+  assert(bridge.includes("preview_only_no_native_action_record"), "placeholder receipt must expose preview-only boundary");
+  assert(!bridge.includes("Simulated Codex app-server reply from browser placeholder."), "simulated browser reply must be preview-only");
+
+  assert(!model.includes('if (/ready|completed|complete|healthy|available/.test(text)) return "ready";'), "artifactStatus must not upgrade generic ready text");
+  for (const marker of ["nonReadyBoundaryStatusPattern", "explicitReadyStatusPattern", '"app_canonical"']) {
+    assert(model.includes(marker), `artifactStatus missing downgrade marker ${marker}`);
   }
 }

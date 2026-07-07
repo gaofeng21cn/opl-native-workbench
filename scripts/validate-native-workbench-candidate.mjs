@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   assert,
+  assertFallbackBoundaryDowngrades,
   assertRendererTestIds,
   deliverySurfaceTestIds,
   read,
@@ -127,6 +128,11 @@ function assertImagegenProjectFirstIa(evidence, app, readme) {
 }
 
 validateNonLiveDeliveryEvidence(evidence);
+assertFallbackBoundaryDowngrades({
+  "src/workbench/App.tsx": app,
+  "src/bridge/oplBridge.ts": read("src/bridge/oplBridge.ts"),
+  "src/workbench/workbenchModel.ts": read("src/workbench/workbenchModel.ts")
+});
 assertFunctionalMvpCloseout(evidence);
 assertSourceMarkerRequirements(evidence);
 assertImagegenProjectFirstIa(evidence, app, read("README.md"));

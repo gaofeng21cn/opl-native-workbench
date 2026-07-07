@@ -311,6 +311,9 @@
     "settings_system_write_permission": false,
     "artifact_authority": false,
     "starter_execution_authority": false,
+    "fallback_runtime_ready": false,
+    "placeholder_action_can_execute": false,
+    "simulated_ready_claim": false,
     "forbidden_true_fields": [
       "active_shell_adopted",
       "release_ready",
@@ -506,6 +509,7 @@
       "stderr",
       "timedOut"
     ],
+    "placeholder_action_receipt_policy": "browser fallback placeholder receipts are preview-only, non-executable, and must not emit preview_ready with canExecute=true without a real native/App action record",
     "event_surface": "normalize native bridge payloads and web SSE payloads before UI consumption"
   },
   "foundry_agent_series_display_contract": {
