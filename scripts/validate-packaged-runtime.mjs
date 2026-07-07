@@ -56,7 +56,7 @@ for (const marker of [
   'codex-sidebar-chat',
   'messageHandlers?.oplNativeWorkbench',
   'native://oplNativeWorkbench',
-  'Codex app-server',
+  'codex app-server',
   'initialize',
   '/api/opl-events',
   'branding/opl-app-logo.png'
