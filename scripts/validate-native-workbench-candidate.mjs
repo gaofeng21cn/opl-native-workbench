@@ -169,6 +169,7 @@ for (const capability of [
   "artifact_preview_tabs",
   "provenance_drawer",
   "starter_forms",
+  "agent_package_lifecycle_display",
   "confirmation_interview_cards",
   "renderer_module_registry",
   "delivery_mode_selection",

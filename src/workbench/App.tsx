@@ -31,6 +31,7 @@ const contextTabs = [
   ["opl-artifact-preview-tabs", "Preview"],
   ["opl-provenance-drawer", "Trace"],
   ["opl-starter-forms", "Workflows"],
+  ["opl-package-lifecycle-panel", "Packages"],
   ["opl-runtime-summary", "Runtime"]
 ] as const;
 
@@ -760,10 +761,45 @@ const workbenchStyles = `
   }
 
   .delivery-stack,
+  .package-lifecycle-list,
   .starter-stack,
   .utility-stack {
     display: grid;
     gap: 10px;
+  }
+
+  .package-lifecycle-card {
+    border: 1px solid rgba(48, 56, 51, 0.08);
+    border-radius: 16px;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.62);
+    display: grid;
+    gap: 12px;
+  }
+
+  .package-lifecycle-card header,
+  .package-action-row,
+  .package-axis-list,
+  .package-ref-list {
+    display: grid;
+    gap: 6px;
+  }
+
+  .package-action-row {
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  }
+
+  .package-action-row button {
+    min-height: 34px;
+    padding: 0 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(48, 56, 51, 0.1);
+    background: rgba(255, 255, 255, 0.84);
+  }
+
+  .package-axis-list,
+  .package-ref-list {
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   }
 
   .provenance-actions,
@@ -827,6 +863,7 @@ const workbenchStyles = `
   .action-receipt-summary-list,
   .artifact-preview-tabs,
   .delivery-cards,
+  .package-lifecycle-panel,
   .provenance-drawer,
   .starter-forms,
   .runtime-panel,
@@ -2660,6 +2697,79 @@ export function App() {
                     {starter.available === false ? "Unavailable" : "Preview workflow"}
                   </button>
                 </form>
+              ))}
+            </div>
+          </section>
+
+          <section
+            data-testid="opl-package-lifecycle-panel"
+            className="context-block package-lifecycle-panel"
+            aria-label="Agent package lifecycle"
+            hidden={activeContextTab !== "opl-package-lifecycle-panel"}
+          >
+            <div className="context-list-head">
+              <strong>Agent packages</strong>
+              <span className="delivery-note">App/root refs only</span>
+            </div>
+            <p className="context-empty">
+              Package status and actions come from App/root contracts. Missing bridge or legacy module fallback stays preview/unavailable.
+            </p>
+            <div className="package-lifecycle-list">
+              {model.packageLifecycle.map((item) => (
+                <article key={item.id} data-testid="opl-package-lifecycle-card" className="package-lifecycle-card">
+                  <header>
+                    <strong>{item.label}</strong>
+                    <span className="delivery-note">{item.packageId} / {item.status}</span>
+                    <code className="context-code">{item.sourceRef}</code>
+                  </header>
+                  <p>{item.summary}</p>
+                  <div className="package-axis-list" aria-label={`${item.label} status axes`}>
+                    {item.statusAxes.map((axis) => (
+                      <div key={`${item.id}-${axis.label}`}>
+                        <dt>{axis.label}</dt>
+                        <dd>
+                          <code>{axis.value}</code>
+                          <small> {axis.source}</small>
+                        </dd>
+                      </div>
+                    ))}
+                  </div>
+                  {item.refs.length ? (
+                    <div className="package-ref-list" aria-label={`${item.label} refs`}>
+                      {item.refs.map((ref) => (
+                        <div key={`${item.id}-${ref.label}-${ref.ref}`}>
+                          <dt>{ref.label}</dt>
+                          <dd>
+                            <code>{ref.ref}</code>
+                            <small>{ref.summary}</small>
+                          </dd>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="package-action-row" aria-label={`${item.label} package actions`}>
+                    {item.actions.map((action) => (
+                      <button
+                        key={`${item.id}-${action.kind}`}
+                        data-testid="opl-package-lifecycle-action"
+                        type="button"
+                        disabled={action.status !== "available" || !action.actionId}
+                        title={action.reason}
+                        onClick={() => {
+                          if (!action.actionId) return;
+                          runDryRun(action.actionId, {
+                            package_id: item.packageId,
+                            lifecycle_action: action.kind,
+                            source_ref: item.sourceRef
+                          });
+                        }}
+                      >
+                        {action.label}: {action.status}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="delivery-note">{item.authorityBoundary}</p>
+                </article>
               ))}
             </div>
           </section>

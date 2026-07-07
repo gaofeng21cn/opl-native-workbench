@@ -73,6 +73,15 @@ the composer stays limited to prompt-local actions like attach and send.
 `runtimeProfile` now drives actual `opl app state` readback shape, and the
 Settings page exposes runtime readback status instead of a pure placeholder.
 
+Agent Package lifecycle is also a candidate display surface only. The
+Workbench prefers `opl app state --profile fast --json#app_state.agent_packages`
+directory/status-index refs, shows package lock, receipt, rollback, exposure,
+and action refs when App/root provides them, and marks discover/install/update/
+repair/uninstall/exposure actions as available only when an App/root action ref
+exists. Older `modules.items` payloads may appear as preview-only fallback rows;
+they must not be displayed as package installed, ready, synced, or release
+truth.
+
 ## Renderer convergence boundary
 
 The current target is convergence, not a finished parity claim:
@@ -109,6 +118,7 @@ Current evidence remains intentionally bounded:
 | Browser fallback boundary | Implemented candidate evidence | Browser placeholder receipts are preview-only, non-executable, and surfaced as bridge unavailable without `preview_ready` execution semantics | Fallback/simulated data cannot promote App/root readiness |
 | Artifact preview MVP | Implemented candidate evidence | Rich preview markers for markdown, math, Mermaid, code, PDF, and receipt-like refs | Refs-only preview; no artifact authority |
 | Professional starters MVP | Implemented candidate evidence | Research, grant, presentation, and book starter forms now edit fields and route to live dry-run actions when available | No domain execution authority |
+| Agent Package lifecycle | Implemented candidate evidence | Packages inspector reads App/root package lifecycle refs and action availability | No package executor, package truth, installed/ready/synced claim, or active-shell adoption |
 | Validator gates | Implemented candidate evidence | `npm run validate:candidate` and `npm run smoke:visual` check source markers and false-ready boundaries | Structural gates only |
 | Packaged `.app`, WebUI, and source convergence | Partial / non-live evidence | Shared renderer target plus candidate package, WebUI, source visual, and source UI smoke surfaces | Not clean-VM or same-cohort live user-path evidence |
 | Release and Live readiness | Not ready | False-ready fields stay false in candidate evidence and manifests | No active-shell adoption, release readiness, production readiness, domain readiness, live evidence, owner receipt, runtime authority transfer, or domain truth ownership |

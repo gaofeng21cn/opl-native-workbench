@@ -45,6 +45,7 @@
     "artifact_preview_tabs",
     "provenance_drawer",
     "starter_forms",
+    "agent_package_lifecycle_display",
     "confirmation_interview_cards",
     "renderer_module_registry",
     "delivery_mode_selection",
@@ -77,6 +78,7 @@
     "typed_event_surface": "typed bridge events with process/tool/file/diff/receipt/user_input/permission classification across native bridge and web SSE",
     "artifact_preview_mvp": "rich refs-only preview adapters for markdown, math, mermaid, code, and pdf",
     "professional_starters_mvp": "research, grant, presentation, and book starter forms route to real App state action refs; preview routes are not domain execution",
+    "agent_package_lifecycle_display": "package lifecycle rows consume app_state.agent_packages directory/status_index first, fall back to modules.items as preview-only, and expose only App/root action refs",
     "acp_app_server_reuse_status": "implemented_with_codex_app_server_thread_turn_stream"
   },
   "functional_mvp_closeout": {
@@ -87,12 +89,14 @@
       "Bridge helper layer normalizes runtime profile readback, action receipt shape, and typed event envelopes close to App state/action contracts",
       "Settings as a first-class route with a localStorage persistence model for model/account access, locale, runtime connection, project, and candidate-about controls",
       "Execute confirmation, rich artifact previews, and professional starters are represented as candidate MVP source markers",
+      "Agent Package lifecycle display consumes App/root package refs and action refs without adding a package executor",
       "Source-level candidate validators for the implemented markers and false-ready boundary"
     ],
     "partial": [
       "Packaged GUI artifact exists as candidate evidence, but packaged visual acceptance and clean-VM behavior are not proven here",
       "WebUI parity is source/smoke evidence only until same-cohort live user-path evidence exists",
       "Settings persistence is localStorage-only candidate evidence and does not request system write permission",
+      "Package lifecycle fallback may render legacy modules.items rows only as preview/unavailable when canonical agent_packages projection is absent",
       "Artifact preview, provenance, starter, confirmation, and export surfaces are refs-only candidate UI, not artifact or owner authority"
     ],
     "local_candidate_live_smoke": {
@@ -118,6 +122,7 @@
       "full_release_ready",
       "live_evidence",
       "owner_receipt",
+      "package_truth_owned",
       "runtime_authority_transfer",
       "domain_truth_owned"
     ]
@@ -205,6 +210,16 @@
       {
         "file": "src/workbench/App.tsx",
         "contains": ["opl-starter-forms", "opl-starter-form", "starterPayload"]
+      }
+    ],
+    "agent_package_lifecycle_display": [
+      {
+        "file": "src/workbench/workbenchModel.ts",
+        "contains": ["appState.agent_packages", "canonical_agent_packages", "legacy_modules_fallback", "missing_bridge", "agent_package_update", "agent_package_repair", "agent_package_uninstall", "agent_package_preferences_set"]
+      },
+      {
+        "file": "src/workbench/App.tsx",
+        "contains": ["opl-package-lifecycle-panel", "opl-package-lifecycle-card", "opl-package-lifecycle-action", "Package status and actions come from App/root contracts"]
       }
     ],
     "workbench_model_live_derivation": [
@@ -306,6 +321,7 @@
     "full_release_ready": false,
     "live_evidence": false,
     "owner_receipt": false,
+    "package_truth_owned": false,
     "runtime_authority_transfer": false,
     "domain_truth_owned": false,
     "settings_system_write_permission": false,
@@ -323,6 +339,7 @@
       "full_release_ready",
       "live_evidence",
       "owner_receipt",
+      "package_truth_owned",
       "runtime_authority_transfer",
       "domain_truth_owned"
     ]
@@ -357,6 +374,17 @@
       "renderer_testids": [
         "opl-starter-forms",
         "opl-starter-form"
+      ]
+    },
+    "agent_package_lifecycle": {
+      "capability": "agent_package_lifecycle_display",
+      "status_field": "agent_package_lifecycle_status",
+      "live_evidence": false,
+      "layout_markers": ["package-lifecycle-panel", "package-lifecycle-card", "packageLifecycle"],
+      "renderer_testids": [
+        "opl-package-lifecycle-panel",
+        "opl-package-lifecycle-card",
+        "opl-package-lifecycle-action"
       ]
     },
     "confirmation_interview_cards": {
@@ -417,7 +445,9 @@
       "opl-runtime-summary",
       "opl-runtime-full-detail-button",
       "opl-runtime-action-dry-run",
-      "opl-runtime-action-receipt"
+      "opl-runtime-action-receipt",
+      "opl-package-lifecycle-panel",
+      "opl-package-lifecycle-action"
     ],
     "settings_testids": ["opl-settings-panel", "opl-model-access-entry", "opl-locale-toggle"]
   },
@@ -548,6 +578,33 @@
       "clean_vm_ready",
       "full_release_ready",
       "active_shell_adopted"
+    ]
+  },
+  "agent_package_lifecycle_display": {
+    "authority": "opl app state --profile fast --json#app_state.agent_packages.directory + app_state.agent_packages.status_index",
+    "legacy_fallback_projection": "opl app state --profile fast --json#app_state.modules.items[]",
+    "action_authority": "opl app state --profile fast --json#app_state.actions",
+    "display_policy": "canonical agent_packages projection first; legacy modules fallback is preview-only and cannot infer installed, ready, synced, release, or package truth",
+    "action_kinds": ["discover", "install", "update", "repair", "uninstall", "exposure"],
+    "required_action_refs": [
+      "refresh_registry",
+      "install_from_manifest_url",
+      "agent_package_update",
+      "agent_package_repair",
+      "agent_package_uninstall",
+      "agent_package_preferences_set"
+    ],
+    "renderer_testids": [
+      "opl-package-lifecycle-panel",
+      "opl-package-lifecycle-card",
+      "opl-package-lifecycle-action"
+    ],
+    "forbidden_claims": [
+      "package_ready",
+      "package_installed_ready",
+      "package_synced",
+      "active_shell_adopted",
+      "release_ready"
     ]
   },
   "workbench_model_live_derivation": {

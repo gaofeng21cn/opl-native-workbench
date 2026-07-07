@@ -5,6 +5,7 @@ const root = path.resolve(new URL("..", import.meta.url).pathname);
 const evidence = JSON.parse(fs.readFileSync(path.join(root, "src/candidateContractEvidence.json"), "utf8"));
 const stateModel = evidence.active_project_line_state_model;
 const liveDerivationPolicy = evidence.workbench_model_live_derivation;
+const packageLifecyclePolicy = evidence.agent_package_lifecycle_display;
 const workbenchModelSource = fs.readFileSync(path.join(root, "src/workbench/workbenchModel.ts"), "utf8");
 const appSource = fs.readFileSync(path.join(root, "src/workbench/App.tsx"), "utf8");
 const bridgeSource = fs.readFileSync(path.join(root, "src/bridge/oplBridge.ts"), "utf8");
@@ -87,6 +88,31 @@ assert(!bridgeSource.includes('canExecute: receiptKind !== "confirmation_require
 assert(bridgeSource.includes("bridge_unavailable_placeholder"), "placeholder receipt missing bridge unavailable boundary");
 for (const status of allowedStarterFallbackStatuses) {
   assert(workbenchModelSource.includes(`status: "${status}"`) || workbenchModelSource.includes(`: "${status}"`), `workbench model missing starter fallback status ${status}`);
+}
+
+assert(packageLifecyclePolicy?.authority === "opl app state --profile fast --json#app_state.agent_packages.directory + app_state.agent_packages.status_index", "package lifecycle authority mismatch");
+assert(packageLifecyclePolicy.legacy_fallback_projection === "opl app state --profile fast --json#app_state.modules.items[]", "package lifecycle legacy fallback mismatch");
+for (const marker of [
+  "appState.agent_packages",
+  "canonical_agent_packages",
+  "legacy_modules_fallback",
+  "missing_bridge",
+  "packageLifecycleActionIds",
+  "agent_package_update",
+  "agent_package_repair",
+  "agent_package_uninstall",
+  "agent_package_preferences_set"
+]) {
+  assert(workbenchModelSource.includes(marker), `workbench model missing package lifecycle marker ${marker}`);
+}
+for (const marker of ["opl-package-lifecycle-panel", "opl-package-lifecycle-card", "opl-package-lifecycle-action"]) {
+  assert(appSource.includes(marker), `App renderer missing package lifecycle marker ${marker}`);
+}
+for (const forbidden of ["agent_package_home_shortcut_preferences_set", "agent_package_install", "module_update", "settings_apply_opl_packages", "module_reinstall", "module_remove"]) {
+  assert(!workbenchModelSource.includes(forbidden), `package lifecycle action mapping must not use legacy module action ${forbidden}`);
+}
+for (const claim of ["package_ready", "package_installed_ready", "package_synced"]) {
+  assert(!workbenchModelSource.includes(claim), `workbench model must not infer ${claim}`);
 }
 
 assert(liveDerivationPolicy?.authority === "opl app state --profile fast --json", "live derivation authority mismatch");
