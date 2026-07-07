@@ -4,6 +4,14 @@
 It is mounted by the App repository as `shells/opl-native-workbench` and
 selected only through `OPL_APP_SHELL_ADAPTER_CONTRACT`.
 
+Public role: this repo is the foreground/developer backup candidate for the OPL
+App GUI. It may preview a chat-first workbench, WebUI convergence, local
+history, and inspector UX, but it must consume App/root state instead of
+owning product, runtime, package, or domain truth. Simulated, fallback, or
+unavailable data must stay visibly non-authoritative and cannot be displayed as
+active shell adoption, release readiness, runtime truth, package truth, owner
+receipt, or domain readiness.
+
 The shell keeps App truth in the App repository:
 
 - Reads: `opl app state --profile fast --json` and explicit full-state
