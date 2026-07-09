@@ -177,6 +177,20 @@ export type PackageLifecycleStatusAxis = {
   source: "canonical_agent_packages" | "legacy_modules_fallback" | "missing_bridge";
 };
 
+export type PackageLifecycleSearchMetadata = {
+  query: string;
+  tags: string[];
+  filters: PackageLifecycleDisplayRef[];
+};
+
+export type PackageLifecycleDetailRef = {
+  label: string;
+  value: string;
+  source: PackageLifecycleStatusAxis["source"];
+  ref?: string;
+  summary: string;
+};
+
 export type AgentPackageLifecycleRef = {
   id: string;
   packageId: string;
@@ -184,7 +198,10 @@ export type AgentPackageLifecycleRef = {
   status: string;
   summary: string;
   sourceRef: string;
+  sourceExplanation: string;
+  searchMetadata: PackageLifecycleSearchMetadata;
   refs: PackageLifecycleDisplayRef[];
+  details: PackageLifecycleDetailRef[];
   statusAxes: PackageLifecycleStatusAxis[];
   actions: PackageLifecycleActionRef[];
   authorityBoundary: string;
@@ -379,12 +396,30 @@ export const initialWorkbenchModel: WorkbenchModel = {
       status: "missing_bridge",
       summary: "No canonical App package lifecycle projection is available; fallback stays preview-only and unavailable.",
       sourceRef: "opl app state --profile fast --json#app_state.agent_packages.directory + app_state.agent_packages.status_index",
+      sourceExplanation: "missing App/root package bridge; no package lifecycle truth or executable action is inferred.",
+      searchMetadata: {
+        query: "missing_bridge agent package lifecycle missing_codex_surface required_skill:not_reported",
+        tags: ["missing_bridge", "missing_codex_surface", "required_skill:not_reported"],
+        filters: [
+          { label: "Source", ref: "missing_bridge", summary: "No canonical agent_packages projection is available." },
+          { label: "Codex surface", ref: "missing_codex_surface", summary: "No Codex/App exposure surface ref is available." },
+          { label: "Required skill", ref: "required_skill:not_reported", summary: "No required skill ref is available." }
+        ]
+      },
       refs: [
         {
           label: "Canonical projection",
           ref: "opl app state --profile fast --json#app_state.agent_packages",
           summary: "Preferred App/root package lifecycle source."
         }
+      ],
+      details: [
+        { label: "Status", value: "missing_bridge", source: "missing_bridge", summary: "No canonical package projection is available." },
+        { label: "Conditions", value: "missing App/root bridge", source: "missing_bridge", summary: "Fallback mode cannot infer package truth." },
+        { label: "Recommended action", value: "open App state/action refs", source: "missing_bridge", summary: "Bind canonical app_state.agent_packages before showing executable lifecycle actions." },
+        { label: "Physical surface", value: "not_reported", source: "missing_bridge", summary: "No physical surface ref is available." },
+        { label: "Required skill", value: "not_reported", source: "missing_bridge", summary: "No required skill ref is available." },
+        { label: "Codex surface", value: "missing_codex_surface", source: "missing_bridge", summary: "No Codex/App exposure surface ref is available." }
       ],
       statusAxes: [
         { label: "Install", value: "missing_bridge", source: "missing_bridge" },
@@ -883,6 +918,69 @@ function packageDisplayRef(label: string, ref: string | null, summary: string): 
   return ref ? { label, ref, summary } : null;
 }
 
+function recordValues(value: unknown): Record<string, unknown>[] {
+  const record = asRecord(value);
+  return record ? Object.values(record).map(asRecord).filter((item): item is Record<string, unknown> => Boolean(item)) : [];
+}
+
+function packageFileRef(record: Record<string, unknown>, key: string): string | null {
+  return asString(asRecord(record.files)?.[key]);
+}
+
+function packageLifecycleReceipts(record: Record<string, unknown>): Record<string, unknown>[] {
+  return [
+    ...asRecordArray(record.lifecycle_receipts),
+    ...asRecordArray(asRecord(record.directory)?.lifecycle_receipts)
+  ];
+}
+
+function canonicalSummaryRow(agentPackages: Record<string, unknown>): Record<string, unknown> {
+  const directory = asRecord(agentPackages.directory);
+  const statusIndex = asRecord(agentPackages.status_index);
+  const receipts = [
+    ...asRecordArray(directory?.lifecycle_receipts),
+    ...asRecordArray(agentPackages.lifecycle_receipts)
+  ];
+  const firstReceipt = receipts[0] ?? {};
+  const files = {
+    ...(asRecord(directory?.files) ?? {}),
+    ...(asRecord(statusIndex?.files) ?? {}),
+    ...(asRecord(agentPackages.files) ?? {})
+  };
+  const installedCount = directory?.installed_package_count ?? statusIndex?.installed_package_count ?? 0;
+  return {
+    surface_kind: asString(agentPackages.surface_kind) ?? "opl_app_agent_packages_projection",
+    package_id: "agent_packages_directory",
+    display_name: "Agent package directory",
+    lifecycle_status: installedCount ? "canonical_projection_available" : "canonical_projection_available_no_installed_packages",
+    install_state: installedCount ? "canonical_rows_available" : "no_installed_package_rows",
+    update_state: firstStringField(firstReceipt, ["action_status", "receipt_status"]) ?? "no_package_update_status",
+    source_state: "canonical_agent_packages_projection",
+    trust_state: firstStringField(firstReceipt, ["trust_tier"]) ?? "not_reported",
+    codex_surface_state: installedCount ? "from_agent_packages_projection" : "no_codex_package_surface_rows",
+    conditions: [
+      `installed_package_count=${installedCount}`,
+      `lifecycle_receipt_count=${directory?.lifecycle_receipt_count ?? receipts.length}`,
+      "modules.items fallback suppressed because canonical agent_packages projection is present"
+    ],
+    recommended_action: installedCount ? "inspect package refs from app_state.agent_packages" : "install_from_manifest_url or refresh_registry through App action refs",
+    manifest_url: firstStringField(firstReceipt, ["manifest_url"]),
+    source_kind: firstStringField(firstReceipt, ["source_kind"]) ?? "canonical_agent_packages",
+    package_lock_ref: firstStringField(firstReceipt, ["package_lock_ref"]),
+    receipt_ref: firstStringField(firstReceipt, ["receipt_ref"]),
+    rollback_ref: firstStringField(firstReceipt, ["rollback_ref"]),
+    source_surface: firstStringField(firstReceipt, ["source_surface"]) ?? asString(asRecord(agentPackages.source)?.list_surface),
+    files,
+    physical_surface: {
+      status: installedCount ? "package_rows_reported" : "no_installed_package_physical_surface",
+      registry_cache_file: asString(files.registry_cache_file),
+      package_lock_file: asString(files.package_lock_file),
+      lifecycle_ledger_file: asString(files.lifecycle_ledger_file),
+      home_shortcut_preferences_file: asString(files.home_shortcut_preferences_file)
+    }
+  };
+}
+
 function packageRowsFromCanonicalProjection(agentPackages: Record<string, unknown> | null, appState: Record<string, unknown>): Record<string, unknown>[] {
   if (!agentPackages) return [];
   const directory = asRecord(agentPackages.directory);
@@ -895,7 +993,9 @@ function packageRowsFromCanonicalProjection(agentPackages: Record<string, unknow
   ];
   const statusRows = [
     ...asRecordArray(statusIndex?.packages),
-    ...asRecordArray(agentPackages.status_packages)
+    ...recordValues(statusIndex?.packages),
+    ...asRecordArray(agentPackages.status_packages),
+    ...recordValues(agentPackages.status_packages)
   ];
   const homeRows = [
     ...asRecordArray(statusIndex?.home_shortcut_preferences),
@@ -928,6 +1028,182 @@ function packageStatusAxes(
   ];
 }
 
+function packageConditionText(record: Record<string, unknown>): string {
+  return uniqueStrings([
+    ...asStringArray(record.conditions),
+    ...asStringArray(record.failure_conditions),
+    ...asStringArray(record.blocked_conditions),
+    ...asStringArray(record.issues),
+    ...asStringArray(record.diagnostics),
+    asString(record.status_reason),
+    asString(record.failure_reason),
+    asString(record.reason)
+  ]).join(" | ") || "none_reported";
+}
+
+function packageRecommendedAction(record: Record<string, unknown>): string {
+  const recommendation = asRecord(record.action_recommendation) ?? asRecord(record.recommendation);
+  return firstStringField(record, ["recommended_action", "recommendedAction", "next_action", "repair_action"])
+    ?? firstStringField(recommendation ?? {}, ["action_id", "summary", "label"])
+    ?? "none_reported";
+}
+
+function packageSourceKind(record: Record<string, unknown>): string {
+  const sourcePolicy = asRecord(record.source_policy);
+  const distributionPayload = asRecord(record.distribution_payload);
+  return firstStringField(record, ["source_kind", "install_origin", "source_state"])
+    ?? asString(sourcePolicy?.effective_install_update_source)
+    ?? asString(distributionPayload?.source_kind)
+    ?? "unknown";
+}
+
+function packageManifestUrl(record: Record<string, unknown>): string | null {
+  return firstStringField(record, ["manifest_url", "manifestUrl", "manifest_ref", "package_ref"]);
+}
+
+function packageSourceRefValue(record: Record<string, unknown>): string | null {
+  const distributionPayload = asRecord(record.distribution_payload);
+  const physicalSurface = asRecord(record.physical_surface) ?? asRecord(distributionPayload?.physical_surface);
+  return firstStringField(record, [
+    "repo_url",
+    "registry_url",
+    "checkout_path",
+    "managed_checkout_path",
+    "ghcr_ref",
+    "oci_ref",
+    "container_ref",
+    "image_ref"
+  ])
+    ?? asString(distributionPayload?.ref)
+    ?? asString(physicalSurface?.ref)
+    ?? asString(physicalSurface?.path);
+}
+
+function packageRequiredSkill(record: Record<string, unknown>): string {
+  return firstStringField(record, ["required_skill", "requiredSkill", "skill_id", "skill_ref"])
+    ?? asStringArray(record.required_skills)[0]
+    ?? "not_reported";
+}
+
+function packageCodexSurface(record: Record<string, unknown>): string {
+  return firstStringField(record, ["codex_surface_state", "codex_visible_entry", "shortcut_id", "codex_surface_ref"])
+    ?? asString(asRecord(record.codex_surface)?.status)
+    ?? "missing_codex_surface";
+}
+
+function packagePhysicalSurface(record: Record<string, unknown>): { status: string; ref?: string } {
+  const distributionPayload = asRecord(record.distribution_payload);
+  const physicalSurface = asRecord(record.physical_surface) ?? asRecord(distributionPayload?.physical_surface);
+  return {
+    status: firstStringField(record, ["physical_surface_status"])
+      ?? asString(physicalSurface?.status)
+      ?? asString(physicalSurface?.state)
+      ?? "not_reported",
+    ref: asString(physicalSurface?.ref)
+      ?? asString(physicalSurface?.path)
+      ?? asString(physicalSurface?.root)
+      ?? firstStringField(record, ["managed_checkout_path", "checkout_path"])
+      ?? packageFileRef(record, "package_lock_file")
+  };
+}
+
+function packageSourceExplanation(
+  record: Record<string, unknown>,
+  source: PackageLifecycleStatusAxis["source"]
+): string {
+  if (source === "legacy_modules_fallback") {
+    return "legacy modules.items preview fallback; fallback rows are preview-only and all package actions stay unavailable.";
+  }
+  if (source === "missing_bridge") {
+    return "missing App/root package bridge; no package lifecycle truth or executable action is inferred.";
+  }
+  const sourceKind = packageSourceKind(record).toLowerCase();
+  const manifestUrl = packageManifestUrl(record);
+  const sourceRefValue = packageSourceRefValue(record)?.toLowerCase() ?? "";
+  if (/ghcr|oci|container|image/.test(`${sourceKind} ${sourceRefValue}`)) {
+    return "ghcr_source: canonical App/root package projection points at an OCI/GHCR package source.";
+  }
+  if (manifestUrl) {
+    return "manifest_url_source: canonical App/root package projection supplies a manifest URL/ref for install or update preview.";
+  }
+  if (/git|checkout|local|developer/.test(`${sourceKind} ${sourceRefValue}`)) {
+    return "git_local_developer_source: canonical App/root package projection points at a git/local developer source.";
+  }
+  if (/managed|root|registry/.test(`${sourceKind} ${sourceRefValue}`)) {
+    return "managed_source: canonical App/root managed package projection.";
+  }
+  return "canonical App/root agent_packages projection; Workbench renders refs and action availability only.";
+}
+
+function packageSearchMetadata(
+  record: Record<string, unknown>,
+  source: PackageLifecycleStatusAxis["source"]
+): PackageLifecycleSearchMetadata {
+  const sourceKind = packageSourceKind(record);
+  const manifestUrl = packageManifestUrl(record);
+  const sourceRefValue = packageSourceRefValue(record);
+  const requiredSkill = packageRequiredSkill(record);
+  const codexSurface = packageCodexSurface(record);
+  const physicalSurface = packagePhysicalSurface(record);
+  const query = uniqueStrings([
+    packageIdentity(record, 0),
+    packageLabel(record),
+    source,
+    sourceKind,
+    manifestUrl,
+    sourceRefValue,
+    requiredSkill,
+    codexSurface,
+    physicalSurface.status,
+    packageRecommendedAction(record),
+    packageConditionText(record)
+  ]).join(" ").toLowerCase();
+  const tagText = `${sourceKind} ${sourceRefValue ?? ""} ${manifestUrl ?? ""}`.toLowerCase();
+  const tags = uniqueStrings([
+    source,
+    sourceKind,
+    /managed|root|registry/.test(tagText) ? "managed_source" : null,
+    /ghcr|oci|container|image/.test(tagText) ? "ghcr_source" : null,
+    manifestUrl ? "manifest_url_source" : null,
+    /git|checkout|local|developer/.test(tagText) ? "git_local_developer_source" : null,
+    codexSurface === "missing_codex_surface" || /missing/.test(codexSurface) ? "missing_codex_surface" : null,
+    requiredSkill !== "not_reported" ? `required_skill:${requiredSkill}` : "required_skill:not_reported",
+    physicalSurface.status
+  ]);
+  const filters = [
+    packageDisplayRef("Source", source, "Projection source used for package lifecycle rendering."),
+    packageDisplayRef("Source kind", sourceKind, "Search/filter source kind from App/root projection."),
+    packageDisplayRef("Codex surface", codexSurface, "Codex/App exposure surface state from refs."),
+    packageDisplayRef("Required skill", requiredSkill, "Required skill ref if App/root reports one."),
+    packageDisplayRef("Physical surface", physicalSurface.status, "Physical surface status from App/root detail fields.")
+  ].filter((item): item is PackageLifecycleDisplayRef => Boolean(item));
+  return { query, tags, filters };
+}
+
+function packageLifecycleDetails(
+  record: Record<string, unknown>,
+  source: PackageLifecycleStatusAxis["source"]
+): PackageLifecycleDetailRef[] {
+  const physicalSurface = packagePhysicalSurface(record);
+  const detail = (label: string, value: string | null, summary: string, ref?: string): PackageLifecycleDetailRef => ({
+    label,
+    value: value ?? "not_reported",
+    source,
+    ref,
+    summary
+  });
+  return [
+    detail("Status", firstStringField(record, ["lifecycle_status", "status", "install_state", "health_status"]), "Lifecycle status supplied by App/root projection."),
+    detail("Conditions", packageConditionText(record), "Failure/blocking/diagnostic conditions from App/root projection."),
+    detail("Recommended action", packageRecommendedAction(record), "Recommended action text or action id from App/root projection."),
+    detail("Physical surface", physicalSurface.status, "Physical surface status is a detail ref, not package truth.", physicalSurface.ref),
+    detail("Required skill", packageRequiredSkill(record), "Required skill surfaced for search/filter only."),
+    detail("Codex surface", packageCodexSurface(record), "Codex/App exposure surface state from refs."),
+    detail("Manifest URL", packageManifestUrl(record), "Manifest URL/ref is input metadata, not installed-ready proof."),
+    detail("Source kind", packageSourceKind(record), "managed_source / ghcr_source / manifest_url_source / git_local_developer_source classification.")
+  ];
+}
+
 function actionForPackageKind(
   kind: PackageLifecycleActionKind,
   actionMap: Map<string, WorkbenchActionRef>
@@ -949,7 +1225,7 @@ function packageLifecycleActions(
   return (Object.keys(packageLifecycleActionLabels) as PackageLifecycleActionKind[]).map((kind) => {
     const action = actionForPackageKind(kind, actionMap);
     const allowedByPackage = packageAllowsAction(kind, record);
-    const status = action?.dryRunSupported && allowedByPackage ? "available" : "unavailable";
+    const status = source === "canonical_agent_packages" && action?.dryRunSupported && allowedByPackage ? "available" : "unavailable";
     return {
       kind,
       label: packageLifecycleActionLabels[kind],
@@ -961,7 +1237,9 @@ function packageLifecycleActions(
       owner: action?.owner,
       delegatedSurface: action?.delegatedSurface,
       sourceRef: action?.route ?? (source === "missing_bridge" ? "missing_bridge" : "opl app state --profile fast --json#app_state.actions"),
-      reason: !action
+      reason: source !== "canonical_agent_packages"
+        ? "Preview fallback row: package lifecycle actions are unavailable without canonical app_state.agent_packages."
+        : !action
         ? "Missing App/root action ref."
         : !action.dryRunSupported
           ? "App/root action ref exists, but dry-run preview is unavailable."
@@ -984,12 +1262,24 @@ function packageLifecycleItem(
       ? "opl app state --profile fast --json#app_state.modules.items[]"
       : "missing_bridge";
   const refs = [
-    packageDisplayRef("Manifest", firstStringField(record, ["manifest_ref", "package_ref", "source", "repo_url"]), "Package manifest or source ref from App/root projection."),
+    packageDisplayRef("Manifest", packageManifestUrl(record) ?? firstStringField(record, ["source", "repo_url"]), "Package manifest or source ref from App/root projection."),
+    packageDisplayRef("Source", packageSourceRefValue(record), "Managed, GHCR, git, local developer, or registry source ref from App/root projection."),
     packageDisplayRef("Package lock", firstStringField(record, ["package_lock_ref", "lock_ref"]), "Package lock ref from App/root projection."),
     packageDisplayRef("Action receipt", firstStringField(record, ["action_receipt_ref", "receipt_ref", "action_receipt_id", "receipt_refs"]), "Lifecycle receipt ref supplied by App/root."),
     packageDisplayRef("Rollback", firstStringField(record, ["rollback_ref"]), "Rollback ref supplied by App/root package lifecycle."),
-    packageDisplayRef("Exposure", firstStringField(record, ["home_shortcut_ref", "shortcut_id", "codex_visible_entry", "display_policy"]), "Codex/App exposure ref supplied by App/root.")
+    packageDisplayRef("Exposure", firstStringField(record, ["home_shortcut_ref", "shortcut_id", "codex_visible_entry", "display_policy"]), "Codex/App exposure ref supplied by App/root."),
+    packageDisplayRef("Registry cache", packageFileRef(record, "registry_cache_file"), "Physical registry cache file surfaced as a ref only."),
+    packageDisplayRef("Lifecycle ledger", packageFileRef(record, "lifecycle_ledger_file"), "Physical lifecycle ledger file surfaced as a ref only."),
+    packageDisplayRef("Shortcut preferences", packageFileRef(record, "home_shortcut_preferences_file"), "Physical exposure preferences file surfaced as a ref only.")
   ].filter((item): item is PackageLifecycleDisplayRef => Boolean(item));
+  const receiptRefs = packageLifecycleReceipts(record)
+    .slice(0, 3)
+    .map((receipt) => packageDisplayRef(
+      `Receipt ${asString(receipt.action) ?? asString(receipt.action_status) ?? "lifecycle"}`,
+      firstStringField(receipt, ["receipt_ref", "package_lock_ref", "rollback_ref", "manifest_url"]),
+      "Lifecycle receipt/detail ref supplied by App/root; not package truth."
+    ))
+    .filter((item): item is PackageLifecycleDisplayRef => Boolean(item));
   return {
     id: `package-lifecycle-${packageId}`,
     packageId,
@@ -1003,7 +1293,10 @@ function packageLifecycleItem(
         ? "Legacy modules.items fallback while canonical agent_packages projection is missing; no package installed/ready/synced claim is inferred."
         : "Package lifecycle bridge missing.",
     sourceRef,
-    refs,
+    sourceExplanation: packageSourceExplanation(record, source),
+    searchMetadata: packageSearchMetadata(record, source),
+    refs: [...refs, ...receiptRefs],
+    details: packageLifecycleDetails(record, source),
     statusAxes: packageStatusAxes(record, source),
     actions: packageLifecycleActions(record, actionMap, source),
     authorityBoundary: "Native Workbench consumes App/root package lifecycle refs and actions only; no executor, package truth, readiness, or release authority is created here."
@@ -1254,9 +1547,15 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     });
   }
 
-  const canonicalPackageRows = packageRowsFromCanonicalProjection(asRecord(appState.agent_packages), appState);
-  const packageLifecycle = canonicalPackageRows.length
-    ? canonicalPackageRows.slice(0, 8).map((item) => packageLifecycleItem(item, actionMap, "canonical_agent_packages"))
+  const canonicalPackageProjection = asRecord(appState.agent_packages);
+  const canonicalPackageRows = packageRowsFromCanonicalProjection(canonicalPackageProjection, appState);
+  const canonicalPackageItems = canonicalPackageRows.length
+    ? canonicalPackageRows
+    : canonicalPackageProjection
+      ? [canonicalSummaryRow(canonicalPackageProjection)]
+      : [];
+  const packageLifecycle = canonicalPackageItems.length
+    ? canonicalPackageItems.slice(0, 8).map((item) => packageLifecycleItem(item, actionMap, "canonical_agent_packages"))
     : moduleItems.length
       ? legacyPackageRowsFromModules(moduleItems).slice(0, 8).map((item) => packageLifecycleItem(item, actionMap, "legacy_modules_fallback"))
       : fallback.packageLifecycle;

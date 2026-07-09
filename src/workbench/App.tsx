@@ -779,7 +779,10 @@ const workbenchStyles = `
 
   .package-lifecycle-card header,
   .package-action-row,
+  .package-action-detail,
   .package-axis-list,
+  .package-detail-list,
+  .package-filter-list,
   .package-ref-list {
     display: grid;
     gap: 6px;
@@ -798,6 +801,8 @@ const workbenchStyles = `
   }
 
   .package-axis-list,
+  .package-detail-list,
+  .package-filter-list,
   .package-ref-list {
     grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   }
@@ -2723,6 +2728,26 @@ export function App() {
                     <code className="context-code">{item.sourceRef}</code>
                   </header>
                   <p>{item.summary}</p>
+                  <p className="delivery-note">{item.sourceExplanation}</p>
+                  <div className="package-filter-list" aria-label={`${item.label} search and filter metadata`}>
+                    <div>
+                      <dt>Search</dt>
+                      <dd><code>{item.searchMetadata.query}</code></dd>
+                    </div>
+                    <div>
+                      <dt>Filter tags</dt>
+                      <dd><code>{item.searchMetadata.tags.join(", ")}</code></dd>
+                    </div>
+                    {item.searchMetadata.filters.map((filter) => (
+                      <div key={`${item.id}-filter-${filter.label}-${filter.ref}`}>
+                        <dt>{filter.label}</dt>
+                        <dd>
+                          <code>{filter.ref}</code>
+                          <small>{filter.summary}</small>
+                        </dd>
+                      </div>
+                    ))}
+                  </div>
                   <div className="package-axis-list" aria-label={`${item.label} status axes`}>
                     {item.statusAxes.map((axis) => (
                       <div key={`${item.id}-${axis.label}`}>
@@ -2730,6 +2755,19 @@ export function App() {
                         <dd>
                           <code>{axis.value}</code>
                           <small> {axis.source}</small>
+                        </dd>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="package-detail-list" aria-label={`${item.label} lifecycle details`}>
+                    {item.details.map((detail) => (
+                      <div key={`${item.id}-detail-${detail.label}`}>
+                        <dt>{detail.label}</dt>
+                        <dd>
+                          <code>{detail.value}</code>
+                          <small> {detail.source}</small>
+                          {detail.ref ? <small><code>{detail.ref}</code></small> : null}
+                          <small>{detail.summary}</small>
                         </dd>
                       </div>
                     ))}
@@ -2749,23 +2787,25 @@ export function App() {
                   ) : null}
                   <div className="package-action-row" aria-label={`${item.label} package actions`}>
                     {item.actions.map((action) => (
-                      <button
-                        key={`${item.id}-${action.kind}`}
-                        data-testid="opl-package-lifecycle-action"
-                        type="button"
-                        disabled={action.status !== "available" || !action.actionId}
-                        title={action.reason}
-                        onClick={() => {
-                          if (!action.actionId) return;
-                          runDryRun(action.actionId, {
-                            package_id: item.packageId,
-                            lifecycle_action: action.kind,
-                            source_ref: item.sourceRef
-                          });
-                        }}
-                      >
-                        {action.label}: {action.status}
-                      </button>
+                      <div key={`${item.id}-${action.kind}`} className="package-action-detail">
+                        <button
+                          data-testid="opl-package-lifecycle-action"
+                          type="button"
+                          disabled={action.status !== "available" || !action.actionId}
+                          onClick={() => {
+                            if (!action.actionId) return;
+                            runDryRun(action.actionId, {
+                              package_id: item.packageId,
+                              lifecycle_action: action.kind,
+                              source_ref: item.sourceRef
+                            });
+                          }}
+                        >
+                          {action.label}: {action.status}
+                        </button>
+                        <small>{action.reason}</small>
+                        <code className="context-code">{action.actionId ?? action.sourceRef}</code>
+                      </div>
                     ))}
                   </div>
                   <p className="delivery-note">{item.authorityBoundary}</p>

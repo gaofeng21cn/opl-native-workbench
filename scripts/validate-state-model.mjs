@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 
 const root = path.resolve(new URL("..", import.meta.url).pathname);
 const evidence = JSON.parse(fs.readFileSync(path.join(root, "src/candidateContractEvidence.json"), "utf8"));
@@ -10,7 +11,7 @@ const workbenchModelSource = fs.readFileSync(path.join(root, "src/workbench/work
 const appSource = fs.readFileSync(path.join(root, "src/workbench/App.tsx"), "utf8");
 const bridgeSource = fs.readFileSync(path.join(root, "src/bridge/oplBridge.ts"), "utf8");
 const sampleStatePath = "/tmp/opl-native-workbench-state-final.json";
-const sampleState = JSON.parse(fs.readFileSync(sampleStatePath, "utf8"));
+const sampleState = loadSampleState();
 
 const requiredFields = [
   "status",
@@ -34,6 +35,20 @@ const fakeStarterActionIds = [
   "starter.rca.dry_run",
   "starter.bookforge.dry_run"
 ];
+const fakePackageActionIds = [
+  "fallback_package_install",
+  "fallback_package_update",
+  "fallback_package_repair",
+  "fallback_package_uninstall",
+  "fallback_package_exposure",
+  "legacy_modules_fallback_install",
+  "legacy_modules_fallback_update",
+  "legacy_modules_fallback_repair",
+  "legacy_modules_fallback_uninstall",
+  "legacy_modules_fallback_exposure",
+  "package_lifecycle_fallback_action",
+  "fallback_unavailable_fake_action_id"
+];
 const allowedStarterFallbackStatuses = ["preview", "payload_required", "unavailable"];
 const requiredStarterActionRefs = [
   "task_action_receipt_preview",
@@ -51,6 +66,30 @@ function getPath(rootValue, dottedPath) {
     if (current && typeof current === "object" && part in current) return current[part];
     return undefined;
   }, rootValue);
+}
+
+function loadSampleState() {
+  const existing = fs.existsSync(sampleStatePath)
+    ? JSON.parse(fs.readFileSync(sampleStatePath, "utf8"))
+    : null;
+  if (
+    getPath(existing, "app_state.agent_packages")
+    && Array.isArray(getPath(existing, "app_state.actions"))
+  ) {
+    return existing;
+  }
+  try {
+    const stdout = execFileSync("opl", ["app", "state", "--profile", "fast", "--json"], {
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024
+    });
+    const freshState = JSON.parse(stdout);
+    fs.writeFileSync(sampleStatePath, `${JSON.stringify(freshState, null, 2)}\n`);
+    return freshState;
+  } catch (error) {
+    if (existing) return existing;
+    throw error;
+  }
 }
 
 assert(stateModel?.authority === "opl_framework_active_project_line_projection", "state model authority mismatch");
@@ -97,7 +136,23 @@ for (const marker of [
   "canonical_agent_packages",
   "legacy_modules_fallback",
   "missing_bridge",
+  "canonicalSummaryRow",
+  "source !== \"canonical_agent_packages\"",
+  "sourceExplanation",
+  "searchMetadata",
+  "packageSearchMetadata",
+  "packageLifecycleDetails",
+  "recommended_action",
+  "physical_surface",
+  "manifest_url_source",
+  "git_local_developer_source",
+  "ghcr_source",
+  "managed_source",
+  "missing_codex_surface",
+  "required_skill",
   "packageLifecycleActionIds",
+  "refresh_registry",
+  "install_from_manifest_url",
   "agent_package_update",
   "agent_package_repair",
   "agent_package_uninstall",
@@ -108,11 +163,26 @@ for (const marker of [
 for (const marker of ["opl-package-lifecycle-panel", "opl-package-lifecycle-card", "opl-package-lifecycle-action"]) {
   assert(appSource.includes(marker), `App renderer missing package lifecycle marker ${marker}`);
 }
+for (const marker of ["sourceExplanation", "searchMetadata", "package-detail-list", "package-filter-list", "action.reason"]) {
+  assert(appSource.includes(marker), `App renderer missing package lifecycle detail marker ${marker}`);
+}
 for (const forbidden of ["agent_package_home_shortcut_preferences_set", "agent_package_install", "module_update", "settings_apply_opl_packages", "module_reinstall", "module_remove"]) {
   assert(!workbenchModelSource.includes(forbidden), `package lifecycle action mapping must not use legacy module action ${forbidden}`);
 }
+for (const fakeActionId of fakePackageActionIds) {
+  assert(!workbenchModelSource.includes(fakeActionId), `workbench model still constructs fake package action ${fakeActionId}`);
+}
 for (const claim of ["package_ready", "package_installed_ready", "package_synced"]) {
   assert(!workbenchModelSource.includes(claim), `workbench model must not infer ${claim}`);
+}
+
+const packageProjection = getPath(sampleState, "app_state.agent_packages");
+assert(packageProjection && typeof packageProjection === "object", "sample state missing canonical app_state.agent_packages projection");
+const sampleActions = getPath(sampleState, "app_state.actions");
+assert(Array.isArray(sampleActions), "sample state missing App/root action refs");
+const sampleActionIds = new Set(sampleActions.map((action) => action?.action_id).filter(Boolean));
+for (const actionRef of packageLifecyclePolicy.required_action_refs ?? []) {
+  assert(sampleActionIds.has(actionRef), `sample state missing package action ref ${actionRef}`);
 }
 
 assert(liveDerivationPolicy?.authority === "opl app state --profile fast --json", "live derivation authority mismatch");
@@ -149,5 +219,7 @@ console.log(JSON.stringify({
   consumed_projection: stateModel.consumed_projection,
   forbidden_claims: stateModel.forbidden_claims,
   starter_action_ref_policy: "real_app_action_refs_required",
+  package_lifecycle_policy: "canonical_agent_packages_first_fallback_preview_unavailable",
+  package_action_refs: packageLifecyclePolicy.required_action_refs,
   live_derivation: "actions_modules_operator_settings_control_center"
 }, null, 2));
