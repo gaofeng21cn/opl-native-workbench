@@ -701,6 +701,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let configuration = WKWebViewConfiguration()
     configuration.defaultWebpagePreferences.allowsContentJavaScript = true
     configuration.userContentController = userContentController
+    if ProcessInfo.processInfo.environment["OPL_NATIVE_WORKBENCH_SMOKE"] == "1" {
+      configuration.websiteDataStore = .nonPersistent()
+    }
 
     let webView = WKWebView(frame: .zero, configuration: configuration)
     bridge.webView = webView

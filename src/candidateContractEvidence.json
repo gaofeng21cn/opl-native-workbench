@@ -66,7 +66,7 @@
     "codex_app_server_thread_turn": true,
     "codex_command": "codex app-server --stdio",
     "codex_protocol": "JSON-RPC newline transport with initialize, model/list, thread/start, turn/start, item/agentMessage/delta, turn/completed, thread/resume",
-    "codex_model_reasoning_controls": "App product profile injects the ordered seven-model list and low/medium/high/xhigh/ultra reasoning options; runtime model/list availability filters the list, Auto resolves the strongest advertised model and supported effort, and turn/start receives model and effort overrides",
+    "codex_model_reasoning_controls": "App product profile injects the ordered seven-model list and low/medium/high/xhigh/ultra reasoning options; model/list disables unadvertised fixed alternatives while retaining the App default route, Auto is the complete gpt-5.6-sol/ultra policy, manual reasoning pins the current model and exits Auto, stale fixed selections normalize to Auto, and turn/start receives model and effort overrides",
     "opl_state_bridge": "opl app state --profile fast --json",
     "opl_action_bridge": "opl app action execute --action <action_id> --dry-run --json",
     "native_bridge": "WKScriptMessageHandler window.webkit.messageHandlers.oplNativeWorkbench",
@@ -84,7 +84,7 @@
   },
   "functional_mvp_closeout": {
     "implemented": [
-      "Codex app-server source path with initialize, model/list availability, App allowlist Auto resolution, thread/start, turn/start model/effort overrides, streaming delta, turn/completed, and thread/resume markers",
+      "Codex app-server source path with initialize, model/list capability enrichment, App-owned gpt-5.6-sol/ultra Auto resolution, thread/start, turn/start model/effort overrides, streaming delta, turn/completed, and thread/resume markers",
       "OPL App state context source path using fast state, full state, full drilldown, and secondary runtime context refs",
       "OPL App action preview path using dry-run action commands and visible preview receipt markers",
       "Bridge helper layer normalizes runtime profile readback, action receipt shape, and typed event envelopes close to App state/action contracts",
@@ -104,7 +104,7 @@
       "command": "npm run smoke:native-live",
       "artifact": "out/native-live-smoke.json",
       "screenshot": "out/native-live-smoke.png",
-      "scope": "local packaged macOS .app launch smoke with process evidence",
+      "scope": "local packaged macOS .app launch smoke bound to a new PID, real window, target-window screenshot, renderer markers, and verified process cleanup",
       "boundaries": {
         "active_shell_adopted": false,
         "release_ready": false,

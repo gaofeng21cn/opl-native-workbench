@@ -73,9 +73,11 @@ The model policy is injected from
 `one-person-lab-app/contracts/app-product-profile.json`: the default is
 `gpt-5.6-sol` with `ultra` reasoning, and the visible model/reasoning order is
 the App-owned allowlist rather than a candidate-owned provider catalog. At
-runtime the native bridge calls Codex app-server `model/list`, intersects that
-catalog with the App allowlist, and resolves Auto to the strongest currently
-advertised model and its highest supported reasoning effort.
+runtime the native bridge calls Codex app-server `model/list` to enrich known
+models with capability metadata. With a catalog present, unadvertised fixed
+alternatives are disabled while the App-owned default route remains available.
+Auto is the complete latest-and-strongest policy, currently `5.6 Sol` with
+`ultra`; choosing another reasoning level pins the current model and exits Auto.
 `runtimeProfile` now drives actual `opl app state` readback shape, and the
 Settings page exposes runtime readback status instead of a pure placeholder.
 
@@ -145,11 +147,11 @@ adoption, release readiness, production readiness, or live user-path evidence.
 npm run smoke:native-live
 ```
 
-`npm run smoke:native-live` is narrower: after `npm run package`, it opens the
-local `out/One Person Lab Native Workbench Candidate.app` with macOS `open -n`,
-waits for the packaged app process, and writes `out/native-live-smoke.json`.
-It also attempts a local screenshot at `out/native-live-smoke.png`; screenshot
-permission or window-id gaps are recorded as skipped/fallback evidence and do
-not fail the smoke. This is only local candidate packaged-app live evidence. It
-does not claim active-shell adoption, release readiness, clean-VM readiness, or
-App/domain authority transfer.
+`npm run smoke:native-live` is narrower: after `npm run package`, it opens a
+fresh local `out/One Person Lab Native Workbench Candidate.app`, requires a new
+PID and real window, captures that PID's exact window, verifies renderer markers
+(`Codex` and `5.6 Sol`), and verifies process cleanup before writing
+`out/native-live-smoke.json` and `out/native-live-smoke.png`. Missing window,
+renderer, screenshot, or cleanup evidence fails closed. This is only local
+candidate packaged-app live evidence. It does not claim active-shell adoption,
+release readiness, clean-VM readiness, or App/domain authority transfer.

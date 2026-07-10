@@ -41,6 +41,7 @@ import {
   settingsDefaults,
   settingsSections,
   writeSetting,
+  writeSettings,
   type SettingKey,
   type WorkbenchSettings
 } from "./settingsModel";
@@ -50,8 +51,9 @@ import {
   codexModelPolicy,
   modelLabel,
   reasoningLabel,
-  type CodexModelId,
-  type CodexReasoningEffort
+  resolveCodexModelOptions,
+  resolveCodexSelection,
+  type CodexModelId
 } from "./modelPolicy";
 
 const contextTabs = [
@@ -571,36 +573,13 @@ export function App() {
   const projectInputs = projectInputItems(model.contextSources);
   const projectAttachments = projectAttachmentItems([...model.deliverables, ...model.results, ...model.receipts], previewItems);
   const sidebarSources = projectInputs;
-  const availableModels = useMemo(() => {
-    if (!codexCatalog.length) {
-      return codexModelPolicy.modelOptions.map((option) => ({
-        ...option,
-        defaultReasoningEffort: codexModelPolicy.defaultReasoningEffort,
-        supportedReasoningEfforts: [...codexModelPolicy.reasoningOptions]
-      }));
-    }
-    return codexModelPolicy.modelOptions.flatMap((option) => {
-      const runtime = codexCatalog.find((item) => item.id === option.id || item.model === option.id);
-      if (!runtime) return [];
-      const supportedReasoningEfforts = runtime.supportedReasoningEfforts
-        .filter((effort): effort is CodexReasoningEffort => codexModelPolicy.reasoningOptions.includes(effort as CodexReasoningEffort));
-      return [{
-        ...option,
-        defaultReasoningEffort: codexModelPolicy.reasoningOptions.includes(runtime.defaultReasoningEffort as CodexReasoningEffort)
-          ? runtime.defaultReasoningEffort as CodexReasoningEffort
-          : supportedReasoningEfforts.at(-1) ?? "medium",
-        supportedReasoningEfforts: supportedReasoningEfforts.length ? supportedReasoningEfforts : ["medium"] as CodexReasoningEffort[]
-      }];
-    });
-  }, [codexCatalog]);
-  const resolvedModel = availableModels.find((option) => option.id === settings.modelAccess) ?? availableModels[0] ?? {
-    ...codexModelPolicy.modelOptions[0],
-    defaultReasoningEffort: codexModelPolicy.defaultReasoningEffort,
-    supportedReasoningEfforts: [...codexModelPolicy.reasoningOptions]
-  };
-  const resolvedReasoning = resolvedModel.supportedReasoningEfforts.includes(settings.reasoningLevel)
-    ? settings.reasoningLevel
-    : resolvedModel.supportedReasoningEfforts.at(-1) ?? resolvedModel.defaultReasoningEffort;
+  const availableModels = useMemo(() => resolveCodexModelOptions(codexCatalog), [codexCatalog]);
+  const {
+    model: resolvedModel,
+    reasoningEffort: resolvedReasoning,
+    reasoningOptions: resolvedReasoningOptions,
+    effectiveSelection
+  } = resolveCodexSelection(availableModels, settings.modelAccess, settings.reasoningLevel);
   const environmentItems = [
     { id: "opl-files-panel", group: t.projectGroup, label: t.sources, description: t.sourcesDescription, meta: String(model.contextSources.length), icon: FileText },
     { id: "opl-artifact-preview-tabs", group: t.projectGroup, label: t.results, description: t.resultsDescription, meta: String(projectAttachments.length), icon: Download },
@@ -816,6 +795,13 @@ export function App() {
     setSettings(writeSetting(key, value));
   }
 
+  function updateReasoning(reasoningLevel: WorkbenchSettings["reasoningLevel"]) {
+    const modelAccess = effectiveSelection === "__auto" && reasoningLevel !== codexModelPolicy.defaultReasoningEffort
+      ? resolvedModel.id
+      : effectiveSelection;
+    setSettings(writeSettings({ modelAccess, reasoningLevel }));
+  }
+
   function settingValueLabel(key: SettingKey, value: WorkbenchSettings[SettingKey]): string {
     if (key === "modelAccess") return value === "__auto" ? autoModelLabel(settings.locale) : modelLabel(value as CodexModelId, settings.locale);
     if (key === "reasoningLevel") return reasoningLabel(value as WorkbenchSettings["reasoningLevel"], settings.locale);
@@ -852,19 +838,19 @@ export function App() {
     }
     if (key === "reasoningLevel") {
       return (
-        <select className="setting-select" data-testid="opl-settings-reasoning" value={resolvedReasoning} onChange={(event) => updateSetting("reasoningLevel", event.currentTarget.value as WorkbenchSettings["reasoningLevel"])}>
+        <select className="setting-select" data-testid="opl-settings-reasoning" value={resolvedReasoning} onChange={(event) => updateReasoning(event.currentTarget.value as WorkbenchSettings["reasoningLevel"])}>
           {codexModelPolicy.reasoningOptions.map((effort) => (
-            <option key={effort} value={effort} disabled={!resolvedModel.supportedReasoningEfforts.includes(effort)}>{reasoningLabel(effort, settings.locale)}</option>
+            <option key={effort} value={effort} disabled={!resolvedReasoningOptions.includes(effort)}>{reasoningLabel(effort, settings.locale)}</option>
           ))}
         </select>
       );
     }
     if (key === "modelAccess") {
       return (
-        <select className="setting-select" data-testid="opl-model-access-entry" value={value === "__auto" || availableModels.some((option) => option.id === value) ? value : "__auto"} onChange={(event) => updateSetting("modelAccess", event.currentTarget.value as WorkbenchSettings["modelAccess"])}>
+        <select className="setting-select" data-testid="opl-model-access-entry" value={value === "__auto" || availableModels.some((option) => option.id === value && option.available) ? value : "__auto"} onChange={(event) => updateSetting("modelAccess", event.currentTarget.value as WorkbenchSettings["modelAccess"])}>
           <option value="__auto">{autoModelLabel(settings.locale)}</option>
           {availableModels.map((option) => (
-            <option key={option.id} value={option.id}>{modelLabel(option.id, settings.locale)}</option>
+            <option key={option.id} value={option.id} disabled={!option.available}>{modelLabel(option.id, settings.locale)}</option>
           ))}
         </select>
       );
@@ -1213,14 +1199,14 @@ export function App() {
                         <label className="composer-select" data-testid="opl-model-access-entry">
                           <select aria-label={settings.locale === "zh" ? "模型" : "Model"} value={resolvedModel.id} onChange={(event) => updateSetting("modelAccess", event.currentTarget.value as WorkbenchSettings["modelAccess"])}>
                             {availableModels.map((option) => (
-                              <option key={option.id} value={option.id}>{modelLabel(option.id, settings.locale)}</option>
+                              <option key={option.id} value={option.id} disabled={!option.available}>{modelLabel(option.id, settings.locale)}</option>
                             ))}
                           </select>
                           <ChevronDown aria-hidden="true" size={12} />
                         </label>
                         <label className="composer-select">
-                          <select aria-label={settings.locale === "zh" ? "推理强度" : "Reasoning effort"} value={resolvedReasoning} onChange={(event) => updateSetting("reasoningLevel", event.currentTarget.value as WorkbenchSettings["reasoningLevel"])}>
-                            {resolvedModel.supportedReasoningEfforts.map((effort) => (
+                          <select aria-label={settings.locale === "zh" ? "推理强度" : "Reasoning effort"} value={resolvedReasoning} onChange={(event) => updateReasoning(event.currentTarget.value as WorkbenchSettings["reasoningLevel"])}>
+                            {resolvedReasoningOptions.map((effort) => (
                               <option key={effort} value={effort}>{reasoningLabel(effort, settings.locale, true)}</option>
                             ))}
                           </select>

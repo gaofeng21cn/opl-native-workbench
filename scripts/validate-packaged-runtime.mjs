@@ -109,7 +109,7 @@ for (const marker of [
   'gpt-5.6-luna',
   'gpt-5.4',
   'gpt-5.4-mini',
-  'gpt-5.3-codex-spark',
+  'gpt-5.2',
   'reasoningEffort'
 ]) {
   assert(renderer.includes(marker), `missing packaged functional MVP marker ${marker}`);
@@ -141,7 +141,7 @@ assert(manifest.default_home_layout?.environment_details_presentation === "float
 assert(manifest.codex_model_policy?.source === "one-person-lab-app/contracts/app-product-profile.json#gui.home.codex_model_display_options", "manifest must bind model policy to the App product profile");
 assert(manifest.codex_model_policy?.default_model === "gpt-5.6-sol", "manifest must default to gpt-5.6-sol");
 assert(manifest.codex_model_policy?.default_reasoning_effort === "ultra", "manifest must default to ultra reasoning");
-assert(manifest.codex_model_policy?.visible_models?.join(",") === "gpt-5.6-sol,gpt-5.5,gpt-5.6-terra,gpt-5.6-luna,gpt-5.4,gpt-5.4-mini,gpt-5.3-codex-spark", "manifest must preserve the App model order");
+assert(manifest.codex_model_policy?.visible_models?.join(",") === "gpt-5.6-sol,gpt-5.6-terra,gpt-5.6-luna,gpt-5.5,gpt-5.4,gpt-5.4-mini,gpt-5.2", "manifest must preserve the App model order");
 assert(manifest.codex_model_policy?.reasoning_efforts?.join(",") === "low,medium,high,xhigh,ultra", "manifest must preserve the App reasoning options");
 assert(manifest.external_layout_reference?.repo === "https://github.com/K-Dense-AI/k-dense-byok", "manifest must record the K-Dense layout reference");
 assert(manifest.external_layout_reference?.companion_repo === "https://github.com/ai4s-research/open-science", "manifest must record the Open Science visual reference");

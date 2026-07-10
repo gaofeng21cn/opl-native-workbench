@@ -1,11 +1,11 @@
 export const fallbackModelOptions = [
   { id: "gpt-5.6-sol", label_zh: "5.6 Sol", label_en: "5.6 Sol" },
-  { id: "gpt-5.5", label_zh: "5.5", label_en: "5.5" },
   { id: "gpt-5.6-terra", label_zh: "5.6 Terra", label_en: "5.6 Terra" },
   { id: "gpt-5.6-luna", label_zh: "5.6 Luna", label_en: "5.6 Luna" },
+  { id: "gpt-5.5", label_zh: "5.5", label_en: "5.5" },
   { id: "gpt-5.4", label_zh: "5.4", label_en: "5.4" },
   { id: "gpt-5.4-mini", label_zh: "5.4 Mini", label_en: "5.4 Mini" },
-  { id: "gpt-5.3-codex-spark", label_zh: "5.3 Codex Spark", label_en: "5.3 Codex Spark" }
+  { id: "gpt-5.2", label_zh: "5.2", label_en: "5.2" }
 ] as const;
 
 export const fallbackReasoningOptions = ["low", "medium", "high", "xhigh", "ultra"] as const;
@@ -19,6 +19,19 @@ type ModelOption = {
   id: CodexModelId;
   label_zh: string;
   label_en: string;
+};
+
+type CodexCatalogCapability = {
+  id: string;
+  model?: string;
+  defaultReasoningEffort?: string;
+  supportedReasoningEfforts: string[];
+};
+
+export type ResolvedCodexModelOption = ModelOption & {
+  available: boolean;
+  defaultReasoningEffort: CodexReasoningEffort;
+  supportedReasoningEfforts: CodexReasoningEffort[];
 };
 
 type InjectedModelPolicy = {
@@ -70,6 +83,48 @@ export const codexModelPolicy = {
   modelOptions: normalizedModelOptions(),
   reasoningOptions: normalizedReasoningOptions()
 };
+
+export function resolveCodexModelOptions(catalog: CodexCatalogCapability[]): ResolvedCodexModelOption[] {
+  return codexModelPolicy.modelOptions.map((option) => {
+    const runtime = catalog.find((item) => item.id === option.id || item.model === option.id);
+    const supportedReasoningEfforts = runtime?.supportedReasoningEfforts
+      .filter(isReasoningEffort) ?? [];
+    return {
+      ...option,
+      available: !catalog.length || option.id === codexModelPolicy.defaultModel || Boolean(runtime),
+      defaultReasoningEffort: isReasoningEffort(runtime?.defaultReasoningEffort)
+        ? runtime.defaultReasoningEffort
+        : codexModelPolicy.defaultReasoningEffort,
+      supportedReasoningEfforts: supportedReasoningEfforts.length
+        ? supportedReasoningEfforts
+        : [...codexModelPolicy.reasoningOptions]
+    };
+  });
+}
+
+export function resolveCodexSelection(
+  options: ResolvedCodexModelOption[],
+  selection: CodexModelSelection,
+  requestedReasoning: CodexReasoningEffort
+) {
+  const selectableModels = options.filter((option) => option.available);
+  const requestedModel = options.find((option) => option.id === selection);
+  const effectiveSelection = selection === "__auto" || !requestedModel?.available ? "__auto" : selection;
+  const selectedModelId = effectiveSelection === "__auto" ? codexModelPolicy.defaultModel : effectiveSelection;
+  const model = selectableModels.find((option) => option.id === selectedModelId)
+    ?? selectableModels.find((option) => option.id === codexModelPolicy.defaultModel)
+    ?? selectableModels[0]
+    ?? options[0];
+  const reasoningOptions = effectiveSelection === "__auto"
+    ? [...codexModelPolicy.reasoningOptions]
+    : model.supportedReasoningEfforts;
+  const reasoningEffort = effectiveSelection === "__auto"
+    ? codexModelPolicy.defaultReasoningEffort
+    : reasoningOptions.includes(requestedReasoning)
+      ? requestedReasoning
+      : reasoningOptions.at(-1) ?? model.defaultReasoningEffort;
+  return { model, reasoningEffort, reasoningOptions, effectiveSelection };
+}
 
 export function modelLabel(model: CodexModelId, locale: WorkbenchLocale): string {
   const option = codexModelPolicy.modelOptions.find((item) => item.id === model);

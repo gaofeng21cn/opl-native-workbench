@@ -40,7 +40,7 @@ function readCodexModelPolicy() {
   if (policy.defaultModel !== "gpt-5.6-sol" || policy.defaultReasoningEffort !== "ultra") {
     throw new Error("OPL App product profile must default to gpt-5.6-sol with ultra reasoning");
   }
-  const expectedModels = "gpt-5.6-sol,gpt-5.5,gpt-5.6-terra,gpt-5.6-luna,gpt-5.4,gpt-5.4-mini,gpt-5.3-codex-spark";
+  const expectedModels = "gpt-5.6-sol,gpt-5.6-terra,gpt-5.6-luna,gpt-5.5,gpt-5.4,gpt-5.4-mini,gpt-5.2";
   if (!Array.isArray(policy.visibleModels) || policy.visibleModels.map((option) => option.id).join(",") !== expectedModels) {
     throw new Error("OPL App product profile must provide the ordered seven-model Codex allowlist");
   }
