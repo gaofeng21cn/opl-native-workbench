@@ -11,7 +11,7 @@ const appLogoPath = path.join(appRepoRoot, "assets", "branding", "opl-app-logo.p
 const appBannerPath = path.join(appRepoRoot, "assets", "branding", "opl-banner.png");
 const appProductProfilePath = path.join(appRepoRoot, "contracts", "app-product-profile.json");
 const modelPolicySource = "one-person-lab-app/contracts/app-product-profile.json#gui.home.codex_model_display_options";
-const legalReasoningEfforts = new Set(["low", "medium", "high", "xhigh", "ultra"]);
+const legalReasoningEfforts = new Set(["low", "medium", "high", "xhigh", "max", "ultra"]);
 
 function assertAsset(filePath, label) {
   if (!fs.existsSync(filePath)) {

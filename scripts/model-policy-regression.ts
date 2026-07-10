@@ -4,7 +4,7 @@ import { createCodexModelPolicy } from "./build-renderer.mjs";
 const syntheticProfile = {
   default_session_profile: {
     model: "codex-future-primary",
-    reasoning_effort: "high"
+    reasoning_effort: "max"
   },
   gui: {
     home: {
@@ -13,7 +13,7 @@ const syntheticProfile = {
           { id: "codex-future-primary", label_zh: "Future primary zh", label_en: "Future primary" },
           { id: "codex-future-secondary", label_zh: "Future secondary zh", label_en: "Future secondary" }
         ],
-        user_reasoning_effort_options: ["low", "high"]
+        user_reasoning_effort_options: ["low", "high", "max"]
       }
     }
   }
@@ -54,12 +54,12 @@ assert.equal(runtimeAuto.reasoningEffort, "high");
 const pinnedSecondary = resolveCodexSelection(runtimeOptions, "codex-future-secondary", "low");
 assert.equal(pinnedSecondary.model?.id, "codex-future-secondary");
 assert.equal(pinnedSecondary.reasoningEffort, "low");
-const unavailablePrimary = resolveCodexSelection(runtimeOptions, "codex-future-primary", "high");
+const unavailablePrimary = resolveCodexSelection(runtimeOptions, "codex-future-primary", "max");
 assert.equal(unavailablePrimary.effectiveSelection, "__auto");
 assert.equal(unavailablePrimary.model?.id, "codex-future-secondary");
 const emptyOptions = resolveCodexModelOptions([]);
 assert.ok(emptyOptions.every((option) => option.available === false));
-assert.equal(resolveCodexSelection(emptyOptions, "__auto", "high").model, undefined);
+assert.equal(resolveCodexSelection(emptyOptions, "__auto", "max").model, undefined);
 
 const cloneProfile = () => structuredClone(syntheticProfile);
 
