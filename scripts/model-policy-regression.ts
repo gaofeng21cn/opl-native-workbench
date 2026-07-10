@@ -44,6 +44,7 @@ const {
   resolveCodexModelOptions,
   resolveCodexSelection
 } = await import("../src/workbench/modelPolicy.ts");
+const { normalizeCodexModelCatalog } = await import("../src/bridge/oplBridge.ts");
 
 assert.deepEqual(
   codexModelPolicy.modelOptions.map((option) => option.id),
@@ -80,14 +81,29 @@ assert.equal(pinnedPrimary.model?.id, "codex-future-primary");
 assert.equal(pinnedPrimary.reasoningEffort, "low");
 assert.equal(pinnedPrimary.effectiveSelection, "codex-future-primary");
 
-const futureOptions = resolveCodexModelOptions([{
-  id: "codex-6",
-  displayName: "Codex 6",
-  isDefault: true,
-  defaultReasoningEffort: "medium",
-  supportedReasoningEfforts: ["low", "high", "xhigh", "max", "ultra"]
-}]);
+const futureCatalog = normalizeCodexModelCatalog({
+  data: [{
+    id: "codex-future-secondary",
+    isDefault: false,
+    supportedReasoningEfforts: [{ reasoningEffort: "low" }, { reasoningEffort: "high" }]
+  }, {
+    id: "codex-6",
+    displayName: "Codex 6",
+    isDefault: true,
+    defaultReasoningEffort: "medium",
+    supportedReasoningEfforts: [
+      { reasoningEffort: "low" },
+      { reasoningEffort: "high" },
+      { reasoningEffort: "xhigh" },
+      { reasoningEffort: "max" },
+      { reasoningEffort: "ultra" }
+    ]
+  }],
+  nextCursor: null
+});
+const futureOptions = resolveCodexModelOptions(futureCatalog.models);
 const futureAuto = resolveCodexSelection(futureOptions, "__auto", "low");
+assert.equal(futureCatalog.source, "codex_app_server_model_list");
 assert.equal(futureAuto.model?.id, "codex-6");
 assert.equal(futureAuto.reasoningEffort, "ultra");
 assert.deepEqual(futureAuto.reasoningOptions, ["low", "high", "xhigh", "max", "ultra"]);

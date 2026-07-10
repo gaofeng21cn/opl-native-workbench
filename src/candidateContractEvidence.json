@@ -68,7 +68,7 @@
     "codex_app_server_thread_turn": true,
     "codex_command": "codex app-server --stdio",
     "codex_protocol": "JSON-RPC newline transport with initialize, model/list, thread/start, turn/start, item/agentMessage/delta, turn/completed, thread/resume",
-    "codex_model_reasoning_controls": "The build dynamically injects the App product profile default, complete ordered visible-model allowlist, labels, and reasoning options; runtime model/list filters unadvertised fixed alternatives and keeps unavailable fixed selections blocked but cannot veto the App default route, Auto resolves the injected default model and default reasoning effort as one policy, manual reasoning pins the resolved model and exits Auto, and turn/start receives model and effort overrides",
+    "codex_model_reasoning_controls": "The build dynamically injects the App product profile default, complete ordered visible-model allowlist, labels, and reasoning options; runtime model/list follows cursors through the terminal page, filters unadvertised fixed alternatives, and keeps unavailable fixed selections blocked but cannot veto the App default route, Auto resolves the injected default model and default reasoning effort as one policy, manual reasoning pins the resolved model and exits Auto, and turn/start receives model and effort overrides",
     "opl_state_bridge": "opl app state --profile fast --json",
     "opl_action_bridge": "opl app action execute --action <action_id> --dry-run --json",
     "native_bridge": "WKScriptMessageHandler window.webkit.messageHandlers.oplNativeWorkbench",
@@ -94,6 +94,15 @@
       "manual reasoning works after the current resolved model is pinned and Auto is exited",
       "empty or duplicate model ids and defaults outside the App allowlist are rejected",
       "unsupported reasoning efforts and defaults absent from App reasoning options are rejected"
+    ]
+  },
+  "model_list_pagination_regression": {
+    "validation_command": "npm run test:model-list-pagination",
+    "fixture": "scripts/model-list-pagination-regression.swift",
+    "coverage": [
+      "model/list follows nextCursor until the terminal null cursor and merges every page",
+      "a second-page GPT-6 isDefault model retains schema-shaped ordered reasoning options through max",
+      "the normalized App Auto policy selects the unknown catalog default and its highest advertised reasoning effort"
     ]
   },
   "functional_mvp_closeout": {

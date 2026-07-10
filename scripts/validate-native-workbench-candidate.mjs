@@ -31,6 +31,8 @@ const requiredFiles = [
   "src/workbench/settingsModel.ts",
   "src/candidateContractEvidence.json",
   "scripts/build-renderer.mjs",
+  "scripts/model-list-pagination-regression.mjs",
+  "scripts/model-list-pagination-regression.swift",
   "scripts/model-policy-regression.ts",
   "scripts/validate-state-model.mjs",
   "scripts/validate-packaged-runtime.mjs",
@@ -47,6 +49,7 @@ const requiredScripts = [
   "webui",
   "build:webui",
   "package",
+  "test:model-list-pagination",
   "validate:candidate",
   "validate:state-model",
   "validate:package",
@@ -177,8 +180,18 @@ function assertCodexModelControls(evidence, app) {
     regression.status === 0,
     `dynamic model policy regression failed\n${regression.stdout ?? ""}\n${regression.stderr ?? ""}`
   );
+  const paginationRegression = spawnSync("node", [path.join(root, "scripts", "model-list-pagination-regression.mjs")], {
+    cwd: root,
+    encoding: "utf8"
+  });
+  assert(
+    paginationRegression.status === 0,
+    `model/list pagination regression failed\n${paginationRegression.stdout ?? ""}\n${paginationRegression.stderr ?? ""}`
+  );
   assert(evidence.model_policy_regression?.fixture === "scripts/model-policy-regression.ts", "candidate evidence must record the dynamic model policy regression fixture");
   assert(evidence.model_policy_regression?.validation_command === "npm run validate:candidate", "candidate evidence must record the model policy regression command");
+  assert(evidence.model_list_pagination_regression?.fixture === "scripts/model-list-pagination-regression.swift", "candidate evidence must record the model/list pagination fixture");
+  assert(evidence.model_list_pagination_regression?.validation_command === "npm run test:model-list-pagination", "candidate evidence must record the model/list pagination command");
   assert(settings.includes('modelAccess: "__auto"'), "settings must default to App-owned Auto model resolution");
   assert(settings.includes("codexModelPolicy.defaultReasoningEffort"), "settings default reasoning must consume the App-derived policy");
   assert(policySource.includes("codexModelPolicy.modelOptions.map") && app.includes("modelOptions.map"), "composer and Settings must render the App-derived model list");
@@ -198,6 +211,8 @@ function assertCodexModelControls(evidence, app) {
   assert(bridge.includes("reasoningEffort?: string"), "bridge request must carry the App-selected reasoning override");
   assert(bridge.includes("readCodexModels()"), "bridge must expose the app-server model catalog");
   assert(nativeApp.includes('method: "model/list"'), "native app must read app-server model/list");
+  assert(nativeApp.includes('params["cursor"] = cursor'), "native app must follow app-server model/list cursors");
+  assert(nativeApp.includes("models.append(contentsOf: pageModels)"), "native app must merge model/list pages");
   assert(nativeApp.includes('turnParams["model"] = model'), "native app must pass model to app-server turn/start");
   assert(nativeApp.includes('turnParams["effort"] = effort'), "native app must pass effort to app-server turn/start");
   assert(rendererBuilder.includes("__OPL_CODEX_MODEL_POLICY__"), "renderer build must inject the App-owned model policy");

@@ -23,6 +23,33 @@ final class PendingTurn {
   var error: String?
 }
 
+func collectCodexModelListPages(
+  fetchPage: (_ cursor: String?) throws -> [String: Any]
+) throws -> [String: Any] {
+  var cursor: String?
+  var seenCursors = Set<String>()
+  var models: [Any] = []
+
+  repeat {
+    let result = try fetchPage(cursor)
+    guard let pageModels = result["data"] as? [Any] else {
+      throw BridgeError.invalidPayload("app-server model/list returned invalid data")
+    }
+    models.append(contentsOf: pageModels)
+
+    guard let nextCursor = result["nextCursor"] as? String, !nextCursor.isEmpty else {
+      cursor = nil
+      continue
+    }
+    guard seenCursors.insert(nextCursor).inserted else {
+      throw BridgeError.invalidPayload("app-server model/list repeated cursor \(nextCursor)")
+    }
+    cursor = nextCursor
+  } while cursor != nil
+
+  return ["data": models, "nextCursor": NSNull()]
+}
+
 final class CodexAppServerClient {
   private static let requestTimeout: TimeInterval = 45
   private static let turnTimeout: TimeInterval = 180
@@ -133,15 +160,19 @@ final class CodexAppServerClient {
     turnLock.lock()
     defer { turnLock.unlock() }
     try ensureInitialized()
-    let response = try request(
-      method: "model/list",
-      params: ["includeHidden": false],
-      timeout: Self.requestTimeout
-    )
-    guard let result = response["result"] as? [String: Any] else {
-      throw BridgeError.invalidPayload("app-server model/list returned no result")
+    return try collectCodexModelListPages { cursor in
+      var params: [String: Any] = ["includeHidden": false]
+      if let cursor { params["cursor"] = cursor }
+      let response = try request(
+        method: "model/list",
+        params: params,
+        timeout: Self.requestTimeout
+      )
+      guard let result = response["result"] as? [String: Any] else {
+        throw BridgeError.invalidPayload("app-server model/list returned no result")
+      }
+      return result
     }
-    return result
   }
 
   private func ensureInitialized() throws {
