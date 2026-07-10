@@ -23,7 +23,11 @@ const injectedPolicy = createCodexModelPolicy(syntheticProfile);
 (globalThis as typeof globalThis & { __OPL_CODEX_MODEL_POLICY__?: typeof injectedPolicy })
   .__OPL_CODEX_MODEL_POLICY__ = injectedPolicy;
 
-const { codexModelPolicy } = await import("../src/workbench/modelPolicy.ts");
+const {
+  codexModelPolicy,
+  resolveCodexModelOptions,
+  resolveCodexSelection
+} = await import("../src/workbench/modelPolicy.ts");
 
 assert.deepEqual(
   codexModelPolicy.modelOptions.map((option) => option.id),
@@ -35,6 +39,27 @@ assert.deepEqual(
   syntheticProfile.gui.home.codex_model_display_options.user_reasoning_effort_options
 );
 assert.equal(codexModelPolicy.defaultReasoningEffort, syntheticProfile.default_session_profile.reasoning_effort);
+
+const runtimeOptions = resolveCodexModelOptions([{
+  id: "codex-future-secondary",
+  defaultReasoningEffort: "high",
+  supportedReasoningEfforts: ["low", "high"]
+}]);
+assert.deepEqual(runtimeOptions.map((option) => option.id), ["codex-future-primary", "codex-future-secondary"]);
+assert.equal(runtimeOptions.find((option) => option.id === "codex-future-primary")?.available, false);
+assert.equal(runtimeOptions.find((option) => option.id === "codex-future-secondary")?.available, true);
+const runtimeAuto = resolveCodexSelection(runtimeOptions, "__auto", "high");
+assert.equal(runtimeAuto.model?.id, "codex-future-secondary");
+assert.equal(runtimeAuto.reasoningEffort, "high");
+const pinnedSecondary = resolveCodexSelection(runtimeOptions, "codex-future-secondary", "low");
+assert.equal(pinnedSecondary.model?.id, "codex-future-secondary");
+assert.equal(pinnedSecondary.reasoningEffort, "low");
+const unavailablePrimary = resolveCodexSelection(runtimeOptions, "codex-future-primary", "high");
+assert.equal(unavailablePrimary.effectiveSelection, "__auto");
+assert.equal(unavailablePrimary.model?.id, "codex-future-secondary");
+const emptyOptions = resolveCodexModelOptions([]);
+assert.ok(emptyOptions.every((option) => option.available === false));
+assert.equal(resolveCodexSelection(emptyOptions, "__auto", "high").model, undefined);
 
 const cloneProfile = () => structuredClone(syntheticProfile);
 

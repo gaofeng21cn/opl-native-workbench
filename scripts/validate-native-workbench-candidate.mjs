@@ -14,7 +14,6 @@ import {
 } from "./native-workbench-gates.mjs";
 import { readCodexModelPolicy } from "./build-renderer.mjs";
 import { resolveAppRepoRoot } from "./resolve-app-repo-root.mjs";
-import { resolveCodexModelOptions, resolveCodexSelection } from "../src/workbench/modelPolicy.ts";
 
 const requiredFiles = [
   "AGENTS.md",
@@ -144,6 +143,7 @@ function assertCodexJuly2026Alignment(evidence, app, readme) {
 
 function assertCodexModelControls(evidence, app) {
   const settings = read("src/workbench/settingsModel.ts");
+  const policySource = read("src/workbench/modelPolicy.ts");
   const rendererBuilder = read("scripts/build-renderer.mjs");
   const appRepoResolver = read("scripts/resolve-app-repo-root.mjs");
   const bridge = read("src/bridge/oplBridge.ts");
@@ -180,10 +180,12 @@ function assertCodexModelControls(evidence, app) {
   assert(evidence.model_policy_regression?.validation_command === "npm run validate:candidate", "candidate evidence must record the model policy regression command");
   assert(settings.includes('modelAccess: "__auto"'), "settings must default to App-owned Auto model resolution");
   assert(settings.includes("codexModelPolicy.defaultReasoningEffort"), "settings default reasoning must consume the App-derived policy");
-  assert(policySource.includes("codexModelPolicy.modelOptions.map") && app.includes("availableModels.map"), "composer and Settings must render the App-derived model list");
+  assert(policySource.includes("codexModelPolicy.modelOptions.map") && app.includes("modelOptions.map") && app.includes("availableModels.map"), "composer and Settings must render the App-derived model list");
   assert(app.includes("codexModelPolicy.reasoningOptions.map"), "composer and Settings must render the App-derived reasoning list");
   assert(app.includes("bridge.readCodexModels()"), "renderer must read app-server model availability");
-  assert(app.includes("resolveCodexModelOptions(codexCatalog)"), "renderer must resolve App models against app-server capabilities");
+  assert(app.includes("resolveCodexModelOptions(") && app.includes('codexCatalogStatus === "ready" ? codexCatalog : []'), "renderer must resolve App models only after app-server capabilities are ready");
+  assert(app.includes('useState<"loading" | "ready" | "error">("loading")'), "renderer must track model catalog loading, ready, and error states");
+  assert(app.includes('const canSendCodexTurn = codexCatalogStatus === "ready" && Boolean(resolvedModel)'), "renderer must fail closed until a catalog model is resolved");
   assert(app.includes('value="__auto"'), "Settings must expose Auto model restoration");
   assert(app.includes("model: resolvedModel.id"), "composer must send the App-resolved model");
   assert(app.includes("reasoningEffort: resolvedReasoning"), "composer must send a supported reasoning effort");
@@ -197,33 +199,7 @@ function assertCodexModelControls(evidence, app) {
   assert(rendererBuilder.includes("resolveAppRepoRoot"), "renderer build must resolve the App repo through the shared helper");
   assert(appRepoResolver.includes('"contracts", "app-product-profile.json"'), "App repo resolver must require the App product profile");
 
-  const legacyOptions = resolveCodexModelOptions([{
-    id: "gpt-5.5",
-    defaultReasoningEffort: "xhigh",
-    supportedReasoningEfforts: ["low", "medium", "high", "xhigh"]
-  }]);
-  assert(legacyOptions.length === expectedModels.length, "model resolution must preserve the App-owned display list");
-  assert(legacyOptions.find((option) => option.id === "gpt-5.6-sol")?.available === true, "the App default route must remain available when model/list omits it");
-  assert(legacyOptions.find((option) => option.id === "gpt-5.6-terra")?.available === false, "unadvertised fixed alternatives must be disabled");
-  const defaultAuto = resolveCodexSelection(legacyOptions, "__auto", "ultra");
-  assert(defaultAuto.model.id === "gpt-5.6-sol" && defaultAuto.reasoningEffort === "ultra", "Auto must default to gpt-5.6-sol with ultra reasoning");
-  const unchangedAuto = resolveCodexSelection(legacyOptions, "__auto", "high");
-  assert(unchangedAuto.model.id === "gpt-5.6-sol" && unchangedAuto.reasoningEffort === "ultra", "Auto must remain the latest model with maximum reasoning");
-  const pinnedDefault = resolveCodexSelection(legacyOptions, "gpt-5.6-sol", "high");
-  assert(pinnedDefault.model.id === "gpt-5.6-sol" && pinnedDefault.reasoningEffort === "high", "manual reasoning must work after pinning the resolved Auto model");
   assert(app.includes('effectiveSelection === "__auto" && reasoningLevel !== codexModelPolicy.defaultReasoningEffort') && app.includes("writeSettings({ modelAccess, reasoningLevel })"), "changing Auto reasoning must pin the resolved model before applying the override");
-
-  const currentOptions = resolveCodexModelOptions([
-    { id: "gpt-5.6-sol", defaultReasoningEffort: "xhigh", supportedReasoningEfforts: ["low", "xhigh"] },
-    { id: "gpt-5.5", defaultReasoningEffort: "xhigh", supportedReasoningEfforts: ["low", "xhigh"] }
-  ]);
-  assert(currentOptions.find((option) => option.id === "gpt-5.6-terra")?.available === false, "a catalog that includes the App default must disable missing fixed models");
-  const currentAuto = resolveCodexSelection(currentOptions, "__auto", "ultra");
-  assert(currentAuto.model.id === "gpt-5.6-sol" && currentAuto.reasoningEffort === "ultra", "Auto must not silently downgrade the App default effort");
-  const fixedModel = resolveCodexSelection(currentOptions, "gpt-5.5", "ultra");
-  assert(fixedModel.model.id === "gpt-5.5" && fixedModel.reasoningEffort === "xhigh", "fixed models must respect current catalog effort capabilities");
-  const unavailableFixedModel = resolveCodexSelection(currentOptions, "gpt-5.6-terra", "ultra");
-  assert(unavailableFixedModel.effectiveSelection === "__auto" && unavailableFixedModel.model.id === "gpt-5.6-sol" && unavailableFixedModel.reasoningEffort === "ultra", "an unavailable persisted fixed model must resolve consistently to Auto");
 }
 
 validateNonLiveDeliveryEvidence(evidence);
