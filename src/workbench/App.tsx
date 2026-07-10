@@ -609,6 +609,9 @@ export function App() {
     ? selection.reasoningOptions
     : displayModel.supportedReasoningEfforts;
   const effectiveSelection = selection.effectiveSelection;
+  const autoResolvedModelLabel = settings.modelAccess === "__auto" && resolvedModel
+    ? modelLabel(resolvedModel.id, settings.locale)
+    : autoModelLabel(settings.locale);
   const modelCatalogMessage = codexCatalogStatus === "loading"
     ? t.modelCatalogLoading(modelLabel(provisionalModel.id, settings.locale))
     : codexCatalogStatus === "error"
@@ -902,10 +905,15 @@ export function App() {
     }
     if (key === "modelAccess") {
       return (
-        <select className="setting-select" data-testid="opl-model-access-entry" value={value === "__auto" || availableModels.some((option) => option.id === value && option.available) ? value : "__auto"} onChange={(event) => updateSetting("modelAccess", event.currentTarget.value as WorkbenchSettings["modelAccess"])}>
+        <select className="setting-select" data-testid="opl-model-access-entry" value={value} onChange={(event) => updateSetting("modelAccess", event.currentTarget.value as WorkbenchSettings["modelAccess"])}>
           <option value="__auto">{autoModelLabel(settings.locale)}</option>
+          {value !== "__auto" && !modelOptions.some((option) => option.id === value) ? (
+            <option value={value} disabled>{modelLabel(value, settings.locale)} ({t.unavailable})</option>
+          ) : null}
           {modelOptions.map((option) => (
-            <option key={option.id} value={option.id} disabled={!option.available}>{modelLabel(option.id, settings.locale)}</option>
+            <option key={option.id} value={option.id} disabled={!option.available}>
+              {modelLabel(option.id, settings.locale)}{option.available ? "" : ` (${t.unavailable})`}
+            </option>
           ))}
         </select>
       );
@@ -1257,7 +1265,7 @@ export function App() {
                       <nav data-testid="opl-topbar-model-config" className="composer-model-controls" aria-label="Conversation configuration">
                         <label className="composer-select" data-testid="opl-model-access-entry">
                           <select aria-label={settings.locale === "zh" ? "模型" : "Model"} value={settings.modelAccess} onChange={(event) => updateSetting("modelAccess", event.currentTarget.value as WorkbenchSettings["modelAccess"])}>
-                            <option value="__auto">{autoModelLabel(settings.locale)}</option>
+                            <option value="__auto">{autoResolvedModelLabel}</option>
                             {settings.modelAccess !== "__auto" && !availableModels.some((option) => option.id === settings.modelAccess) ? (
                               <option value={settings.modelAccess} disabled>
                                 {modelLabel(settings.modelAccess, settings.locale)}{codexCatalogStatus === "loading" ? "" : ` (${t.unavailable})`}

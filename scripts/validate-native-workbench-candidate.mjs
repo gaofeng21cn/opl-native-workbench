@@ -186,6 +186,8 @@ function assertCodexModelControls(evidence, app) {
   assert(app.includes("resolveCodexModelOptions(") && app.includes('codexCatalogStatus === "ready" ? codexCatalog : []'), "renderer must resolve App models only after app-server capabilities are ready");
   assert(app.includes('useState<"loading" | "ready" | "error">("loading")'), "renderer must track model catalog loading, ready, and error states");
   assert(app.includes('const canSendCodexTurn = codexCatalogStatus === "ready" && Boolean(resolvedModel)'), "renderer must fail closed until a catalog model is resolved");
+  assert(app.includes('const effectiveSelection = selection.effectiveSelection') && app.includes('if (!resolvedModel) return'), "fixed unavailable models must not silently fall back during reasoning changes");
+  assert(app.includes('settings.modelAccess === "__auto" && resolvedModel') && app.includes("autoResolvedModelLabel"), "composer Auto must display its resolved model");
   assert(app.includes('value="__auto"'), "Settings must expose Auto model restoration");
   assert(app.includes("model: resolvedModel.id"), "composer must send the App-resolved model");
   assert(app.includes("reasoningEffort: resolvedReasoning"), "composer must send a supported reasoning effort");

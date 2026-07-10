@@ -282,8 +282,6 @@
       "settings_locale_surface": "settings",
       "model_policy_source": "one-person-lab-app/contracts/app-product-profile.json#gui.home.codex_model_display_options",
       "model_policy_consumption": "dynamic_build_injection_with_minimal_offline_fallback",
-      "default_model": "gpt-5.6-sol",
-      "default_reasoning_effort": "ultra",
       "required_surfaces": [
         "persistent_project_rail",
         "single_conversation_timeline",

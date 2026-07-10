@@ -55,8 +55,8 @@ const pinnedSecondary = resolveCodexSelection(runtimeOptions, "codex-future-seco
 assert.equal(pinnedSecondary.model?.id, "codex-future-secondary");
 assert.equal(pinnedSecondary.reasoningEffort, "low");
 const unavailablePrimary = resolveCodexSelection(runtimeOptions, "codex-future-primary", "max");
-assert.equal(unavailablePrimary.effectiveSelection, "__auto");
-assert.equal(unavailablePrimary.model?.id, "codex-future-secondary");
+assert.equal(unavailablePrimary.effectiveSelection, "codex-future-primary");
+assert.equal(unavailablePrimary.model, undefined);
 const emptyOptions = resolveCodexModelOptions([]);
 assert.ok(emptyOptions.every((option) => option.available === false));
 assert.equal(resolveCodexSelection(emptyOptions, "__auto", "max").model, undefined);

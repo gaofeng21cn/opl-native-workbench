@@ -113,11 +113,10 @@ export function resolveCodexSelection(
 ) {
   const selectableModels = options.filter((option) => option.available);
   const requestedModel = options.find((option) => option.id === selection);
-  const effectiveSelection = selection === "__auto" || !requestedModel?.available ? "__auto" : selection;
-  const selectedModelId = effectiveSelection === "__auto" ? codexModelPolicy.defaultModel : effectiveSelection;
-  const model = selectableModels.find((option) => option.id === selectedModelId)
-    ?? selectableModels.find((option) => option.id === codexModelPolicy.defaultModel)
-    ?? selectableModels[0];
+  const effectiveSelection = selection;
+  const model = selection === "__auto"
+    ? selectableModels.find((option) => option.id === codexModelPolicy.defaultModel) ?? selectableModels[0]
+    : requestedModel?.available ? requestedModel : undefined;
   if (!model) {
     return {
       model: undefined,
@@ -127,7 +126,7 @@ export function resolveCodexSelection(
     };
   }
   const reasoningOptions = model.supportedReasoningEfforts;
-  const requestedEffort = effectiveSelection === "__auto"
+  const requestedEffort = selection === "__auto"
     ? codexModelPolicy.defaultReasoningEffort
     : requestedReasoning;
   const reasoningEffort = reasoningOptions.includes(requestedEffort)
