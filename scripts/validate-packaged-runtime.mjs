@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { assert, readJson, root } from "./native-workbench-gates.mjs";
+import { readCodexModelPolicy } from "./build-renderer.mjs";
 
 const appName = "One Person Lab Native Workbench Candidate";
 const appRoot = path.join(root, "out", `${appName}.app`);
@@ -10,6 +11,15 @@ const workbenchPath = path.join(resourcesDir, "workbench.html");
 const rendererPath = path.join(resourcesDir, "renderer.js");
 const manifestPath = path.join(resourcesDir, "package-manifest.json");
 const nativeSourcePath = path.join(root, "scripts", "native-workbench-app.swift");
+const appModelPolicy = readCodexModelPolicy();
+
+function assertOrderedValues(actual, expected, label) {
+  assert(Array.isArray(actual), `${label} must be an array`);
+  assert(actual.length === expected.length, `${label} length must match the App product profile`);
+  for (const [index, value] of expected.entries()) {
+    assert(actual[index] === value, `${label}[${index}] must match the App product profile`);
+  }
+}
 
 assert(fs.existsSync(appRoot), "missing packaged .app");
 assert(fs.existsSync(executablePath), "missing packaged executable");
@@ -37,12 +47,15 @@ for (const marker of [
   '<div id="root"></div>',
   './renderer.js',
   'branding/opl-app-logo.png',
-  '__OPL_CODEX_MODEL_POLICY__',
-  '"defaultModel":"gpt-5.6-sol"',
-  '"defaultReasoningEffort":"ultra"'
+  '__OPL_CODEX_MODEL_POLICY__'
 ]) {
   assert(workbench.includes(marker), `missing packaged workbench marker ${marker}`);
 }
+const serializedModelPolicy = JSON.stringify(appModelPolicy).replaceAll("<", "\\u003c");
+assert(
+  workbench.includes(`globalThis.__OPL_CODEX_MODEL_POLICY__=${serializedModelPolicy};`),
+  "packaged workbench model policy injection must match the current App product profile"
+);
 for (const marker of [
   'opl-native-workbench-root',
   'opl-workspace-rail',
@@ -103,13 +116,6 @@ for (const marker of [
   'opl-settings-panel',
   'opl-model-access-entry',
   'opl-locale-toggle',
-  'gpt-5.6-sol',
-  'gpt-5.5',
-  'gpt-5.6-terra',
-  'gpt-5.6-luna',
-  'gpt-5.4',
-  'gpt-5.4-mini',
-  'gpt-5.2',
   'reasoningEffort'
 ]) {
   assert(renderer.includes(marker), `missing packaged functional MVP marker ${marker}`);
@@ -138,11 +144,15 @@ assert(manifest.primary_visual_reference?.source_usage === "visual_and_interacti
 assert(manifest.default_home_layout?.project_rail_visible === true, "manifest must keep the project rail visible by default");
 assert(manifest.default_home_layout?.environment_details_default_open === false, "manifest must keep environment details closed by default");
 assert(manifest.default_home_layout?.environment_details_presentation === "floating", "manifest must keep environment details floating");
-assert(manifest.codex_model_policy?.source === "one-person-lab-app/contracts/app-product-profile.json#gui.home.codex_model_display_options", "manifest must bind model policy to the App product profile");
-assert(manifest.codex_model_policy?.default_model === "gpt-5.6-sol", "manifest must default to gpt-5.6-sol");
-assert(manifest.codex_model_policy?.default_reasoning_effort === "ultra", "manifest must default to ultra reasoning");
-assert(manifest.codex_model_policy?.visible_models?.join(",") === "gpt-5.6-sol,gpt-5.6-terra,gpt-5.6-luna,gpt-5.5,gpt-5.4,gpt-5.4-mini,gpt-5.2", "manifest must preserve the App model order");
-assert(manifest.codex_model_policy?.reasoning_efforts?.join(",") === "low,medium,high,xhigh,ultra", "manifest must preserve the App reasoning options");
+assert(manifest.codex_model_policy?.source === appModelPolicy.source, "manifest must bind model policy to the App product profile");
+assert(manifest.codex_model_policy?.default_model === appModelPolicy.defaultModel, "manifest default model must match the App product profile");
+assert(manifest.codex_model_policy?.default_reasoning_effort === appModelPolicy.defaultReasoningEffort, "manifest default reasoning effort must match the App product profile");
+assertOrderedValues(
+  manifest.codex_model_policy?.visible_models,
+  appModelPolicy.visibleModels.map((option) => option.id),
+  "manifest visible models"
+);
+assertOrderedValues(manifest.codex_model_policy?.reasoning_efforts, appModelPolicy.reasoningEfforts, "manifest reasoning efforts");
 assert(manifest.external_layout_reference?.repo === "https://github.com/K-Dense-AI/k-dense-byok", "manifest must record the K-Dense layout reference");
 assert(manifest.external_layout_reference?.companion_repo === "https://github.com/ai4s-research/open-science", "manifest must record the Open Science visual reference");
 assert(manifest.external_layout_reference?.adapted_patterns?.includes("persistent project and conversation rail with compact project context links"), "manifest must record the Codex project rail adaptation");

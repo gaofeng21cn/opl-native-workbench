@@ -70,14 +70,15 @@ composer exposes the current model and reasoning effort as conversation controls
 matching Codex placement; those values are persisted in Settings and passed
 through the existing Codex app-server `turn/start` `model` and `effort` fields.
 The model policy is injected from
-`one-person-lab-app/contracts/app-product-profile.json`: the default is
-`gpt-5.6-sol` with `ultra` reasoning, and the visible model/reasoning order is
-the App-owned allowlist rather than a candidate-owned provider catalog. At
-runtime the native bridge calls Codex app-server `model/list` to enrich known
-models with capability metadata. With a catalog present, unadvertised fixed
-alternatives are disabled while the App-owned default route remains available.
-Auto is the complete latest-and-strongest policy, currently `5.6 Sol` with
-`ultra`; choosing another reasoning level pins the current model and exits Auto.
+`one-person-lab-app/contracts/app-product-profile.json`: each build dynamically
+consumes the App-owned default, complete visible-model allowlist, display
+labels, model order, and reasoning options rather than maintaining a second
+candidate catalog. The source module keeps only a minimal single-model offline
+fallback for an uninjected preview. At runtime the native bridge calls Codex
+app-server `model/list`, intersects that catalog with the injected App allowlist,
+and resolves Auto to the first currently available model in App preference
+order with a supported reasoning effort. A missing, empty, or non-matching
+runtime catalog pauses sending instead of promoting the offline fallback.
 `runtimeProfile` now drives actual `opl app state` readback shape, and the
 Settings page exposes runtime readback status instead of a pure placeholder.
 

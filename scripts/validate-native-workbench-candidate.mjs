@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import {
   assert,
   assertFallbackBoundaryDowngrades,
@@ -11,6 +12,7 @@ import {
   root,
   validateNonLiveDeliveryEvidence
 } from "./native-workbench-gates.mjs";
+import { readCodexModelPolicy } from "./build-renderer.mjs";
 import { resolveAppRepoRoot } from "./resolve-app-repo-root.mjs";
 import { resolveCodexModelOptions, resolveCodexSelection } from "../src/workbench/modelPolicy.ts";
 
@@ -29,6 +31,8 @@ const requiredFiles = [
   "src/workbench/workbenchModel.ts",
   "src/workbench/settingsModel.ts",
   "src/candidateContractEvidence.json",
+  "scripts/build-renderer.mjs",
+  "scripts/model-policy-regression.ts",
   "scripts/validate-state-model.mjs",
   "scripts/validate-packaged-runtime.mjs",
   "scripts/smoke-webui.mjs",
@@ -140,24 +144,41 @@ function assertCodexJuly2026Alignment(evidence, app, readme) {
 
 function assertCodexModelControls(evidence, app) {
   const settings = read("src/workbench/settingsModel.ts");
-  const policySource = read("src/workbench/modelPolicy.ts");
   const rendererBuilder = read("scripts/build-renderer.mjs");
   const appRepoResolver = read("scripts/resolve-app-repo-root.mjs");
   const bridge = read("src/bridge/oplBridge.ts");
   const nativeApp = read("scripts/native-workbench-app.swift");
   const appRepoRoot = resolveAppRepoRoot(root);
-  const appProductProfile = JSON.parse(fs.readFileSync(path.join(appRepoRoot, "contracts", "app-product-profile.json"), "utf8"));
-  const expectedModels = appProductProfile.gui.home.codex_model_display_options.visible_models.map((option) => option.id);
-  const expectedReasoning = appProductProfile.gui.home.codex_model_display_options.user_reasoning_effort_options;
+  const appProductProfilePath = path.join(appRepoRoot, "contracts", "app-product-profile.json");
+  const appProductProfile = JSON.parse(fs.readFileSync(appProductProfilePath, "utf8"));
+  const profileModels = appProductProfile.gui.home.codex_model_display_options.visible_models;
+  const profileReasoning = appProductProfile.gui.home.codex_model_display_options.user_reasoning_effort_options;
+  const injectedPolicy = readCodexModelPolicy(appProductProfilePath);
   assert(evidence.functional_mvp?.codex_model_reasoning_controls?.includes("turn/start") && evidence.functional_mvp.codex_model_reasoning_controls.includes("model and effort overrides"), "functional MVP must record app-server model and effort overrides");
-  assert(appProductProfile.default_session_profile.model === "gpt-5.6-sol", "App product profile must default to gpt-5.6-sol");
-  assert(appProductProfile.default_session_profile.reasoning_effort === "ultra", "App product profile must default to ultra reasoning");
-  for (const model of expectedModels) {
-    assert(policySource.includes(`"${model}"`), `candidate fallback policy must include ${model}`);
+  assert(injectedPolicy.defaultModel === appProductProfile.default_session_profile.model, "injected default model must match the App product profile");
+  assert(injectedPolicy.defaultReasoningEffort === appProductProfile.default_session_profile.reasoning_effort, "injected default reasoning effort must match the App product profile");
+  assert(injectedPolicy.visibleModels.length === profileModels.length, "injected model list length must match the App product profile");
+  for (const [index, expected] of profileModels.entries()) {
+    const actual = injectedPolicy.visibleModels[index];
+    for (const field of ["id", "label_zh", "label_en"]) {
+      assert(actual?.[field] === expected[field], `injected model ${index} ${field} must match the App product profile`);
+    }
   }
-  for (const effort of expectedReasoning) assert(policySource.includes(`"${effort}"`), `candidate fallback policy must include ${effort}`);
+  assert(injectedPolicy.reasoningEfforts.length === profileReasoning.length, "injected reasoning list length must match the App product profile");
+  for (const [index, effort] of profileReasoning.entries()) {
+    assert(injectedPolicy.reasoningEfforts[index] === effort, `injected reasoning effort ${index} must match the App product profile`);
+  }
+  const regression = spawnSync("bun", ["run", path.join(root, "scripts", "model-policy-regression.ts")], {
+    cwd: root,
+    encoding: "utf8"
+  });
+  assert(
+    regression.status === 0,
+    `dynamic model policy regression failed\n${regression.stdout ?? ""}\n${regression.stderr ?? ""}`
+  );
+  assert(evidence.model_policy_regression?.fixture === "scripts/model-policy-regression.ts", "candidate evidence must record the dynamic model policy regression fixture");
+  assert(evidence.model_policy_regression?.validation_command === "npm run validate:candidate", "candidate evidence must record the model policy regression command");
   assert(settings.includes('modelAccess: "__auto"'), "settings must default to App-owned Auto model resolution");
-  assert(policySource.includes('defaultModel: isModelId(injectedPolicy()?.defaultModel)'), "Auto must resolve the App-injected default model");
   assert(settings.includes("codexModelPolicy.defaultReasoningEffort"), "settings default reasoning must consume the App-derived policy");
   assert(policySource.includes("codexModelPolicy.modelOptions.map") && app.includes("availableModels.map"), "composer and Settings must render the App-derived model list");
   assert(app.includes("codexModelPolicy.reasoningOptions.map"), "composer and Settings must render the App-derived reasoning list");
@@ -232,6 +253,7 @@ assert(evidence.owner === "one-person-lab-app", "evidence owner must be one-pers
 assert(evidence.shell === "opl-native-workbench", "evidence shell must match");
 for (const capability of [
   "native_react_workbench_renderer",
+  "dynamic_app_product_profile_model_policy",
   "codex_app_server_thread_turn_backend",
   "native_wkwebview_command_bridge",
   "results_and_delivery_first_presentation",

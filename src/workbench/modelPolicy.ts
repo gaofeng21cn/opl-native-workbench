@@ -1,17 +1,6 @@
-export const fallbackModelOptions = [
-  { id: "gpt-5.6-sol", label_zh: "5.6 Sol", label_en: "5.6 Sol" },
-  { id: "gpt-5.6-terra", label_zh: "5.6 Terra", label_en: "5.6 Terra" },
-  { id: "gpt-5.6-luna", label_zh: "5.6 Luna", label_en: "5.6 Luna" },
-  { id: "gpt-5.5", label_zh: "5.5", label_en: "5.5" },
-  { id: "gpt-5.4", label_zh: "5.4", label_en: "5.4" },
-  { id: "gpt-5.4-mini", label_zh: "5.4 Mini", label_en: "5.4 Mini" },
-  { id: "gpt-5.2", label_zh: "5.2", label_en: "5.2" }
-] as const;
-
-export const fallbackReasoningOptions = ["low", "medium", "high", "xhigh", "ultra"] as const;
-
-export type CodexModelId = (typeof fallbackModelOptions)[number]["id"];
+export type CodexModelId = string;
 export type CodexModelSelection = "__auto" | CodexModelId;
+export const fallbackReasoningOptions = ["low", "medium", "high", "xhigh", "ultra"] as const;
 export type CodexReasoningEffort = (typeof fallbackReasoningOptions)[number];
 export type WorkbenchLocale = "zh" | "en";
 
@@ -34,6 +23,10 @@ export type ResolvedCodexModelOption = ModelOption & {
   supportedReasoningEfforts: CodexReasoningEffort[];
 };
 
+export const fallbackModelOptions: readonly ModelOption[] = [
+  { id: "gpt-5.6-sol", label_zh: "5.6 Sol", label_en: "5.6 Sol" }
+];
+
 type InjectedModelPolicy = {
   source?: string;
   defaultModel?: string;
@@ -47,7 +40,7 @@ declare global {
 }
 
 function isModelId(value: unknown): value is CodexModelId {
-  return fallbackModelOptions.some((option) => option.id === value);
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function isReasoningEffort(value: unknown): value is CodexReasoningEffort {
@@ -59,29 +52,39 @@ function injectedPolicy(): InjectedModelPolicy | undefined {
 }
 
 function normalizedModelOptions(policy = injectedPolicy()): ModelOption[] {
-  const options = policy?.visibleModels
-    ?.filter((option): option is { id: CodexModelId; label_zh?: string; label_en?: string } => isModelId(option.id))
-    .map((option) => ({
-      id: option.id,
-      label_zh: option.label_zh || fallbackModelOptions.find((item) => item.id === option.id)!.label_zh,
-      label_en: option.label_en || fallbackModelOptions.find((item) => item.id === option.id)!.label_en
-    }));
-  return options?.length === fallbackModelOptions.length ? options : [...fallbackModelOptions];
+  if (!policy?.visibleModels?.length || !policy.visibleModels.every((option) => isModelId(option?.id))) {
+    return [...fallbackModelOptions];
+  }
+  return policy.visibleModels.map((option) => ({
+    id: option.id as CodexModelId,
+    label_zh: typeof option.label_zh === "string" && option.label_zh.trim() ? option.label_zh : option.id as string,
+    label_en: typeof option.label_en === "string" && option.label_en.trim() ? option.label_en : option.id as string
+  }));
 }
 
 function normalizedReasoningOptions(policy = injectedPolicy()): CodexReasoningEffort[] {
-  const options = policy?.reasoningEfforts?.filter(isReasoningEffort);
-  return options?.length === fallbackReasoningOptions.length ? options : [...fallbackReasoningOptions];
+  if (!policy?.reasoningEfforts?.length || !policy.reasoningEfforts.every(isReasoningEffort)) {
+    return [...fallbackReasoningOptions];
+  }
+  return [...policy.reasoningEfforts] as CodexReasoningEffort[];
 }
 
+const policy = injectedPolicy();
+const modelOptions = normalizedModelOptions(policy);
+const reasoningOptions = normalizedReasoningOptions(policy);
+const injectedDefaultModel = policy?.defaultModel;
+const injectedDefaultReasoningEffort = policy?.defaultReasoningEffort;
+
 export const codexModelPolicy = {
-  source: injectedPolicy()?.source ?? "candidate_fallback_validated_against_app_product_profile",
-  defaultModel: isModelId(injectedPolicy()?.defaultModel) ? injectedPolicy()!.defaultModel as CodexModelId : "gpt-5.6-sol",
-  defaultReasoningEffort: isReasoningEffort(injectedPolicy()?.defaultReasoningEffort)
-    ? injectedPolicy()!.defaultReasoningEffort as CodexReasoningEffort
-    : "ultra",
-  modelOptions: normalizedModelOptions(),
-  reasoningOptions: normalizedReasoningOptions()
+  source: typeof policy?.source === "string" && policy.source.trim() ? policy.source : "candidate_offline_fallback",
+  defaultModel: isModelId(injectedDefaultModel) && modelOptions.some((option) => option.id === injectedDefaultModel)
+    ? injectedDefaultModel
+    : modelOptions[0].id,
+  defaultReasoningEffort: isReasoningEffort(injectedDefaultReasoningEffort) && reasoningOptions.includes(injectedDefaultReasoningEffort)
+    ? injectedDefaultReasoningEffort
+    : reasoningOptions.includes("ultra") ? "ultra" : reasoningOptions[0],
+  modelOptions,
+  reasoningOptions
 };
 
 export function resolveCodexModelOptions(catalog: CodexCatalogCapability[]): ResolvedCodexModelOption[] {

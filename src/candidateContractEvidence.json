@@ -25,6 +25,7 @@
     "lightweight_workspace_session_rail",
     "collapsible_contextual_tabs",
     "app_product_profile_mapping",
+    "dynamic_app_product_profile_model_policy",
     "opl_app_state_bridge",
     "active_project_line_state_model",
     "opl_app_action_bridge",
@@ -66,7 +67,7 @@
     "codex_app_server_thread_turn": true,
     "codex_command": "codex app-server --stdio",
     "codex_protocol": "JSON-RPC newline transport with initialize, model/list, thread/start, turn/start, item/agentMessage/delta, turn/completed, thread/resume",
-    "codex_model_reasoning_controls": "App product profile injects the ordered seven-model list and low/medium/high/xhigh/ultra reasoning options; model/list disables unadvertised fixed alternatives while retaining the App default route, Auto is the complete gpt-5.6-sol/ultra policy, manual reasoning pins the current model and exits Auto, stale fixed selections normalize to Auto, and turn/start receives model and effort overrides",
+    "codex_model_reasoning_controls": "The build dynamically injects the App product profile default, complete ordered visible-model allowlist, labels, and reasoning options; runtime model/list availability filters that injected order, Auto resolves the first available App-preferred model and supported effort, unavailable catalogs fail closed, and turn/start receives model and effort overrides",
     "opl_state_bridge": "opl app state --profile fast --json",
     "opl_action_bridge": "opl app action execute --action <action_id> --dry-run --json",
     "native_bridge": "WKScriptMessageHandler window.webkit.messageHandlers.oplNativeWorkbench",
@@ -82,16 +83,25 @@
     "agent_package_lifecycle_display": "package lifecycle rows consume app_state.agent_packages directory/status_index first, fall back to modules.items as preview-only, and expose only App/root action refs",
     "acp_app_server_reuse_status": "implemented_with_codex_app_server_thread_turn_stream"
   },
+  "model_policy_regression": {
+    "validation_command": "npm run validate:candidate",
+    "fixture": "scripts/model-policy-regression.ts",
+    "coverage": [
+      "arbitrary non-empty App model ids are accepted without candidate source changes and preserve App order",
+      "empty or duplicate model ids and defaults outside the App allowlist are rejected",
+      "unsupported reasoning efforts and defaults absent from App reasoning options are rejected"
+    ]
+  },
   "functional_mvp_closeout": {
     "implemented": [
-      "Codex app-server source path with initialize, model/list capability enrichment, App-owned gpt-5.6-sol/ultra Auto resolution, thread/start, turn/start model/effort overrides, streaming delta, turn/completed, and thread/resume markers",
+      "Codex app-server source path with initialize, model/list availability, dynamically injected App allowlist Auto resolution, fail-closed catalog handling, thread/start, turn/start model/effort overrides, streaming delta, turn/completed, and thread/resume markers",
       "OPL App state context source path using fast state, full state, full drilldown, and secondary runtime context refs",
       "OPL App action preview path using dry-run action commands and visible preview receipt markers",
       "Bridge helper layer normalizes runtime profile readback, action receipt shape, and typed event envelopes close to App state/action contracts",
       "Settings as a first-class route with a localStorage persistence model for model/account access, locale, runtime connection, project, and candidate-about controls",
       "Execute confirmation, rich artifact previews, and professional starters are represented as candidate MVP source markers",
       "Agent Package lifecycle display consumes App/root package refs and action refs without adding a package executor",
-      "Source-level candidate validators for the implemented markers and false-ready boundary"
+      "Source-level candidate validators for the implemented markers and false-ready boundary, plus a focused arbitrary-model-id regression for App profile drift"
     ],
     "partial": [
       "Packaged GUI artifact exists as candidate evidence, but packaged visual acceptance and clean-VM behavior are not proven here",
@@ -271,6 +281,7 @@
       "environment_details": "floating_on_demand",
       "settings_locale_surface": "settings",
       "model_policy_source": "one-person-lab-app/contracts/app-product-profile.json#gui.home.codex_model_display_options",
+      "model_policy_consumption": "dynamic_build_injection_with_minimal_offline_fallback",
       "default_model": "gpt-5.6-sol",
       "default_reasoning_effort": "ultra",
       "required_surfaces": [
