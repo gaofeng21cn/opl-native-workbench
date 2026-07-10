@@ -94,13 +94,14 @@ export function resolveCodexModelOptions(catalog: CodexCatalogCapability[]): Res
       .filter(isReasoningEffort) ?? [];
     return {
       ...option,
-      available: !catalog.length || option.id === codexModelPolicy.defaultModel || Boolean(runtime),
+      available: Boolean(runtime) && supportedReasoningEfforts.length > 0,
       defaultReasoningEffort: isReasoningEffort(runtime?.defaultReasoningEffort)
+        && supportedReasoningEfforts.includes(runtime.defaultReasoningEffort)
         ? runtime.defaultReasoningEffort
-        : codexModelPolicy.defaultReasoningEffort,
+        : supportedReasoningEfforts.at(-1) ?? codexModelPolicy.defaultReasoningEffort,
       supportedReasoningEfforts: supportedReasoningEfforts.length
         ? supportedReasoningEfforts
-        : [...codexModelPolicy.reasoningOptions]
+        : [codexModelPolicy.defaultReasoningEffort]
     };
   });
 }
@@ -116,16 +117,22 @@ export function resolveCodexSelection(
   const selectedModelId = effectiveSelection === "__auto" ? codexModelPolicy.defaultModel : effectiveSelection;
   const model = selectableModels.find((option) => option.id === selectedModelId)
     ?? selectableModels.find((option) => option.id === codexModelPolicy.defaultModel)
-    ?? selectableModels[0]
-    ?? options[0];
-  const reasoningOptions = effectiveSelection === "__auto"
-    ? [...codexModelPolicy.reasoningOptions]
-    : model.supportedReasoningEfforts;
-  const reasoningEffort = effectiveSelection === "__auto"
+    ?? selectableModels[0];
+  if (!model) {
+    return {
+      model: undefined,
+      reasoningEffort: codexModelPolicy.defaultReasoningEffort,
+      reasoningOptions: [codexModelPolicy.defaultReasoningEffort],
+      effectiveSelection
+    };
+  }
+  const reasoningOptions = model.supportedReasoningEfforts;
+  const requestedEffort = effectiveSelection === "__auto"
     ? codexModelPolicy.defaultReasoningEffort
-    : reasoningOptions.includes(requestedReasoning)
-      ? requestedReasoning
-      : reasoningOptions.at(-1) ?? model.defaultReasoningEffort;
+    : requestedReasoning;
+  const reasoningEffort = reasoningOptions.includes(requestedEffort)
+    ? requestedEffort
+    : model.defaultReasoningEffort;
   return { model, reasoningEffort, reasoningOptions, effectiveSelection };
 }
 
