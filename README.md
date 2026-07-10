@@ -78,7 +78,7 @@ fallback for an uninjected preview. At runtime the native bridge calls Codex
 app-server `model/list` and uses it to disable unadvertised fixed alternatives
 from the injected App allowlist. Catalog discovery cannot veto the App-owned
 default route: Auto always resolves the injected default model and default
-reasoning effort, currently `gpt-5.6-sol` with `ultra`, even when `model/list`
+reasoning effort, currently `gpt-5.6-sol` with `max`, even when `model/list`
 has not advertised that route. Choosing another reasoning effort pins the
 resolved model and exits Auto before sending. A missing, empty, or non-matching
 catalog therefore leaves the App default usable while keeping unknown fixed

@@ -82,7 +82,7 @@ export const codexModelPolicy = {
     : modelOptions[0].id,
   defaultReasoningEffort: isReasoningEffort(injectedDefaultReasoningEffort) && reasoningOptions.includes(injectedDefaultReasoningEffort)
     ? injectedDefaultReasoningEffort
-    : reasoningOptions.includes("ultra") ? "ultra" : reasoningOptions[0],
+    : reasoningOptions.includes("max") ? "max" : reasoningOptions.at(-1)!,
   modelOptions,
   reasoningOptions
 };
