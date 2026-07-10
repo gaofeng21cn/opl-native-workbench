@@ -4,7 +4,7 @@ import { createCodexModelPolicy } from "./build-renderer.mjs";
 const syntheticProfile = {
   default_session_profile: {
     model: "codex-future-primary",
-    reasoning_effort: "max"
+    reasoning_effort: "xhigh"
   },
   gui: {
     home: {
@@ -13,7 +13,7 @@ const syntheticProfile = {
           { id: "codex-future-primary", label_zh: "Future primary zh", label_en: "Future primary" },
           { id: "codex-future-secondary", label_zh: "Future secondary zh", label_en: "Future secondary" }
         ],
-        user_reasoning_effort_options: ["low", "high", "max", "ultra"]
+        user_reasoning_effort_options: ["low", "high", "xhigh", "ultra"]
       }
     }
   }
@@ -51,7 +51,7 @@ assert.equal(runtimeOptions.find((option) => option.id === "codex-future-primary
 assert.equal(runtimeOptions.find((option) => option.id === "codex-future-secondary")?.available, true);
 const runtimeAuto = resolveCodexSelection(runtimeOptions, "__auto", "low");
 assert.equal(runtimeAuto.model.id, "codex-future-primary");
-assert.equal(runtimeAuto.reasoningEffort, "max");
+assert.equal(runtimeAuto.reasoningEffort, "xhigh");
 assert.equal(runtimeAuto.effectiveSelection, "__auto");
 assert.equal(conversationModelLabel("__auto", runtimeAuto.model?.id, "en"), "Future primary");
 assert.equal(conversationModelLabel("__auto", undefined, "en"), "Auto (recommended)");
@@ -68,11 +68,11 @@ assert.equal(emptyOptions.find((option) => option.id === "codex-future-primary")
 assert.equal(emptyOptions.find((option) => option.id === "codex-future-secondary")?.available, false);
 const emptyCatalogAuto = resolveCodexSelection(emptyOptions, "__auto", "low");
 assert.equal(emptyCatalogAuto.model?.id, "codex-future-primary");
-assert.equal(emptyCatalogAuto.reasoningEffort, "max");
+assert.equal(emptyCatalogAuto.reasoningEffort, "xhigh");
 const unavailableSecondary = resolveCodexSelection(emptyOptions, "codex-future-secondary", "high");
 assert.equal(unavailableSecondary.effectiveSelection, "codex-future-secondary");
 assert.equal(unavailableSecondary.model, undefined);
-assert.equal(unavailableSecondary.reasoningEffort, "max");
+assert.equal(unavailableSecondary.reasoningEffort, "xhigh");
 
 const cloneProfile = () => structuredClone(syntheticProfile);
 

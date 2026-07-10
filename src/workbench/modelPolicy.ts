@@ -1,6 +1,6 @@
 export type CodexModelId = string;
 export type CodexModelSelection = "__auto" | CodexModelId;
-export const fallbackReasoningOptions = ["low", "medium", "high", "xhigh", "max", "ultra"] as const;
+export const fallbackReasoningOptions = ["low", "medium", "high", "xhigh", "ultra"] as const;
 export type CodexReasoningEffort = (typeof fallbackReasoningOptions)[number];
 export type WorkbenchLocale = "zh" | "en";
 
@@ -82,7 +82,7 @@ export const codexModelPolicy = {
     : modelOptions[0].id,
   defaultReasoningEffort: isReasoningEffort(injectedDefaultReasoningEffort) && reasoningOptions.includes(injectedDefaultReasoningEffort)
     ? injectedDefaultReasoningEffort
-    : reasoningOptions.includes("max") ? "max" : reasoningOptions.at(-1)!,
+    : reasoningOptions.includes("xhigh") ? "xhigh" : reasoningOptions.at(-1)!,
   modelOptions,
   reasoningOptions
 };
@@ -167,7 +167,6 @@ export function reasoningLabel(effort: CodexReasoningEffort, locale: WorkbenchLo
       medium: compact ? "中" : "推理中",
       high: compact ? "高" : "推理高",
       xhigh: compact ? "超高" : "推理超高",
-      max: compact ? "最大" : "推理最大",
       ultra: compact ? "极高" : "推理极高"
     },
     en: {
@@ -175,7 +174,6 @@ export function reasoningLabel(effort: CodexReasoningEffort, locale: WorkbenchLo
       medium: compact ? "Medium" : "Medium reasoning",
       high: compact ? "High" : "High reasoning",
       xhigh: compact ? "Extra high" : "Extra high reasoning",
-      max: compact ? "Max" : "Max reasoning",
       ultra: compact ? "Ultra" : "Ultra reasoning"
     }
   } as const;
