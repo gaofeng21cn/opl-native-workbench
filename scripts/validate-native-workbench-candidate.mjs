@@ -187,7 +187,7 @@ function assertCodexModelControls(evidence, app) {
   assert(app.includes('useState<"loading" | "ready" | "error">("loading")'), "renderer must track model catalog loading, ready, and error states");
   assert(app.includes('const canSendCodexTurn = codexCatalogStatus === "ready" && Boolean(resolvedModel)'), "renderer must fail closed until a catalog model is resolved");
   assert(app.includes('const effectiveSelection = selection.effectiveSelection') && app.includes('if (!resolvedModel) return'), "fixed unavailable models must not silently fall back during reasoning changes");
-  assert(app.includes('settings.modelAccess === "__auto" && resolvedModel') && app.includes("autoResolvedModelLabel"), "composer Auto must display its resolved model");
+  assert(app.includes("conversationModelLabel(") && app.includes("resolvedConversationModelLabel"), "composer model control must use the tested resolved-label policy");
   assert(app.includes('value="__auto"'), "Settings must expose Auto model restoration");
   assert(app.includes("model: resolvedModel.id"), "composer must send the App-resolved model");
   assert(app.includes("reasoningEffort: resolvedReasoning"), "composer must send a supported reasoning effort");
@@ -200,6 +200,8 @@ function assertCodexModelControls(evidence, app) {
   assert(rendererBuilder.includes("__OPL_CODEX_MODEL_POLICY__"), "renderer build must inject the App-owned model policy");
   assert(rendererBuilder.includes("resolveAppRepoRoot"), "renderer build must resolve the App repo through the shared helper");
   assert(appRepoResolver.includes('"contracts", "app-product-profile.json"'), "App repo resolver must require the App product profile");
+  const alignment = evidence.default_home_layout?.codex_2026_07_10_alignment ?? {};
+  assert(!("default_model" in alignment) && !("default_reasoning_effort" in alignment), "candidate evidence must not copy App model defaults");
 
   assert(app.includes('effectiveSelection === "__auto" && reasoningLevel !== codexModelPolicy.defaultReasoningEffort') && app.includes("writeSettings({ modelAccess, reasoningLevel })"), "changing Auto reasoning must pin the resolved model before applying the override");
 }

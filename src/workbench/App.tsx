@@ -49,6 +49,7 @@ import { codexWorkbenchStyles } from "./codexWorkbenchStyles";
 import {
   autoModelLabel,
   codexModelPolicy,
+  conversationModelLabel,
   modelLabel,
   reasoningLabel,
   resolveCodexModelOptions,
@@ -609,9 +610,11 @@ export function App() {
     ? selection.reasoningOptions
     : displayModel.supportedReasoningEfforts;
   const effectiveSelection = selection.effectiveSelection;
-  const autoResolvedModelLabel = settings.modelAccess === "__auto" && resolvedModel
-    ? modelLabel(resolvedModel.id, settings.locale)
-    : autoModelLabel(settings.locale);
+  const resolvedConversationModelLabel = conversationModelLabel(
+    settings.modelAccess,
+    resolvedModel?.id,
+    settings.locale
+  );
   const modelCatalogMessage = codexCatalogStatus === "loading"
     ? t.modelCatalogLoading(modelLabel(provisionalModel.id, settings.locale))
     : codexCatalogStatus === "error"
@@ -1265,7 +1268,7 @@ export function App() {
                       <nav data-testid="opl-topbar-model-config" className="composer-model-controls" aria-label="Conversation configuration">
                         <label className="composer-select" data-testid="opl-model-access-entry">
                           <select aria-label={settings.locale === "zh" ? "模型" : "Model"} value={settings.modelAccess} onChange={(event) => updateSetting("modelAccess", event.currentTarget.value as WorkbenchSettings["modelAccess"])}>
-                            <option value="__auto">{autoResolvedModelLabel}</option>
+                            <option value="__auto">{resolvedConversationModelLabel}</option>
                             {settings.modelAccess !== "__auto" && !availableModels.some((option) => option.id === settings.modelAccess) ? (
                               <option value={settings.modelAccess} disabled>
                                 {modelLabel(settings.modelAccess, settings.locale)}{codexCatalogStatus === "loading" ? "" : ` (${t.unavailable})`}

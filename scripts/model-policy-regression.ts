@@ -25,6 +25,7 @@ const injectedPolicy = createCodexModelPolicy(syntheticProfile);
 
 const {
   codexModelPolicy,
+  conversationModelLabel,
   resolveCodexModelOptions,
   resolveCodexSelection
 } = await import("../src/workbench/modelPolicy.ts");
@@ -51,9 +52,12 @@ assert.equal(runtimeOptions.find((option) => option.id === "codex-future-seconda
 const runtimeAuto = resolveCodexSelection(runtimeOptions, "__auto", "high");
 assert.equal(runtimeAuto.model?.id, "codex-future-secondary");
 assert.equal(runtimeAuto.reasoningEffort, "high");
+assert.equal(conversationModelLabel("__auto", runtimeAuto.model?.id, "en"), "Future secondary");
+assert.equal(conversationModelLabel("__auto", undefined, "en"), "Auto (recommended)");
 const pinnedSecondary = resolveCodexSelection(runtimeOptions, "codex-future-secondary", "low");
 assert.equal(pinnedSecondary.model?.id, "codex-future-secondary");
 assert.equal(pinnedSecondary.reasoningEffort, "low");
+assert.equal(conversationModelLabel("codex-future-secondary", pinnedSecondary.model?.id, "zh"), "Future secondary zh");
 const unavailablePrimary = resolveCodexSelection(runtimeOptions, "codex-future-primary", "max");
 assert.equal(unavailablePrimary.effectiveSelection, "codex-future-primary");
 assert.equal(unavailablePrimary.model, undefined);

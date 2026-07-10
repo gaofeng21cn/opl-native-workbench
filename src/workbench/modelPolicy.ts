@@ -144,6 +144,16 @@ export function autoModelLabel(locale: WorkbenchLocale): string {
   return locale === "zh" ? "自动（推荐）" : "Auto (recommended)";
 }
 
+export function conversationModelLabel(
+  selection: CodexModelSelection,
+  resolvedModel: CodexModelId | undefined,
+  locale: WorkbenchLocale
+): string {
+  return selection === "__auto"
+    ? resolvedModel ? modelLabel(resolvedModel, locale) : autoModelLabel(locale)
+    : modelLabel(selection, locale);
+}
+
 export function reasoningLabel(effort: CodexReasoningEffort, locale: WorkbenchLocale, compact = false): string {
   const labels = {
     zh: {
