@@ -16,6 +16,7 @@ export const requiredDeliverySurfaceKeys = [
 
 export const rendererSourcePaths = [
   "src/workbench/App.tsx",
+  "src/workbench/codexWorkbenchStyles.ts",
   "src/ui/workbenchPrimitives.tsx",
   "src/renderers/moduleRegistry.ts"
 ];

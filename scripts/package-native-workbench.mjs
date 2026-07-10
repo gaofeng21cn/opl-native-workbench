@@ -3,6 +3,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { buildRenderer } from "./build-renderer.mjs";
+import { resolveAppRepoRoot } from "./resolve-app-repo-root.mjs";
 import {
   assertNoFalseReadyFields,
   assertRendererTestIds,
@@ -25,7 +26,7 @@ const rendererOutDir = path.join(root, "dist", "package");
 const evidence = JSON.parse(fs.readFileSync(path.join(root, "src/candidateContractEvidence.json"), "utf8"));
 const app = read("src/workbench/App.tsx");
 const rendererSource = readRendererSource();
-const appRepoRoot = path.resolve(process.env.OPL_APP_REPO_ROOT ?? path.join(root, "..", "one-person-lab-app"));
+const appRepoRoot = resolveAppRepoRoot(root);
 const releaseIconPath = path.resolve(
   process.env.OPL_APP_RELEASE_ICON_ICNS ?? path.join(appRepoRoot, "shells", "aionui", "resources", "app.icns")
 );
@@ -101,7 +102,7 @@ runCommand("swiftc", [
 ], "compile native macOS workbench");
 
 const manifest = {
-  status: "candidate_app_bundle_ready",
+  status: "candidate_app_bundle_built",
   package_kind: "explicit_candidate_app_bundle",
   app_bundle_path: `out/${appName}.app`,
   app_bundle_executable: appName,
@@ -111,6 +112,31 @@ const manifest = {
   app_bundle_manifest: "Contents/Resources/package-manifest.json",
   native_runtime: "AppKit/WKWebView",
   opens_default_browser: false,
+  primary_visual_reference: {
+    product: "ChatGPT Codex macOS",
+    version: "26.707.31123",
+    reference_date: "2026-07-10",
+    source_usage: "visual_and_interaction_reference_only_no_code_or_brand_copy",
+    aligned_regions: [
+      "persistent project and conversation rail",
+      "single dominant conversation timeline",
+      "model and reasoning controls in the composer bottom row",
+      "floating user-requested environment details",
+      "account-row Settings entry"
+    ]
+  },
+  default_home_layout: {
+    project_rail_visible: true,
+    environment_details_default_open: false,
+    environment_details_presentation: "floating"
+  },
+  codex_model_policy: {
+    source: rendererBuild.modelPolicySource,
+    default_model: rendererBuild.defaultModel,
+    default_reasoning_effort: rendererBuild.defaultReasoningEffort,
+    visible_models: rendererBuild.visibleModels,
+    reasoning_efforts: rendererBuild.reasoningEfforts
+  },
   external_layout_reference: {
     repo: "https://github.com/K-Dense-AI/k-dense-byok",
     inspected_commit: "dccc7ec4d034a00d7662eaabb3f5916bc3d00602",
@@ -129,21 +155,22 @@ const manifest = {
       "apps/desktop/src/index.css"
     ],
     adapted_patterns: [
-      "project-first persistent left sidebar for Current project, context inputs, attachments/outputs, and recent chats per project",
+      "persistent project and conversation rail with compact project context links",
       "single conversation canvas with centered max-width thread and bottom composer",
-      "top model/access configuration stays in the center topbar",
-      "attachments, outputs, preview, provenance, workflows, and export live in a right inspector with Preview open by default and collapsible",
-      "chat tab strip and bottom composer as primary interaction",
-      "right Preview inspector is default-open and collapsible",
+      "model and reasoning controls stay in the composer bottom row",
+      "attachments, outputs, preview, provenance, workflows, packages, and runtime live in floating user-requested environment details",
+      "bottom composer is the primary interaction",
+      "environment details are closed by default and do not resize the chat canvas",
       "workflow/export/interview surfaces are secondary, not dashboard cards",
-      "Open Science paper-light surface, thin borders, compact message blocks, and rounded composer"
+      "K-Dense and Open Science remain feature references rather than the visual shell baseline"
     ]
   },
   brand_owner: "one-person-lab-app",
   functional_mvp: {
     codex_app_server_thread_turn: true,
     codex_command: "codex app-server --stdio",
-    codex_protocol: "JSON-RPC newline transport with initialize, thread/start, turn/start, item/agentMessage/delta, turn/completed, thread/resume",
+    codex_protocol: "JSON-RPC newline transport with initialize, model/list, thread/start, turn/start, item/agentMessage/delta, turn/completed, thread/resume",
+    codex_model_reasoning_controls: "App product profile model/reasoning policy injected into the shared renderer, filtered by app-server model/list, and passed through turn/start model and effort overrides",
     opl_state_bridge: "opl app state --profile fast --json",
     opl_action_bridge: "opl app action execute --action <action_id> --dry-run --json",
     native_bridge: "WKScriptMessageHandler window.webkit.messageHandlers.oplNativeWorkbench",
@@ -206,4 +233,4 @@ const manifest = {
 const manifestJson = JSON.stringify(manifest, null, 2);
 fs.writeFileSync(path.join(root, "out", "opl-native-workbench-candidate-manifest.json"), manifestJson);
 fs.writeFileSync(path.join(resourcesDir, "package-manifest.json"), manifestJson);
-console.log(JSON.stringify({ status: "candidate_app_bundle_ready", app_bundle_path: manifest.app_bundle_path }, null, 2));
+console.log(JSON.stringify({ status: "candidate_app_bundle_built", app_bundle_path: manifest.app_bundle_path }, null, 2));

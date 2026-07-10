@@ -46,7 +46,7 @@ final class CodexAppServerClient {
     self.workspaceRoot = workspaceRoot
   }
 
-  func send(prompt: String, requestedThreadId: String?) throws -> [String: Any] {
+  func send(prompt: String, requestedThreadId: String?, model: String?, effort: String?) throws -> [String: Any] {
     turnLock.lock()
     defer { turnLock.unlock() }
 
@@ -55,15 +55,22 @@ final class CodexAppServerClient {
       try resumeThread(requestedThreadId)
     }
     let thread = try ensureThread()
+    var turnParams: [String: Any] = [
+      "threadId": thread,
+      "input": [["type": "text", "text": prompt, "text_elements": []]],
+      "cwd": workspaceRoot.path,
+      "approvalPolicy": "never",
+      "sandboxPolicy": ["type": "readOnly", "networkAccess": false]
+    ]
+    if let model, !model.isEmpty {
+      turnParams["model"] = model
+    }
+    if let effort, !effort.isEmpty {
+      turnParams["effort"] = effort
+    }
     let turnResponse = try request(
       method: "turn/start",
-      params: [
-        "threadId": thread,
-        "input": [["type": "text", "text": prompt, "text_elements": []]],
-        "cwd": workspaceRoot.path,
-        "approvalPolicy": "never",
-        "sandboxPolicy": ["type": "readOnly", "networkAccess": false]
-      ],
+      params: turnParams,
       timeout: Self.requestTimeout
     )
     guard
@@ -116,8 +123,25 @@ final class CodexAppServerClient {
       "finalMessage": finalText,
       "eventCount": events.count,
       "completed": completed,
-      "cwd": workspaceRoot.path
+      "cwd": workspaceRoot.path,
+      "model": model ?? "configured_default",
+      "effort": effort ?? "configured_default"
     ]
+  }
+
+  func listModels() throws -> [String: Any] {
+    turnLock.lock()
+    defer { turnLock.unlock() }
+    try ensureInitialized()
+    let response = try request(
+      method: "model/list",
+      params: ["includeHidden": false],
+      timeout: Self.requestTimeout
+    )
+    guard let result = response["result"] as? [String: Any] else {
+      throw BridgeError.invalidPayload("app-server model/list returned no result")
+    }
+    return result
   }
 
   private func ensureInitialized() throws {
@@ -494,7 +518,14 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
       guard let prompt = payload["prompt"] as? String, !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
         throw BridgeError.invalidPayload("missing prompt")
       }
-      return try appServer.send(prompt: prompt, requestedThreadId: payload["threadId"] as? String)
+      return try appServer.send(
+        prompt: prompt,
+        requestedThreadId: payload["threadId"] as? String,
+        model: payload["model"] as? String,
+        effort: payload["reasoningEffort"] as? String
+      )
+    case "readCodexModels":
+      return try appServer.listModels()
     default:
       throw BridgeError.invalidPayload("unknown method \(method)")
     }

@@ -1,3 +1,9 @@
+import {
+  codexModelPolicy,
+  type CodexModelSelection,
+  type CodexReasoningEffort
+} from "./modelPolicy";
+
 export const SETTINGS_STORAGE_KEY = "opl.nativeWorkbench.settings.v1";
 
 export type SettingsSectionId =
@@ -23,8 +29,8 @@ export type SettingKey =
 
 export type WorkbenchSettings = {
   locale: "zh" | "en";
-  modelAccess: "codex_cli_managed";
-  reasoningLevel: "standard" | "high";
+  modelAccess: CodexModelSelection;
+  reasoningLevel: CodexReasoningEffort;
   defaultWorkspace: "opl_app";
   runtimeProfile: "fast" | "full";
   confirmBeforeExecute: boolean;
@@ -54,8 +60,8 @@ export const settingsSections: SettingsSection[] = [
 
 export const settingsDefaults: WorkbenchSettings = {
   locale: "zh",
-  modelAccess: "codex_cli_managed",
-  reasoningLevel: "standard",
+  modelAccess: "__auto",
+  reasoningLevel: codexModelPolicy.defaultReasoningEffort,
   defaultWorkspace: "opl_app",
   runtimeProfile: "fast",
   confirmBeforeExecute: true,
@@ -67,8 +73,8 @@ export const settingsDefaults: WorkbenchSettings = {
 
 const allowedSettingsValues = {
   locale: ["zh", "en"],
-  modelAccess: ["codex_cli_managed"],
-  reasoningLevel: ["standard", "high"],
+  modelAccess: ["__auto", ...codexModelPolicy.modelOptions.map((option) => option.id)],
+  reasoningLevel: codexModelPolicy.reasoningOptions,
   defaultWorkspace: ["opl_app"],
   runtimeProfile: ["fast", "full"],
   confirmBeforeExecute: [true, false],

@@ -88,7 +88,8 @@ function windowEvidence(bundleId) {
 
 function captureScreenshot(bundleId) {
   run("/usr/bin/osascript", ["-e", `tell application id "${bundleId}" to activate`]);
-  run("/bin/sleep", ["1"]);
+  // Allow app-server initialize/model-list and the first App state read to settle.
+  run("/bin/sleep", ["4"]);
   const result = run("/usr/sbin/screencapture", ["-x", screenshotPath]);
   if (result.status === 0 && fs.existsSync(screenshotPath) && fs.statSync(screenshotPath).size > 0) {
     return {

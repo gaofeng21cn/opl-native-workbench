@@ -1,7 +1,27 @@
 import * as Tabs from "@radix-ui/react-tabs";
-import { ChevronRight, Download, FileText, MoreVertical, PanelRightOpen, Plus, RefreshCw, Search, Send, Settings } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  CircleEllipsis,
+  Clock3,
+  Download,
+  FileText,
+  Folder,
+  MoreVertical,
+  PanelLeft,
+  PanelRightOpen,
+  Plug,
+  Plus,
+  RefreshCw,
+  Search,
+  Send,
+  Settings,
+  Sparkles,
+  X
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { createBrowserBridge } from "../bridge/oplBridge";
+import { createBrowserBridge, type CodexModelCatalogEntry } from "../bridge/oplBridge";
 import {
   ActionReceiptSummary,
   ArtifactPreviewCard,
@@ -14,7 +34,6 @@ import {
   deriveWorkbenchModelFromState,
   initialWorkbenchModel,
   type WorkbenchActionRef,
-  type WorkbenchPurpose,
   type WorkbenchStarter
 } from "./workbenchModel";
 import {
@@ -25,40 +44,297 @@ import {
   type SettingKey,
   type WorkbenchSettings
 } from "./settingsModel";
+import { codexWorkbenchStyles } from "./codexWorkbenchStyles";
+import {
+  autoModelLabel,
+  codexModelPolicy,
+  modelLabel,
+  reasoningLabel,
+  type CodexModelId,
+  type CodexReasoningEffort
+} from "./modelPolicy";
 
 const contextTabs = [
-  ["opl-files-panel", "Sources"],
-  ["opl-artifact-preview-tabs", "Preview"],
-  ["opl-provenance-drawer", "Trace"],
-  ["opl-starter-forms", "Workflows"],
-  ["opl-package-lifecycle-panel", "Packages"],
-  ["opl-runtime-summary", "Runtime"]
+  ["opl-files-panel", "sources"],
+  ["opl-artifact-preview-tabs", "results"],
+  ["opl-provenance-drawer", "actions"],
+  ["opl-starter-forms", "workflows"],
+  ["opl-package-lifecycle-panel", "packages"],
+  ["opl-runtime-summary", "runtime"],
+  ["opl-automations-panel", "scheduled"],
+  ["opl-memory-panel", "memory"],
+  ["opl-always-on-panel", "alwaysOn"]
 ] as const;
+const contextHomeId = "opl-environment-home" as const;
+type ContextTabId = (typeof contextTabs)[number][0];
+type ActiveContextTab = ContextTabId | typeof contextHomeId;
 
-const purposeLabels: Record<WorkbenchPurpose, string> = {
-  research: "Review results",
-  grant: "Draft grant",
-  presentation: "Build deck",
-  review: "Prepare handoff"
-};
+const uiCopy = {
+  zh: {
+    newTask: "新建任务",
+    scheduled: "已安排",
+    agents: "智能体与能力",
+    chat: "聊天",
+    projects: "项目",
+    local: "本地",
+    projectContext: "项目上下文",
+    filesOutputs: "文件与结果",
+    settings: "设置",
+    openSettings: "打开设置",
+    hideSidebar: "隐藏侧边栏",
+    showSidebar: "显示侧边栏",
+    conversationMenu: "对话菜单",
+    refreshContext: "刷新项目上下文",
+    backToChat: "返回聊天",
+    previewExport: "预览导出操作",
+    openEnvironment: "打开环境信息",
+    closeEnvironment: "关闭环境信息",
+    newTaskTitle: "新任务",
+    emptyTitle: "想从哪里开始？",
+    emptyDescription: (project: string) => `已选择 ${project}。OPL 会在任务需要时使用该项目的上下文。`,
+    prompt: "让 OPL 审阅、撰写、导出，或启动专业工作流",
+    attachFiles: "添加文件",
+    capabilities: "能力",
+    working: "正在工作",
+    running: "运行中",
+    retry: "重试",
+    send: "发送",
+    high: "高",
+    standard: "标准",
+    you: "你",
+    assistant: "One Person Lab",
+    runtime: "运行时",
+    codexWorking: "Codex 正在处理...",
+    waitingReply: "等待回复。",
+    openPreview: "打开预览",
+    currentPreview: "当前预览",
+    environment: "环境信息",
+    environmentStatus: "当前项目的来源、结果、操作、工作流与运行环境。",
+    backEnvironment: "返回环境信息",
+    close: "关闭",
+    refresh: "刷新",
+    sources: "来源",
+    sourcesDescription: "项目输入、资料和 refs-only 上下文",
+    results: "结果与文件",
+    resultsDescription: "交付物、附件和内容预览",
+    actions: "操作与回执",
+    actionsDescription: "预览、确认、执行回执和回滚入口",
+    workflows: "工作流",
+    workflowsDescription: "OPL 专业智能体的任务启动器",
+    packages: "智能体与能力包",
+    packagesDescription: "能力包、安装状态和可用入口",
+    runtimeMenu: "运行环境",
+    runtimeDescription: "Codex、OPL App bridge 和本地状态",
+    settingsRuntime: "运行状态",
+    stateProfile: "状态配置",
+    contextState: "上下文状态",
+    refreshState: "立即刷新状态",
+    defaultLabel: "默认值",
+    on: "开",
+    off: "关",
+    previewAction: "预览操作",
+    executeConfirmed: "确认并执行",
+    previewRollback: "预览回滚",
+    actionReceipts: "操作回执",
+    workflowStarters: "工作流启动器",
+    previewFirst: "先预览，再确认",
+    previewReceipt: "预览回执",
+    unavailable: "不可用",
+    previewWorkflow: "预览工作流",
+    agentPackages: "智能体能力包",
+    readbackOnly: "仅读取",
+    fullDrilldown: "查看完整状态",
+    deliverables: "交付结果",
+    recentRefs: "最近的引用与回执",
+    stateProfileHelp: "控制项目状态读取的详细程度。",
+    noReadbackTimestamp: "暂无状态读取时间。",
+    sourcesBoundary: "由 OPL App state/action 合同提供的 refs-only 界面。",
+    traceAndActions: "追踪与操作",
+    traceBoundary: "仅显示来源、回执、重放和导出引用，不复制产物正文。",
+    appRootRefs: "仅 App/root 引用",
+    packageBoundary: "能力包状态和操作来自 App/root 合同；缺少 bridge 或只存在旧模块回退时保持预览或不可用。",
+    search: "搜索",
+    filterTags: "筛选标签",
+    runtimeNoAuthority: "这里不持有领域正文或产物正文。",
+    skills: "技能",
+    skillsBoundary: "仅显示 Codex Skill 引用，不持有领域权威。",
+    routing: "路由",
+    routingBoundary: "路由建议继续作为 App 所有的引用和预览操作。",
+    memory: "记忆",
+    memoryBoundary: "仅显示记忆引用，不持有记忆正文真相。",
+    alwaysOn: "常驻上下文",
+    alwaysOnBoundary: "常驻上下文只汇总为引用、回执和下一步操作。",
+    workflowRun: "工作流运行",
+    workflowSteps: ["规划", "检索", "起草", "验证", "完成"],
+    receipt: "回执",
+    projectGroup: "项目",
+    executionGroup: "执行",
+    systemGroup: "系统",
+    stateLoading: "载入中",
+    stateReady: "已连接",
+    stateError: "不可用",
+    scheduledDescription: "计划任务和自动运行引用",
+    memoryDescription: "当前项目的记忆引用与边界",
+    alwaysOnDescription: "常驻上下文、回执和下一步"
+  },
+  en: {
+    newTask: "New task",
+    scheduled: "Scheduled",
+    agents: "Agents & Capabilities",
+    chat: "Chat",
+    projects: "Projects",
+    local: "Local",
+    projectContext: "Project context",
+    filesOutputs: "Files & outputs",
+    settings: "Settings",
+    openSettings: "Open settings",
+    hideSidebar: "Hide sidebar",
+    showSidebar: "Show sidebar",
+    conversationMenu: "Conversation menu",
+    refreshContext: "Refresh project context",
+    backToChat: "Back to chat",
+    previewExport: "Preview export action",
+    openEnvironment: "Open environment details",
+    closeEnvironment: "Close environment details",
+    newTaskTitle: "New task",
+    emptyTitle: "What should we work on?",
+    emptyDescription: (project: string) => `${project} is selected. OPL will use its project context only when the task needs it.`,
+    prompt: "Ask OPL to review, draft, export, or start a workflow",
+    attachFiles: "Attach files",
+    capabilities: "Capabilities",
+    working: "Working",
+    running: "Running",
+    retry: "Retry",
+    send: "Send",
+    high: "High",
+    standard: "Standard",
+    you: "You",
+    assistant: "One Person Lab",
+    runtime: "Runtime",
+    codexWorking: "Codex is working...",
+    waitingReply: "Waiting for reply.",
+    openPreview: "Open preview",
+    currentPreview: "Current preview",
+    environment: "Environment",
+    environmentStatus: "Sources, results, actions, workflows, and runtime for the current project.",
+    backEnvironment: "Back to Environment",
+    close: "Close",
+    refresh: "Refresh",
+    sources: "Sources",
+    sourcesDescription: "Project inputs, materials, and refs-only context",
+    results: "Results & files",
+    resultsDescription: "Deliverables, attachments, and content previews",
+    actions: "Actions & receipts",
+    actionsDescription: "Preview, confirmation, receipts, and rollback",
+    workflows: "Workflows",
+    workflowsDescription: "Task starters for OPL professional agents",
+    packages: "Agents & packages",
+    packagesDescription: "Capability packages, install state, and entry points",
+    runtimeMenu: "Runtime",
+    runtimeDescription: "Codex, OPL App bridge, and local state",
+    settingsRuntime: "Runtime readback",
+    stateProfile: "State profile",
+    contextState: "Context state",
+    refreshState: "Refresh state now",
+    defaultLabel: "Default",
+    on: "on",
+    off: "off",
+    previewAction: "Preview action",
+    executeConfirmed: "Execute confirmed",
+    previewRollback: "Preview rollback",
+    actionReceipts: "Action receipts",
+    workflowStarters: "Workflow starters",
+    previewFirst: "Preview first, then confirm",
+    previewReceipt: "Preview receipt",
+    unavailable: "Unavailable",
+    previewWorkflow: "Preview workflow",
+    agentPackages: "Agent packages",
+    readbackOnly: "Readback only",
+    fullDrilldown: "Full drilldown",
+    deliverables: "Deliverables",
+    recentRefs: "Recent refs and receipts",
+    stateProfileHelp: "Controls the level of detail used for project state reads.",
+    noReadbackTimestamp: "No current readback timestamp.",
+    sourcesBoundary: "Refs-only surface backed by OPL App state/action contracts.",
+    traceAndActions: "Trace and actions",
+    traceBoundary: "Source, receipt, replay, and export refs without artifact bodies.",
+    appRootRefs: "App/root refs only",
+    packageBoundary: "Package status and actions come from App/root contracts. Missing bridge or legacy module fallback stays preview/unavailable.",
+    search: "Search",
+    filterTags: "Filter tags",
+    runtimeNoAuthority: "No domain body or artifact body is owned here.",
+    skills: "Skills",
+    skillsBoundary: "Codex Skill references only; no domain authority is owned here.",
+    routing: "Routing",
+    routingBoundary: "Route suggestions remain App-owned refs and preview actions.",
+    memory: "Memory",
+    memoryBoundary: "Memory refs are shown without owning memory body truth.",
+    alwaysOn: "Always-on context",
+    alwaysOnBoundary: "Always-on context is summarized as refs, receipts, and next actions.",
+    workflowRun: "Workflow run",
+    workflowSteps: ["Plan", "Retrieve", "Draft", "Validate", "Complete"],
+    receipt: "Receipt",
+    projectGroup: "Project",
+    executionGroup: "Execution",
+    systemGroup: "System",
+    stateLoading: "Loading",
+    stateReady: "Connected",
+    stateError: "Unavailable",
+    scheduledDescription: "Scheduled task and automation refs",
+    memoryDescription: "Memory refs and boundaries for this project",
+    alwaysOnDescription: "Persistent context, receipts, and next actions"
+  }
+} as const;
+
+const localizedPurposeLabels = {
+  zh: { research: "审阅结果", grant: "起草标书", presentation: "制作演示", review: "准备交付" },
+  en: { research: "Review results", grant: "Draft grant", presentation: "Build deck", review: "Prepare handoff" }
+} as const;
+
+const localizedSettingLabels = {
+  zh: {
+    locale: "界面语言",
+    modelAccess: "模型接入",
+    reasoningLevel: "推理强度",
+    defaultWorkspace: "默认工作区",
+    runtimeProfile: "状态读取配置",
+    confirmBeforeExecute: "执行前确认",
+    artifactPreviewMode: "预览模式",
+    professionalStarterDefaults: "默认专业能力",
+    theme: "外观",
+    developerDetails: "开发者详情"
+  },
+  en: {
+    locale: "Language",
+    modelAccess: "Model access",
+    reasoningLevel: "Reasoning",
+    defaultWorkspace: "Default workspace",
+    runtimeProfile: "State profile",
+    confirmBeforeExecute: "Confirm before execute",
+    artifactPreviewMode: "Preview mode",
+    professionalStarterDefaults: "Starter defaults",
+    theme: "Theme",
+    developerDetails: "Developer details"
+  }
+} as const;
+
+const localizedSettingsSections = {
+  zh: {
+    general: "通用",
+    access: "模型与推理",
+    capabilities: "智能体与能力",
+    environment: "本地环境",
+    storage: "执行安全",
+    appearance: "外观与预览",
+    advanced: "高级"
+  },
+  en: Object.fromEntries(settingsSections.map((section) => [section.id, section.title]))
+} as Record<"zh" | "en", Record<(typeof settingsSections)[number]["id"], string>>;
 
 const previewActionRefId = "task_action_receipt_preview";
 const exportActionRefId = "task_export_bundle_preview";
 const runtimeActionRefId = "provider_scheduler_status";
 const chatSessionsStorageKey = "opl.nativeWorkbench.chatSessions.v1";
-
-const settingLabels: Record<SettingKey, string> = {
-  locale: "Language",
-  modelAccess: "Model access",
-  reasoningLevel: "Reasoning",
-  defaultWorkspace: "Default workspace",
-  runtimeProfile: "State profile",
-  confirmBeforeExecute: "Confirm before execute",
-  artifactPreviewMode: "Preview mode",
-  professionalStarterDefaults: "Starter defaults",
-  theme: "Theme",
-  developerDetails: "Developer details"
-};
 
 type ChatMessage = {
   id: string;
@@ -81,1625 +357,6 @@ type SidebarDisplayItem = {
   summary: string;
   previewId?: string;
 };
-
-const workbenchStyles = `
-  :root {
-    color-scheme: light;
-  }
-
-  .opl-native-workbench {
-    min-height: 100vh;
-    display: grid;
-    grid-template-columns: 272px minmax(0, 1fr) 0;
-    background:
-      radial-gradient(circle at top left, rgba(215, 231, 225, 0.7), transparent 28%),
-      linear-gradient(180deg, #f8f5ef 0%, #f4efe7 100%);
-    color: #1e2320;
-    font-family: "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
-  }
-
-  .opl-native-workbench.inspector-open {
-    grid-template-columns: 272px minmax(0, 1fr) 368px;
-  }
-
-  .opl-native-workbench button,
-  .opl-native-workbench input,
-  .opl-native-workbench textarea,
-  .opl-native-workbench select {
-    font: inherit;
-  }
-
-  .opl-native-workbench button {
-    cursor: pointer;
-  }
-
-  .sidebar {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    padding: 20px 16px 16px;
-    border-right: 1px solid rgba(48, 56, 51, 0.08);
-    background: rgba(250, 248, 243, 0.9);
-    backdrop-filter: blur(18px);
-  }
-
-  .brand-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 6px 8px;
-  }
-
-  .brand-row img {
-    width: 22px;
-    height: 22px;
-    border-radius: 6px;
-    box-shadow: 0 4px 10px rgba(32, 37, 31, 0.08);
-  }
-
-  .brand-row strong,
-  .sidebar-section-head strong,
-  .topbar h1,
-  .message-label,
-  .inspector-header h2,
-  .settings-page h2 {
-    letter-spacing: 0;
-  }
-
-  .brand-row small,
-  .sidebar-section-head span,
-  .topbar-copy p,
-  .topbar-meta span,
-  .thread-note,
-  .workflow-strip-head span,
-  .context-status,
-  .context-empty,
-  .settings-hint,
-  .runtime-note,
-  .delivery-note,
-  .composer-meta,
-  .history-list li span,
-  .history-list li small,
-  .message-meta {
-    color: #66716b;
-  }
-
-  .quick-actions {
-    display: flex;
-    gap: 8px;
-  }
-
-  .quick-actions button,
-  .sidebar-footer button,
-  .topbar-actions button,
-  .workflow-chip,
-  .context-tabs button,
-  .context-quiet-action,
-  .composer-action,
-  .composer-submit,
-  .setting-toggle,
-  .history-list li button {
-    border: 1px solid rgba(48, 56, 51, 0.1);
-    background: rgba(255, 255, 255, 0.84);
-    color: #1f2723;
-    transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
-  }
-
-  .quick-actions button:hover,
-  .sidebar-footer button:hover,
-  .topbar-actions button:hover,
-  .workflow-chip:hover,
-  .context-tabs button:hover,
-  .context-quiet-action:hover,
-  .composer-action:hover,
-  .composer-submit:hover,
-  .setting-toggle:hover,
-  .history-list li button:hover {
-    background: #fff;
-    border-color: rgba(43, 106, 93, 0.18);
-  }
-
-  .quick-actions button:first-child {
-    flex: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    height: 40px;
-    border-radius: 14px;
-    background: #1f2723;
-    border-color: #1f2723;
-    color: #f8f5ef;
-  }
-
-  .quick-actions button:last-child {
-    width: 40px;
-    height: 40px;
-    border-radius: 14px;
-  }
-
-  .history-list {
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .sidebar-panel {
-    display: grid;
-    gap: 10px;
-    padding: 0 8px;
-  }
-
-  .sidebar-panel-card {
-    display: grid;
-    gap: 8px;
-    padding: 12px;
-    border: 1px solid rgba(48, 56, 51, 0.08);
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.62);
-  }
-
-  .sidebar-panel-card strong,
-  .sidebar-source-item strong {
-    font-size: 13px;
-    font-weight: 600;
-    color: #1d2521;
-  }
-
-  .sidebar-panel-card span,
-  .sidebar-panel-card small,
-  .sidebar-source-item span,
-  .sidebar-source-item code {
-    color: #66716b;
-  }
-
-  .sidebar-project-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-
-  .sidebar-project-meta {
-    display: grid;
-    gap: 4px;
-  }
-
-  .sidebar-project-pill {
-    width: fit-content;
-    display: inline-flex;
-    align-items: center;
-    min-height: 22px;
-    padding: 0 8px;
-    border-radius: 999px;
-    border: 1px solid rgba(43, 106, 93, 0.16);
-    background: rgba(43, 106, 93, 0.08);
-    color: #2b6a5d;
-    font-size: 11px;
-  }
-
-  .sidebar-source-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: grid;
-    gap: 6px;
-  }
-
-  .sidebar-source-item {
-    display: grid;
-    gap: 4px;
-    width: 100%;
-    padding: 10px 12px;
-    border: 1px solid rgba(48, 56, 51, 0.08);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.72);
-    text-align: left;
-  }
-
-  .sidebar-source-item code {
-    font-size: 11px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .sidebar-section-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 8px;
-  }
-
-  .history-list ol {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    overflow: auto;
-  }
-
-  .history-list li button {
-    width: 100%;
-    padding: 10px 12px;
-    border-radius: 14px;
-    text-align: left;
-    display: grid;
-    gap: 4px;
-  }
-
-  .history-list li.active button {
-    background: rgba(43, 106, 93, 0.08);
-    border-color: rgba(43, 106, 93, 0.22);
-    box-shadow: inset 0 0 0 1px rgba(43, 106, 93, 0.05);
-  }
-
-  .sidebar-footer {
-    margin-top: auto;
-    display: grid;
-    gap: 8px;
-  }
-
-  .sidebar-footer button {
-    height: 38px;
-    padding: 0 12px;
-    border-radius: 12px;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    justify-content: flex-start;
-  }
-
-  .sidebar-footer [aria-current="page"] {
-    background: rgba(43, 106, 93, 0.08);
-    border-color: rgba(43, 106, 93, 0.22);
-  }
-
-  .chat-shell {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    padding: 20px 24px 24px;
-  }
-
-  .topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 4px 0 16px;
-  }
-
-  .topbar-copy h1 {
-    margin: 2px 0 0;
-    font-size: 18px;
-    font-weight: 620;
-    color: #17201d;
-  }
-
-  .topbar-meta {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 6px;
-  }
-
-  .topbar-status,
-  .session-chip,
-  .delivery-mode-tag,
-  .composer-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 28px;
-    padding: 0 10px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.74);
-    border: 1px solid rgba(48, 56, 51, 0.08);
-    font-size: 12px;
-  }
-
-  .topbar-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-  }
-
-  .topbar-actions button {
-    height: 34px;
-    padding: 0 10px;
-    border-radius: 12px;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .topbar-actions .primary-action,
-  .composer-submit {
-    background: #1f2723;
-    border-color: #1f2723;
-    color: #f8f5ef;
-  }
-
-  .conversation,
-  .settings-page {
-    min-height: 0;
-    flex: 1;
-  }
-
-  .conversation-inner,
-  .settings-content {
-    width: min(100%, 860px);
-    margin: 0 auto;
-  }
-
-  .workflow-strip {
-    display: grid;
-    gap: 10px;
-    padding: 12px 14px;
-    margin-bottom: 16px;
-    border: 1px solid rgba(48, 56, 51, 0.08);
-    border-radius: 18px;
-    background: rgba(255, 255, 255, 0.54);
-  }
-
-  .workflow-strip-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-
-  .workflow-chip-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .workflow-chip {
-    min-height: 34px;
-    padding: 0 12px;
-    border-radius: 999px;
-    font-size: 13px;
-  }
-
-  .thread {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding-bottom: 20px;
-  }
-
-  .thread-intro {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    padding: 0 2px 2px;
-  }
-
-  .thread-note {
-    font-size: 12px;
-  }
-
-  .message {
-    max-width: 720px;
-    display: grid;
-    gap: 8px;
-  }
-
-  .message.assistant,
-  .message.system {
-    justify-items: start;
-  }
-
-  .message.user {
-    justify-items: end;
-    margin-left: auto;
-  }
-
-  .message-frame {
-    width: fit-content;
-    max-width: 100%;
-    padding: 14px 16px;
-    border-radius: 20px;
-    background: rgba(255, 255, 255, 0.76);
-    border: 1px solid rgba(48, 56, 51, 0.08);
-    box-shadow: 0 10px 30px rgba(48, 56, 51, 0.04);
-  }
-
-  .message.user .message-frame {
-    background: #1f2723;
-    color: #f7f2ea;
-    border-color: #1f2723;
-  }
-
-  .message.system .message-frame {
-    background: rgba(221, 231, 228, 0.62);
-    border-color: rgba(43, 106, 93, 0.12);
-  }
-
-  .message-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: #4d5a54;
-  }
-
-  .message-frame p {
-    margin: 0;
-    white-space: pre-wrap;
-    line-height: 1.55;
-  }
-
-  .message-meta {
-    font-size: 12px;
-  }
-
-  .composer {
-    position: sticky;
-    bottom: 0;
-    padding-top: 8px;
-    background: linear-gradient(180deg, rgba(244, 239, 231, 0) 0%, rgba(244, 239, 231, 0.96) 26%, rgba(244, 239, 231, 0.98) 100%);
-  }
-
-  .composer-frame {
-    border: 1px solid rgba(48, 56, 51, 0.1);
-    border-radius: 22px;
-    padding: 14px;
-    background: rgba(255, 255, 255, 0.88);
-    box-shadow: 0 18px 42px rgba(42, 49, 45, 0.08);
-  }
-
-  .composer textarea {
-    width: 100%;
-    min-height: 84px;
-    resize: vertical;
-    border: 0;
-    background: transparent;
-    outline: none;
-    color: #1b221f;
-  }
-
-  .composer footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin-top: 12px;
-  }
-
-  .composer-meta {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-  .composer-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .composer-action {
-    width: 38px;
-    height: 38px;
-    border-radius: 12px;
-  }
-
-  .composer-submit {
-    min-width: 108px;
-    height: 38px;
-    padding: 0 14px;
-    border-radius: 12px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-  }
-
-  .settings-page section,
-  .context-block {
-    border: 1px solid rgba(48, 56, 51, 0.08);
-    border-radius: 18px;
-    padding: 16px;
-    background: rgba(255, 255, 255, 0.68);
-  }
-
-  .settings-content {
-    display: grid;
-    gap: 12px;
-  }
-
-  .settings-page dl {
-    margin: 0;
-    display: grid;
-    gap: 12px;
-  }
-
-  .settings-page dl > div {
-    display: grid;
-    gap: 4px;
-  }
-
-  .settings-page dd,
-  .settings-page dt {
-    margin: 0;
-  }
-
-  .settings-page dd {
-    display: grid;
-    gap: 6px;
-  }
-
-  .setting-toggle {
-    width: fit-content;
-    min-height: 34px;
-    padding: 0 12px;
-    border-radius: 10px;
-  }
-
-  .context-inspector {
-    display: none;
-    border-left: 1px solid rgba(48, 56, 51, 0.08);
-    background: rgba(250, 248, 243, 0.94);
-    backdrop-filter: blur(18px);
-    min-width: 0;
-  }
-
-  .context-inspector.open {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .inspector-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 20px 18px 8px;
-  }
-
-  .inspector-header button {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    border: 1px solid rgba(48, 56, 51, 0.1);
-    background: rgba(255, 255, 255, 0.8);
-  }
-
-  .context-summary {
-    padding: 0 18px 14px;
-  }
-
-  .context-tabs {
-    display: flex;
-    gap: 8px;
-    padding: 0 18px 14px;
-    overflow: auto;
-  }
-
-  .context-tabs button {
-    min-height: 34px;
-    padding: 0 12px;
-    border-radius: 999px;
-    white-space: nowrap;
-  }
-
-  .context-tabs button[data-active="true"] {
-    background: rgba(43, 106, 93, 0.08);
-    border-color: rgba(43, 106, 93, 0.22);
-  }
-
-  .context-scroll {
-    min-height: 0;
-    overflow: auto;
-    display: grid;
-    gap: 12px;
-    padding: 0 18px 20px;
-    align-content: start;
-  }
-
-  .context-block header,
-  .delivery-head,
-  .provenance-drawer header,
-  .starter-form header,
-  .context-list-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 10px;
-  }
-
-  .context-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: grid;
-    gap: 10px;
-  }
-
-  .context-list li,
-  .trace-list div,
-  .settings-inline-list div {
-    display: grid;
-    gap: 4px;
-  }
-
-  .context-code,
-  .trace-list dd,
-  .runtime-note,
-  .context-empty,
-  .settings-page small,
-  .settings-hint,
-  .starter-form small,
-  .starter-form p,
-  .delivery-note {
-    font-size: 12px;
-  }
-
-  .artifact-preview-tabs [role="tablist"] {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 12px;
-  }
-
-  .artifact-preview-tabs [role="tab"] {
-    min-height: 34px;
-    padding: 0 12px;
-    border-radius: 999px;
-    border: 1px solid rgba(48, 56, 51, 0.1);
-    background: rgba(255, 255, 255, 0.72);
-  }
-
-  .delivery-stack,
-  .package-lifecycle-list,
-  .starter-stack,
-  .utility-stack {
-    display: grid;
-    gap: 10px;
-  }
-
-  .package-lifecycle-card {
-    border: 1px solid rgba(48, 56, 51, 0.08);
-    border-radius: 16px;
-    padding: 14px;
-    background: rgba(255, 255, 255, 0.62);
-    display: grid;
-    gap: 12px;
-  }
-
-  .package-lifecycle-card header,
-  .package-action-row,
-  .package-action-detail,
-  .package-axis-list,
-  .package-detail-list,
-  .package-filter-list,
-  .package-ref-list {
-    display: grid;
-    gap: 6px;
-  }
-
-  .package-action-row {
-    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
-  }
-
-  .package-action-row button {
-    min-height: 34px;
-    padding: 0 10px;
-    border-radius: 12px;
-    border: 1px solid rgba(48, 56, 51, 0.1);
-    background: rgba(255, 255, 255, 0.84);
-  }
-
-  .package-axis-list,
-  .package-detail-list,
-  .package-filter-list,
-  .package-ref-list {
-    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-  }
-
-  .provenance-actions,
-  .runtime-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin: 12px 0;
-  }
-
-  .provenance-actions button,
-  .runtime-actions button,
-  .starter-form button,
-  .context-button {
-    min-height: 36px;
-    padding: 0 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(48, 56, 51, 0.1);
-    background: rgba(255, 255, 255, 0.84);
-  }
-
-  .trace-list,
-  .settings-inline-list {
-    margin: 0;
-    display: grid;
-    gap: 10px;
-  }
-
-  .trace-list dt,
-  .settings-inline-list dt {
-    font-weight: 600;
-  }
-
-  .starter-form {
-    border: 1px solid rgba(48, 56, 51, 0.08);
-    border-radius: 16px;
-    padding: 14px;
-    background: rgba(255, 255, 255, 0.62);
-    display: grid;
-    gap: 10px;
-  }
-
-  .starter-field {
-    display: grid;
-    gap: 6px;
-  }
-
-  .starter-field textarea,
-  .starter-field input,
-  .starter-field select {
-    border: 1px solid rgba(48, 56, 51, 0.1);
-    border-radius: 12px;
-    padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.88);
-  }
-
-  .starter-form button[type="submit"] {
-    justify-self: start;
-  }
-
-  .action-receipt-summary-list,
-  .artifact-preview-tabs,
-  .delivery-cards,
-  .package-lifecycle-panel,
-  .provenance-drawer,
-  .starter-forms,
-  .runtime-panel,
-  .settings-inline-panel {
-    display: grid;
-    gap: 12px;
-  }
-
-  .settings-inline-panel .context-button {
-    justify-self: start;
-  }
-
-  .runtime-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-
-  @media (max-width: 1220px) {
-    .opl-native-workbench,
-    .opl-native-workbench.inspector-open {
-      grid-template-columns: 240px minmax(0, 1fr);
-    }
-
-    .context-inspector {
-      position: fixed;
-      top: 0;
-      right: 0;
-      bottom: 0;
-      width: min(400px, 92vw);
-      z-index: 10;
-      box-shadow: -16px 0 40px rgba(32, 38, 35, 0.12);
-    }
-  }
-
-  @media (max-width: 900px) {
-    .opl-native-workbench,
-    .opl-native-workbench.inspector-open {
-      grid-template-columns: 1fr;
-    }
-
-    .sidebar {
-      border-right: 0;
-      border-bottom: 1px solid rgba(48, 56, 51, 0.08);
-    }
-
-    .sidebar-panel {
-      padding: 0;
-    }
-
-    .chat-shell {
-      padding: 16px;
-    }
-
-    .topbar {
-      flex-direction: column;
-    }
-  }
-
-  .opl-native-workbench {
-    height: 100vh;
-    min-height: 100vh;
-    grid-template-columns: 300px minmax(0, 1fr) 410px;
-    overflow: hidden;
-    background: #f7f7f5;
-    color: #242724;
-    font-family: Inter, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
-    font-size: 14px;
-    line-height: 1.42;
-  }
-
-  .opl-native-workbench.inspector-open {
-    grid-template-columns: 300px minmax(0, 1fr) 410px;
-  }
-
-  .opl-native-workbench.inspector-closed {
-    grid-template-columns: 300px minmax(0, 1fr) 0;
-  }
-
-  .sidebar {
-    gap: 0;
-    padding: 18px 18px 18px;
-    border-right: 1px solid #dedfdd;
-    background: #fafaf8;
-    font-size: 14px;
-  }
-
-  .brand-row {
-    height: 40px;
-    padding: 0 0 20px;
-    gap: 12px;
-  }
-
-  .brand-row img {
-    display: none;
-  }
-
-  .brand-mark {
-    font-size: 25px;
-    line-height: 1;
-    font-weight: 720;
-    color: #007878;
-  }
-
-  .brand-name {
-    font-size: 14px;
-    font-weight: 500;
-    color: #1f2321;
-  }
-
-  .quick-actions {
-    display: grid;
-    gap: 0;
-    padding: 8px 0;
-    margin-bottom: 24px;
-    border: 1px solid #e1e2df;
-    border-radius: 6px;
-    background: #fff;
-  }
-
-  .quick-actions button:first-child,
-  .quick-actions button:last-child {
-    width: 100%;
-    height: 44px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 12px;
-    padding: 0 14px;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    color: #242724;
-  }
-
-  .quick-actions button + button {
-    border-top: 1px solid #ebecea;
-  }
-
-  .kbd-hint {
-    margin-left: auto;
-    min-width: 28px;
-    height: 18px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 4px;
-    background: #f0f1ef;
-    color: #777d78;
-    font-size: 11px;
-  }
-
-  .sidebar-panel {
-    gap: 12px;
-    padding: 0;
-    margin-bottom: 26px;
-  }
-
-  .sidebar-section-head {
-    padding: 0;
-    color: #7a807b;
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 1.2;
-  }
-
-  .sidebar-section-head strong {
-    color: #7a807b;
-    font-weight: 500;
-    font-size: 12px;
-  }
-
-  .sidebar-section-head span {
-    font-size: 12px;
-  }
-
-  .sidebar-panel-card {
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-  }
-
-  .sidebar-project-head {
-    min-height: 34px;
-  }
-
-  .project-selector {
-    width: 100%;
-    border: 0;
-    background: transparent;
-    padding: 0;
-    text-align: left;
-  }
-
-  .sidebar-project-meta {
-    grid-template-columns: auto 1fr;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .sidebar-project-meta::before,
-  .sidebar-source-item::before,
-  .history-list li button::before {
-    content: "";
-    width: 15px;
-    height: 15px;
-    border: 1.5px solid #5b625d;
-    border-radius: 3px;
-  }
-
-  .sidebar-project-meta span,
-  .sidebar-project-pill,
-  .sidebar-source-item span,
-  .sidebar-source-item code {
-    display: none;
-  }
-
-  .sidebar-project-meta strong,
-  .sidebar-source-item strong,
-  .history-list li button strong,
-  .sidebar-add-item,
-  .quick-actions button,
-  .sidebar-footer button {
-    font-size: 14px;
-    font-weight: 450;
-    line-height: 1.28;
-  }
-
-  .sidebar-source-list {
-    gap: 10px;
-  }
-
-  .sidebar-source-item {
-    grid-template-columns: auto 1fr;
-    align-items: center;
-    gap: 10px;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-  }
-
-  .sidebar-attachment-list .sidebar-source-item::before {
-    border-radius: 2px;
-    border-color: #7a807b;
-    background: linear-gradient(180deg, transparent 45%, #7a807b 45%, #7a807b 55%, transparent 55%);
-  }
-
-  .sidebar-add-item {
-    width: 100%;
-    min-height: 30px;
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: #5f6661;
-    text-align: left;
-  }
-
-  .history-list {
-    gap: 12px;
-  }
-
-  .history-list ol {
-    gap: 4px;
-  }
-
-  .history-list li button {
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: 10px;
-    min-height: 40px;
-    padding: 0 10px;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
-  }
-
-  .history-list li button span {
-    display: none;
-  }
-
-  .history-list li button small {
-    grid-column: 3;
-    font-size: 12px;
-    color: #7a807b;
-  }
-
-  .history-list li.active button {
-    background: #dcefed;
-    border-color: transparent;
-    box-shadow: none;
-  }
-
-  .sidebar-footer {
-    padding-top: 14px;
-    border-top: 1px solid #e2e3e1;
-  }
-
-  .sidebar-footer button {
-    height: 36px;
-    border: 0;
-    background: transparent;
-    border-radius: 6px;
-  }
-
-  .sidebar-footer [aria-current="page"] {
-    background: #eef3f1;
-    border-color: transparent;
-  }
-
-  .sidebar-footer .status-pill {
-    display: none;
-  }
-
-  .chat-shell {
-    min-height: 0;
-    padding: 0;
-    background: #fbfbfa;
-  }
-
-  .topbar {
-    min-height: 54px;
-    padding: 0 24px;
-    border-bottom: 1px solid #dedfdd;
-    background: #fbfbfa;
-  }
-
-  .topbar-copy {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    min-width: 0;
-  }
-
-  .topbar-copy p,
-  .topbar-copy h1 {
-    margin: 0;
-    font-size: 13px;
-    font-weight: 500;
-    color: #5f6661;
-  }
-
-  .topbar-copy h1 {
-    color: #1f2321;
-  }
-
-  .topbar-config {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    min-width: 0;
-  }
-
-  .topbar-config button {
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: #5f6661;
-    font-size: 13px;
-    white-space: nowrap;
-  }
-
-  .topbar-config button + button::before {
-    content: "•";
-    margin-right: 16px;
-    color: #8b908c;
-  }
-
-  .topbar-copy h1::before {
-    content: "";
-    width: 7px;
-    height: 7px;
-    margin-right: 9px;
-    display: inline-block;
-    border-radius: 999px;
-    background: #21b45b;
-    vertical-align: middle;
-  }
-
-  .topbar-meta {
-    margin: 0;
-    gap: 16px;
-  }
-
-  .topbar-status,
-  .session-chip,
-  .delivery-mode-tag,
-  .composer-status {
-    min-height: auto;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: #6c716d;
-    font-size: 13px;
-  }
-
-  .topbar-actions button {
-    height: 32px;
-    padding: 0 10px;
-    border: 0;
-    background: transparent;
-    border-radius: 6px;
-  }
-
-  .topbar-actions button:not(:last-child) {
-    display: none;
-  }
-
-  .conversation,
-  .settings-page {
-    overflow: auto;
-  }
-
-  .conversation-inner {
-    width: min(100%, 780px);
-    margin: 0 auto;
-    padding: 30px 26px 0;
-  }
-
-  .settings-content {
-    width: min(100%, 760px);
-    padding: 24px 26px 44px;
-  }
-
-  .workflow-strip,
-  .thread-intro {
-    display: none;
-  }
-
-  .thread {
-    gap: 24px;
-    padding-bottom: 20px;
-  }
-
-  .empty-thread {
-    min-height: calc(100vh - 260px);
-    display: grid;
-    place-items: center;
-    color: #6c716d;
-    text-align: center;
-  }
-
-  .empty-thread-inner {
-    display: grid;
-    gap: 8px;
-    max-width: 480px;
-  }
-
-  .empty-thread strong {
-    color: #1f2321;
-    font-size: 16px;
-    font-weight: 560;
-  }
-
-  .empty-thread p {
-    margin: 0;
-  }
-
-  .message {
-    max-width: 100%;
-    gap: 8px;
-  }
-
-  .message.user {
-    justify-items: start;
-    margin-left: 0;
-  }
-
-  .message-label {
-    color: #007878;
-    font-size: 13px;
-    font-weight: 650;
-  }
-
-  .message.user .message-label {
-    color: #1f2321;
-  }
-
-  .message-frame,
-  .message.user .message-frame,
-  .message.system .message-frame {
-    width: 100%;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    color: #242724;
-    box-shadow: none;
-  }
-
-  .message-frame p {
-    line-height: 1.5;
-  }
-
-  .message-meta {
-    display: none;
-  }
-
-  .assistant-artifact-card {
-    width: min(100%, 620px);
-    margin-top: 10px;
-    border: 1px solid #dedfdd;
-    border-radius: 6px;
-    background: #fff;
-    overflow: hidden;
-  }
-
-  .assistant-artifact-card header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 46px;
-    padding: 0 12px;
-    border-bottom: 1px solid #e6e7e4;
-  }
-
-  .assistant-artifact-card header strong {
-    font-size: 13px;
-    font-weight: 560;
-  }
-
-  .assistant-artifact-card footer {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-    padding: 10px 12px;
-    color: #5f6661;
-    font-size: 12px;
-  }
-
-  .assistant-artifact-card button {
-    margin-left: auto;
-    height: 30px;
-    padding: 0 10px;
-    border: 1px solid #dedfdd;
-    border-radius: 5px;
-    background: #fff;
-  }
-
-  .progress-chip {
-    min-height: 20px;
-    padding: 0 7px;
-    display: inline-flex;
-    align-items: center;
-    border: 1px solid #d7e6e3;
-    border-radius: 5px;
-    color: #007878;
-    background: #f7fbfa;
-    font-size: 11px;
-  }
-
-  .composer {
-    background: linear-gradient(180deg, rgba(251, 251, 250, 0) 0%, #fbfbfa 24%);
-  }
-
-  .composer-frame {
-    border-radius: 8px;
-    border-color: #d8dad7;
-    box-shadow: none;
-    background: #fff;
-  }
-
-  .composer textarea {
-    min-height: 72px;
-    font-size: 14px;
-  }
-
-  .composer-submit {
-    min-width: 44px;
-    width: 44px;
-    height: 38px;
-    padding: 0;
-    border-radius: 6px;
-    background: #007878;
-    border-color: #007878;
-  }
-
-  .composer-submit span {
-    display: none;
-  }
-
-  .composer-action {
-    width: 38px;
-    height: 38px;
-    border-radius: 6px;
-  }
-
-  .context-inspector {
-    display: flex;
-    flex-direction: column;
-    border-left: 1px solid #dedfdd;
-    background: #fff;
-    backdrop-filter: none;
-    overflow: hidden;
-    min-width: 0;
-  }
-
-  .context-inspector:not(.open) {
-    display: none;
-  }
-
-  .inspector-header {
-    min-height: 54px;
-    padding: 0 16px;
-    border-bottom: 1px solid #dedfdd;
-  }
-
-  .inspector-header h2 {
-    font-size: 14px;
-    font-weight: 560;
-  }
-
-  .inspector-header button {
-    border: 0;
-    background: transparent;
-  }
-
-  .context-summary {
-    display: none;
-  }
-
-  .context-tabs {
-    gap: 22px;
-    padding: 14px 16px 0;
-    border-bottom: 1px solid #e6e7e4;
-  }
-
-  .context-tabs button {
-    min-height: 36px;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    color: #333735;
-  }
-
-  .context-tabs button[data-active="true"] {
-    background: transparent;
-    border-bottom: 2px solid #007878;
-    color: #007878;
-  }
-
-  .context-scroll {
-    gap: 0;
-    padding: 0;
-    min-width: 0;
-  }
-
-  .context-block {
-    border: 0;
-    border-radius: 0;
-    padding: 18px 20px;
-    background: transparent;
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .context-list,
-  .context-list li,
-  .trace-list,
-  .trace-list div,
-  .delivery-stack,
-  .starter-stack,
-  .utility-stack,
-  .artifact-preview-tabs {
-    min-width: 0;
-  }
-
-  .context-code,
-  .context-list code,
-  .trace-list dd,
-  .settings-inline-list dd,
-  .runtime-note,
-  .delivery-note,
-  output,
-  pre,
-  code {
-    max-width: 100%;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }
-
-  output {
-    display: block;
-    white-space: pre-wrap;
-    font-size: 12px;
-    line-height: 1.45;
-  }
-
-  .artifact-preview-tabs [role="tablist"] {
-    gap: 24px;
-    flex-wrap: nowrap;
-    overflow: hidden;
-    margin: 0 0 18px;
-    border-bottom: 1px solid #e6e7e4;
-  }
-
-  .artifact-preview-tabs [role="tab"] {
-    min-height: 34px;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    color: #5f6661;
-  }
-
-  .artifact-preview-tabs [role="tab"][data-state="active"] {
-    border-bottom: 2px solid #007878;
-    color: #007878;
-  }
-
-  .artifact-preview-card {
-    border: 0 !important;
-    border-radius: 0 !important;
-    background: transparent !important;
-    min-width: 0 !important;
-  }
-
-  .artifact-preview-card > header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-height: 54px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid #e6e7e4;
-  }
-
-  .artifact-preview-card h3 {
-    margin: 0;
-    font-size: 15px;
-  }
-
-  .artifact-preview-card p,
-  .context-empty {
-    color: #5f6661;
-    line-height: 1.45;
-  }
-
-  .delivery-card {
-    min-width: 0;
-  }
-
-  .delivery-card header {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-  }
-
-  .delivery-card header > div {
-    min-width: 0;
-  }
-
-  .delivery-card h3 {
-    margin: 0 0 4px;
-    font-size: 14px;
-    line-height: 1.25;
-  }
-
-  .delivery-card dl {
-    grid-template-columns: 1fr !important;
-    gap: 6px !important;
-  }
-
-  .delivery-card dd,
-  .delivery-card dt {
-    margin: 0;
-  }
-
-  .delivery-card .status-pill {
-    width: fit-content;
-  }
-
-  .artifact-preview-card .status-pill,
-  .delivery-card .status-pill {
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-
-  .segmented-control {
-    width: fit-content;
-    display: inline-flex;
-    gap: 2px;
-    padding: 2px;
-    border: 1px solid #d8dad7;
-    border-radius: 8px;
-    background: #f4f5f3;
-  }
-
-  .segmented-control button {
-    min-height: 30px;
-    padding: 0 10px;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
-    color: #5f6661;
-  }
-
-  .segmented-control button[data-active="true"] {
-    background: #fff;
-    color: #007878;
-    box-shadow: 0 1px 3px rgba(36, 39, 36, 0.08);
-  }
-
-  @media (max-width: 1220px) {
-    .opl-native-workbench,
-    .opl-native-workbench.inspector-open {
-      grid-template-columns: 280px minmax(0, 1fr);
-    }
-
-    .opl-native-workbench.inspector-closed {
-      grid-template-columns: 280px minmax(0, 1fr);
-    }
-  }
-`;
 
 function starterPayloadFromDraft(starter: WorkbenchStarter, draft: Record<string, string>): Record<string, unknown> {
   return {
@@ -1752,6 +409,13 @@ function projectAttachmentItems(
     summary: item.summary,
     previewId: previews[index % Math.max(previews.length, 1)]?.id
   }));
+}
+
+function localizedSessionTitle(title: string, locale: WorkbenchSettings["locale"]): string {
+  if (locale !== "zh") return title;
+  if (title === "Current project") return "当前项目";
+  if (title === "New chat" || title === "New task") return "新任务";
+  return title;
 }
 
 function sessionStorage() {
@@ -1813,10 +477,10 @@ function sessionTitleFromMessages(messages: ChatMessage[]): string {
   return firstUser?.text.trim().slice(0, 40) || "New chat";
 }
 
-function formatTimestamp(value: string): string {
+function formatTimestamp(value: string, locale: WorkbenchSettings["locale"]): string {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Local draft";
-  return date.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  if (Number.isNaN(date.getTime())) return locale === "zh" ? "本地草稿" : "Local draft";
+  return date.toLocaleString(locale === "zh" ? "zh-CN" : "en-US", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function eventMethod(event: unknown): string {
@@ -1855,7 +519,8 @@ export function App() {
   const [stateStatus, setStateStatus] = useState<"loading" | "ready" | "error">("loading");
   const [stateError, setStateError] = useState("");
   const [activeView, setActiveView] = useState<"chat" | "settings">("chat");
-  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
   const [lastDryRun, setLastDryRun] = useState("No action preview yet.");
   const [pendingAction, setPendingAction] = useState<{ actionId: string; payload: Record<string, unknown> } | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -1867,8 +532,14 @@ export function App() {
   const [eventFeed, setEventFeed] = useState<string[]>(["bridge.preview_only"]);
   const [codexThreadId, setCodexThreadId] = useState<string | undefined>(initialSessions[0]?.threadId);
   const [settings, setSettings] = useState<WorkbenchSettings>(() => readSettings());
+  const [codexCatalog, setCodexCatalog] = useState<CodexModelCatalogEntry[]>([]);
   const [starterDrafts, setStarterDrafts] = useState<Record<string, Record<string, string>>>({});
-  const [activeContextTab, setActiveContextTab] = useState<(typeof contextTabs)[number][0]>(contextTabs[1][0]);
+  const [activeContextTab, setActiveContextTab] = useState<ActiveContextTab>(contextHomeId);
+  const t = uiCopy[settings.locale];
+  const purposeCopy = localizedPurposeLabels[settings.locale];
+  const settingCopy = localizedSettingLabels[settings.locale];
+  const sectionCopy = localizedSettingsSections[settings.locale];
+  const localizedStateStatus = stateStatus === "loading" ? t.stateLoading : stateStatus === "ready" ? t.stateReady : t.stateError;
   const previewAction = firstPreviewAction(model.contextActions);
   const exportAction = model.contextActions.find((action) => action.id === exportActionRefId && action.dryRunSupported) ?? previewAction;
   const purposePreviewAction = model.contextActions.find((action) => action.id === previewActionRefId && action.dryRunSupported) ?? previewAction;
@@ -1887,9 +558,6 @@ export function App() {
       ? "App state loaded"
       : "Bridge unavailable";
   const currentProject = model.sessions[0]?.workspace ?? settings.defaultWorkspace ?? "Current project";
-  const currentProjectNextStep = model.sessions[0]?.nextStep ?? "Open a chat or inspect current sources.";
-  const currentProjectStatus = model.activeProjectLines[0]?.status ?? stateStatus;
-  const topbarModelLabel = settings.modelAccess === "codex_cli_managed" ? "Codex CLI" : settings.modelAccess;
   const previewItems = useMemo(() => [...model.artifactPreviews].sort((left, right) => {
     if (left.previewKind === right.previewKind) return 0;
     if (left.previewKind === "markdown") return -1;
@@ -1903,6 +571,47 @@ export function App() {
   const projectInputs = projectInputItems(model.contextSources);
   const projectAttachments = projectAttachmentItems([...model.deliverables, ...model.results, ...model.receipts], previewItems);
   const sidebarSources = projectInputs;
+  const availableModels = useMemo(() => {
+    if (!codexCatalog.length) {
+      return codexModelPolicy.modelOptions.map((option) => ({
+        ...option,
+        defaultReasoningEffort: codexModelPolicy.defaultReasoningEffort,
+        supportedReasoningEfforts: [...codexModelPolicy.reasoningOptions]
+      }));
+    }
+    return codexModelPolicy.modelOptions.flatMap((option) => {
+      const runtime = codexCatalog.find((item) => item.id === option.id || item.model === option.id);
+      if (!runtime) return [];
+      const supportedReasoningEfforts = runtime.supportedReasoningEfforts
+        .filter((effort): effort is CodexReasoningEffort => codexModelPolicy.reasoningOptions.includes(effort as CodexReasoningEffort));
+      return [{
+        ...option,
+        defaultReasoningEffort: codexModelPolicy.reasoningOptions.includes(runtime.defaultReasoningEffort as CodexReasoningEffort)
+          ? runtime.defaultReasoningEffort as CodexReasoningEffort
+          : supportedReasoningEfforts.at(-1) ?? "medium",
+        supportedReasoningEfforts: supportedReasoningEfforts.length ? supportedReasoningEfforts : ["medium"] as CodexReasoningEffort[]
+      }];
+    });
+  }, [codexCatalog]);
+  const resolvedModel = availableModels.find((option) => option.id === settings.modelAccess) ?? availableModels[0] ?? {
+    ...codexModelPolicy.modelOptions[0],
+    defaultReasoningEffort: codexModelPolicy.defaultReasoningEffort,
+    supportedReasoningEfforts: [...codexModelPolicy.reasoningOptions]
+  };
+  const resolvedReasoning = resolvedModel.supportedReasoningEfforts.includes(settings.reasoningLevel)
+    ? settings.reasoningLevel
+    : resolvedModel.supportedReasoningEfforts.at(-1) ?? resolvedModel.defaultReasoningEffort;
+  const environmentItems = [
+    { id: "opl-files-panel", group: t.projectGroup, label: t.sources, description: t.sourcesDescription, meta: String(model.contextSources.length), icon: FileText },
+    { id: "opl-artifact-preview-tabs", group: t.projectGroup, label: t.results, description: t.resultsDescription, meta: String(projectAttachments.length), icon: Download },
+    { id: "opl-provenance-drawer", group: t.executionGroup, label: t.actions, description: t.actionsDescription, meta: String(model.actionReceipts.length), icon: CircleEllipsis },
+    { id: "opl-starter-forms", group: t.executionGroup, label: t.workflows, description: t.workflowsDescription, meta: String(model.starters.length), icon: Sparkles },
+    { id: "opl-automations-panel", group: t.executionGroup, label: t.scheduled, description: t.scheduledDescription, meta: String(model.contextTrace.filter((item) => item.label.toLowerCase().includes("automation")).length), icon: Clock3 },
+    { id: "opl-package-lifecycle-panel", group: t.systemGroup, label: t.packages, description: t.packagesDescription, meta: String(model.packageLifecycle.length), icon: Plug },
+    { id: "opl-runtime-summary", group: t.systemGroup, label: t.runtimeMenu, description: t.runtimeDescription, meta: localizedStateStatus, icon: RefreshCw },
+    { id: "opl-memory-panel", group: t.systemGroup, label: t.memory, description: t.memoryDescription, meta: "refs", icon: FileText },
+    { id: "opl-always-on-panel", group: t.systemGroup, label: t.alwaysOn, description: t.alwaysOnDescription, meta: localizedStateStatus, icon: RefreshCw }
+  ] satisfies { id: ContextTabId; group: string; label: string; description: string; meta: string; icon: typeof FileText }[];
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -1944,6 +653,12 @@ export function App() {
   useEffect(() => {
     void loadState(settings.runtimeProfile);
   }, [bridge, settings.runtimeProfile]);
+
+  useEffect(() => {
+    void bridge.readCodexModels()
+      .then((catalog) => setCodexCatalog(catalog.models))
+      .catch(() => setCodexCatalog([]));
+  }, [bridge]);
 
   useEffect(() => {
     setStarterDrafts((current) => Object.fromEntries(model.starters.map((starter) => [
@@ -2028,7 +743,12 @@ export function App() {
     setSendState("running");
     setSendError("");
     void bridge
-      .sendMessage({ prompt: text, threadId: codexThreadId })
+      .sendMessage({
+        prompt: text,
+        threadId: codexThreadId,
+        model: resolvedModel.id,
+        reasoningEffort: resolvedReasoning
+      })
       .then((reply) => {
         const nextThreadId = typeof reply === "object" && reply && "threadId" in reply
           ? String((reply as { threadId?: unknown }).threadId ?? "")
@@ -2096,12 +816,25 @@ export function App() {
     setSettings(writeSetting(key, value));
   }
 
+  function settingValueLabel(key: SettingKey, value: WorkbenchSettings[SettingKey]): string {
+    if (key === "modelAccess") return value === "__auto" ? autoModelLabel(settings.locale) : modelLabel(value as CodexModelId, settings.locale);
+    if (key === "reasoningLevel") return reasoningLabel(value as WorkbenchSettings["reasoningLevel"], settings.locale);
+    if (key === "defaultWorkspace") return settings.locale === "zh" ? "OPL App 工作区" : "OPL App workspace";
+    if (key === "runtimeProfile") return value === "fast" ? (settings.locale === "zh" ? "快速" : "Fast") : (settings.locale === "zh" ? "完整" : "Full");
+    if (key === "professionalStarterDefaults") return settings.locale === "zh" ? "科研、基金与演示" : "Research, grant, and presentation";
+    if (key === "theme") return value === "system" ? (settings.locale === "zh" ? "跟随系统" : "System") : (settings.locale === "zh" ? "浅色" : "Light");
+    if (key === "artifactPreviewMode") return settings.locale === "zh" ? "丰富预览（仅引用）" : "Rich preview (refs only)";
+    if (typeof value === "boolean") return value ? t.on : t.off;
+    return String(value);
+  }
+
   function renderSettingControl(key: SettingKey) {
     const value = settings[key];
     if (typeof value === "boolean") {
       return (
-        <button className="setting-toggle" type="button" onClick={() => updateSetting(key, !value)}>
-          {value ? "on" : "off"}
+        <button className="setting-switch" role="switch" aria-checked={value} type="button" onClick={() => updateSetting(key, !value)}>
+          <span className="setting-switch-track" aria-hidden="true"><span /></span>
+          <span>{value ? t.on : t.off}</span>
         </button>
       );
     }
@@ -2119,28 +852,40 @@ export function App() {
     }
     if (key === "reasoningLevel") {
       return (
-        <button className="setting-toggle" type="button" data-testid="opl-settings-reasoning" onClick={() => updateSetting("reasoningLevel", value === "high" ? "standard" : "high")}>
-          {value}
-        </button>
+        <select className="setting-select" data-testid="opl-settings-reasoning" value={resolvedReasoning} onChange={(event) => updateSetting("reasoningLevel", event.currentTarget.value as WorkbenchSettings["reasoningLevel"])}>
+          {codexModelPolicy.reasoningOptions.map((effort) => (
+            <option key={effort} value={effort} disabled={!resolvedModel.supportedReasoningEfforts.includes(effort)}>{reasoningLabel(effort, settings.locale)}</option>
+          ))}
+        </select>
+      );
+    }
+    if (key === "modelAccess") {
+      return (
+        <select className="setting-select" data-testid="opl-model-access-entry" value={value === "__auto" || availableModels.some((option) => option.id === value) ? value : "__auto"} onChange={(event) => updateSetting("modelAccess", event.currentTarget.value as WorkbenchSettings["modelAccess"])}>
+          <option value="__auto">{autoModelLabel(settings.locale)}</option>
+          {availableModels.map((option) => (
+            <option key={option.id} value={option.id}>{modelLabel(option.id, settings.locale)}</option>
+          ))}
+        </select>
       );
     }
     if (key === "runtimeProfile") {
       return (
         <button className="setting-toggle" type="button" onClick={() => updateSetting("runtimeProfile", value === "fast" ? "full" : "fast")}>
-          {value}
+          {settingValueLabel(key, value)}
         </button>
       );
     }
     if (key === "theme") {
       return (
         <button className="setting-toggle" type="button" onClick={() => updateSetting("theme", value === "system" ? "light" : "system")}>
-          {value}
+          {settingValueLabel(key, value)}
         </button>
       );
     }
     return (
       <code data-testid={key === "modelAccess" ? "opl-model-access-entry" : undefined}>
-        {String(value)}
+        {settingValueLabel(key, value)}
       </code>
     );
   }
@@ -2149,130 +894,121 @@ export function App() {
     <main
       data-testid="opl-native-workbench-root"
       data-layout="codex-sidebar-chat"
-      className={`opl-native-workbench codex-sidebar-chat ${inspectorOpen ? "inspector-open" : "inspector-closed"}`}
+      className={`opl-native-workbench codex-sidebar-chat ${sidebarOpen ? "sidebar-open" : "sidebar-closed"} ${inspectorOpen ? "inspector-open" : "inspector-closed"}`}
     >
-      <style>{workbenchStyles}</style>
+      <style>{codexWorkbenchStyles}</style>
 
       <aside data-testid="opl-workspace-rail" className="sidebar" aria-label="Workspaces">
         <header className="brand-row">
           <img src="branding/opl-app-logo.png" alt="One Person Lab App" />
-          <strong className="brand-mark">OPL</strong>
-          <span className="brand-name">One Person Lab</span>
+          <span className="brand-lockup">
+            <strong className="brand-mark">One Person Lab</strong>
+            <span className="brand-name">Codex</span>
+          </span>
+          <button className="icon-button sidebar-search" type="button" aria-label={settings.locale === "zh" ? "搜索对话" : "Search conversations"}>
+            <Search aria-hidden="true" size={15} />
+          </button>
+          <button className="icon-button sidebar-close-mobile" type="button" aria-label={t.hideSidebar} onClick={() => setSidebarOpen(false)}>
+            <X aria-hidden="true" size={16} />
+          </button>
         </header>
 
-        <div className="quick-actions">
-          <button type="button" onClick={startNewChat}>
-            <Plus aria-hidden="true" size={15} />
-            New chat
-            <span className="kbd-hint">⌘N</span>
-          </button>
-          <button type="button" aria-label="Search">
-            <Search aria-hidden="true" size={15} />
-            Search
-            <span className="kbd-hint">⌘K</span>
-          </button>
-        </div>
-
-        <section className="sidebar-panel" aria-label="Current project">
-          <div className="sidebar-section-head">
-            <strong>Current project</strong>
-          </div>
-          <div className="sidebar-panel-card">
-            <button className="sidebar-project-head project-selector" type="button">
-              <div className="sidebar-project-meta">
-                <strong>{currentProject}</strong>
-                <span>{currentProjectNextStep}</span>
-              </div>
-              <span className="sidebar-project-pill">{currentProjectStatus}</span>
-              <ChevronRight aria-hidden="true" size={14} />
+        <div className="sidebar-scroll">
+          <div className="quick-actions">
+            <button type="button" onClick={startNewChat}>
+              <Plus aria-hidden="true" size={15} />
+              {t.newTask}
+              <span className="kbd-hint">⌘N</span>
             </button>
           </div>
-        </section>
 
-        <section data-testid="opl-project-inputs" className="sidebar-panel" aria-label="Project inputs">
+          <nav className="sidebar-primary" aria-label="Primary navigation">
+            <button type="button" onClick={() => {
+              setInspectorOpen(true);
+              setActiveContextTab("opl-automations-panel");
+            }}>
+              <Clock3 aria-hidden="true" size={15} />
+              {t.scheduled}
+            </button>
+            <button type="button" onClick={() => {
+              setInspectorOpen(true);
+              setActiveContextTab("opl-package-lifecycle-panel");
+            }}>
+              <Plug aria-hidden="true" size={15} />
+              {t.agents}
+            </button>
+            <button type="button" onClick={() => setActiveView("chat")}>
+              <Sparkles aria-hidden="true" size={15} />
+              {t.chat}
+            </button>
+          </nav>
+
+          <section className="sidebar-panel" aria-label="Current project">
           <div className="sidebar-section-head">
-            <strong>Context inputs</strong>
-            <span>{sidebarSources.length}</span>
+              <strong>{t.projects}</strong>
           </div>
-          <ol className="sidebar-source-list">
-            {sidebarSources.map((source) => (
-              <li key={source.id}>
+            <button className="project-root" type="button" onClick={() => setActiveView("chat")}>
+              <Folder aria-hidden="true" size={15} />
+              <strong>{currentProject}</strong>
+              <span className="project-device">{t.local}</span>
+              <span className="project-status-dot" aria-label={shellBoundaryStatus} />
+            </button>
+
+            <div className="project-children">
+              <div className="project-context-links">
                 <button
+                  data-testid="opl-project-inputs"
                   type="button"
-                  className="sidebar-source-item"
+                  className="project-context-link"
                   onClick={() => {
                     setInspectorOpen(true);
                     setActiveContextTab("opl-files-panel");
                   }}
                 >
-                  <strong>{source.label}</strong>
-                  <span>{source.summary}</span>
-                  <code>{source.ref}</code>
+                  <FileText aria-hidden="true" size={14} />
+                  <span>{t.projectContext}</span>
+                  <span>{sidebarSources.length}</span>
                 </button>
-              </li>
-            ))}
-          </ol>
-          <button
-            type="button"
-            className="sidebar-add-item"
-            onClick={() => {
-              setInspectorOpen(true);
-              setActiveContextTab("opl-files-panel");
-            }}
-          >
-            <Plus aria-hidden="true" size={15} />
-            Add context
-          </button>
-        </section>
-
-        <section data-testid="opl-project-attachments" className="sidebar-panel" aria-label="Project attachments and outputs">
-          <div className="sidebar-section-head">
-            <strong>Attachments / outputs</strong>
-            <span>{projectAttachments.length}</span>
-          </div>
-          <ol className="sidebar-source-list sidebar-attachment-list">
-            {projectAttachments.map((item) => (
-              <li key={item.id}>
                 <button
+                  data-testid="opl-project-attachments"
                   type="button"
-                  className="sidebar-source-item"
+                  className="project-context-link"
                   onClick={() => {
                     setInspectorOpen(true);
                     setActiveContextTab("opl-artifact-preview-tabs");
-                    setSelectedPreviewId(item.previewId);
                   }}
                 >
-                  <strong>{item.label}</strong>
-                  <span>{item.summary}</span>
-                  <code>{item.ref}</code>
+                  <Download aria-hidden="true" size={14} />
+                  <span>{t.filesOutputs}</span>
+                  <span>{projectAttachments.length}</span>
                 </button>
-              </li>
-            ))}
-          </ol>
-        </section>
+              </div>
 
-        <section data-testid="opl-project-chats" className="history-list" aria-label="Project chats">
-          <div className="sidebar-section-head">
-            <strong>Project chats</strong>
-            <span>{chatSessions.length}</span>
-          </div>
-          <ol data-testid="opl-session-list">
-            {chatSessions.map((session) => (
-              <li key={session.id} className={session.id === currentSessionId ? "active" : undefined}>
-                <button type="button" onClick={() => openSession(session.id)}>
-                  <strong>{session.title}</strong>
-                  <span>{session.threadId ? "Codex resumable thread" : "Local draft session"}</span>
-                  <small>{formatTimestamp(session.updatedAt)}</small>
-                </button>
-              </li>
-            ))}
-          </ol>
-        </section>
+              <section data-testid="opl-project-chats" className="history-list" aria-label="Project chats">
+                <ol data-testid="opl-session-list">
+                  {chatSessions.map((session) => (
+                    <li key={session.id} className={session.id === currentSessionId ? "active" : undefined}>
+                      <button type="button" onClick={() => openSession(session.id)}>
+                        <strong>{localizedSessionTitle(session.title, settings.locale)}</strong>
+                        <span>{session.threadId ? "Codex resumable thread" : "Local draft session"}</span>
+                        <small>{formatTimestamp(session.updatedAt, settings.locale)}</small>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            </div>
+          </section>
+        </div>
 
         <footer className="sidebar-footer" aria-label="Sidebar controls">
-          <button type="button" aria-current={activeView === "settings" ? "page" : undefined} onClick={() => setActiveView("settings")}>
-            <Settings aria-hidden="true" size={14} />
-            Settings
+          <button type="button" aria-current={activeView === "settings" ? "page" : undefined} aria-label={t.openSettings} onClick={() => setActiveView("settings")}>
+            <span className="account-avatar">OPL</span>
+            <span className="account-copy">
+              <strong>One Person Lab</strong>
+              <small>{t.settings}</small>
+            </span>
+            <Settings className="settings-glyph" aria-hidden="true" size={14} />
           </button>
           <StatusPill status={shellBoundaryStatus} />
         </footer>
@@ -2281,53 +1017,50 @@ export function App() {
       <section className="chat-shell" aria-label="Single conversation canvas">
         <header className="topbar">
           <div className="topbar-copy">
-            <h1>OPL</h1>
-            <nav data-testid="opl-topbar-model-config" className="topbar-config" aria-label="Conversation configuration">
-              <button data-testid="opl-model-access-entry" type="button">{topbarModelLabel}</button>
-              <button type="button">Enterprise</button>
-              <button type="button">{settings.runtimeProfile === "full" ? "Full state" : "BYOK"}</button>
-              <button type="button">{activeView === "settings" ? "Settings" : currentProject}</button>
-            </nav>
-            <div className="topbar-meta">
-              <span className="topbar-status">
-                {stateStatus === "loading" ? "App state loading" : stateStatus === "ready" ? "App state loaded" : "Preview only"}
-              </span>
+            <button className="icon-button" type="button" aria-label={sidebarOpen ? t.hideSidebar : t.showSidebar} onClick={() => setSidebarOpen((open) => !open)}>
+              <PanelLeft aria-hidden="true" size={16} />
+            </button>
+            <div className="topbar-title">
+              <Folder aria-hidden="true" size={15} />
+              <h1>{activeView === "settings" ? t.settings : localizedSessionTitle(currentSession?.title || t.newTaskTitle, settings.locale)}</h1>
             </div>
+            <button className="icon-button" type="button" aria-label={t.conversationMenu}>
+              <CircleEllipsis aria-hidden="true" size={16} />
+            </button>
           </div>
 
           <div className="topbar-actions">
             <button
+              className="icon-button"
               data-testid="opl-export-action"
               type="button"
+              aria-label={t.previewExport}
               disabled={!exportAction}
               onClick={() => {
                 if (exportAction) runDryRun(exportAction.id, { refs: model.deliverables.map((item) => item.ref) });
               }}
             >
               <Download aria-hidden="true" size={15} />
-              Preview action
             </button>
-            <button type="button" onClick={() => void loadState(settings.runtimeProfile)}>
+            <button className="icon-button" type="button" aria-label={t.refreshContext} onClick={() => void loadState(settings.runtimeProfile)}>
               <RefreshCw aria-hidden="true" size={15} />
-              Refresh context
             </button>
             {activeView === "settings" ? (
-              <button data-testid="opl-skip-to-chat" type="button" onClick={() => setActiveView("chat")}>
-                <ChevronRight aria-hidden="true" size={15} />
-                Back to chat
+              <button className="icon-button" data-testid="opl-skip-to-chat" type="button" aria-label={t.backToChat} onClick={() => setActiveView("chat")}>
+                <X aria-hidden="true" size={16} />
               </button>
             ) : null}
             <button
+              className="icon-button"
               type="button"
               onClick={() => {
                 setInspectorOpen((open) => !open);
-                setActiveContextTab("opl-files-panel");
+                setActiveContextTab(contextHomeId);
               }}
-              aria-label="Open workspace"
+              aria-label={inspectorOpen ? t.closeEnvironment : t.openEnvironment}
               aria-pressed={inspectorOpen}
             >
               <PanelRightOpen aria-hidden="true" size={16} />
-              Context
             </button>
           </div>
         </header>
@@ -2356,7 +1089,7 @@ export function App() {
                         if (purposePreviewAction) runDryRun(purposePreviewAction.id, { purpose });
                       }}
                     >
-                      {purposeLabels[purpose]}
+                      {purposeCopy[purpose]}
                     </button>
                   ))}
                 </div>
@@ -2372,41 +1105,60 @@ export function App() {
                 {messages.length === 0 ? (
                   <section className="empty-thread" aria-label="Empty conversation">
                     <div className="empty-thread-inner">
-                      <strong>{currentProject}</strong>
-                      <p>Ask OPL to review, draft, export, or start a workflow from the selected project context.</p>
+                      <strong>{t.emptyTitle}</strong>
+                      <p>{t.emptyDescription(currentProject)}</p>
+                      <div className="empty-starters" aria-label="Professional agent starters">
+                        {model.purposes.slice(0, 3).map((purpose) => (
+                          <button
+                            key={purpose}
+                            data-testid="opl-delivery-mode-option"
+                            type="button"
+                            onClick={() => setPrompt(settings.locale === "zh" ? `${purposeCopy[purpose]}：${currentProject}` : `${purposeCopy[purpose]} for ${currentProject}`)}
+                          >
+                            {purposeCopy[purpose]}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </section>
                 ) : null}
 
-                {messages.map((message) => (
+                {messages.map((message, index) => (
                   <article
                     key={message.id}
                     data-testid={message.role === "assistant" ? "opl-conversation-event" : undefined}
                     className={`message ${message.role}`}
                   >
-                    {message.role === "user" ? <span className="message-label">You</span> : null}
-                    {message.role === "assistant" ? <span className="message-label">One Person Lab</span> : null}
-                    {message.role === "system" ? <span className="message-label">Runtime</span> : null}
+                    {message.role === "user" ? <span className="message-label">{t.you}</span> : null}
+                    {message.role === "assistant" ? <span className="message-label">{t.assistant}</span> : null}
+                    {message.role === "system" ? <span className="message-label">{t.runtime}</span> : null}
                     <div className="message-frame">
-                      <p>{message.text || (sendState === "running" ? "Codex is working..." : "Waiting for reply.")}</p>
+                      <p>{message.text || (sendState === "running" ? t.codexWorking : t.waitingReply)}</p>
                     </div>
-                    {message.role === "assistant" ? (
+                    {message.role === "assistant" && index === messages.length - 1 && sendState === "running" ? (
+                      <div className="run-events" aria-label="Current run events">
+                        {eventFeed.slice(0, 4).reverse().map((item, eventIndex) => (
+                          <span className="run-event" key={`${item}-${eventIndex}`}>{item}</span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {message.role === "assistant" && index === messages.length - 1 && Boolean(message.text) ? (
                       <section data-testid="opl-assistant-artifact-card" className="assistant-artifact-card" aria-label="Draft artifact">
                         <header>
                           <FileText aria-hidden="true" size={16} />
-                          <strong>{selectedPreview?.label ?? "Current preview"}</strong>
+                          <strong>{selectedPreview?.label ?? t.currentPreview}</strong>
                           <button type="button" onClick={() => {
                             setInspectorOpen(true);
                             setActiveContextTab("opl-artifact-preview-tabs");
                             setSelectedPreviewId(selectedPreview?.id);
                           }}>
-                            Open preview
+                            {t.openPreview}
                           </button>
                           <MoreVertical aria-hidden="true" size={16} />
                         </header>
                         <footer>
-                          <span>Workflow run</span>
-                          {["Plan", "Retrieve", "Draft", "Validate", "Complete"].map((step) => (
+                          <span>{t.workflowRun}</span>
+                          {t.workflowSteps.map((step) => (
                             <span key={step} className="progress-chip">✓ {step}</span>
                           ))}
                         </footer>
@@ -2430,26 +1182,55 @@ export function App() {
                 <div className="composer-frame">
                   <textarea
                     aria-label="Prompt"
-                    placeholder="Ask OPL to review, draft, export, or start a workflow"
+                    placeholder={t.prompt}
                     value={prompt}
                     onChange={(event) => setPrompt(event.currentTarget.value)}
                     disabled={sendState === "running"}
                   />
                   <footer>
                     <div className="composer-meta">
-                      <span className={`composer-status ${sendState}`} data-testid="opl-composer-run-state">
-                        {sendState === "running" ? "Codex running" : sendState === "error" ? `Codex error: ${sendError}` : "Preview only"}
-                      </span>
-                      <span className="thread-note">Context and receipts stay in the right inspector.</span>
-                    </div>
-                    <div className="composer-actions">
-                      <button className="composer-action" type="button" aria-label="Attach">
+                      <button className="composer-action" type="button" aria-label={t.attachFiles}>
                         <Plus aria-hidden="true" size={15} />
                       </button>
-            <button className="composer-submit" type="submit" disabled={!prompt.trim() || sendState === "running"}>
-              <Send aria-hidden="true" size={16} />
-              <span>{sendState === "running" ? "Running" : sendState === "error" ? "Retry" : "Send"}</span>
-            </button>
+                      <button
+                        className="composer-control"
+                        data-accent="true"
+                        type="button"
+                        onClick={() => {
+                          setInspectorOpen(true);
+                          setActiveContextTab("opl-package-lifecycle-panel");
+                        }}
+                      >
+                        <Plug aria-hidden="true" size={14} />
+                        {t.capabilities}
+                      </button>
+                      <span className={`composer-status ${sendState}`} data-testid="opl-composer-run-state">
+                        {sendState === "running" ? t.working : sendState === "error" ? sendError : ""}
+                      </span>
+                    </div>
+                    <div className="composer-actions">
+                      <nav data-testid="opl-topbar-model-config" className="composer-model-controls" aria-label="Conversation configuration">
+                        <label className="composer-select" data-testid="opl-model-access-entry">
+                          <select aria-label={settings.locale === "zh" ? "模型" : "Model"} value={resolvedModel.id} onChange={(event) => updateSetting("modelAccess", event.currentTarget.value as WorkbenchSettings["modelAccess"])}>
+                            {availableModels.map((option) => (
+                              <option key={option.id} value={option.id}>{modelLabel(option.id, settings.locale)}</option>
+                            ))}
+                          </select>
+                          <ChevronDown aria-hidden="true" size={12} />
+                        </label>
+                        <label className="composer-select">
+                          <select aria-label={settings.locale === "zh" ? "推理强度" : "Reasoning effort"} value={resolvedReasoning} onChange={(event) => updateSetting("reasoningLevel", event.currentTarget.value as WorkbenchSettings["reasoningLevel"])}>
+                            {resolvedModel.supportedReasoningEfforts.map((effort) => (
+                              <option key={effort} value={effort}>{reasoningLabel(effort, settings.locale, true)}</option>
+                            ))}
+                          </select>
+                          <ChevronDown aria-hidden="true" size={12} />
+                        </label>
+                      </nav>
+                      <button className="composer-submit" type="submit" aria-label={sendState === "running" ? t.running : sendState === "error" ? t.retry : t.send} disabled={!prompt.trim() || sendState === "running"}>
+                        <Send aria-hidden="true" size={15} />
+                        <span>{sendState === "running" ? t.running : sendState === "error" ? t.retry : t.send}</span>
+                      </button>
                     </div>
                   </footer>
                 </div>
@@ -2460,29 +1241,29 @@ export function App() {
           <section data-testid="opl-settings-panel" className="settings-page" aria-label="Settings">
             <div className="settings-content">
               <section data-testid="opl-settings-section" data-section="runtime-readback">
-                <h2>Runtime readback</h2>
+                <h2>{t.settingsRuntime}</h2>
                 <dl>
                   <div>
-                    <dt>State profile</dt>
-                    <dd>{settings.runtimeProfile}<small>Drives `opl app state --profile ...` reads.</small></dd>
+                    <dt>{t.stateProfile}</dt>
+                    <dd>{settings.runtimeProfile}<small>{t.stateProfileHelp}</small></dd>
                   </div>
                   <div>
-                    <dt>Context state</dt>
-                    <dd>{stateStatus}<small>{stateError || model.stateGeneratedAt || "No current readback timestamp."}</small></dd>
+                    <dt>{t.contextState}</dt>
+                    <dd>{localizedStateStatus}<small>{stateError || model.stateGeneratedAt || t.noReadbackTimestamp}</small></dd>
                   </div>
                 </dl>
-                <button type="button" onClick={() => void loadState(settings.runtimeProfile)}>Refresh state now</button>
+                <button type="button" onClick={() => void loadState(settings.runtimeProfile)}>{t.refreshState}</button>
               </section>
               {settingsSections.map((section) => (
                 <section key={section.id} data-testid="opl-settings-section" data-section={section.id}>
-                  <h2>{section.title}</h2>
+                  <h2>{sectionCopy[section.id]}</h2>
                   <dl>
                     {section.keys.map((key) => (
                       <div key={key}>
-                        <dt>{settingLabels[key]}</dt>
+                        <dt>{settingCopy[key]}</dt>
                         <dd>
                           {renderSettingControl(key)}
-                          <small>Default: {String(settingsDefaults[key])}</small>
+                          <small>{t.defaultLabel}: {settingValueLabel(key, settingsDefaults[key])}</small>
                         </dd>
                       </div>
                     ))}
@@ -2500,9 +1281,18 @@ export function App() {
         aria-hidden={!inspectorOpen}
       >
         <header className="inspector-header">
-          <h2>Context</h2>
-          <button type="button" aria-label="Close context" onClick={() => setInspectorOpen(false)}>
-            <ChevronRight aria-hidden="true" size={16} />
+          <div className="environment-detail-header">
+            {activeContextTab !== contextHomeId ? (
+              <button type="button" aria-label={t.backEnvironment} onClick={() => setActiveContextTab(contextHomeId)}>
+                <ChevronLeft aria-hidden="true" size={15} />
+              </button>
+            ) : null}
+            <h2>{activeContextTab === contextHomeId
+              ? t.environment
+              : environmentItems.find((item) => item.id === activeContextTab)?.label ?? t.environment}</h2>
+          </div>
+          <button type="button" aria-label={t.close} onClick={() => setInspectorOpen(false)}>
+            <X aria-hidden="true" size={15} />
           </button>
         </header>
 
@@ -2510,21 +1300,34 @@ export function App() {
           <p className="context-status">{contextStatusText}</p>
         </section>
 
-        <nav data-testid="opl-context-tabs" className="context-tabs">
-          {contextTabs.map(([testId, label]) => (
-            <button key={testId} type="button" data-active={activeContextTab === testId} onClick={() => setActiveContextTab(testId)}>
-              {label}
-            </button>
-          ))}
-        </nav>
-
         <div className="context-scroll">
+          <nav data-testid="opl-context-tabs" className="environment-menu" hidden={activeContextTab !== contextHomeId}>
+            <p>{t.environmentStatus}</p>
+            {environmentItems.map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <div className="environment-menu-entry" key={item.id}>
+                  {index === 0 || environmentItems[index - 1]?.group !== item.group ? <strong className="environment-menu-group">{item.group}</strong> : null}
+                  <button type="button" onClick={() => setActiveContextTab(item.id)}>
+                    <span className="environment-menu-icon"><Icon aria-hidden="true" size={16} /></span>
+                    <span className="environment-menu-copy">
+                      <strong>{item.label}</strong>
+                      <small title={item.description}>{item.description}</small>
+                    </span>
+                    <span className="environment-menu-meta">{item.meta}</span>
+                    <ChevronRight aria-hidden="true" size={15} />
+                  </button>
+                </div>
+              );
+            })}
+          </nav>
+
           <section data-testid="opl-files-panel" className="context-block" hidden={activeContextTab !== "opl-files-panel"}>
             <div className="context-list-head">
-              <strong>Sources</strong>
-              <button className="context-quiet-action" type="button" onClick={() => void loadState(settings.runtimeProfile)}>Refresh</button>
+              <strong>{t.sources}</strong>
+              <button className="context-quiet-action" type="button" onClick={() => void loadState(settings.runtimeProfile)}>{t.refresh}</button>
             </div>
-            <p className="context-empty">Refs-only surface backed by OPL App state/action contracts.</p>
+            <p className="context-empty">{t.sourcesBoundary}</p>
             <ol className="context-list">
               {model.contextSources.map((source) => (
                 <li key={source.id}>
@@ -2547,7 +1350,7 @@ export function App() {
               <Tabs.List aria-label="Artifact previews">
                 {previewItems.slice(0, 3).map((preview, index) => (
                   <Tabs.Trigger key={preview.id} value={preview.id} data-testid="opl-artifact-preview-tab">
-                    {index === 0 ? "Markdown" : index === 1 ? "Receipt" : `Sources (${model.contextSources.length})`}
+                    {index === 0 ? "Markdown" : index === 1 ? t.receipt : `${t.sources} (${model.contextSources.length})`}
                   </Tabs.Trigger>
                 ))}
               </Tabs.List>
@@ -2568,8 +1371,8 @@ export function App() {
 
             <section className="delivery-cards">
               <div className="delivery-head">
-                <strong>Deliverables</strong>
-                <span className="delivery-note">Recent refs and receipts</span>
+                <strong>{t.deliverables}</strong>
+                <span className="delivery-note">{t.recentRefs}</span>
               </div>
               <div className="delivery-stack">
                 {model.deliverables.slice(0, 3).map((item) => <DeliveryCard key={item.id} item={item} />)}
@@ -2580,11 +1383,11 @@ export function App() {
 
           <section data-testid="opl-provenance-drawer" className="context-block provenance-drawer" hidden={activeContextTab !== "opl-provenance-drawer"}>
             <header>
-              <h3>Trace and actions</h3>
+              <h3>{t.traceAndActions}</h3>
               <PanelRightOpen aria-hidden="true" size={18} />
             </header>
             <p data-testid="opl-provenance-ref" className="delivery-note">
-              Source refs, receipt refs, replay refs, and export refs without artifact bodies.
+              {t.traceBoundary}
             </p>
             <dl className="trace-list">
               {model.contextTrace.map((trace) => (
@@ -2604,7 +1407,7 @@ export function App() {
                 }}
               >
                 <Download aria-hidden="true" size={16} />
-                Preview action
+                {t.previewAction}
               </button>
               <button
                 data-testid="opl-runtime-action-execute"
@@ -2612,14 +1415,14 @@ export function App() {
                 disabled={!pendingAction}
                 onClick={executeConfirmedAction}
               >
-                Execute confirmed
+                {t.executeConfirmed}
               </button>
-              <button type="button" disabled={!pendingAction} onClick={previewRollback}>Preview rollback</button>
+              <button type="button" disabled={!pendingAction} onClick={previewRollback}>{t.previewRollback}</button>
             </div>
             <output data-testid="opl-runtime-action-receipt">{lastDryRun}</output>
 
             <section data-testid="opl-action-receipt-summary-list" className="action-receipt-summary-list">
-              <h3>Action receipts</h3>
+              <h3>{t.actionReceipts}</h3>
               {model.actionReceipts.map((receipt) => <ActionReceiptSummary key={receipt.id} receipt={receipt} />)}
             </section>
 
@@ -2632,8 +1435,8 @@ export function App() {
 
           <section data-testid="opl-starter-forms" className="context-block starter-forms" aria-label="Workflow starters" hidden={activeContextTab !== "opl-starter-forms"}>
             <div className="context-list-head">
-              <strong>Workflow starters</strong>
-              <span className="delivery-note">Preview first, then confirm</span>
+              <strong>{t.workflowStarters}</strong>
+              <span className="delivery-note">{t.previewFirst}</span>
             </div>
             <div className="starter-stack">
               {model.contextActions.filter((action) => action.dryRunSupported).slice(0, 8).map((action) => (
@@ -2645,7 +1448,7 @@ export function App() {
                   <p>{action.route}</p>
                   <button type="button" onClick={() => runDryRun(action.id)}>
                     <Send aria-hidden="true" size={16} />
-                    Preview receipt
+                    {t.previewReceipt}
                   </button>
                 </article>
               ))}
@@ -2699,11 +1502,24 @@ export function App() {
                   <small>{starter.sourceRef ?? starter.status ?? "No App action source ref."}</small>
                   <button type="submit" disabled={starter.available === false || !(starter.previewActionId ?? starter.dryRunAction)}>
                     <Send aria-hidden="true" size={16} />
-                    {starter.available === false ? "Unavailable" : "Preview workflow"}
+                    {starter.available === false ? t.unavailable : t.previewWorkflow}
                   </button>
                 </form>
               ))}
             </div>
+          </section>
+
+          <section data-testid="opl-automations-panel" className="context-block" hidden={activeContextTab !== "opl-automations-panel"}>
+            <div className="context-list-head">
+              <strong>{t.scheduled}</strong>
+              <span className="delivery-note">{t.readbackOnly}</span>
+            </div>
+            <p className="context-empty">{t.scheduledDescription}</p>
+            <dl className="trace-list">
+              {model.contextTrace.filter((item) => item.label.toLowerCase().includes("automation")).map((item) => (
+                <div key={item.id}><dt>{item.label}</dt><dd>{item.value}</dd></div>
+              ))}
+            </dl>
           </section>
 
           <section
@@ -2713,11 +1529,11 @@ export function App() {
             hidden={activeContextTab !== "opl-package-lifecycle-panel"}
           >
             <div className="context-list-head">
-              <strong>Agent packages</strong>
-              <span className="delivery-note">App/root refs only</span>
+              <strong>{t.agentPackages}</strong>
+              <span className="delivery-note">{t.appRootRefs}</span>
             </div>
             <p className="context-empty">
-              Package status and actions come from App/root contracts. Missing bridge or legacy module fallback stays preview/unavailable.
+              {t.packageBoundary}
             </p>
             <div className="package-lifecycle-list">
               {model.packageLifecycle.map((item) => (
@@ -2731,11 +1547,11 @@ export function App() {
                   <p className="delivery-note">{item.sourceExplanation}</p>
                   <div className="package-filter-list" aria-label={`${item.label} search and filter metadata`}>
                     <div>
-                      <dt>Search</dt>
+                      <dt>{t.search}</dt>
                       <dd><code>{item.searchMetadata.query}</code></dd>
                     </div>
                     <div>
-                      <dt>Filter tags</dt>
+                      <dt>{t.filterTags}</dt>
                       <dd><code>{item.searchMetadata.tags.join(", ")}</code></dd>
                     </div>
                     {item.searchMetadata.filters.map((filter) => (
@@ -2820,12 +1636,12 @@ export function App() {
             hidden={activeContextTab !== "opl-runtime-summary"}
           >
             <div className="context-list-head">
-              <h3 data-testid="opl-runtime-summary">Runtime</h3>
-              <span className="delivery-note">Readback only</span>
+              <h3 data-testid="opl-runtime-summary">{t.runtimeMenu}</h3>
+              <span className="delivery-note">{t.readbackOnly}</span>
             </div>
             <div className="runtime-meta">
-              <div data-testid="opl-runtime-context-group" className="session-chip">needs_attention</div>
-              <div data-testid="opl-runtime-context-item" className="runtime-note">No domain body or artifact body is owned here.</div>
+              <div data-testid="opl-runtime-context-group" className="session-chip">{localizedStateStatus}</div>
+              <div data-testid="opl-runtime-context-item" className="runtime-note">{t.runtimeNoAuthority}</div>
             </div>
             <div className="runtime-actions">
               <button
@@ -2833,7 +1649,7 @@ export function App() {
                 type="button"
                 onClick={() => void bridge.readFullDrilldown()}
               >
-                Full drilldown
+                {t.fullDrilldown}
               </button>
               <button
                 data-testid="opl-runtime-action-dry-run"
@@ -2843,7 +1659,7 @@ export function App() {
                   if (runtimeAction) runDryRun(runtimeAction.id, { source: "runtime-panel" });
                 }}
               >
-                Preview action
+                {t.previewAction}
               </button>
             </div>
 
@@ -2851,25 +1667,33 @@ export function App() {
 
             <div className="utility-stack">
               <section data-testid="opl-skills-panel" className="context-block">
-                <h3>Skills</h3>
-                <p className="context-empty">Codex Skill references only; no domain authority is owned here.</p>
+                <h3>{t.skills}</h3>
+                <p className="context-empty">{t.skillsBoundary}</p>
               </section>
               <section data-testid="opl-routing-panel" className="context-block">
-                <h3>Routing</h3>
-                <p className="context-empty">Route suggestions remain App-owned refs and preview actions.</p>
-              </section>
-              <section data-testid="opl-memory-panel" className="context-block">
-                <h3>Memory</h3>
-                <p className="context-empty">Memory refs are shown without owning memory body truth.</p>
-              </section>
-              <section data-testid="opl-always-on-panel" className="context-block">
-                <h3>Always-on context</h3>
-                <p className="context-empty">Always-on context is summarized as refs, receipts, and next actions.</p>
+                <h3>{t.routing}</h3>
+                <p className="context-empty">{t.routingBoundary}</p>
               </section>
             </div>
 
             <div className="visually-hidden" data-testid="opl-web-transport">window.oplNativeWorkbench / SSE /api/opl-events</div>
             <div className="visually-hidden" data-testid="opl-event-feed">{eventFeed.join(" / ")} tool process diff file receipt user_input permission</div>
+          </section>
+
+          <section data-testid="opl-memory-panel" className="context-block" hidden={activeContextTab !== "opl-memory-panel"}>
+            <div className="context-list-head">
+              <h3>{t.memory}</h3>
+              <span className="delivery-note">refs-only</span>
+            </div>
+            <p className="context-empty">{t.memoryBoundary}</p>
+          </section>
+
+          <section data-testid="opl-always-on-panel" className="context-block" hidden={activeContextTab !== "opl-always-on-panel"}>
+            <div className="context-list-head">
+              <h3>{t.alwaysOn}</h3>
+              <span className="delivery-note">{localizedStateStatus}</span>
+            </div>
+            <p className="context-empty">{t.alwaysOnBoundary}</p>
           </section>
 
         </div>

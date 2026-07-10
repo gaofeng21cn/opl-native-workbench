@@ -11,6 +11,7 @@ import {
   root,
   validateNonLiveDeliveryEvidence
 } from "./native-workbench-gates.mjs";
+import { resolveAppRepoRoot } from "./resolve-app-repo-root.mjs";
 
 const requiredFiles = [
   "AGENTS.md",
@@ -22,6 +23,8 @@ const requiredFiles = [
   "src/main.tsx",
   "src/renderer-shell.html",
   "src/workbench/App.tsx",
+  "src/workbench/codexWorkbenchStyles.ts",
+  "src/workbench/modelPolicy.ts",
   "src/workbench/workbenchModel.ts",
   "src/workbench/settingsModel.ts",
   "src/candidateContractEvidence.json",
@@ -30,6 +33,7 @@ const requiredFiles = [
   "scripts/smoke-webui.mjs",
   "scripts/smoke-visual.mjs",
   "scripts/package-native-workbench.mjs",
+  "scripts/resolve-app-repo-root.mjs",
   "scripts/native-workbench-app.swift"
 ];
 
@@ -104,27 +108,72 @@ function assertSourceMarkerRequirements(evidence) {
   }
 }
 
-function assertImagegenProjectFirstIa(evidence, app, readme) {
-  const alignment = evidence.default_home_layout?.imagegen_mockup_alignment;
-  assert(alignment, "missing imagegen project-first IA alignment evidence");
-  assert(alignment.source === "assets/mockups/codex-open-science-reference-2026-07-05.png", "imagegen mockup source must be recorded");
-  assert(JSON.stringify(alignment.left_sidebar_order) === JSON.stringify([
-    "Current project",
-    "Context inputs",
-    "Attachments/outputs",
-    "Recent chats per project"
-  ]), "imagegen mockup left sidebar order must be project-first");
-  assert(alignment.center_top === "model/access configuration", "top model/access configuration placement must be recorded");
-  assert(alignment.right_side === "Preview inspector default-open and collapsible", "right Preview inspector default-open collapsible placement must be recorded");
-  assert(readme.includes("Current project -> Context inputs -> Attachments/outputs -> Recent chats per"), "README must record project-first imagegen IA order");
-  assert(readme.includes("Preview inspector default-open and collapsible"), "README must record default-open collapsible Preview inspector");
-  assert(!readme.includes("on-demand/collapsed inspector"), "README must not use the old on-demand/collapsed inspector wording");
-  assert(!JSON.stringify(evidence).includes("on-demand workspace/file/artifact inspector"), "candidate evidence must not keep the old on-demand inspector pattern");
+function assertCodexJuly2026Alignment(evidence, app, readme) {
+  const alignment = evidence.default_home_layout?.primary_visual_reference;
+  const normalizedReadme = readme.replace(/\s+/g, " ");
+  assert(alignment, "missing ChatGPT Codex July 2026 alignment evidence");
+  assert(alignment.reference_product === "ChatGPT Codex macOS", "Codex reference product must be recorded");
+  assert(alignment.reference_version === "26.707.31123", "Codex reference version must be recorded");
+  assert(alignment.reference_date === "2026-07-10", "Codex reference date must be recorded");
+  assert(alignment.left_side === "persistent project and conversation rail", "Codex project rail placement must be recorded");
+  assert(alignment.center === "single dominant conversation timeline with bottom composer", "Codex conversation placement must be recorded");
+  assert(alignment.model_controls === "composer_bottom_row", "model controls must stay in the composer");
+  assert(alignment.right_side === "floating user-requested environment details", "environment details must be floating and user-requested");
+  assert(evidence.default_home_layout?.workspace_rail_default_open === true, "project rail must be visible by default");
+  assert(evidence.default_home_layout?.environment_details_default_open === false, "environment details must be closed by default");
+  assert(evidence.webui_parity?.desktop_and_webui_default_home === "codex_project_rail_chat_environment_closed", "desktop and WebUI must share the Codex default home");
+  assert(normalizedReadme.includes("ChatGPT Codex macOS") && normalizedReadme.includes("26.707.31123"), "README must record the Codex reference build");
+  assert(normalizedReadme.includes("model and reasoning controls in the composer"), "README must record composer model control placement");
+  assert(normalizedReadme.includes("The rail is visible by default"), "README must record the default-visible project rail");
+  assert(normalizedReadme.includes("environment details are closed by default and open as a floating"), "README must record the default-closed floating environment details");
+  const legacyClaims = `${readme}\n${JSON.stringify(evidence)}`.toLowerCase();
+  for (const claim of ["imagegen", "image-generated", "three-column", "chat_first_with_preview_inspector", "preview inspector default-open"]) {
+    assert(!legacyClaims.includes(claim), `legacy visual baseline claim must be removed: ${claim}`);
+  }
   for (const markers of Object.values(alignment.implementation_markers ?? {})) {
     for (const marker of markers) {
-      assert(app.includes(marker), `missing imagegen IA implementation marker ${marker}`);
+      assert(app.includes(marker), `missing Codex alignment implementation marker ${marker}`);
     }
   }
+}
+
+function assertCodexModelControls(evidence, app) {
+  const settings = read("src/workbench/settingsModel.ts");
+  const policySource = read("src/workbench/modelPolicy.ts");
+  const rendererBuilder = read("scripts/build-renderer.mjs");
+  const appRepoResolver = read("scripts/resolve-app-repo-root.mjs");
+  const bridge = read("src/bridge/oplBridge.ts");
+  const nativeApp = read("scripts/native-workbench-app.swift");
+  const appRepoRoot = resolveAppRepoRoot(root);
+  const appProductProfile = JSON.parse(fs.readFileSync(path.join(appRepoRoot, "contracts", "app-product-profile.json"), "utf8"));
+  const expectedModels = appProductProfile.gui.home.codex_model_display_options.visible_models.map((option) => option.id);
+  const expectedReasoning = appProductProfile.gui.home.codex_model_display_options.user_reasoning_effort_options;
+  assert(evidence.functional_mvp?.codex_model_reasoning_controls?.includes("turn/start") && evidence.functional_mvp.codex_model_reasoning_controls.includes("model and effort overrides"), "functional MVP must record app-server model and effort overrides");
+  assert(appProductProfile.default_session_profile.model === "gpt-5.6-sol", "App product profile must default to gpt-5.6-sol");
+  assert(appProductProfile.default_session_profile.reasoning_effort === "ultra", "App product profile must default to ultra reasoning");
+  for (const model of expectedModels) {
+    assert(policySource.includes(`"${model}"`), `candidate fallback policy must include ${model}`);
+  }
+  for (const effort of expectedReasoning) assert(policySource.includes(`"${effort}"`), `candidate fallback policy must include ${effort}`);
+  assert(settings.includes('modelAccess: "__auto"'), "settings must default to App-owned Auto model resolution");
+  assert(policySource.includes('defaultModel: isModelId(injectedPolicy()?.defaultModel)'), "Auto must resolve the App-injected default model");
+  assert(settings.includes("codexModelPolicy.defaultReasoningEffort"), "settings default reasoning must consume the App-derived policy");
+  assert(app.includes("codexModelPolicy.modelOptions.map"), "composer and Settings must render the App-derived model list");
+  assert(app.includes("codexModelPolicy.reasoningOptions.map"), "composer and Settings must render the App-derived reasoning list");
+  assert(app.includes("bridge.readCodexModels()"), "renderer must read app-server model availability");
+  assert(app.includes("codexCatalog.find"), "renderer must intersect app-server models with the App allowlist");
+  assert(app.includes('value="__auto"'), "Settings must expose Auto model restoration");
+  assert(app.includes("model: resolvedModel.id"), "composer must send the resolved available model");
+  assert(app.includes("reasoningEffort: resolvedReasoning"), "composer must send a supported reasoning effort");
+  assert(bridge.includes("model?: string"), "bridge request must carry the App-selected model override");
+  assert(bridge.includes("reasoningEffort?: string"), "bridge request must carry the App-selected reasoning override");
+  assert(bridge.includes("readCodexModels()"), "bridge must expose the app-server model catalog");
+  assert(nativeApp.includes('method: "model/list"'), "native app must read app-server model/list");
+  assert(nativeApp.includes('turnParams["model"] = model'), "native app must pass model to app-server turn/start");
+  assert(nativeApp.includes('turnParams["effort"] = effort'), "native app must pass effort to app-server turn/start");
+  assert(rendererBuilder.includes("__OPL_CODEX_MODEL_POLICY__"), "renderer build must inject the App-owned model policy");
+  assert(rendererBuilder.includes("resolveAppRepoRoot"), "renderer build must resolve the App repo through the shared helper");
+  assert(appRepoResolver.includes('"contracts", "app-product-profile.json"'), "App repo resolver must require the App product profile");
 }
 
 validateNonLiveDeliveryEvidence(evidence);
@@ -135,7 +184,8 @@ assertFallbackBoundaryDowngrades({
 });
 assertFunctionalMvpCloseout(evidence);
 assertSourceMarkerRequirements(evidence);
-assertImagegenProjectFirstIa(evidence, app, read("README.md"));
+assertCodexJuly2026Alignment(evidence, app, read("README.md"));
+assertCodexModelControls(evidence, app);
 assertRendererTestIds(app, requiredTestIds);
 assertRendererTestIds(rendererSource, deliverySurfaceTestIds(evidence));
 
@@ -158,7 +208,8 @@ for (const capability of [
   "results_and_delivery_first_presentation",
   "opl_app_state_bridge",
   "opl_app_action_bridge",
-  "imagegen_project_first_information_architecture",
+  "chatgpt_codex_2026_07_10_visual_alignment",
+  "codex_floating_environment_details",
   "webui_renderer_parity",
   "candidate_app_bundle_package",
   "settings_persistence",

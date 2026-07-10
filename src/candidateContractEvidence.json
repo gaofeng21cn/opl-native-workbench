@@ -20,8 +20,8 @@
     "chat_first_codex_app_surface",
     "results_and_delivery_first_presentation",
     "codex_style_persistent_left_sidebar",
-    "codex_reference_preview_inspector_default_open",
-    "imagegen_project_first_information_architecture",
+    "chatgpt_codex_2026_07_10_visual_alignment",
+    "codex_floating_environment_details",
     "lightweight_workspace_session_rail",
     "collapsible_contextual_tabs",
     "app_product_profile_mapping",
@@ -65,7 +65,8 @@
   "functional_mvp": {
     "codex_app_server_thread_turn": true,
     "codex_command": "codex app-server --stdio",
-    "codex_protocol": "JSON-RPC newline transport with initialize, thread/start, turn/start, item/agentMessage/delta, turn/completed, thread/resume",
+    "codex_protocol": "JSON-RPC newline transport with initialize, model/list, thread/start, turn/start, item/agentMessage/delta, turn/completed, thread/resume",
+    "codex_model_reasoning_controls": "App product profile injects the ordered seven-model list and low/medium/high/xhigh/ultra reasoning options; runtime model/list availability filters the list, Auto resolves the strongest advertised model and supported effort, and turn/start receives model and effort overrides",
     "opl_state_bridge": "opl app state --profile fast --json",
     "opl_action_bridge": "opl app action execute --action <action_id> --dry-run --json",
     "native_bridge": "WKScriptMessageHandler window.webkit.messageHandlers.oplNativeWorkbench",
@@ -83,7 +84,7 @@
   },
   "functional_mvp_closeout": {
     "implemented": [
-      "Codex app-server thread/turn source path with initialize, thread/start, turn/start, streaming delta, turn/completed, and thread/resume markers",
+      "Codex app-server source path with initialize, model/list availability, App allowlist Auto resolution, thread/start, turn/start model/effort overrides, streaming delta, turn/completed, and thread/resume markers",
       "OPL App state context source path using fast state, full state, full drilldown, and secondary runtime context refs",
       "OPL App action preview path using dry-run action commands and visible preview receipt markers",
       "Bridge helper layer normalizes runtime profile readback, action receipt shape, and typed event envelopes close to App state/action contracts",
@@ -255,27 +256,46 @@
     "agui": false
   },
   "default_home_layout": {
-    "policy": "ordinary home opens with a project-first persistent left sidebar, a single chat canvas with model/access configuration in the top bar, and the Preview inspector open by default but collapsible to match the accepted imagegen Codex/Open Science reference mockup",
-    "stage_classes": ["codex-sidebar-chat", "inspector-open"],
+    "policy": "ordinary home opens with the Codex project and conversation rail visible, the chat canvas dominant, model and reasoning controls in the composer, and floating environment details closed until explicitly requested",
+    "stage_classes": ["codex-sidebar-chat", "with-rail", "without-inspector"],
     "workspace_rail_default_open": true,
-    "inspector_default_open": true,
-    "imagegen_mockup_alignment": {
-      "source": "assets/mockups/codex-open-science-reference-2026-07-05.png",
-      "left_sidebar_order": [
-        "Current project",
-        "Context inputs",
-        "Attachments/outputs",
-        "Recent chats per project"
-      ],
-      "center_top": "model/access configuration",
-      "right_side": "Preview inspector default-open and collapsible",
+    "inspector_default_open": false,
+    "environment_details_default_open": false,
+    "codex_2026_07_10_alignment": {
+      "reference_product": "ChatGPT Codex macOS",
+      "reference_version": "26.707.31123",
+      "project_rail": "persistent",
+      "timeline": "single_conversation_timeline",
+      "model_controls": "composer_bottom_row",
+      "reasoning_controls": "composer_bottom_row",
+      "environment_details": "floating_on_demand",
+      "settings_locale_surface": "settings",
+      "model_policy_source": "one-person-lab-app/contracts/app-product-profile.json#gui.home.codex_model_display_options",
+      "default_model": "gpt-5.6-sol",
+      "default_reasoning_effort": "ultra",
+      "required_surfaces": [
+        "persistent_project_rail",
+        "single_conversation_timeline",
+        "composer_model_and_reasoning_controls",
+        "floating_on_demand_environment",
+        "settings_locale_surface"
+      ]
+    },
+    "primary_visual_reference": {
+      "reference_product": "ChatGPT Codex macOS",
+      "reference_version": "26.707.31123",
+      "reference_date": "2026-07-10",
+      "source_usage": "visual_and_interaction_reference_only_no_code_or_brand_copy",
+      "left_side": "persistent project and conversation rail",
+      "center": "single dominant conversation timeline with bottom composer",
+      "model_controls": "composer_bottom_row",
+      "right_side": "floating user-requested environment details",
       "implementation_markers": {
-        "current_project": ["Current project", "currentProject", "activeProjectLines"],
-        "context_inputs": ["Context inputs", "opl-project-inputs", "projectInputItems"],
-        "attachments_outputs": ["Attachments / outputs", "opl-project-attachments", "projectAttachmentItems"],
-        "recent_chats_per_project": ["Project chats", "opl-project-chats", "chatSessions"],
-        "top_model_config": ["topbarModelLabel", "opl-topbar-model-config", "opl-model-access-entry"],
-        "right_preview_inspector": ["context-inspector", "useState(true)", "opl-selected-artifact-preview"]
+        "project_rail": ["Projects", "project-root", "opl-project-chats", "chatSessions"],
+        "project_context": ["Project context", "Files & outputs", "opl-project-inputs", "opl-project-attachments"],
+        "composer_model_config": ["composer-model-controls", "opl-topbar-model-config", "opl-model-access-entry"],
+        "right_environment_popover": ["context-inspector", "useState(false)", "opl-context-tabs"],
+        "settings_route": ["account-copy", "opl-settings-panel", "opl-locale-toggle"]
       }
     }
   },
@@ -295,9 +315,9 @@
     "adopted_patterns": [
       "project-first persistent left sidebar",
       "single centered conversation canvas",
-      "default-open collapsible Preview inspector",
-      "left sidebar order: Current project -> Context inputs -> Attachments/outputs -> Recent chats per project",
-      "top model/access configuration",
+      "default-closed floating environment details",
+      "project and conversation hierarchy in the persistent rail",
+      "model and reasoning controls in the composer bottom row",
       "project sandbox organization",
       "result and artifact delivery panel",
       "structured confirmation forms",
@@ -519,7 +539,7 @@
     "shared_renderer": true,
     "bridge_shape": "window.oplNativeWorkbench",
     "product_profile": "src/generated/oplProductProfile.generated.json",
-    "desktop_and_webui_default_home": "chat_first_with_preview_inspector",
+    "desktop_and_webui_default_home": "codex_project_rail_chat_environment_closed",
     "evidence_status_field": "webui_parity_status",
     "sse_subscription_surface": "subscribeEvents uses GET /api/opl-events and normalizes message payloads to typed bridge events"
   },

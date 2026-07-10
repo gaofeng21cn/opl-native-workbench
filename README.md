@@ -6,7 +6,7 @@ selected only through `OPL_APP_SHELL_ADAPTER_CONTRACT`.
 
 Public role: this repo is the foreground/developer backup candidate for the OPL
 App GUI. It may preview a chat-first workbench, WebUI convergence, local
-history, and inspector UX, but it must consume App/root state instead of
+history, and environment-detail UX, but it must consume App/root state instead of
 owning product, runtime, package, or domain truth. Simulated, fallback, or
 unavailable data must stay visibly non-authoritative and cannot be displayed as
 active shell adoption, release readiness, runtime truth, package truth, owner
@@ -22,37 +22,34 @@ The shell keeps App truth in the App repository:
 - Release adoption: forbidden until the App owner deliberately changes
   `contracts/app-shell-adapter.json` and release gates pass.
 
-The current candidate keeps the visual contract intentionally close to Codex
-App: persistent left sidebar for navigation/history, one chat canvas, bottom
-composer as the primary action, and a right workspace inspector with Preview
-open by default and collapsible for files, previews, provenance, workflow starters, and export
-receipts. K-Dense and
-Open Science are used as layout/interaction references only; their runtime,
-provider, backend, and authority surfaces are not copied.
+The primary visual and interaction reference is ChatGPT Codex macOS
+26.707.31123, inspected on 2026-07-10. The candidate aligns to its persistent
+project/conversation rail, dominant single conversation timeline, compact
+header, model and reasoning controls in the composer, and floating
+user-requested environment details. This is reference-only: no ChatGPT/Codex
+source, brand asset, or product authority is copied. K-Dense and Open Science
+remain feature references for delivery and scientific preview behavior only.
 
 ## Current UI structure
 
 The candidate now documents one stable user-facing information architecture:
 
-- Left sidebar: project-first organization. The imagegen design mockup order is
-  `Current project -> Context inputs -> Attachments/outputs -> Recent chats per
-  project`. Current source markers render those as the current project card,
-  context source refs, preview/deliverable refs, and resumable recent chats.
-- Center: chat-first work surface. The main conversation canvas and bottom
-  composer remain the default focus; the top bar carries model/access
-  configuration before project-local status.
-- Right side: Preview inspector default-open and collapsible. Artifact preview
-  opens by default to match the accepted reference mockup; provenance,
-  delivery, starter/detail, and runtime views stay secondary tabs.
-- Settings: a separate first-class route, not a side-tab inside chat. Global
-  controls such as language, model/account access, workspace, and runtime
-  connection live there.
+- Left rail: global task/agent entries, projects, compact project context links,
+  and project conversations use one quiet hierarchy. The rail is visible by
+  default on desktop and can be collapsed explicitly.
+- Center: one dominant chat timeline. The header contains conversation-local
+  navigation only; model and reasoning controls stay in the composer bottom
+  row beside attach, capability, and send controls.
+- Right side: environment details are closed by default and open as a floating
+  panel without resizing the chat canvas. Sources, previews, provenance,
+  workflows, packages, and runtime remain secondary surfaces.
+- Settings: the account row at the lower left opens a separate Settings route.
+  Language remains under General rather than inside the composer or context
+  panel.
 
-This README describes that candidate layout as implemented intent only. It does
-not claim App adoption, release acceptance, or live operator validation.
-The current visual refresh also has an image-generated reference mockup at
-`assets/mockups/codex-open-science-reference-2026-07-05.png`, used only as a
-design anchor for spacing, hierarchy, and panel balance.
+This README and the generated package manifest describe candidate alignment
+evidence only. Neither claims App adoption, release readiness, or live operator
+validation.
 
 The packaged macOS MVP includes a native `WKScriptMessageHandler` bridge. The
 renderer can read `opl app state`, request App action dry-runs, and talk to
@@ -68,8 +65,17 @@ reuse the saved `threadId`, and show the latest locally-persisted draft even
 before active-shell adoption.
 
 Settings is a first-class route in the candidate. Global controls such as
-language, model/account access, workspace, and runtime connection live there;
-the composer stays limited to prompt-local actions like attach and send.
+language, model defaults, workspace, and runtime connection live there. The
+composer exposes the current model and reasoning effort as conversation controls,
+matching Codex placement; those values are persisted in Settings and passed
+through the existing Codex app-server `turn/start` `model` and `effort` fields.
+The model policy is injected from
+`one-person-lab-app/contracts/app-product-profile.json`: the default is
+`gpt-5.6-sol` with `ultra` reasoning, and the visible model/reasoning order is
+the App-owned allowlist rather than a candidate-owned provider catalog. At
+runtime the native bridge calls Codex app-server `model/list`, intersects that
+catalog with the App allowlist, and resolves Auto to the strongest currently
+advertised model and its highest supported reasoning effort.
 `runtimeProfile` now drives actual `opl app state` readback shape, and the
 Settings page exposes runtime readback status instead of a pure placeholder.
 
@@ -107,7 +113,7 @@ Current evidence remains intentionally bounded:
 
 | Area | Status | Evidence | Boundary |
 | --- | --- | --- | --- |
-| Codex chat runtime | Implemented candidate evidence | App-server thread/turn markers for `initialize`, `thread/start`, `turn/start`, streaming deltas, `turn/completed`, and `thread/resume` | Does not replace the Codex control plane |
+| Codex chat runtime | Implemented candidate evidence | App-server thread/turn markers for `initialize`, `thread/start`, `turn/start`, model/effort overrides, streaming deltas, `turn/completed`, and `thread/resume` | Does not replace the Codex control plane |
 | Chat history and session resume | Implemented candidate evidence | Local persisted session list, reusable `threadId`, and sidebar reopen path | Local candidate persistence only |
 | OPL state context | Implemented candidate evidence | `opl app state --profile fast --json`, explicit full state, and full runtime drilldown exception markers | Reads App/Framework truth only |
 | App action flow | Implemented candidate evidence | Dry-run action preview, visible receipt markers, and confirmation card markers | No execution without explicit confirmation |

@@ -66,6 +66,7 @@ function installNativeTransport(): boolean {
     readState: (profile) => post("readState", { profile }),
     readFullDrilldown: () => post("readFullDrilldown"),
     executeAction: (request) => post("executeAction", request as Record<string, unknown>),
+    readCodexModels: () => post("readCodexModels"),
     sendMessage: (request) => post("sendMessage", request as Record<string, unknown>),
     subscribeEvents,
     connectEvents: subscribeEvents

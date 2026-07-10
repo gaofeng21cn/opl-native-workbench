@@ -36,7 +36,10 @@ assert(evidence.functional_mvp_closeout?.local_candidate_live_smoke?.boundaries?
 for (const marker of [
   '<div id="root"></div>',
   './renderer.js',
-  'branding/opl-app-logo.png'
+  'branding/opl-app-logo.png',
+  '__OPL_CODEX_MODEL_POLICY__',
+  '"defaultModel":"gpt-5.6-sol"',
+  '"defaultReasoningEffort":"ultra"'
 ]) {
   assert(workbench.includes(marker), `missing packaged workbench marker ${marker}`);
 }
@@ -68,6 +71,7 @@ for (const marker of [
   "codex\",",
   "app-server",
   "initialize",
+  "model/list",
   "thread/start",
   "thread/resume",
   "turn/start",
@@ -75,6 +79,8 @@ for (const marker of [
   "item/agentMessage/delta",
   "item/completed",
   "sandboxPolicy",
+  'turnParams["model"] = model',
+  'turnParams["effort"] = effort',
   "\"type\": \"readOnly\"",
   "approvalPolicy\": \"never\"",
   "process.terminationHandler",
@@ -90,17 +96,26 @@ for (const marker of ["runtimeWorkspaceRoots", "excludeTurns"]) {
 for (const marker of [
   "readState",
   "readFullDrilldown",
+  "readCodexModels",
   "executeAction",
   'opl-runtime-action-dry-run',
   'opl-runtime-action-receipt',
   'opl-settings-panel',
   'opl-model-access-entry',
-  'opl-locale-toggle'
+  'opl-locale-toggle',
+  'gpt-5.6-sol',
+  'gpt-5.5',
+  'gpt-5.6-terra',
+  'gpt-5.6-luna',
+  'gpt-5.4',
+  'gpt-5.4-mini',
+  'gpt-5.3-codex-spark',
+  'reasoningEffort'
 ]) {
   assert(renderer.includes(marker), `missing packaged functional MVP marker ${marker}`);
 }
-assert(renderer.includes("context-inspector"), "workspace detail surface must use a right inspector");
-assert(renderer.includes("useState(true)"), "workspace inspector must default open against the accepted visual reference");
+assert(renderer.includes("context-inspector"), "environment detail surface must exist");
+assert(renderer.includes("useState(false)"), "environment details must stay closed until explicitly requested");
 
 for (const asset of [
   "app.icns",
@@ -113,19 +128,31 @@ for (const asset of [
 }
 
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+assert(manifest.status === "candidate_app_bundle_built", "package status must describe a built candidate, not readiness");
 assert(manifest.native_runtime === "AppKit/WKWebView", "native runtime must be AppKit/WKWebView");
 assert(manifest.opens_default_browser === false, "candidate app must not open the default browser");
 assert(manifest.app_bundle_workbench === "Contents/Resources/workbench.html", "manifest must point at workbench.html");
+assert(manifest.primary_visual_reference?.product === "ChatGPT Codex macOS", "manifest must record ChatGPT Codex as the primary visual reference");
+assert(manifest.primary_visual_reference?.version === "26.707.31123", "manifest must record the July 10 Codex reference version");
+assert(manifest.primary_visual_reference?.source_usage === "visual_and_interaction_reference_only_no_code_or_brand_copy", "manifest must keep Codex reference use visual-only");
+assert(manifest.default_home_layout?.project_rail_visible === true, "manifest must keep the project rail visible by default");
+assert(manifest.default_home_layout?.environment_details_default_open === false, "manifest must keep environment details closed by default");
+assert(manifest.default_home_layout?.environment_details_presentation === "floating", "manifest must keep environment details floating");
+assert(manifest.codex_model_policy?.source === "one-person-lab-app/contracts/app-product-profile.json#gui.home.codex_model_display_options", "manifest must bind model policy to the App product profile");
+assert(manifest.codex_model_policy?.default_model === "gpt-5.6-sol", "manifest must default to gpt-5.6-sol");
+assert(manifest.codex_model_policy?.default_reasoning_effort === "ultra", "manifest must default to ultra reasoning");
+assert(manifest.codex_model_policy?.visible_models?.join(",") === "gpt-5.6-sol,gpt-5.5,gpt-5.6-terra,gpt-5.6-luna,gpt-5.4,gpt-5.4-mini,gpt-5.3-codex-spark", "manifest must preserve the App model order");
+assert(manifest.codex_model_policy?.reasoning_efforts?.join(",") === "low,medium,high,xhigh,ultra", "manifest must preserve the App reasoning options");
 assert(manifest.external_layout_reference?.repo === "https://github.com/K-Dense-AI/k-dense-byok", "manifest must record the K-Dense layout reference");
 assert(manifest.external_layout_reference?.companion_repo === "https://github.com/ai4s-research/open-science", "manifest must record the Open Science visual reference");
-assert(manifest.external_layout_reference?.adapted_patterns?.includes("project-first persistent left sidebar for Current project, context inputs, attachments/outputs, and recent chats per project"), "manifest must record the project-first sidebar adaptation");
+assert(manifest.external_layout_reference?.adapted_patterns?.includes("persistent project and conversation rail with compact project context links"), "manifest must record the Codex project rail adaptation");
 assert(manifest.external_layout_reference?.adapted_patterns?.includes("single conversation canvas with centered max-width thread and bottom composer"), "manifest must record the Codex-style conversation adaptation");
-assert(manifest.external_layout_reference?.adapted_patterns?.includes("top model/access configuration stays in the center topbar"), "manifest must record the top model configuration adaptation");
-assert(manifest.external_layout_reference?.adapted_patterns?.includes("attachments, outputs, preview, provenance, workflows, and export live in a right inspector with Preview open by default and collapsible"), "manifest must record the right preview inspector adaptation");
-assert(manifest.external_layout_reference?.adapted_patterns?.includes("chat tab strip and bottom composer as primary interaction"), "manifest must record the chat-first K-Dense adaptation");
-assert(manifest.external_layout_reference?.adapted_patterns?.includes("right Preview inspector is default-open and collapsible"), "manifest must record the default-open collapsible inspector adaptation");
-assert(manifest.external_layout_reference?.adapted_patterns?.includes("Open Science paper-light surface, thin borders, compact message blocks, and rounded composer"), "manifest must record the Open Science visual adaptation");
+assert(manifest.external_layout_reference?.adapted_patterns?.includes("model and reasoning controls stay in the composer bottom row"), "manifest must record composer model configuration");
+assert(manifest.external_layout_reference?.adapted_patterns?.includes("attachments, outputs, preview, provenance, workflows, packages, and runtime live in floating user-requested environment details"), "manifest must record floating environment details");
+assert(manifest.external_layout_reference?.adapted_patterns?.includes("environment details are closed by default and do not resize the chat canvas"), "manifest must record closed-by-default environment details");
+assert(manifest.external_layout_reference?.adapted_patterns?.includes("K-Dense and Open Science remain feature references rather than the visual shell baseline"), "manifest must demote external workbenches to feature references");
 assert(manifest.functional_mvp?.codex_app_server_thread_turn === true, "manifest must record Codex app-server thread/turn MVP");
+assert(manifest.functional_mvp?.codex_protocol?.includes("model/list"), "manifest must record app-server model availability reads");
 assert(manifest.functional_mvp?.default_sandbox === "read-only", "manifest must record read-only Codex sandbox");
 for (const field of evidence.functional_mvp_closeout?.not_ready ?? []) {
   assert(manifest[field] !== true, `candidate package must not claim ${field}`);
@@ -149,6 +176,7 @@ assert(evidence.false_ready_boundary.artifact_authority === false, "artifact aut
 assert(evidence.false_ready_boundary.starter_execution_authority === false, "starter execution authority must stay false");
 
 const rootManifest = readJson("out/opl-native-workbench-candidate-manifest.json");
+assert(rootManifest.status === "candidate_app_bundle_built", "root manifest must not use a readiness status for a built candidate");
 assert(rootManifest.opens_default_browser === false, "root manifest must preserve browser boundary");
 
 console.log(JSON.stringify({

@@ -146,6 +146,8 @@ export type OplActionReceipt = {
 export type CodexMessageRequest = {
   prompt: string;
   threadId?: string;
+  model?: string;
+  reasoningEffort?: string;
 };
 
 export type CodexMessageResponse = {
@@ -157,6 +159,21 @@ export type CodexMessageResponse = {
   eventCount: number;
   completed: Record<string, unknown>;
   cwd?: string;
+  simulated?: boolean;
+};
+
+export type CodexModelCatalogEntry = {
+  id: string;
+  model: string;
+  displayName: string;
+  isDefault: boolean;
+  defaultReasoningEffort: string;
+  supportedReasoningEfforts: string[];
+};
+
+export type CodexModelCatalog = {
+  source: "codex_app_server_model_list" | "bridge_unavailable";
+  models: CodexModelCatalogEntry[];
   simulated?: boolean;
 };
 
@@ -213,6 +230,7 @@ export type OplBridge = {
   readState(profile?: OplStateProfile): Promise<OplStateReadback>;
   readFullDrilldown(): Promise<OplFullDrilldownReadback>;
   executeAction(request: OplActionRequest): Promise<OplActionReceipt>;
+  readCodexModels(): Promise<CodexModelCatalog>;
   sendMessage(request: CodexMessageRequest): Promise<CodexMessageResponse>;
   subscribeEvents(onEvent: (event: OplBridgeEvent) => void): () => void;
 };
@@ -231,6 +249,36 @@ function asBoolean(value: unknown): boolean | undefined {
 
 function asNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+export function normalizeCodexModelCatalog(value: unknown): CodexModelCatalog {
+  const record = asRecord(value);
+  const data = Array.isArray(record?.data) ? record.data : Array.isArray(record?.models) ? record.models : [];
+  const models = data.flatMap((item) => {
+    const model = asRecord(item);
+    const id = asString(model?.id) ?? asString(model?.model);
+    if (!id) return [];
+    const reasoning = Array.isArray(model?.supportedReasoningEfforts)
+      ? model.supportedReasoningEfforts.flatMap((option) => {
+        if (typeof option === "string") return option ? [option] : [];
+        const effort = asString(asRecord(option)?.reasoningEffort);
+        return effort ? [effort] : [];
+      })
+      : [];
+    return [{
+      id,
+      model: asString(model?.model) ?? id,
+      displayName: asString(model?.displayName) ?? id,
+      isDefault: asBoolean(model?.isDefault) ?? false,
+      defaultReasoningEffort: asString(model?.defaultReasoningEffort) ?? reasoning.at(-1) ?? "medium",
+      supportedReasoningEfforts: reasoning
+    }];
+  });
+  return {
+    source: models.length ? "codex_app_server_model_list" : "bridge_unavailable",
+    models,
+    simulated: models.length ? undefined : true
+  };
 }
 
 function parseJsonValue(value: string): unknown {
@@ -724,6 +772,10 @@ export function createBrowserBridge(): OplBridge {
     executeAction(request) {
       const promise = candidate?.executeAction?.(request) ?? Promise.resolve(createPlaceholderActionReceipt(request));
       return Promise.resolve(promise).then((value) => normalizeActionReceipt(value, request));
+    },
+    readCodexModels() {
+      const promise = candidate?.readCodexModels?.() ?? Promise.resolve({ models: [], simulated: true });
+      return Promise.resolve(promise).then(normalizeCodexModelCatalog);
     },
     sendMessage(request) {
       const promise = candidate?.sendMessage?.(request) ?? Promise.resolve({
