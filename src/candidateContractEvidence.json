@@ -18,6 +18,7 @@
     "web_transport_bridge",
     "webui_smoke",
     "chat_first_codex_app_surface",
+    "default_context_collapsed_chat_first_home",
     "results_and_delivery_first_presentation",
     "codex_style_persistent_left_sidebar",
     "chatgpt_codex_2026_07_10_visual_alignment",
@@ -269,7 +270,7 @@
     "agui": false
   },
   "default_home_layout": {
-    "policy": "ordinary home opens with the Codex project and conversation rail visible, the chat canvas dominant, model and reasoning controls in the composer, and floating environment details closed until explicitly requested",
+    "policy": "ordinary home opens with the Codex project and conversation rail visible, the chat canvas dominant, model and reasoning controls in the composer, and the inspector closed until explicitly requested",
     "stage_classes": ["codex-sidebar-chat", "with-rail", "without-inspector"],
     "workspace_rail_default_open": true,
     "inspector_default_open": false,
@@ -551,7 +552,7 @@
     "shared_renderer": true,
     "bridge_shape": "window.oplNativeWorkbench",
     "product_profile": "src/generated/oplProductProfile.generated.json",
-    "desktop_and_webui_default_home": "codex_project_rail_chat_environment_closed",
+    "desktop_and_webui_default_home": "chat_first_default_collapsed",
     "evidence_status_field": "webui_parity_status",
     "sse_subscription_surface": "subscribeEvents uses GET /api/opl-events and normalizes message payloads to typed bridge events"
   },

@@ -125,7 +125,7 @@ function assertCodexJuly2026Alignment(evidence, app, readme) {
   assert(alignment.right_side === "floating user-requested environment details", "environment details must be floating and user-requested");
   assert(evidence.default_home_layout?.workspace_rail_default_open === true, "project rail must be visible by default");
   assert(evidence.default_home_layout?.environment_details_default_open === false, "environment details must be closed by default");
-  assert(evidence.webui_parity?.desktop_and_webui_default_home === "codex_project_rail_chat_environment_closed", "desktop and WebUI must share the Codex default home");
+  assert(evidence.webui_parity?.desktop_and_webui_default_home === "chat_first_default_collapsed", "desktop and WebUI must share the chat-first default-collapsed home");
   assert(normalizedReadme.includes("ChatGPT Codex macOS") && normalizedReadme.includes("26.707.31123"), "README must record the Codex reference build");
   assert(normalizedReadme.includes("model and reasoning controls in the composer"), "README must record composer model control placement");
   assert(normalizedReadme.includes("The rail is visible by default"), "README must record the default-visible project rail");
@@ -242,6 +242,7 @@ for (const capability of [
   "results_and_delivery_first_presentation",
   "opl_app_state_bridge",
   "opl_app_action_bridge",
+  "default_context_collapsed_chat_first_home",
   "chatgpt_codex_2026_07_10_visual_alignment",
   "codex_floating_environment_details",
   "webui_renderer_parity",
