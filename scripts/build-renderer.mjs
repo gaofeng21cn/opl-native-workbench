@@ -10,8 +10,8 @@ const appRepoRoot = resolveAppRepoRoot(root);
 const appLogoPath = path.join(appRepoRoot, "assets", "branding", "opl-app-logo.png");
 const appBannerPath = path.join(appRepoRoot, "assets", "branding", "opl-banner.png");
 const appProductProfilePath = path.join(appRepoRoot, "contracts", "app-product-profile.json");
-const modelPolicySource = "one-person-lab-app/contracts/app-product-profile.json#gui.home.codex_model_display_options";
-const legalReasoningEfforts = new Set(["low", "medium", "high", "xhigh", "ultra"]);
+const legacyModelPolicySource = "one-person-lab-app/contracts/app-product-profile.json#gui.home.codex_model_display_options";
+const autoModelPolicySource = "one-person-lab-app/contracts/app-product-profile.json#codex.auto_model_policy";
 
 function assertAsset(filePath, label) {
   if (!fs.existsSync(filePath)) {
@@ -45,19 +45,35 @@ function requireNonEmptyString(value, field) {
 export function createCodexModelPolicy(profile) {
   const profileObject = requireObject(profile, "root");
   const defaultSession = requireObject(profileObject.default_session_profile, "default_session_profile");
+  const codex = requireObject(profileObject.codex, "codex");
+  const autoPolicy = codex.auto_model_policy && typeof codex.auto_model_policy === "object" && !Array.isArray(codex.auto_model_policy)
+    ? codex.auto_model_policy
+    : undefined;
   const gui = requireObject(profileObject.gui, "gui");
   const home = requireObject(gui.home, "gui.home");
   const display = requireObject(home.codex_model_display_options, "gui.home.codex_model_display_options");
-  const defaultModel = requireNonEmptyString(defaultSession.model, "default_session_profile.model");
+  const fallback = autoPolicy
+    ? requireObject(autoPolicy.catalog_unavailable_fallback, "codex.auto_model_policy.catalog_unavailable_fallback")
+    : defaultSession;
+  const defaultModel = requireNonEmptyString(fallback.model, "codex.auto_model_policy.catalog_unavailable_fallback.model");
   const defaultReasoningEffort = requireNonEmptyString(
-    defaultSession.reasoning_effort,
-    "default_session_profile.reasoning_effort"
+    fallback.reasoning_effort,
+    "codex.auto_model_policy.catalog_unavailable_fallback.reasoning_effort"
   );
+  if (
+    defaultModel !== requireNonEmptyString(defaultSession.model, "default_session_profile.model")
+    || defaultReasoningEffort !== requireNonEmptyString(
+      defaultSession.reasoning_effort,
+      "default_session_profile.reasoning_effort"
+    )
+  ) {
+    throw new Error("OPL App product profile catalog fallback must match default_session_profile");
+  }
 
   if (!Array.isArray(display.visible_models) || display.visible_models.length === 0) {
     throw new Error("OPL App product profile gui.home.codex_model_display_options.visible_models must be a non-empty array");
   }
-  const visibleModels = display.visible_models.map((value, index) => {
+  let visibleModels = display.visible_models.map((value, index) => {
     const option = requireObject(value, `gui.home.codex_model_display_options.visible_models[${index}]`);
     return {
       id: requireNonEmptyString(option.id, `gui.home.codex_model_display_options.visible_models[${index}].id`),
@@ -67,6 +83,18 @@ export function createCodexModelPolicy(profile) {
   });
   if (new Set(visibleModels.map((option) => option.id)).size !== visibleModels.length) {
     throw new Error("OPL App product profile visible model ids must be unique");
+  }
+  const knownModelPreferenceOrder = autoPolicy?.frontier_model_preference_order;
+  if (knownModelPreferenceOrder !== undefined) {
+    if (!Array.isArray(knownModelPreferenceOrder) || !knownModelPreferenceOrder.every((value) => typeof value === "string" && value.trim())) {
+      throw new Error("OPL App product profile codex.auto_model_policy.frontier_model_preference_order must be a string array");
+    }
+    const byId = new Map(visibleModels.map((option) => [option.id, option]));
+    visibleModels = knownModelPreferenceOrder.map((id) => {
+      const option = byId.get(id);
+      if (!option) throw new Error(`OPL App product profile known model ${id} must be included in visible_models`);
+      return option;
+    });
   }
   if (!visibleModels.some((option) => option.id === defaultModel)) {
     throw new Error("OPL App product profile default model must be included in visible_models");
@@ -78,21 +106,31 @@ export function createCodexModelPolicy(profile) {
   const reasoningEfforts = display.user_reasoning_effort_options.map((value, index) =>
     requireNonEmptyString(value, `gui.home.codex_model_display_options.user_reasoning_effort_options[${index}]`)
   );
-  for (const effort of reasoningEfforts) {
-    if (!legalReasoningEfforts.has(effort)) {
-      throw new Error(`OPL App product profile contains unsupported reasoning effort: ${effort}`);
-    }
-  }
   if (!reasoningEfforts.includes(defaultReasoningEffort)) {
     throw new Error("OPL App product profile default reasoning effort must be included in user_reasoning_effort_options");
   }
 
+  const knownModelReasoningEffortOverrides = autoPolicy?.known_model_reasoning_effort_overrides
+    ? requireObject(autoPolicy.known_model_reasoning_effort_overrides, "codex.auto_model_policy.known_model_reasoning_effort_overrides")
+    : { [defaultModel]: defaultReasoningEffort };
+  for (const [model, effort] of Object.entries(knownModelReasoningEffortOverrides)) {
+    requireNonEmptyString(model, "codex.auto_model_policy.known_model_reasoning_effort_overrides model");
+    requireNonEmptyString(effort, `codex.auto_model_policy.known_model_reasoning_effort_overrides.${model}`);
+  }
+
   return {
-    source: modelPolicySource,
+    source: autoPolicy ? autoModelPolicySource : legacyModelPolicySource,
     defaultModel,
     defaultReasoningEffort,
     visibleModels,
-    reasoningEfforts
+    reasoningEfforts,
+    knownModelReasoningEffortOverrides,
+    acceptUnknownCatalogDefault: autoPolicy
+      ? autoPolicy.unknown_default_model_policy === "accept_catalog_default_even_when_not_in_frontier_model_preference_order"
+      : true,
+    useHighestSupportedReasoningForUnknown: autoPolicy
+      ? autoPolicy.unknown_model_reasoning_effort_policy === "highest_supported_reasoning_effort_from_catalog"
+      : true
   };
 }
 

@@ -70,19 +70,17 @@ composer exposes the current model and reasoning effort as conversation controls
 matching Codex placement; those values are persisted in Settings and passed
 through the existing Codex app-server `turn/start` `model` and `effort` fields.
 The model policy is injected from
-`one-person-lab-app/contracts/app-product-profile.json`: each build dynamically
-consumes the App-owned default, complete visible-model allowlist, display
-labels, model order, and reasoning options rather than maintaining a second
-candidate catalog. The source module keeps only a minimal single-model offline
-fallback for an uninjected preview. At runtime the native bridge calls Codex
-app-server `model/list` and uses it to disable unadvertised fixed alternatives
-from the injected App allowlist. Catalog discovery cannot veto the App-owned
-default route: Auto always resolves the injected default model and default
-reasoning effort, currently `gpt-5.6-sol` with `xhigh`, even when `model/list`
-has not advertised that route. Choosing another reasoning effort pins the
-resolved model and exits Auto before sending. A missing, empty, or non-matching
-catalog therefore leaves the App default usable while keeping unknown fixed
-alternatives unavailable. If a previously fixed alternative is no longer
+`one-person-lab-app/contracts/app-product-profile.json#codex.auto_model_policy`:
+each build consumes the App-owned known-model preferences, known reasoning
+overrides, catalog fallback, and persistence policy rather than maintaining a
+second candidate catalog. The source module keeps only a minimal single-model
+offline fallback for an uninjected preview. At runtime the native bridge calls
+Codex app-server `model/list`. Auto keeps the known `gpt-5.6-sol` override at
+`xhigh`; when Codex advertises a newer unknown `isDefault` model, Auto follows
+that model and uses its last advertised supported reasoning effort. A missing
+catalog falls back to the App-owned model and reasoning pair. Choosing another
+model or reasoning effort pins the resolved choice and exits Auto before
+sending. If a previously fixed alternative is no longer
 advertised, sending remains blocked until the user chooses Auto or another
 available model; the Workbench never silently substitutes a different model.
 `runtimeProfile` now drives actual `opl app state` readback shape, and the

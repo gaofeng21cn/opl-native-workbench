@@ -1,7 +1,7 @@
 export type CodexModelId = string;
 export type CodexModelSelection = "__auto" | CodexModelId;
 export const fallbackReasoningOptions = ["low", "medium", "high", "xhigh", "ultra"] as const;
-export type CodexReasoningEffort = (typeof fallbackReasoningOptions)[number];
+export type CodexReasoningEffort = string;
 export type WorkbenchLocale = "zh" | "en";
 
 type ModelOption = {
@@ -13,12 +13,16 @@ type ModelOption = {
 type CodexCatalogCapability = {
   id: string;
   model?: string;
+  displayName?: string;
+  isDefault?: boolean;
   defaultReasoningEffort?: string;
   supportedReasoningEfforts: string[];
 };
 
 export type ResolvedCodexModelOption = ModelOption & {
   available: boolean;
+  known: boolean;
+  isCatalogDefault: boolean;
   defaultReasoningEffort: CodexReasoningEffort;
   supportedReasoningEfforts: CodexReasoningEffort[];
 };
@@ -33,6 +37,9 @@ type InjectedModelPolicy = {
   defaultReasoningEffort?: string;
   visibleModels?: Array<{ id?: string; label_zh?: string; label_en?: string }>;
   reasoningEfforts?: string[];
+  knownModelReasoningEffortOverrides?: Record<string, string>;
+  acceptUnknownCatalogDefault?: boolean;
+  useHighestSupportedReasoningForUnknown?: boolean;
 };
 
 declare global {
@@ -44,7 +51,7 @@ function isModelId(value: unknown): value is CodexModelId {
 }
 
 function isReasoningEffort(value: unknown): value is CodexReasoningEffort {
-  return fallbackReasoningOptions.includes(value as CodexReasoningEffort);
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function injectedPolicy(): InjectedModelPolicy | undefined {
@@ -74,6 +81,10 @@ const modelOptions = normalizedModelOptions(policy);
 const reasoningOptions = normalizedReasoningOptions(policy);
 const injectedDefaultModel = policy?.defaultModel;
 const injectedDefaultReasoningEffort = policy?.defaultReasoningEffort;
+const knownModelReasoningEffortOverrides = Object.fromEntries(
+  Object.entries(policy?.knownModelReasoningEffortOverrides ?? {})
+    .filter(([model, effort]) => isModelId(model) && isReasoningEffort(effort))
+);
 
 export const codexModelPolicy = {
   source: typeof policy?.source === "string" && policy.source.trim() ? policy.source : "candidate_offline_fallback",
@@ -83,21 +94,28 @@ export const codexModelPolicy = {
   defaultReasoningEffort: isReasoningEffort(injectedDefaultReasoningEffort) && reasoningOptions.includes(injectedDefaultReasoningEffort)
     ? injectedDefaultReasoningEffort
     : reasoningOptions.includes("xhigh") ? "xhigh" : reasoningOptions.at(-1)!,
+  knownModelReasoningEffortOverrides,
+  acceptUnknownCatalogDefault: policy?.acceptUnknownCatalogDefault !== false,
+  useHighestSupportedReasoningForUnknown: policy?.useHighestSupportedReasoningForUnknown !== false,
   modelOptions,
   reasoningOptions
 };
 
 export function resolveCodexModelOptions(catalog: CodexCatalogCapability[]): ResolvedCodexModelOption[] {
-  return codexModelPolicy.modelOptions.map((option) => {
+  const knownOptions = codexModelPolicy.modelOptions.map((option) => {
     const runtime = catalog.find((item) => item.id === option.id || item.model === option.id);
     const supportedReasoningEfforts = runtime?.supportedReasoningEfforts
       .filter(isReasoningEffort) ?? [];
     const isAppDefault = option.id === codexModelPolicy.defaultModel;
+    const configuredReasoningEffort = codexModelPolicy.knownModelReasoningEffortOverrides[option.id]
+      ?? (isAppDefault ? codexModelPolicy.defaultReasoningEffort : undefined);
     return {
       ...option,
       available: isAppDefault || supportedReasoningEfforts.length > 0,
-      defaultReasoningEffort: isAppDefault
-        ? codexModelPolicy.defaultReasoningEffort
+      known: true,
+      isCatalogDefault: runtime?.isDefault === true,
+      defaultReasoningEffort: configuredReasoningEffort
+        ? configuredReasoningEffort
         : isReasoningEffort(runtime?.defaultReasoningEffort)
         && supportedReasoningEfforts.includes(runtime.defaultReasoningEffort)
           ? runtime.defaultReasoningEffort
@@ -109,6 +127,34 @@ export function resolveCodexModelOptions(catalog: CodexCatalogCapability[]): Res
           : [codexModelPolicy.defaultReasoningEffort]
     };
   });
+
+  const unknownCatalogDefault = catalog.find((item) =>
+    item.isDefault === true
+    && !knownOptions.some((option) => option.id === item.id || option.id === item.model)
+  );
+  if (!unknownCatalogDefault || !codexModelPolicy.acceptUnknownCatalogDefault) return knownOptions;
+
+  const supportedReasoningEfforts = unknownCatalogDefault.supportedReasoningEfforts.filter(isReasoningEffort);
+  const defaultReasoningEffort = codexModelPolicy.useHighestSupportedReasoningForUnknown
+    ? supportedReasoningEfforts.at(-1)
+    : undefined;
+  const label = unknownCatalogDefault.displayName?.trim() || unknownCatalogDefault.id;
+  return [...knownOptions, {
+    id: unknownCatalogDefault.id,
+    label_zh: label,
+    label_en: label,
+    available: true,
+    known: false,
+    isCatalogDefault: true,
+    defaultReasoningEffort:
+      defaultReasoningEffort
+      ?? (isReasoningEffort(unknownCatalogDefault.defaultReasoningEffort)
+        ? unknownCatalogDefault.defaultReasoningEffort
+        : codexModelPolicy.defaultReasoningEffort),
+    supportedReasoningEfforts: supportedReasoningEfforts.length
+      ? supportedReasoningEfforts
+      : [codexModelPolicy.defaultReasoningEffort]
+  }];
 }
 
 export function resolveCodexSelection(
@@ -116,7 +162,11 @@ export function resolveCodexSelection(
   selection: CodexModelSelection,
   requestedReasoning: CodexReasoningEffort
 ) {
-  const defaultModel = options.find((option) => option.id === codexModelPolicy.defaultModel) ?? options[0]!;
+  const unknownCatalogDefault = options.find((option) => option.isCatalogDefault && !option.known && option.available);
+  const defaultModel = unknownCatalogDefault
+    ?? options.find((option) => option.id === codexModelPolicy.defaultModel)
+    ?? options.find((option) => option.available)
+    ?? options[0]!;
   const requestedModel = options.find((option) => option.id === selection);
   const effectiveSelection = selection;
   const model = selection === "__auto"
@@ -131,10 +181,12 @@ export function resolveCodexSelection(
     };
   }
   const reasoningOptions = selection === "__auto"
-    ? [...codexModelPolicy.reasoningOptions]
+    ? model.known ? [...codexModelPolicy.reasoningOptions] : model.supportedReasoningEfforts
     : model.supportedReasoningEfforts;
   const reasoningEffort = selection === "__auto"
-    ? codexModelPolicy.defaultReasoningEffort
+    ? model.known
+      ? codexModelPolicy.knownModelReasoningEffortOverrides[model.id] ?? codexModelPolicy.defaultReasoningEffort
+      : model.defaultReasoningEffort
     : reasoningOptions.includes(requestedReasoning)
       ? requestedReasoning
       : reasoningOptions.at(-1) ?? model.defaultReasoningEffort;
@@ -177,5 +229,5 @@ export function reasoningLabel(effort: CodexReasoningEffort, locale: WorkbenchLo
       ultra: compact ? "Ultra" : "Ultra reasoning"
     }
   } as const;
-  return labels[locale][effort];
+  return labels[locale][effort as keyof (typeof labels)[typeof locale]] ?? effort;
 }

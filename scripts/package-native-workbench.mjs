@@ -170,7 +170,7 @@ const manifest = {
     codex_app_server_thread_turn: true,
     codex_command: "codex app-server --stdio",
     codex_protocol: "JSON-RPC newline transport with initialize, model/list, thread/start, turn/start, item/agentMessage/delta, turn/completed, thread/resume",
-    codex_model_reasoning_controls: `App product profile model/reasoning policy injected into the shared renderer; model/list disables unadvertised fixed alternatives and keeps unavailable fixed selections blocked without vetoing the App default route, Auto resolves ${rendererBuild.defaultModel}/${rendererBuild.defaultReasoningEffort} as one policy, manual reasoning pins the current model and exits Auto, and turn/start receives model and effort overrides`,
+    codex_model_reasoning_controls: `App product profile Auto policy injected into the shared renderer; known ${rendererBuild.defaultModel} keeps ${rendererBuild.defaultReasoningEffort}, an unknown Codex model/list isDefault entry becomes Auto with its highest advertised reasoning effort, unavailable fixed selections remain blocked, manual reasoning pins the current model and exits Auto, and turn/start receives model and effort overrides`,
     opl_state_bridge: "opl app state --profile fast --json",
     opl_action_bridge: "opl app action execute --action <action_id> --dry-run --json",
     native_bridge: "WKScriptMessageHandler window.webkit.messageHandlers.oplNativeWorkbench",
