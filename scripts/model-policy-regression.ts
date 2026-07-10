@@ -4,7 +4,7 @@ import { createCodexModelPolicy } from "./build-renderer.mjs";
 const syntheticProfile = {
   default_session_profile: {
     model: "codex-future-primary",
-    reasoning_effort: "max"
+    reasoning_effort: "ultra"
   },
   gui: {
     home: {
@@ -13,7 +13,7 @@ const syntheticProfile = {
           { id: "codex-future-primary", label_zh: "Future primary zh", label_en: "Future primary" },
           { id: "codex-future-secondary", label_zh: "Future secondary zh", label_en: "Future secondary" }
         ],
-        user_reasoning_effort_options: ["low", "high", "max"]
+        user_reasoning_effort_options: ["low", "high", "ultra"]
       }
     }
   }
@@ -47,23 +47,32 @@ const runtimeOptions = resolveCodexModelOptions([{
   supportedReasoningEfforts: ["low", "high"]
 }]);
 assert.deepEqual(runtimeOptions.map((option) => option.id), ["codex-future-primary", "codex-future-secondary"]);
-assert.equal(runtimeOptions.find((option) => option.id === "codex-future-primary")?.available, false);
+assert.equal(runtimeOptions.find((option) => option.id === "codex-future-primary")?.available, true);
 assert.equal(runtimeOptions.find((option) => option.id === "codex-future-secondary")?.available, true);
-const runtimeAuto = resolveCodexSelection(runtimeOptions, "__auto", "high");
-assert.equal(runtimeAuto.model?.id, "codex-future-secondary");
-assert.equal(runtimeAuto.reasoningEffort, "high");
-assert.equal(conversationModelLabel("__auto", runtimeAuto.model?.id, "en"), "Future secondary");
+const runtimeAuto = resolveCodexSelection(runtimeOptions, "__auto", "low");
+assert.equal(runtimeAuto.model.id, "codex-future-primary");
+assert.equal(runtimeAuto.reasoningEffort, "ultra");
+assert.equal(runtimeAuto.effectiveSelection, "__auto");
+assert.equal(conversationModelLabel("__auto", runtimeAuto.model?.id, "en"), "Future primary");
 assert.equal(conversationModelLabel("__auto", undefined, "en"), "Auto (recommended)");
 const pinnedSecondary = resolveCodexSelection(runtimeOptions, "codex-future-secondary", "low");
-assert.equal(pinnedSecondary.model?.id, "codex-future-secondary");
+assert.equal(pinnedSecondary.model.id, "codex-future-secondary");
 assert.equal(pinnedSecondary.reasoningEffort, "low");
 assert.equal(conversationModelLabel("codex-future-secondary", pinnedSecondary.model?.id, "zh"), "Future secondary zh");
-const unavailablePrimary = resolveCodexSelection(runtimeOptions, "codex-future-primary", "max");
-assert.equal(unavailablePrimary.effectiveSelection, "codex-future-primary");
-assert.equal(unavailablePrimary.model, undefined);
+const pinnedPrimary = resolveCodexSelection(runtimeOptions, "codex-future-primary", "low");
+assert.equal(pinnedPrimary.model?.id, "codex-future-primary");
+assert.equal(pinnedPrimary.reasoningEffort, "low");
+assert.equal(pinnedPrimary.effectiveSelection, "codex-future-primary");
 const emptyOptions = resolveCodexModelOptions([]);
-assert.ok(emptyOptions.every((option) => option.available === false));
-assert.equal(resolveCodexSelection(emptyOptions, "__auto", "max").model, undefined);
+assert.equal(emptyOptions.find((option) => option.id === "codex-future-primary")?.available, true);
+assert.equal(emptyOptions.find((option) => option.id === "codex-future-secondary")?.available, false);
+const emptyCatalogAuto = resolveCodexSelection(emptyOptions, "__auto", "low");
+assert.equal(emptyCatalogAuto.model?.id, "codex-future-primary");
+assert.equal(emptyCatalogAuto.reasoningEffort, "ultra");
+const unavailableSecondary = resolveCodexSelection(emptyOptions, "codex-future-secondary", "high");
+assert.equal(unavailableSecondary.effectiveSelection, "codex-future-secondary");
+assert.equal(unavailableSecondary.model, undefined);
+assert.equal(unavailableSecondary.reasoningEffort, "ultra");
 
 const cloneProfile = () => structuredClone(syntheticProfile);
 
@@ -86,6 +95,11 @@ assert.throws(() => createCodexModelPolicy(missingDefault), /default model must 
 const illegalEffort = cloneProfile();
 illegalEffort.gui.home.codex_model_display_options.user_reasoning_effort_options = ["low", "impossible"];
 assert.throws(() => createCodexModelPolicy(illegalEffort), /unsupported reasoning effort/);
+
+const maxEffort = cloneProfile();
+maxEffort.default_session_profile.reasoning_effort = "max";
+maxEffort.gui.home.codex_model_display_options.user_reasoning_effort_options = ["low", "max"];
+assert.equal(createCodexModelPolicy(maxEffort).defaultReasoningEffort, "max");
 
 const missingDefaultEffort = cloneProfile();
 missingDefaultEffort.gui.home.codex_model_display_options.user_reasoning_effort_options = ["low"];

@@ -92,16 +92,21 @@ export function resolveCodexModelOptions(catalog: CodexCatalogCapability[]): Res
     const runtime = catalog.find((item) => item.id === option.id || item.model === option.id);
     const supportedReasoningEfforts = runtime?.supportedReasoningEfforts
       .filter(isReasoningEffort) ?? [];
+    const isAppDefault = option.id === codexModelPolicy.defaultModel;
     return {
       ...option,
-      available: Boolean(runtime) && supportedReasoningEfforts.length > 0,
-      defaultReasoningEffort: isReasoningEffort(runtime?.defaultReasoningEffort)
+      available: isAppDefault || supportedReasoningEfforts.length > 0,
+      defaultReasoningEffort: isAppDefault
+        ? codexModelPolicy.defaultReasoningEffort
+        : isReasoningEffort(runtime?.defaultReasoningEffort)
         && supportedReasoningEfforts.includes(runtime.defaultReasoningEffort)
-        ? runtime.defaultReasoningEffort
-        : supportedReasoningEfforts.at(-1) ?? codexModelPolicy.defaultReasoningEffort,
-      supportedReasoningEfforts: supportedReasoningEfforts.length
-        ? supportedReasoningEfforts
-        : [codexModelPolicy.defaultReasoningEffort]
+          ? runtime.defaultReasoningEffort
+          : supportedReasoningEfforts.at(-1) ?? codexModelPolicy.defaultReasoningEffort,
+      supportedReasoningEfforts: isAppDefault
+        ? [...codexModelPolicy.reasoningOptions]
+        : supportedReasoningEfforts.length
+          ? supportedReasoningEfforts
+          : [codexModelPolicy.defaultReasoningEffort]
     };
   });
 }
@@ -111,11 +116,11 @@ export function resolveCodexSelection(
   selection: CodexModelSelection,
   requestedReasoning: CodexReasoningEffort
 ) {
-  const selectableModels = options.filter((option) => option.available);
+  const defaultModel = options.find((option) => option.id === codexModelPolicy.defaultModel) ?? options[0]!;
   const requestedModel = options.find((option) => option.id === selection);
   const effectiveSelection = selection;
   const model = selection === "__auto"
-    ? selectableModels.find((option) => option.id === codexModelPolicy.defaultModel) ?? selectableModels[0]
+    ? defaultModel
     : requestedModel?.available ? requestedModel : undefined;
   if (!model) {
     return {
@@ -125,13 +130,14 @@ export function resolveCodexSelection(
       effectiveSelection
     };
   }
-  const reasoningOptions = model.supportedReasoningEfforts;
-  const requestedEffort = selection === "__auto"
+  const reasoningOptions = selection === "__auto"
+    ? [...codexModelPolicy.reasoningOptions]
+    : model.supportedReasoningEfforts;
+  const reasoningEffort = selection === "__auto"
     ? codexModelPolicy.defaultReasoningEffort
-    : requestedReasoning;
-  const reasoningEffort = reasoningOptions.includes(requestedEffort)
-    ? requestedEffort
-    : model.defaultReasoningEffort;
+    : reasoningOptions.includes(requestedReasoning)
+      ? requestedReasoning
+      : reasoningOptions.at(-1) ?? model.defaultReasoningEffort;
   return { model, reasoningEffort, reasoningOptions, effectiveSelection };
 }
 

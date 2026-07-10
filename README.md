@@ -75,10 +75,16 @@ consumes the App-owned default, complete visible-model allowlist, display
 labels, model order, and reasoning options rather than maintaining a second
 candidate catalog. The source module keeps only a minimal single-model offline
 fallback for an uninjected preview. At runtime the native bridge calls Codex
-app-server `model/list`, intersects that catalog with the injected App allowlist,
-and resolves Auto to the first currently available model in App preference
-order with a supported reasoning effort. A missing, empty, or non-matching
-runtime catalog pauses sending instead of promoting the offline fallback.
+app-server `model/list` and uses it to disable unadvertised fixed alternatives
+from the injected App allowlist. Catalog discovery cannot veto the App-owned
+default route: Auto always resolves the injected default model and default
+reasoning effort, currently `gpt-5.6-sol` with `ultra`, even when `model/list`
+has not advertised that route. Choosing another reasoning effort pins the
+resolved model and exits Auto before sending. A missing, empty, or non-matching
+catalog therefore leaves the App default usable while keeping unknown fixed
+alternatives unavailable. If a previously fixed alternative is no longer
+advertised, sending remains blocked until the user chooses Auto or another
+available model; the Workbench never silently substitutes a different model.
 `runtimeProfile` now drives actual `opl app state` readback shape, and the
 Settings page exposes runtime readback status instead of a pure placeholder.
 

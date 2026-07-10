@@ -103,11 +103,7 @@ const uiCopy = {
     retry: "重试",
     send: "发送",
     sendFailed: "发送失败，请重试。",
-    modelCatalogLoading: (model: string) => `正在确认 ${model} 是否可用...`,
-    modelCatalogUnavailable: "无法读取可用模型，发送已暂停。",
-    modelCatalogEmpty: "Codex 当前未返回可用模型，发送已暂停。",
-    modelCatalogNoMatch: "当前可用模型不在 App 支持列表中，发送已暂停。",
-    modelSelectionUnavailable: "所选模型当前不可用，请选择自动或其他模型。",
+    modelSelectionUnavailable: "所选固定模型当前不可用，请选择自动或其他模型。",
     high: "高",
     standard: "标准",
     you: "你",
@@ -216,11 +212,7 @@ const uiCopy = {
     retry: "Retry",
     send: "Send",
     sendFailed: "Message could not be sent. Please retry.",
-    modelCatalogLoading: (model: string) => `Checking whether ${model} is available...`,
-    modelCatalogUnavailable: "Available models could not be loaded. Sending is paused.",
-    modelCatalogEmpty: "Codex returned no available models. Sending is paused.",
-    modelCatalogNoMatch: "Available models do not match the App-supported list. Sending is paused.",
-    modelSelectionUnavailable: "The selected model is unavailable. Choose Auto or another model.",
+    modelSelectionUnavailable: "The selected fixed model is unavailable. Choose Auto or another model.",
     high: "High",
     standard: "Standard",
     you: "You",
@@ -548,8 +540,6 @@ export function App() {
   const [codexThreadId, setCodexThreadId] = useState<string | undefined>(initialSessions[0]?.threadId);
   const [settings, setSettings] = useState<WorkbenchSettings>(() => readSettings());
   const [codexCatalog, setCodexCatalog] = useState<CodexModelCatalogEntry[]>([]);
-  const [codexCatalogStatus, setCodexCatalogStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [codexCatalogError, setCodexCatalogError] = useState<"" | "empty" | "unavailable">("");
   const [starterDrafts, setStarterDrafts] = useState<Record<string, Record<string, string>>>({});
   const [activeContextTab, setActiveContextTab] = useState<ActiveContextTab>(contextHomeId);
   const t = uiCopy[settings.locale];
@@ -588,45 +578,20 @@ export function App() {
   const projectInputs = projectInputItems(model.contextSources);
   const projectAttachments = projectAttachmentItems([...model.deliverables, ...model.results, ...model.receipts], previewItems);
   const sidebarSources = projectInputs;
-  const modelOptions = useMemo(
-    () => resolveCodexModelOptions(codexCatalogStatus === "ready" ? codexCatalog : []),
-    [codexCatalog, codexCatalogStatus]
-  );
-  const availableModels = modelOptions.filter((option) => option.available);
-  const selection = resolveCodexSelection(modelOptions, settings.modelAccess, settings.reasoningLevel);
-  const provisionalModelOption = codexModelPolicy.modelOptions.find((option) => option.id === codexModelPolicy.defaultModel)
-    ?? codexModelPolicy.modelOptions[0];
-  const provisionalModel = {
-    ...provisionalModelOption,
-    defaultReasoningEffort: codexModelPolicy.defaultReasoningEffort,
-    supportedReasoningEfforts: [codexModelPolicy.defaultReasoningEffort]
-  };
-  const resolvedModel = codexCatalogStatus === "ready" && selection.model?.available
-    ? selection.model
-    : undefined;
-  const displayModel = resolvedModel ?? provisionalModel;
-  const resolvedReasoning = resolvedModel ? selection.reasoningEffort : displayModel.defaultReasoningEffort;
-  const resolvedReasoningOptions = resolvedModel
-    ? selection.reasoningOptions
-    : displayModel.supportedReasoningEfforts;
-  const effectiveSelection = selection.effectiveSelection;
+  const modelOptions = useMemo(() => resolveCodexModelOptions(codexCatalog), [codexCatalog]);
+  const {
+    model: resolvedModel,
+    reasoningEffort: resolvedReasoning,
+    reasoningOptions: resolvedReasoningOptions,
+    effectiveSelection
+  } = resolveCodexSelection(modelOptions, settings.modelAccess, settings.reasoningLevel);
+  const unavailableFixedModel = settings.modelAccess !== "__auto" && !resolvedModel;
+  const canSendCodexTurn = Boolean(resolvedModel);
   const resolvedConversationModelLabel = conversationModelLabel(
     settings.modelAccess,
     resolvedModel?.id,
     settings.locale
   );
-  const modelCatalogMessage = codexCatalogStatus === "loading"
-    ? t.modelCatalogLoading(modelLabel(provisionalModel.id, settings.locale))
-    : codexCatalogStatus === "error"
-      ? codexCatalogError === "empty" ? t.modelCatalogEmpty : t.modelCatalogUnavailable
-      : !availableModels.length
-        ? t.modelCatalogNoMatch
-        : !resolvedModel
-          ? t.modelSelectionUnavailable
-          : "";
-  const modelCatalogIsError = codexCatalogStatus === "error"
-    || (codexCatalogStatus === "ready" && (!availableModels.length || !resolvedModel));
-  const canSendCodexTurn = codexCatalogStatus === "ready" && Boolean(resolvedModel);
   const environmentItems = [
     { id: "opl-files-panel", group: t.projectGroup, label: t.sources, description: t.sourcesDescription, meta: String(model.contextSources.length), icon: FileText },
     { id: "opl-artifact-preview-tabs", group: t.projectGroup, label: t.results, description: t.resultsDescription, meta: String(projectAttachments.length), icon: Download },
@@ -681,22 +646,9 @@ export function App() {
   }, [bridge, settings.runtimeProfile]);
 
   useEffect(() => {
-    setCodexCatalogStatus("loading");
-    setCodexCatalogError("");
     void bridge.readCodexModels()
-      .then((catalog) => {
-        if (!catalog.models.length) {
-          setCodexCatalogStatus("error");
-          setCodexCatalogError("empty");
-          return;
-        }
-        setCodexCatalog(catalog.models);
-        setCodexCatalogStatus("ready");
-      })
-      .catch(() => {
-        setCodexCatalogStatus("error");
-        setCodexCatalogError("unavailable");
-      });
+      .then((catalog) => setCodexCatalog(catalog.models))
+      .catch(() => setCodexCatalog([]));
   }, [bridge]);
 
   useEffect(() => {
@@ -771,7 +723,7 @@ export function App() {
   function sendCodexMessage(event?: FormEvent) {
     event?.preventDefault();
     const text = prompt.trim();
-    if (!text || sendState === "running" || !canSendCodexTurn || !resolvedModel) return;
+    if (!text || sendState === "running" || !resolvedModel) return;
     const userMessage: ChatMessage = { id: `user-${Date.now()}`, role: "user", text };
     const pendingId = `assistant-${Date.now()}`;
     const pendingMessage: ChatMessage = { id: pendingId, role: "assistant", text: "" };
@@ -1256,12 +1208,8 @@ export function App() {
                         <Plug aria-hidden="true" size={14} />
                         {t.capabilities}
                       </button>
-                      <span
-                        className={`composer-status ${sendState === "error" || modelCatalogIsError ? "error" : sendState}`}
-                        data-testid="opl-composer-run-state"
-                        aria-live="polite"
-                      >
-                        {sendState === "running" ? t.working : sendState === "error" ? sendError : modelCatalogMessage}
+                      <span className={`composer-status ${sendState === "error" || unavailableFixedModel ? "error" : sendState}`} data-testid="opl-composer-run-state" aria-live="polite">
+                        {sendState === "running" ? t.working : sendState === "error" ? sendError : unavailableFixedModel ? t.modelSelectionUnavailable : ""}
                       </span>
                     </div>
                     <div className="composer-actions">
@@ -1269,13 +1217,13 @@ export function App() {
                         <label className="composer-select" data-testid="opl-model-access-entry">
                           <select aria-label={settings.locale === "zh" ? "模型" : "Model"} value={settings.modelAccess} onChange={(event) => updateSetting("modelAccess", event.currentTarget.value as WorkbenchSettings["modelAccess"])}>
                             <option value="__auto">{resolvedConversationModelLabel}</option>
-                            {settings.modelAccess !== "__auto" && !availableModels.some((option) => option.id === settings.modelAccess) ? (
-                              <option value={settings.modelAccess} disabled>
-                                {modelLabel(settings.modelAccess, settings.locale)}{codexCatalogStatus === "loading" ? "" : ` (${t.unavailable})`}
-                              </option>
+                            {settings.modelAccess !== "__auto" && !modelOptions.some((option) => option.id === settings.modelAccess) ? (
+                              <option value={settings.modelAccess} disabled>{modelLabel(settings.modelAccess, settings.locale)} ({t.unavailable})</option>
                             ) : null}
-                            {availableModels.map((option) => (
-                              <option key={option.id} value={option.id} disabled={!option.available}>{modelLabel(option.id, settings.locale)}</option>
+                            {modelOptions.map((option) => (
+                              <option key={option.id} value={option.id} disabled={!option.available}>
+                                {modelLabel(option.id, settings.locale)}{option.available ? "" : ` (${t.unavailable})`}
+                              </option>
                             ))}
                           </select>
                           <ChevronDown aria-hidden="true" size={12} />
