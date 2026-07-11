@@ -88,6 +88,13 @@ available model; the Workbench never silently substitutes a different model.
 `runtimeProfile` now drives actual `opl app state` readback shape, and the
 Settings page exposes runtime readback status instead of a pure placeholder.
 
+Maintainers change the default pair only at
+`one-person-lab-app/contracts/app-product-profile.json#codex.auto_model_policy.configured_default`
+and run the App repository's `npm run codex:model-policy:sync`. This candidate
+keeps no generated model-default copy: `npm run validate:candidate` and renderer
+builds read the neighboring App profile and fail if its projections disagree.
+Do not add a Native model or reasoning allowlist for future Codex CLI values.
+
 Agent Package lifecycle is also a candidate display surface only. The
 Workbench prefers `opl app state --profile fast --json#app_state.agent_packages`
 directory/status-index refs, shows package lock, receipt, rollback, exposure,
