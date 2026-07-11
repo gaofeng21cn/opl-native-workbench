@@ -52,13 +52,18 @@ export function createCodexModelPolicy(profile) {
   const gui = requireObject(profileObject.gui, "gui");
   const home = requireObject(gui.home, "gui.home");
   const display = requireObject(home.codex_model_display_options, "gui.home.codex_model_display_options");
-  const fallback = autoPolicy
-    ? requireObject(autoPolicy.catalog_unavailable_fallback, "codex.auto_model_policy.catalog_unavailable_fallback")
-    : defaultSession;
-  const defaultModel = requireNonEmptyString(fallback.model, "codex.auto_model_policy.catalog_unavailable_fallback.model");
+  const configuredDefault = requireObject(
+    autoPolicy?.configured_default,
+    "codex.auto_model_policy.configured_default"
+  );
+  const fallback = requireObject(
+    autoPolicy?.catalog_unavailable_fallback,
+    "codex.auto_model_policy.catalog_unavailable_fallback"
+  );
+  const defaultModel = requireNonEmptyString(configuredDefault.model, "codex.auto_model_policy.configured_default.model");
   const defaultReasoningEffort = requireNonEmptyString(
-    fallback.reasoning_effort,
-    "codex.auto_model_policy.catalog_unavailable_fallback.reasoning_effort"
+    configuredDefault.reasoning_effort,
+    "codex.auto_model_policy.configured_default.reasoning_effort"
   );
   if (
     defaultModel !== requireNonEmptyString(defaultSession.model, "default_session_profile.model")
@@ -66,8 +71,13 @@ export function createCodexModelPolicy(profile) {
       defaultSession.reasoning_effort,
       "default_session_profile.reasoning_effort"
     )
+    || defaultModel !== requireNonEmptyString(fallback.model, "codex.auto_model_policy.catalog_unavailable_fallback.model")
+    || defaultReasoningEffort !== requireNonEmptyString(
+      fallback.reasoning_effort,
+      "codex.auto_model_policy.catalog_unavailable_fallback.reasoning_effort"
+    )
   ) {
-    throw new Error("OPL App product profile catalog fallback must match default_session_profile");
+    throw new Error("OPL App product profile generated defaults must match codex.auto_model_policy.configured_default");
   }
 
   if (!Array.isArray(display.visible_models) || display.visible_models.length === 0) {
