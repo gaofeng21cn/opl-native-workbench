@@ -73,8 +73,9 @@ The model policy is injected from
 `one-person-lab-app/contracts/app-product-profile.json#codex.auto_model_policy`:
 each build consumes the App-owned known-model preferences, known reasoning
 overrides, catalog fallback, and persistence policy rather than maintaining a
-second candidate catalog. The source module keeps only a minimal single-model
-offline fallback for an uninjected preview. At runtime the native bridge calls
+second candidate catalog. Every renderer build injects that policy; a missing
+or invalid injection fails explicitly instead of silently selecting a stale
+model or reasoning effort. At runtime the native bridge calls
 Codex app-server `model/list`. Auto keeps the known `gpt-5.6-sol` override at
 `max`; the bridge follows catalog cursors through the terminal page, so when
 Codex advertises a newer unknown `isDefault` model on any page, Auto follows

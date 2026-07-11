@@ -1,6 +1,5 @@
 export type CodexModelId = string;
 export type CodexModelSelection = "__auto" | CodexModelId;
-export const fallbackReasoningOptions = ["low", "medium", "high", "xhigh", "max", "ultra"] as const;
 export type CodexReasoningEffort = string;
 export type WorkbenchLocale = "zh" | "en";
 
@@ -26,10 +25,6 @@ export type ResolvedCodexModelOption = ModelOption & {
   defaultReasoningEffort: CodexReasoningEffort;
   supportedReasoningEfforts: CodexReasoningEffort[];
 };
-
-export const fallbackModelOptions: readonly ModelOption[] = [
-  { id: "gpt-5.6-sol", label_zh: "5.6 Sol", label_en: "5.6 Sol" }
-];
 
 type InjectedModelPolicy = {
   source?: string;
@@ -58,9 +53,20 @@ function injectedPolicy(): InjectedModelPolicy | undefined {
   return globalThis.__OPL_CODEX_MODEL_POLICY__;
 }
 
-function normalizedModelOptions(policy = injectedPolicy()): ModelOption[] {
+function invalidPolicy(field: string): never {
+  throw new Error(`invalid App-owned Codex model policy injection: ${field}`);
+}
+
+function requiredInjectedPolicy(): InjectedModelPolicy {
+  return injectedPolicy() ?? invalidPolicy("policy is missing");
+}
+
+function normalizedModelOptions(policy: InjectedModelPolicy): ModelOption[] {
   if (!policy?.visibleModels?.length || !policy.visibleModels.every((option) => isModelId(option?.id))) {
-    return [...fallbackModelOptions];
+    return invalidPolicy("visibleModels must be a non-empty model list");
+  }
+  if (new Set(policy.visibleModels.map((option) => option.id)).size !== policy.visibleModels.length) {
+    return invalidPolicy("visibleModels must contain unique ids");
   }
   return policy.visibleModels.map((option) => ({
     id: option.id as CodexModelId,
@@ -69,34 +75,51 @@ function normalizedModelOptions(policy = injectedPolicy()): ModelOption[] {
   }));
 }
 
-function normalizedReasoningOptions(policy = injectedPolicy()): CodexReasoningEffort[] {
+function normalizedReasoningOptions(policy: InjectedModelPolicy): CodexReasoningEffort[] {
   if (!policy?.reasoningEfforts?.length || !policy.reasoningEfforts.every(isReasoningEffort)) {
-    return [...fallbackReasoningOptions];
+    return invalidPolicy("reasoningEfforts must be a non-empty effort list");
   }
   return [...policy.reasoningEfforts] as CodexReasoningEffort[];
 }
 
-const policy = injectedPolicy();
+const policy = requiredInjectedPolicy();
 const modelOptions = normalizedModelOptions(policy);
 const reasoningOptions = normalizedReasoningOptions(policy);
 const injectedDefaultModel = policy?.defaultModel;
 const injectedDefaultReasoningEffort = policy?.defaultReasoningEffort;
+if (!isModelId(injectedDefaultModel) || !modelOptions.some((option) => option.id === injectedDefaultModel)) {
+  invalidPolicy("defaultModel must reference visibleModels");
+}
+if (!isReasoningEffort(injectedDefaultReasoningEffort) || !reasoningOptions.includes(injectedDefaultReasoningEffort)) {
+  invalidPolicy("defaultReasoningEffort must reference reasoningEfforts");
+}
+if (typeof policy.source !== "string" || !policy.source.trim()) {
+  invalidPolicy("source must identify the App authority");
+}
+if (typeof policy.acceptUnknownCatalogDefault !== "boolean") {
+  invalidPolicy("acceptUnknownCatalogDefault must be boolean");
+}
+if (typeof policy.useHighestSupportedReasoningForUnknown !== "boolean") {
+  invalidPolicy("useHighestSupportedReasoningForUnknown must be boolean");
+}
+if (!policy.knownModelReasoningEffortOverrides || typeof policy.knownModelReasoningEffortOverrides !== "object") {
+  invalidPolicy("knownModelReasoningEffortOverrides must be an object");
+}
+if (!Object.entries(policy.knownModelReasoningEffortOverrides)
+  .every(([model, effort]) => isModelId(model) && isReasoningEffort(effort))) {
+  invalidPolicy("knownModelReasoningEffortOverrides must map model ids to reasoning efforts");
+}
 const knownModelReasoningEffortOverrides = Object.fromEntries(
-  Object.entries(policy?.knownModelReasoningEffortOverrides ?? {})
-    .filter(([model, effort]) => isModelId(model) && isReasoningEffort(effort))
+  Object.entries(policy.knownModelReasoningEffortOverrides)
 );
 
 export const codexModelPolicy = {
-  source: typeof policy?.source === "string" && policy.source.trim() ? policy.source : "candidate_offline_fallback",
-  defaultModel: isModelId(injectedDefaultModel) && modelOptions.some((option) => option.id === injectedDefaultModel)
-    ? injectedDefaultModel
-    : modelOptions[0].id,
-  defaultReasoningEffort: isReasoningEffort(injectedDefaultReasoningEffort) && reasoningOptions.includes(injectedDefaultReasoningEffort)
-    ? injectedDefaultReasoningEffort
-    : reasoningOptions.includes("max") ? "max" : reasoningOptions.at(-1)!,
+  source: policy.source,
+  defaultModel: injectedDefaultModel,
+  defaultReasoningEffort: injectedDefaultReasoningEffort,
   knownModelReasoningEffortOverrides,
-  acceptUnknownCatalogDefault: policy?.acceptUnknownCatalogDefault !== false,
-  useHighestSupportedReasoningForUnknown: policy?.useHighestSupportedReasoningForUnknown !== false,
+  acceptUnknownCatalogDefault: policy.acceptUnknownCatalogDefault,
+  useHighestSupportedReasoningForUnknown: policy.useHighestSupportedReasoningForUnknown,
   modelOptions,
   reasoningOptions
 };
