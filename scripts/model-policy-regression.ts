@@ -4,20 +4,20 @@ import { createCodexModelPolicy } from "./build-renderer.mjs";
 const syntheticProfile = {
   default_session_profile: {
     model: "codex-future-primary",
-    reasoning_effort: "xhigh"
+    reasoning_effort: "max"
   },
   codex: {
     auto_model_policy: {
       mode_default: "auto",
       frontier_model_preference_order: ["codex-future-primary", "codex-future-secondary"],
       known_model_reasoning_effort_overrides: {
-        "codex-future-primary": "xhigh"
+        "codex-future-primary": "max"
       },
       unknown_default_model_policy: "accept_catalog_default_even_when_not_in_frontier_model_preference_order",
       unknown_model_reasoning_effort_policy: "highest_supported_reasoning_effort_from_catalog",
       catalog_unavailable_fallback: {
         model: "codex-future-primary",
-        reasoning_effort: "xhigh"
+        reasoning_effort: "max"
       }
     }
   },
@@ -28,7 +28,7 @@ const syntheticProfile = {
           { id: "codex-future-primary", label_zh: "Future primary zh", label_en: "Future primary" },
           { id: "codex-future-secondary", label_zh: "Future secondary zh", label_en: "Future secondary" }
         ],
-        user_reasoning_effort_options: ["low", "high", "xhigh", "ultra"]
+        user_reasoning_effort_options: ["low", "high", "xhigh", "max", "ultra"]
       }
     }
   }
@@ -41,6 +41,7 @@ const injectedPolicy = createCodexModelPolicy(syntheticProfile);
 const {
   codexModelPolicy,
   conversationModelLabel,
+  reasoningLabel,
   resolveCodexModelOptions,
   resolveCodexSelection
 } = await import("../src/workbench/modelPolicy.ts");
@@ -68,7 +69,9 @@ assert.equal(runtimeOptions.find((option) => option.id === "codex-future-primary
 assert.equal(runtimeOptions.find((option) => option.id === "codex-future-secondary")?.available, true);
 const runtimeAuto = resolveCodexSelection(runtimeOptions, "__auto", "low");
 assert.equal(runtimeAuto.model.id, "codex-future-primary");
-assert.equal(runtimeAuto.reasoningEffort, "xhigh");
+assert.equal(runtimeAuto.reasoningEffort, "max");
+assert.equal(reasoningLabel("max", "zh"), "推理最大");
+assert.equal(reasoningLabel("max", "en", true), "Max");
 assert.equal(runtimeAuto.effectiveSelection, "__auto");
 assert.equal(conversationModelLabel("__auto", runtimeAuto.model?.id, "en"), "Future primary");
 assert.equal(conversationModelLabel("__auto", undefined, "en"), "Auto (recommended)");
@@ -113,11 +116,11 @@ assert.equal(emptyOptions.find((option) => option.id === "codex-future-primary")
 assert.equal(emptyOptions.find((option) => option.id === "codex-future-secondary")?.available, false);
 const emptyCatalogAuto = resolveCodexSelection(emptyOptions, "__auto", "low");
 assert.equal(emptyCatalogAuto.model?.id, "codex-future-primary");
-assert.equal(emptyCatalogAuto.reasoningEffort, "xhigh");
+assert.equal(emptyCatalogAuto.reasoningEffort, "max");
 const unavailableSecondary = resolveCodexSelection(emptyOptions, "codex-future-secondary", "high");
 assert.equal(unavailableSecondary.effectiveSelection, "codex-future-secondary");
 assert.equal(unavailableSecondary.model, undefined);
-assert.equal(unavailableSecondary.reasoningEffort, "xhigh");
+assert.equal(unavailableSecondary.reasoningEffort, "max");
 
 const cloneProfile = () => structuredClone(syntheticProfile);
 

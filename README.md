@@ -76,7 +76,7 @@ overrides, catalog fallback, and persistence policy rather than maintaining a
 second candidate catalog. The source module keeps only a minimal single-model
 offline fallback for an uninjected preview. At runtime the native bridge calls
 Codex app-server `model/list`. Auto keeps the known `gpt-5.6-sol` override at
-`xhigh`; the bridge follows catalog cursors through the terminal page, so when
+`max`; the bridge follows catalog cursors through the terminal page, so when
 Codex advertises a newer unknown `isDefault` model on any page, Auto follows
 that model and uses its last advertised supported reasoning effort. A missing
 catalog falls back to the App-owned model and reasoning pair. Choosing another
