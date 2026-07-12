@@ -148,6 +148,8 @@ Current evidence remains intentionally bounded:
 ## Commands
 
 ```bash
+npm ci
+npm run typecheck
 npm run validate:candidate
 npm run validate:state-model
 npm run smoke:webui

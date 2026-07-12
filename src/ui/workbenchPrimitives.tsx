@@ -252,11 +252,13 @@ function MermaidPreview({ preview }: { preview: ArtifactPreview }) {
 
   useEffect(() => {
     let active = true;
-    const mermaidApi = (rendererModuleBindings.mermaid as { default?: typeof rendererModuleBindings.mermaid }).default
-      ?? rendererModuleBindings.mermaid;
+    const mermaidApi = rendererModuleBindings.mermaid as unknown as {
+      initialize(config: { startOnLoad: boolean; securityLevel: string; theme: string }): void;
+      render(id: string, source: string): Promise<{ svg: string }>;
+    };
     mermaidApi.initialize({ startOnLoad: false, securityLevel: "strict", theme: "neutral" });
     mermaidApi.render(`preview-${chartId}`, mermaidSource(preview))
-      .then((result) => {
+      .then((result: { svg: string }) => {
         if (!active) return;
         setSvg(result.svg);
         setError(null);

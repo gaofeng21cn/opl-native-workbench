@@ -710,10 +710,15 @@ function starterPreviewAction(starter: WorkbenchStarter, actions: WorkbenchActio
 }
 
 function pickActiveProjectLines(value: unknown, fallback: ActiveProjectLine[]): ActiveProjectLine[] {
-  const rawLines = Array.isArray(value) ? value : Array.isArray(asRecord(value)?.items) ? asRecord(value)?.items : [];
+  const valueRecord = asRecord(value);
+  const rawLines: unknown[] = Array.isArray(value)
+    ? value
+    : Array.isArray(valueRecord?.items)
+      ? valueRecord.items
+      : [];
   const lines = rawLines.map(asRecord).filter(Boolean).map((line): ActiveProjectLine => ({
     status: asString(line?.status) ?? "unknown",
-    activeRunId: asString(line?.active_run_id) ?? asString(line?.activeRunId),
+    activeRunId: asString(line?.active_run_id) ?? asString(line?.activeRunId) ?? "",
     nextVisibleStep: asString(line?.next_visible_step) ?? asString(line?.nextVisibleStep) ?? "Review current refs",
     progressDeltaClassification: asString(line?.progress_delta_classification) ?? asString(line?.progressDeltaClassification) ?? "platform_or_observability_delta",
     deliverableProgressDelta: asString(line?.deliverable_progress_delta) ?? asString(line?.deliverableProgressDelta) ?? "refs visible",
@@ -1104,6 +1109,7 @@ function packagePhysicalSurface(record: Record<string, unknown>): { status: stri
       ?? asString(physicalSurface?.root)
       ?? firstStringField(record, ["managed_checkout_path", "checkout_path"])
       ?? packageFileRef(record, "package_lock_file")
+      ?? undefined
   };
 }
 
@@ -1900,7 +1906,7 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
         receiptRef: asString(actionReceipt.preview_ref) ?? `receipt://${taskId}/preview`,
         summary: compactText(task.next_visible_step, "Task preview receipt derived from operator workbench."),
         payloadFields: ["task_id", "action_ref"],
-        owner: asString(task.typed_blocker_owner) ?? asString(currentOwnerDelta?.owner) ?? asString(task.domain_id),
+        owner: asString(task.typed_blocker_owner) ?? asString(currentOwnerDelta?.owner) ?? asString(task.domain_id) ?? undefined,
         authorityBoundary: "Task receipt preview only; no domain execution or owner receipt is implied.",
         sourceRefs: uniqueStrings([
           asString(actionReceipt.preview_ref),
@@ -1922,7 +1928,7 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
         receiptRef: exportBundleRef,
         summary: compactText(artifact?.content_policy, "Export bundle preview uses refs only."),
         payloadFields: ["task_id", "export_bundle_ref"],
-        owner: asString(task.domain_id),
+        owner: asString(task.domain_id) ?? undefined,
         authorityBoundary: "Export preview only; bundle contents remain source-owned.",
         sourceRefs: uniqueStrings([
           exportBundleRef,

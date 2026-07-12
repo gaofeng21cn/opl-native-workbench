@@ -18,8 +18,8 @@ declare global {
   }
 }
 
-type PendingRequest = {
-  resolve(value: unknown): void;
+type PendingRequest<T> = {
+  resolve(value: T): void;
   reject(reason?: unknown): void;
 };
 
@@ -27,11 +27,11 @@ function installNativeTransport(): boolean {
   const handler = window.webkit?.messageHandlers?.oplNativeWorkbench;
   if (!handler || window.oplNativeWorkbench) return false;
 
-  const pending = new Map<string, PendingRequest>();
+  const pending = new Map<string, PendingRequest<unknown>>();
   const listeners = new Set<(event: OplBridgeEvent) => void>();
 
-  const post = (method: string, payload: Record<string, unknown> = {}) =>
-    new Promise<unknown>((resolve, reject) => {
+  const post = <T,>(method: string, payload: Record<string, unknown> = {}) =>
+    new Promise<T>((resolve, reject) => {
       const id = globalThis.crypto?.randomUUID?.() ?? `${method}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       pending.set(id, { resolve, reject });
       handler.postMessage({ id, method, payload });

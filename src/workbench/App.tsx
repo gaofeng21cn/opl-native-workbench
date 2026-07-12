@@ -748,7 +748,7 @@ export function App() {
           ? String((reply as { finalMessage?: unknown }).finalMessage ?? "")
           : "";
         const nextMessages = messagesRef.current.map((item) => item.id === pendingId
-          ? { id: pendingId, role: "assistant", text: finalMessage || formatReceipt(reply) }
+          ? { id: pendingId, role: "assistant" as const, text: finalMessage || formatReceipt(reply) }
           : item);
         setMessages(nextMessages);
         commitSession(
@@ -888,7 +888,7 @@ export function App() {
       );
     }
     return (
-      <code data-testid={key === "modelAccess" ? "opl-model-access-entry" : undefined}>
+      <code>
         {settingValueLabel(key, value)}
       </code>
     );

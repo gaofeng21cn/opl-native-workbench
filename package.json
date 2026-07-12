@@ -6,6 +6,7 @@
   "description": "OPL native workbench candidate shell for One Person Lab App.",
   "license": "Apache-2.0",
   "dependencies": {
+    "@codemirror/state": "^6.7.1",
     "@codemirror/view": "^6.43.4",
     "@radix-ui/react-dialog": "^1.1.18",
     "@radix-ui/react-tabs": "^1.1.16",
@@ -18,11 +19,18 @@
     "react-resizable-panels": "^4.12.1",
     "streamdown": "^2.5.0"
   },
+  "devDependencies": {
+    "@types/node": "22.15.3",
+    "@types/react": "19.1.2",
+    "@types/react-dom": "19.1.2",
+    "typescript": "5.8.3"
+  },
   "scripts": {
     "dev": "node scripts/dev-webui-server.mjs",
     "webui": "node scripts/dev-webui-server.mjs",
     "build": "node scripts/build-renderer.mjs",
     "build:webui": "node scripts/build-webui.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "package": "node scripts/package-native-workbench.mjs",
     "smoke:native-live": "node scripts/smoke-native-app-live.mjs",
     "test:model-list-pagination": "node scripts/model-list-pagination-regression.mjs",
@@ -31,6 +39,6 @@
     "validate:package": "node scripts/validate-packaged-runtime.mjs",
     "smoke:webui": "node scripts/smoke-webui.mjs",
     "smoke:visual": "node scripts/smoke-visual.mjs",
-    "test": "npm run validate:candidate && npm run validate:state-model && npm run smoke:webui && npm run smoke:visual && npm run package && npm run validate:package"
+    "test": "npm run typecheck && npm run validate:candidate && npm run validate:state-model && npm run smoke:webui && npm run smoke:visual && npm run package && npm run validate:package"
   }
 }
