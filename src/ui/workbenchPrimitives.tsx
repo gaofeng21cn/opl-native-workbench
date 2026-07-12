@@ -252,10 +252,14 @@ function MermaidPreview({ preview }: { preview: ArtifactPreview }) {
 
   useEffect(() => {
     let active = true;
-    const mermaidApi = rendererModuleBindings.mermaid as unknown as {
+    type MermaidApi = {
       initialize(config: { startOnLoad: boolean; securityLevel: string; theme: string }): void;
       render(id: string, source: string): Promise<{ svg: string }>;
     };
+    const mermaidModule = rendererModuleBindings.mermaid as unknown as Partial<MermaidApi> & {
+      default?: MermaidApi;
+    };
+    const mermaidApi = (mermaidModule.default ?? mermaidModule) as MermaidApi;
     mermaidApi.initialize({ startOnLoad: false, securityLevel: "strict", theme: "neutral" });
     mermaidApi.render(`preview-${chartId}`, mermaidSource(preview))
       .then((result: { svg: string }) => {

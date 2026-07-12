@@ -9,6 +9,7 @@ import {
   validateNonLiveDeliveryEvidence
 } from "./native-workbench-gates.mjs";
 import { buildRenderer } from "./build-renderer.mjs";
+import * as Mermaid from "mermaid";
 
 const rendererSource = readRendererSource();
 const webTransport = read("src/bridge/webTransport.ts");
@@ -16,6 +17,14 @@ const evidence = readJson("src/candidateContractEvidence.json");
 validateNonLiveDeliveryEvidence(evidence);
 const webuiOutDir = `${root}/dist/webui`;
 buildRenderer({ outDir: webuiOutDir, htmlName: "index.html", jsName: "renderer.js" });
+
+const mermaidApi = Mermaid.default ?? Mermaid;
+assert(typeof mermaidApi.initialize === "function", "Mermaid initialize API must resolve through namespace/default interop");
+assert(typeof mermaidApi.render === "function", "Mermaid render API must resolve through namespace/default interop");
+assert(
+  rendererSource.includes("mermaidModule.default ?? mermaidModule"),
+  "Mermaid preview must preserve namespace/default interop",
+);
 
 for (const value of ["window.oplNativeWorkbench", "/api/opl-events", "EventSource"]) {
   assert(webTransport.includes(value), `missing WebUI transport marker ${value}`);
