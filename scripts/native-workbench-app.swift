@@ -1670,6 +1670,14 @@ func defaultWorkspaceRoot() -> URL {
   return fm.homeDirectoryForCurrentUser
 }
 
+final class WindowDragView: NSView {
+  override var mouseDownCanMoveWindow: Bool { true }
+
+  override func mouseDown(with event: NSEvent) {
+    window?.performDrag(with: event)
+  }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
   private var window: NSWindow?
   private var webView: WKWebView?
@@ -1710,7 +1718,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     window.titlebarSeparatorStyle = .none
     window.isMovableByWindowBackground = true
     window.minSize = NSSize(width: 980, height: 680)
-    window.contentView = webView
+
+    let contentView = NSView(frame: .zero)
+    let dragView = WindowDragView(frame: .zero)
+    webView.translatesAutoresizingMaskIntoConstraints = false
+    dragView.translatesAutoresizingMaskIntoConstraints = false
+    contentView.addSubview(webView)
+    contentView.addSubview(dragView)
+    NSLayoutConstraint.activate([
+      webView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+      webView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+      webView.topAnchor.constraint(equalTo: contentView.topAnchor),
+      webView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+      dragView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 96),
+      dragView.topAnchor.constraint(equalTo: contentView.topAnchor),
+      dragView.widthAnchor.constraint(equalToConstant: 164),
+      dragView.heightAnchor.constraint(equalToConstant: 18)
+    ])
+    window.contentView = contentView
     window.center()
     window.makeKeyAndOrderFront(nil)
 

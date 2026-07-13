@@ -276,6 +276,12 @@ export type AgentPackageLifecycleRef = {
   authorityBoundary: string;
 };
 
+export type WorkbenchGatewayAccount = {
+  displayName: string;
+  status: string;
+  sourceRef: string;
+};
+
 export type WorkbenchModel = {
   purposes: WorkbenchPurpose[];
   sessions: WorkspaceSession[];
@@ -293,6 +299,7 @@ export type WorkbenchModel = {
   contextSources: WorkbenchSourceRef[];
   contextActions: WorkbenchActionRef[];
   contextTrace: WorkbenchTraceRef[];
+  gatewayAccount?: WorkbenchGatewayAccount;
   stateGeneratedAt?: string;
 };
 
@@ -1583,6 +1590,23 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
   const workbench = asRecord(operator?.workbench);
   const modules = asRecord(appState.modules);
   const settingsControlCenter = asRecord(appState.settings_control_center);
+  const appSettingsReadModel = asRecord(settingsControlCenter?.app_settings_read_model);
+  const gatewayAccountProjection = asRecord(appSettingsReadModel?.opl_gateway_account);
+  const gatewayAccountRecord = asRecord(gatewayAccountProjection?.account);
+  const gatewayAccountStatus = asString(gatewayAccountProjection?.status);
+  const gatewayAccountDisplayName = asString(gatewayAccountRecord?.display_name);
+  const gatewayAccount = gatewayAccountProjection?.surface_kind === "opl_gateway_account_read_model.v1"
+    && gatewayAccountProjection.connection_mode === "account"
+    && asBoolean(gatewayAccountProjection.account_card_visible)
+    && gatewayAccountStatus !== null
+    && ["connected", "setup_required", "reauth_required", "attention_needed", "disconnect_pending"].includes(gatewayAccountStatus)
+    && gatewayAccountDisplayName !== null
+    ? {
+        displayName: gatewayAccountDisplayName,
+        status: gatewayAccountStatus,
+        sourceRef: "app_state.settings_control_center.app_settings_read_model.opl_gateway_account.account.display_name"
+      }
+    : undefined;
   const moduleItems = asRecordArray(modules?.items);
   const actions = asRecordArray(appState.actions);
   const taskDrilldowns = asRecordArray(workbench?.task_drilldowns);
@@ -2268,6 +2292,7 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     contextSources: effectiveContextSources,
     contextActions: contextActions.length ? contextActions : fallback.contextActions,
     contextTrace: contextTrace.length ? contextTrace : fallback.contextTrace,
+    gatewayAccount,
     stateGeneratedAt: asString(meta?.generated_at) ?? fallback.stateGeneratedAt
   };
 }

@@ -403,6 +403,14 @@ export const codexWorkbenchStyles = `
     min-height: 0;
     flex: 1;
     overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  .conversation::-webkit-scrollbar,
+  .settings-page::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
   }
 
   .conversation-inner {

@@ -103,9 +103,31 @@ test("native window chrome follows the compact Codex composition", () => {
   assert.match(nativeWindow, /window\.titlebarAppearsTransparent = true/);
   assert.match(nativeWindow, /window\.titlebarSeparatorStyle = \.none/);
   assert.match(nativeWindow, /window\.isMovableByWindowBackground = true/);
+  assert.match(nativeWindow, /final class WindowDragView: NSView/);
+  assert.match(nativeWindow, /window\?\.performDrag\(with: event\)/);
+  assert.match(nativeWindow, /dragView\.leadingAnchor\.constraint\(equalTo: contentView\.leadingAnchor, constant: 96\)/);
+  assert.match(nativeWindow, /dragView\.widthAnchor\.constraint\(equalToConstant: 164\)/);
+  assert.match(nativeWindow, /dragView\.heightAnchor\.constraint\(equalToConstant: 18\)/);
   assert.match(nativeSmoke, /output\.includes\("brand=1"\)/);
   assert.match(nativeSmoke, /output\.includes\("codex=0"\)/);
   assert.match(nativeSmoke, /screenshot_absent_markers: \["Codex"\]/);
+});
+
+test("primary canvas hides its scrollbar without disabling scrolling", () => {
+  assert.match(styles, /\.conversation,\s*\.settings-page \{[^}]*overflow-y: auto;[^}]*scrollbar-width: none;/s);
+  assert.match(styles, /\.conversation::\-webkit-scrollbar,\s*\.settings-page::\-webkit-scrollbar \{[^}]*display: none;/s);
+  assert.match(styles, /\.sidebar-scroll \{[^}]*overflow-y: auto;/s);
+  assert.match(styles, /\.context-scroll \{[^}]*overflow-y: auto;/s);
+});
+
+test("sidebar account identity consumes only the canonical Gateway display name", () => {
+  assert.match(model, /app_settings_read_model/);
+  assert.match(model, /opl_gateway_account_read_model\.v1/);
+  assert.match(model, /gatewayAccountRecord\?\.display_name/);
+  assert.match(model, /gatewayAccountProjection\.connection_mode === "account"/);
+  assert.match(app, /model\.gatewayAccount\?\.displayName \?\? "One Person Lab"/);
+  assert.match(app, /model\.gatewayAccount \? "OPL Gateway" : t\.settings/);
+  assert.doesNotMatch(app, /masked_email/);
 });
 
 test("desktop remains two-column and mobile overlays are full-height", () => {

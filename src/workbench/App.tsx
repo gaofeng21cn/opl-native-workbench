@@ -631,6 +631,8 @@ export function App() {
     : stateStatus === "ready"
       ? "App state loaded"
       : "Bridge unavailable";
+  const accountDisplayName = model.gatewayAccount?.displayName ?? "One Person Lab";
+  const accountSubtitle = model.gatewayAccount ? "OPL Gateway" : t.settings;
   const currentProject = selectedProject?.label ?? settings.defaultWorkspace ?? "Current project";
   const previewItems = useMemo(() => [...model.artifactPreviews].sort((left, right) => {
     if (left.previewKind === right.previewKind) return 0;
@@ -1382,8 +1384,8 @@ export function App() {
           <button type="button" aria-current={activeView === "settings" ? "page" : undefined} aria-label={t.openSettings} onClick={() => setActiveView("settings")}>
             <span className="account-avatar">OPL</span>
             <span className="account-copy">
-              <strong>One Person Lab</strong>
-              <small>{t.settings}</small>
+              <strong>{accountDisplayName}</strong>
+              <small>{accountSubtitle}</small>
             </span>
             <Settings className="settings-glyph" aria-hidden="true" size={14} />
           </button>
