@@ -22,12 +22,16 @@ The shell keeps App truth in the App repository:
 - Release adoption: forbidden until the App owner deliberately changes
   `contracts/app-shell-adapter.json` and release gates pass.
 
-The primary visual and interaction reference is ChatGPT Codex macOS
-26.707.41301, inspected on 2026-07-11. The candidate aligns to its persistent
+The primary interaction reference is ChatGPT Codex macOS 26.707.41301,
+inspected on 2026-07-11. The current light-workbench visual style reference is
+26.707.61608, inspected on 2026-07-13. The candidate aligns to its persistent
 project/conversation rail, dominant single conversation timeline, compact
 header, model and reasoning controls in the composer, and floating
-user-requested environment details. This is reference-only: no ChatGPT/Codex
-source, brand asset, or product authority is copied. K-Dense and Open Science
+user-requested environment details. Palette and typography use the current
+white/gray surfaces, system font stack, 14px base size, 430 ordinary weight,
+1.5 line height, and 336px rail from the installed 61608 workbench. This is
+reference-only: no ChatGPT/Codex source code, brand asset, OpenAI Sans font
+binary, or product authority is copied or redistributed. K-Dense and Open Science
 remain feature references for delivery and scientific preview behavior only.
 
 ## Current UI structure

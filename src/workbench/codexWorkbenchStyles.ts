@@ -1,18 +1,28 @@
 export const codexWorkbenchStyles = `
+  /* ChatGPT Codex macOS 26.707.61608 visual token baseline. */
   :root {
     color-scheme: light;
     --opl-native-titlebar-inset: 0px;
-    --opl-accent: #0d9488;
-    --opl-accent-soft: #e7f5f3;
-    --opl-canvas: #ffffff;
-    --opl-sidebar: #f7f7f7;
-    --opl-hover: #eeeeec;
-    --opl-selected: #e9e9e7;
-    --opl-border: #e7e7e5;
-    --opl-text: #202123;
-    --opl-muted: #73746f;
-    --opl-faint: #9a9b96;
-    --opl-danger: #d65342;
+    --opl-sidebar-width: 336px;
+    --opl-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --opl-font-mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --opl-canvas: #fff;
+    --opl-sidebar: #f9f9f9;
+    --opl-surface-secondary: #f3f3f3;
+    --opl-text: #1a1c1f;
+    --opl-muted: color-mix(in oklab, var(--opl-text) 70%, transparent);
+    --opl-faint: color-mix(in oklab, var(--opl-text) 50%, transparent);
+    --opl-hover: color-mix(in oklab, var(--opl-text) 5%, transparent);
+    --opl-selected: color-mix(in oklab, var(--opl-text) 5%, transparent);
+    --opl-border-light: color-mix(in oklab, var(--opl-text) 5%, transparent);
+    --opl-border: color-mix(in oklab, var(--opl-text) 8%, transparent);
+    --opl-border-heavy: color-mix(in oklab, var(--opl-text) 12%, transparent);
+    --opl-accent: var(--opl-text);
+    --opl-accent-soft: var(--opl-hover);
+    --opl-success: #00a240;
+    --opl-warning: #e25507;
+    --opl-warning-soft: #ffe7d9;
+    --opl-danger: #e02e2a;
   }
 
   :root[data-opl-host="native"] {
@@ -45,13 +55,14 @@ export const codexWorkbenchStyles = `
     min-width: 0;
     position: relative;
     display: grid;
-    grid-template-columns: 272px minmax(0, 1fr);
+    grid-template-columns: var(--opl-sidebar-width) minmax(0, 1fr);
     overflow: hidden;
     background: var(--opl-canvas);
     color: var(--opl-text);
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
-    font-size: 13px;
-    line-height: 1.48;
+    font-family: var(--opl-font-sans);
+    font-size: 14px;
+    font-weight: 430;
+    line-height: 1.5;
     letter-spacing: 0;
   }
 
@@ -91,8 +102,8 @@ export const codexWorkbenchStyles = `
     display: inline-flex;
     align-items: baseline;
     gap: 5px;
-    font-size: 15px;
-    font-weight: 650;
+    font-size: 17px;
+    font-weight: 500;
     white-space: nowrap;
   }
 
@@ -156,7 +167,7 @@ export const codexWorkbenchStyles = `
     background: transparent;
     color: var(--opl-text);
     text-align: left;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 430;
   }
 
@@ -206,7 +217,7 @@ export const codexWorkbenchStyles = `
   }
 
   .project-root {
-    font-weight: 540;
+    font-weight: 500;
   }
 
   .project-root .project-device {
@@ -221,7 +232,7 @@ export const codexWorkbenchStyles = `
     height: 7px;
     flex: 0 0 7px;
     border-radius: 50%;
-    background: #20b15a;
+    background: var(--opl-success);
   }
 
   .project-children {
@@ -238,7 +249,7 @@ export const codexWorkbenchStyles = `
 
   .project-context-link {
     min-height: 30px;
-    color: #565751;
+    color: var(--opl-muted);
     font-size: 12px;
   }
 
@@ -273,7 +284,7 @@ export const codexWorkbenchStyles = `
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 12.5px;
+    font-size: 14px;
     font-weight: 430;
   }
 
@@ -284,7 +295,7 @@ export const codexWorkbenchStyles = `
   .history-list li button small {
     margin-left: auto;
     color: var(--opl-faint);
-    font-size: 10.5px;
+    font-size: 11px;
     white-space: nowrap;
   }
 
@@ -308,10 +319,10 @@ export const codexWorkbenchStyles = `
     display: inline-grid;
     place-items: center;
     border-radius: 50%;
-    background: var(--opl-accent);
-    color: #fff;
-    font-size: 10px;
-    font-weight: 700;
+    background: var(--opl-success);
+    color: var(--opl-canvas);
+    font-size: 11px;
+    font-weight: 600;
   }
 
   .account-copy {
@@ -321,13 +332,13 @@ export const codexWorkbenchStyles = `
   }
 
   .account-copy strong {
-    font-size: 12.5px;
-    font-weight: 520;
+    font-size: 14px;
+    font-weight: 500;
   }
 
   .account-copy small {
     color: var(--opl-muted);
-    font-size: 10.5px;
+    font-size: 11px;
   }
 
   .sidebar-footer .settings-glyph {
@@ -384,8 +395,8 @@ export const codexWorkbenchStyles = `
     text-overflow: ellipsis;
     white-space: nowrap;
     margin: 0;
-    font-size: 13px;
-    font-weight: 540;
+    font-size: 14px;
+    font-weight: 500;
   }
 
   .topbar-actions {
@@ -448,8 +459,8 @@ export const codexWorkbenchStyles = `
   }
 
   .empty-thread-inner strong {
-    font-size: 22px;
-    font-weight: 560;
+    font-size: 24px;
+    font-weight: 500;
   }
 
   .empty-thread-inner p {
@@ -471,8 +482,8 @@ export const codexWorkbenchStyles = `
     padding: 0 11px;
     border: 1px solid var(--opl-border);
     border-radius: 8px;
-    background: #fff;
-    color: #4f504c;
+    background: var(--opl-canvas);
+    color: var(--opl-muted);
   }
 
   .empty-starters button:hover {
@@ -487,12 +498,12 @@ export const codexWorkbenchStyles = `
 
   .message-label {
     color: var(--opl-muted);
-    font-size: 11.5px;
-    font-weight: 520;
+    font-size: 12px;
+    font-weight: 500;
   }
 
   .message.assistant .message-label {
-    color: var(--opl-accent);
+    color: var(--opl-muted);
   }
 
   .message-frame {
@@ -508,12 +519,12 @@ export const codexWorkbenchStyles = `
     justify-self: end;
     padding: 9px 12px;
     border-radius: 12px;
-    background: #f1f1ef;
+    background: var(--opl-surface-secondary);
   }
 
   .message.system .message-frame {
     padding-left: 12px;
-    border-left: 2px solid #e1b0a8;
+    border-left: 2px solid color-mix(in oklab, var(--opl-danger) 35%, transparent);
     color: var(--opl-danger);
   }
 
@@ -543,7 +554,7 @@ export const codexWorkbenchStyles = `
     gap: 5px;
     margin-top: 3px;
     color: var(--opl-muted);
-    font-size: 11.5px;
+    font-size: 12px;
   }
 
   .run-event {
@@ -557,7 +568,7 @@ export const codexWorkbenchStyles = `
     width: 5px;
     height: 5px;
     border-radius: 50%;
-    background: #b8b9b4;
+    background: var(--opl-faint);
   }
 
   .assistant-artifact-card {
@@ -566,7 +577,7 @@ export const codexWorkbenchStyles = `
     overflow: hidden;
     border: 1px solid var(--opl-border);
     border-radius: 10px;
-    background: #fff;
+    background: var(--opl-canvas);
   }
 
   .assistant-artifact-card header {
@@ -578,8 +589,8 @@ export const codexWorkbenchStyles = `
   }
 
   .assistant-artifact-card header strong {
-    font-size: 12.5px;
-    font-weight: 520;
+    font-size: 12px;
+    font-weight: 500;
   }
 
   .assistant-artifact-card header button {
@@ -588,7 +599,7 @@ export const codexWorkbenchStyles = `
     padding: 0 9px;
     border: 1px solid var(--opl-border);
     border-radius: 7px;
-    background: #fff;
+    background: var(--opl-canvas);
   }
 
   .assistant-artifact-card footer {
@@ -609,7 +620,7 @@ export const codexWorkbenchStyles = `
     padding: 0 6px;
     border-radius: 5px;
     background: var(--opl-accent-soft);
-    color: #08766d;
+    color: var(--opl-text);
   }
 
   .composer {
@@ -617,15 +628,15 @@ export const codexWorkbenchStyles = `
     bottom: 0;
     margin-top: auto;
     padding: 22px 0 12px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0), #fff 28%);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--opl-canvas) 0%, transparent), var(--opl-canvas) 28%);
   }
 
   .composer-frame {
     padding: 11px 12px 9px;
-    border: 1px solid #dededb;
-    border-radius: 16px;
-    background: #fff;
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--opl-border-heavy);
+    border-radius: 20px;
+    background: var(--opl-canvas);
+    box-shadow: 0 0 0 0.5px var(--opl-border-heavy), 0 3px 7.5px rgba(0, 0, 0, 0.04), 0 0 20px rgba(0, 0, 0, 0.05);
   }
 
   .composer textarea {
@@ -647,7 +658,7 @@ export const codexWorkbenchStyles = `
   }
 
   .composer textarea::placeholder {
-    color: #aaa9a4;
+    color: var(--opl-faint);
   }
 
   .composer footer,
@@ -695,8 +706,8 @@ export const codexWorkbenchStyles = `
     border: 0;
     border-radius: 8px;
     background: transparent;
-    color: #666762;
-    font-size: 11.5px;
+    color: var(--opl-muted);
+    font-size: 12px;
   }
 
   .composer-action {
@@ -743,8 +754,8 @@ export const codexWorkbenchStyles = `
     width: 30px;
     padding: 0;
     border-radius: 50%;
-    background: #1f201e;
-    color: #fff;
+    background: var(--opl-text);
+    color: var(--opl-canvas);
   }
 
   .composer-submit span {
@@ -770,7 +781,7 @@ export const codexWorkbenchStyles = `
   .settings-page h2 {
     margin: 0 0 10px;
     font-size: 14px;
-    font-weight: 580;
+    font-weight: 500;
   }
 
   .settings-page dl {
@@ -807,13 +818,13 @@ export const codexWorkbenchStyles = `
 
   .settings-page small {
     color: var(--opl-faint);
-    font-size: 10.5px;
+    font-size: 11px;
   }
 
   .settings-page code {
     overflow-wrap: anywhere;
-    color: #565752;
-    font-family: "SFMono-Regular", Consolas, monospace;
+    color: var(--opl-muted);
+    font-family: var(--opl-font-mono);
     font-size: 11px;
   }
 
@@ -824,7 +835,7 @@ export const codexWorkbenchStyles = `
     padding: 0 10px;
     border: 1px solid var(--opl-border);
     border-radius: 7px;
-    background: #fff;
+    background: var(--opl-canvas);
     color: var(--opl-text);
   }
 
@@ -849,7 +860,7 @@ export const codexWorkbenchStyles = `
     position: relative;
     display: inline-block;
     border-radius: 9px;
-    background: #c8c9c5;
+    background: var(--opl-faint);
     transition: background 160ms ease;
   }
 
@@ -860,7 +871,7 @@ export const codexWorkbenchStyles = `
     top: 2px;
     left: 2px;
     border-radius: 50%;
-    background: #fff;
+    background: var(--opl-canvas);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
     transition: transform 160ms ease;
   }
@@ -893,7 +904,7 @@ export const codexWorkbenchStyles = `
   }
 
   .segmented-control button[data-active="true"] {
-    background: #fff;
+    background: var(--opl-canvas);
     color: var(--opl-text);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   }
@@ -931,7 +942,7 @@ export const codexWorkbenchStyles = `
   .inspector-header h2 {
     margin: 0;
     font-size: 12.5px;
-    font-weight: 560;
+    font-weight: 500;
   }
 
   .environment-detail-header {
@@ -985,7 +996,7 @@ export const codexWorkbenchStyles = `
     margin: 5px 8px 2px;
     color: var(--opl-muted);
     font-size: 10.5px;
-    font-weight: 520;
+    font-weight: 500;
   }
 
   .environment-menu-entry:first-of-type .environment-menu-group {
@@ -1028,7 +1039,7 @@ export const codexWorkbenchStyles = `
     height: 22px;
     display: inline-grid;
     place-items: center;
-    color: #646560;
+    color: var(--opl-muted);
   }
 
   .environment-menu-copy {
@@ -1042,7 +1053,7 @@ export const codexWorkbenchStyles = `
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 12px;
-    font-weight: 540;
+    font-weight: 500;
   }
 
   .environment-menu-copy small {
@@ -1094,7 +1105,7 @@ export const codexWorkbenchStyles = `
   .starter-form h3 {
     margin: 0;
     font-size: 12.5px;
-    font-weight: 560;
+    font-weight: 500;
   }
 
   .context-empty,
@@ -1135,7 +1146,7 @@ export const codexWorkbenchStyles = `
     padding: 10px;
     border: 1px solid var(--opl-border) !important;
     border-radius: 9px !important;
-    background: #fff !important;
+    background: var(--opl-canvas) !important;
   }
 
   .context-list li {
@@ -1153,7 +1164,7 @@ export const codexWorkbenchStyles = `
     overflow-wrap: anywhere;
     word-break: break-word;
     white-space: pre-wrap;
-    font-family: "SFMono-Regular", Consolas, monospace;
+    font-family: var(--opl-font-mono);
     font-size: 10px;
   }
 
@@ -1167,7 +1178,7 @@ export const codexWorkbenchStyles = `
     padding: 0 8px;
     border: 1px solid var(--opl-border);
     border-radius: 7px;
-    background: #fff;
+    background: var(--opl-canvas);
     color: var(--opl-text);
     font-size: 11px;
   }
@@ -1299,7 +1310,7 @@ export const codexWorkbenchStyles = `
     padding: 7px 8px;
     border: 1px solid var(--opl-border);
     border-radius: 7px;
-    background: #fff;
+    background: var(--opl-canvas);
   }
 
   .runtime-meta {
@@ -1316,7 +1327,7 @@ export const codexWorkbenchStyles = `
     padding: 0 6px;
     border-radius: 5px;
     background: var(--opl-accent-soft);
-    color: #08766d;
+    color: var(--opl-text);
     font-size: 10px;
   }
 
@@ -1334,7 +1345,7 @@ export const codexWorkbenchStyles = `
     padding: 2px;
     border: 1px solid var(--opl-border);
     border-radius: 7px;
-    background: #f1f1ef;
+    background: var(--opl-surface-secondary);
   }
 
   .thread-scope-filter button {
@@ -1352,7 +1363,7 @@ export const codexWorkbenchStyles = `
   }
 
   .thread-scope-filter button[data-active="true"] {
-    background: #fff;
+    background: var(--opl-canvas);
     color: var(--opl-text);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   }
@@ -1406,8 +1417,8 @@ export const codexWorkbenchStyles = `
   }
 
   .thread-directory-copy strong {
-    font-size: 11.5px;
-    font-weight: 510;
+    font-size: 12px;
+    font-weight: 500;
   }
 
   .thread-directory-copy small,
@@ -1465,14 +1476,14 @@ export const codexWorkbenchStyles = `
     border: 1px solid var(--opl-border);
     border-radius: 8px;
     outline: 0;
-    background: #fff;
+    background: var(--opl-canvas);
     box-shadow: 0 18px 52px rgba(0, 0, 0, 0.18);
   }
 
   .thread-detail-popover {
     top: 64px;
-    left: 286px;
-    width: min(390px, calc(100vw - 318px));
+    left: calc(var(--opl-sidebar-width) + 14px);
+    width: min(390px, calc(100vw - var(--opl-sidebar-width) - 46px));
     max-height: calc(100vh - 88px);
     padding: 14px;
   }
@@ -1514,7 +1525,7 @@ export const codexWorkbenchStyles = `
   .coordination-dialog h2 {
     margin: 0;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
   }
 
   .coordination-dialog-icon {
@@ -1567,7 +1578,7 @@ export const codexWorkbenchStyles = `
   .thread-detail-popover code,
   .thread-confirmation-dialog code {
     white-space: pre-wrap;
-    font-family: "SFMono-Regular", Consolas, monospace;
+    font-family: var(--opl-font-mono);
     font-size: 10px;
   }
 
@@ -1592,15 +1603,15 @@ export const codexWorkbenchStyles = `
     padding: 0 10px;
     border: 1px solid var(--opl-border);
     border-radius: 7px;
-    background: #fff;
+    background: var(--opl-canvas);
     color: var(--opl-text);
   }
 
   .thread-confirmation-dialog footer .primary,
   .coordination-dialog footer .primary {
-    border-color: #202123;
-    background: #202123;
-    color: #fff;
+    border-color: var(--opl-text);
+    background: var(--opl-text);
+    color: var(--opl-canvas);
   }
 
   .coordination-route {
@@ -1652,7 +1663,7 @@ export const codexWorkbenchStyles = `
     border: 1px solid var(--opl-border);
     border-radius: 7px;
     outline: 0;
-    background: #fff;
+    background: var(--opl-canvas);
     color: var(--opl-text);
   }
 
@@ -1674,7 +1685,7 @@ export const codexWorkbenchStyles = `
 
   .coordination-fields .coordination-write-set {
     min-height: 54px;
-    font-family: "SFMono-Regular", Consolas, monospace;
+    font-family: var(--opl-font-mono);
     font-size: 11px;
   }
 
@@ -1689,7 +1700,7 @@ export const codexWorkbenchStyles = `
     gap: 8px;
     padding: 9px;
     border-left: 3px solid var(--opl-accent);
-    background: #f7f8f7;
+    background: var(--opl-sidebar);
   }
 
   .coordination-current-state[data-phase="conflict"] {
@@ -1750,9 +1761,9 @@ export const codexWorkbenchStyles = `
     gap: 8px;
     margin-top: 12px;
     padding: 10px;
-    border: 1px solid #e1b65b;
+    border: 1px solid color-mix(in oklab, var(--opl-warning) 35%, transparent);
     border-radius: 7px;
-    background: #fff9e9;
+    background: var(--opl-warning-soft);
   }
 
   .coordination-error {

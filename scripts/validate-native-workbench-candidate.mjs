@@ -130,6 +130,8 @@ function assertSourceMarkerRequirements(evidence) {
 
 function assertCodexJuly2026Alignment(evidence, app, readme) {
   const alignment = evidence.default_home_layout?.primary_visual_reference;
+  const visualStyle = evidence.default_home_layout?.visual_style_reference;
+  const styles = read("src/workbench/codexWorkbenchStyles.ts");
   const normalizedReadme = readme.replace(/\s+/g, " ");
   assert(alignment, "missing ChatGPT Codex July 2026 alignment evidence");
   assert(alignment.reference_product === "ChatGPT Codex macOS", "Codex reference product must be recorded");
@@ -143,6 +145,17 @@ function assertCodexJuly2026Alignment(evidence, app, readme) {
   assert(evidence.default_home_layout?.environment_details_default_open === false, "environment details must be closed by default");
   assert(evidence.webui_parity?.desktop_and_webui_default_home === "chat_first_default_collapsed", "desktop and WebUI must share the chat-first default-collapsed home");
   assert(normalizedReadme.includes("ChatGPT Codex macOS") && normalizedReadme.includes("26.707.41301"), "README must record the Codex reference build");
+  assert(visualStyle?.reference_version === "26.707.61608", "current Codex visual style version must be recorded");
+  assert(visualStyle?.reference_date === "2026-07-13", "current Codex visual style date must be recorded");
+  assert(visualStyle?.palette?.canvas === "#fff" && visualStyle.palette.sidebar === "#f9f9f9", "current Codex light surfaces must be recorded");
+  assert(visualStyle?.palette?.text === "#1a1c1f" && visualStyle.palette.border_mix === "8%", "current Codex text and border tokens must be recorded");
+  assert(visualStyle?.typography?.base_size === "14px" && visualStyle.typography.ordinary_weight === 430, "current Codex typography must be recorded");
+  assert(visualStyle?.desktop_sidebar_width === "336px", "current Codex desktop rail width must be recorded");
+  assert(visualStyle?.font_asset_policy === "match_system_workbench_stack_without_copying_or_redistributing_openai_sans_font_binaries", "OpenAI Sans binaries must remain outside the candidate package");
+  assert(normalizedReadme.includes("26.707.61608") && normalizedReadme.includes("OpenAI Sans font binary"), "README must record the current visual style and font boundary");
+  for (const marker of ["--opl-sidebar-width: 336px", "--opl-sidebar: #f9f9f9", "--opl-text: #1a1c1f", "font-size: 14px", "font-weight: 430"]) {
+    assert(styles.includes(marker), `missing current Codex visual style marker ${marker}`);
+  }
   assert(normalizedReadme.includes("model and reasoning controls in the composer"), "README must record composer model control placement");
   assert(normalizedReadme.includes("The rail is visible by default"), "README must record the default-visible project rail");
   assert(normalizedReadme.includes("environment details are closed by default and open as a floating"), "README must record the default-closed floating environment details");

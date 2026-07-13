@@ -8,6 +8,91 @@ struct CommandResult {
   let timedOut: Bool
 }
 
+final class CommandOutputBuffer: @unchecked Sendable {
+  private let lock = NSLock()
+  private var data = Data()
+
+  func replace(with value: Data) {
+    lock.lock()
+    data = value
+    lock.unlock()
+  }
+
+  func string() -> String {
+    lock.lock()
+    defer { lock.unlock() }
+    return String(data: data, encoding: .utf8) ?? ""
+  }
+}
+
+func runNativeCommand(
+  _ args: [String],
+  input: String?,
+  cwd: URL,
+  timeout: TimeInterval,
+  environment: [String: String] = ProcessInfo.processInfo.environment
+) -> CommandResult {
+  let process = Process()
+  if args.first == "opl", let configured = environment["OPL_APP_OPL_BIN"], !configured.isEmpty {
+    process.executableURL = URL(fileURLWithPath: configured)
+    process.arguments = Array(args.dropFirst())
+  } else {
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = args
+  }
+  process.currentDirectoryURL = cwd
+  process.environment = environment
+
+  let stdoutPipe = Pipe()
+  let stderrPipe = Pipe()
+  let stdinPipe = Pipe()
+  process.standardOutput = stdoutPipe
+  process.standardError = stderrPipe
+  process.standardInput = stdinPipe
+
+  do {
+    try process.run()
+
+    let stdoutBuffer = CommandOutputBuffer()
+    let stderrBuffer = CommandOutputBuffer()
+    let readers = DispatchGroup()
+    readers.enter()
+    DispatchQueue.global(qos: .utility).async {
+      stdoutBuffer.replace(with: stdoutPipe.fileHandleForReading.readDataToEndOfFile())
+      readers.leave()
+    }
+    readers.enter()
+    DispatchQueue.global(qos: .utility).async {
+      stderrBuffer.replace(with: stderrPipe.fileHandleForReading.readDataToEndOfFile())
+      readers.leave()
+    }
+
+    if let input {
+      stdinPipe.fileHandleForWriting.write(Data(input.utf8))
+    }
+    try? stdinPipe.fileHandleForWriting.close()
+
+    let deadline = Date().addingTimeInterval(timeout)
+    while process.isRunning && Date() < deadline {
+      Thread.sleep(forTimeInterval: 0.1)
+    }
+    let timedOut = process.isRunning
+    if timedOut {
+      process.terminate()
+    }
+    process.waitUntilExit()
+    readers.wait()
+    return CommandResult(
+      exitCode: timedOut ? -1 : process.terminationStatus,
+      stdout: stdoutBuffer.string(),
+      stderr: stderrBuffer.string(),
+      timedOut: timedOut
+    )
+  } catch {
+    return CommandResult(exitCode: -1, stdout: "", stderr: String(describing: error), timedOut: false)
+  }
+}
+
 final class PendingRequest {
   let semaphore = DispatchSemaphore(value: 0)
   var response: [String: Any]?
@@ -1549,46 +1634,7 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
   }
 
   private func runCommand(_ args: [String], input: String?, cwd: URL, timeout: TimeInterval) -> CommandResult {
-    let process = Process()
-    if args.first == "opl", let configured = ProcessInfo.processInfo.environment["OPL_APP_OPL_BIN"], !configured.isEmpty {
-      process.executableURL = URL(fileURLWithPath: configured)
-      process.arguments = Array(args.dropFirst())
-    } else {
-      process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-      process.arguments = args
-    }
-    process.currentDirectoryURL = cwd
-    process.environment = ProcessInfo.processInfo.environment
-
-    let stdoutPipe = Pipe()
-    let stderrPipe = Pipe()
-    let stdinPipe = Pipe()
-    process.standardOutput = stdoutPipe
-    process.standardError = stderrPipe
-    process.standardInput = stdinPipe
-
-    do {
-      try process.run()
-      if let input {
-        stdinPipe.fileHandleForWriting.write(Data(input.utf8))
-      }
-      try? stdinPipe.fileHandleForWriting.close()
-
-      let deadline = Date().addingTimeInterval(timeout)
-      while process.isRunning && Date() < deadline {
-        Thread.sleep(forTimeInterval: 0.1)
-      }
-      let timedOut = process.isRunning
-      if timedOut {
-        process.terminate()
-      }
-      process.waitUntilExit()
-      let stdout = String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-      let stderr = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-      return CommandResult(exitCode: timedOut ? -1 : process.terminationStatus, stdout: stdout, stderr: stderr, timedOut: timedOut)
-    } catch {
-      return CommandResult(exitCode: -1, stdout: "", stderr: String(describing: error), timedOut: false)
-    }
+    runNativeCommand(args, input: input, cwd: cwd, timeout: timeout)
   }
 
   private func resolve(id: String, ok: Bool, payload: [String: Any]) {

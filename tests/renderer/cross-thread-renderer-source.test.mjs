@@ -113,6 +113,29 @@ test("native window chrome follows the compact Codex composition", () => {
   assert.match(nativeSmoke, /screenshot_absent_markers: \["Codex"\]/);
 });
 
+test("native visual tokens track the current ChatGPT Codex light workbench", () => {
+  for (const marker of [
+    "ChatGPT Codex macOS 26.707.61608 visual token baseline",
+    "--opl-sidebar-width: 336px",
+    '--opl-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    "--opl-canvas: #fff",
+    "--opl-sidebar: #f9f9f9",
+    "--opl-surface-secondary: #f3f3f3",
+    "--opl-text: #1a1c1f",
+    "--opl-muted: color-mix(in oklab, var(--opl-text) 70%, transparent)",
+    "--opl-faint: color-mix(in oklab, var(--opl-text) 50%, transparent)",
+    "--opl-border: color-mix(in oklab, var(--opl-text) 8%, transparent)"
+  ]) {
+    assert.ok(styles.includes(marker), `missing ChatGPT Codex visual token: ${marker}`);
+  }
+  assert.match(styles, /font-family: var\(--opl-font-sans\);\s*font-size: 14px;\s*font-weight: 430;\s*line-height: 1\.5;/s);
+  assert.match(styles, /\.composer-frame \{[^}]*border-radius: 20px;/s);
+  for (const legacyColor of ["#0d9488", "#e7f5f3", "#202123", "#f7f7f7", "#eeeeec", "#e9e9e7"]) {
+    assert.ok(!styles.toLowerCase().includes(legacyColor), `legacy native palette color must stay removed: ${legacyColor}`);
+  }
+  assert.doesNotMatch(styles, /OpenAISans|OpenAI Sans|SF Pro Text|Helvetica Neue/);
+});
+
 test("primary canvas hides its scrollbar without disabling scrolling", () => {
   assert.match(styles, /\.conversation,\s*\.settings-page \{[^}]*overflow-y: auto;[^}]*scrollbar-width: none;/s);
   assert.match(styles, /\.conversation::\-webkit-scrollbar,\s*\.settings-page::\-webkit-scrollbar \{[^}]*display: none;/s);
@@ -131,8 +154,8 @@ test("sidebar account identity consumes only the canonical Gateway display name"
 });
 
 test("desktop remains two-column and mobile overlays are full-height", () => {
-  assert.match(styles, /grid-template-columns: 272px minmax\(0, 1fr\)/);
-  assert.doesNotMatch(styles, /grid-template-columns:\s*272px\s+minmax\(0, 1fr\)\s+\d/);
+  assert.match(styles, /grid-template-columns: var\(--opl-sidebar-width\) minmax\(0, 1fr\)/);
+  assert.doesNotMatch(styles, /grid-template-columns:\s*var\(--opl-sidebar-width\)\s+minmax\(0, 1fr\)\s+\d/);
   assert.match(styles, /@media \(max-width: 760px\)/);
   assert.match(styles, /\.thread-detail-popover,\s*\.thread-confirmation-dialog,\s*\.coordination-dialog\s*\{\s*inset: 0;/s);
   assert.match(styles, /height: 100dvh/);
