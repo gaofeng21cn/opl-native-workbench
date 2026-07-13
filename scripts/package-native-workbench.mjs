@@ -3,7 +3,6 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { buildRenderer } from "./build-renderer.mjs";
-import { resolveAppRepoRoot } from "./resolve-app-repo-root.mjs";
 import {
   assertNoFalseReadyFields,
   assertRendererTestIds,
@@ -17,7 +16,7 @@ import {
 } from "./native-workbench-gates.mjs";
 
 const root = path.resolve(new URL("..", import.meta.url).pathname);
-const appName = "One Person Lab Native Workbench Candidate";
+const appName = "One Person Lab Native";
 const appRoot = path.join(root, "out", `${appName}.app`);
 const macOsDir = path.join(appRoot, "Contents", "MacOS");
 const contentsDir = path.join(appRoot, "Contents");
@@ -26,9 +25,8 @@ const rendererOutDir = path.join(root, "dist", "package");
 const evidence = JSON.parse(fs.readFileSync(path.join(root, "src/candidateContractEvidence.json"), "utf8"));
 const app = read("src/workbench/App.tsx");
 const rendererSource = readRendererSource();
-const appRepoRoot = resolveAppRepoRoot(root);
-const releaseIconPath = path.resolve(
-  process.env.OPL_APP_RELEASE_ICON_ICNS ?? path.join(appRepoRoot, "shells", "aionui", "resources", "app.icns")
+const nativeIconPath = path.resolve(
+  process.env.OPL_NATIVE_WORKBENCH_ICON_ICNS ?? path.join(root, "assets", "branding", "one-person-lab-native.icns")
 );
 
 function assertFile(filePath, label) {
@@ -55,7 +53,7 @@ assertNoFalseReadyFields({
   "src/workbench/App.tsx": app,
   "src/candidateContractEvidence.json": fs.readFileSync(path.join(root, "src/candidateContractEvidence.json"), "utf8")
 });
-assertFile(releaseIconPath, "OPL App release icon");
+assertFile(nativeIconPath, "OPL Native app icon");
 
 const rendererBuild = buildRenderer({
   outDir: rendererOutDir,
@@ -68,7 +66,7 @@ const rendererBuild = buildRenderer({
 fs.rmSync(appRoot, { recursive: true, force: true });
 fs.mkdirSync(macOsDir, { recursive: true });
 fs.mkdirSync(resourcesDir, { recursive: true });
-fs.copyFileSync(releaseIconPath, path.join(resourcesDir, "app.icns"));
+fs.copyFileSync(nativeIconPath, path.join(resourcesDir, "app.icns"));
 fs.copyFileSync(path.join(rendererOutDir, "workbench.html"), path.join(resourcesDir, "workbench.html"));
 fs.copyFileSync(path.join(rendererOutDir, "renderer.js"), path.join(resourcesDir, "renderer.js"));
 fs.copyFileSync(path.join(rendererOutDir, "renderer-build.json"), path.join(resourcesDir, "renderer-build.json"));
@@ -78,13 +76,14 @@ fs.writeFileSync(path.join(contentsDir, "Info.plist"), `<?xml version="1.0" enco
 <plist version="1.0">
 <dict>
   <key>CFBundleName</key><string>${appName}</string>
-  <key>CFBundleDisplayName</key><string>One Person Lab App Workbench Candidate</string>
+  <key>CFBundleDisplayName</key><string>${appName}</string>
   <key>CFBundleExecutable</key><string>${appName}</string>
   <key>CFBundleIdentifier</key><string>cn.gflab.opl.native-workbench.candidate</string>
   <key>CFBundleIconFile</key><string>app</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>CFBundleVersion</key><string>0.1.0</string>
+  <key>LSMultipleInstancesProhibited</key><true/>
   <key>NSHighResolutionCapable</key><true/>
 </dict>
 </plist>
@@ -105,8 +104,11 @@ const manifest = {
   status: "candidate_app_bundle_built",
   package_kind: "explicit_candidate_app_bundle",
   bundle_identity: {
+    display_name: appName,
     bundle_id: "cn.gflab.opl.native-workbench.candidate",
-    isolated_from_active_mainline_bundle_id: "cn.onepersonlab.opl"
+    installed_app_path: "/Applications/One Person Lab Native.app",
+    isolated_from_active_mainline_bundle_id: "cn.onepersonlab.opl",
+    active_mainline_installed_app_path: "/Applications/One Person Lab.app"
   },
   launcher_runtime_resolution: {
     source: "one-person-lab-app npm run gui",

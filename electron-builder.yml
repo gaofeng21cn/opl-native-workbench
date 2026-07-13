@@ -1,5 +1,5 @@
 appId: cn.gflab.opl.native-workbench.candidate
-productName: One Person Lab Native Workbench Candidate
+productName: One Person Lab Native
 directories:
   output: out
 files:

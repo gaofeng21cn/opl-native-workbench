@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { assert, readJson, root } from "./native-workbench-gates.mjs";
 import { readCodexModelPolicy } from "./build-renderer.mjs";
 
-const appName = "One Person Lab Native Workbench Candidate";
+const appName = "One Person Lab Native";
 const appRoot = path.join(root, "out", `${appName}.app`);
 const resourcesDir = path.join(appRoot, "Contents", "Resources");
 const executablePath = path.join(appRoot, "Contents", "MacOS", appName);
@@ -156,7 +156,9 @@ for (const asset of [
 
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 assert(manifest.status === "candidate_app_bundle_built", "package status must describe a built candidate, not readiness");
+assert(manifest.bundle_identity?.display_name === appName, "manifest must preserve the formal Native test name");
 assert(manifest.bundle_identity?.bundle_id === "cn.gflab.opl.native-workbench.candidate", "manifest must preserve the isolated candidate bundle id");
+assert(manifest.bundle_identity?.installed_app_path === "/Applications/One Person Lab Native.app", "manifest must record the formal Native install path");
 assert(manifest.bundle_identity?.isolated_from_active_mainline_bundle_id === "cn.onepersonlab.opl", "manifest must record the active mainline bundle isolation boundary");
 assert(manifest.launcher_runtime_resolution?.identity_schema === "app_runtime_executable_identity.v1", "manifest must record launcher Runtime identity readback");
 assert(manifest.launcher_runtime_resolution?.direct_launch_fallback === "host_path_without_runtime_parity_claim", "direct Candidate launch must not claim Runtime parity");

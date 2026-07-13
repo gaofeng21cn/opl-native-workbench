@@ -1676,7 +1676,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var bridge: NativeBridge?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
-    let appName = "One Person Lab Native Workbench Candidate"
+    let appName = "One Person Lab Native"
     let resourcesURL = URL(fileURLWithPath: CommandLine.arguments[0])
       .deletingLastPathComponent()
       .deletingLastPathComponent()

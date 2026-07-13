@@ -3,7 +3,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const root = path.resolve(new URL("..", import.meta.url).pathname);
-const appName = "One Person Lab Native Workbench Candidate";
+const appName = "One Person Lab Native";
 const appPath = path.join(root, "out", `${appName}.app`);
 const executablePath = path.join(appPath, "Contents", "MacOS", appName);
 const plistPath = path.join(appPath, "Contents", "Info.plist");

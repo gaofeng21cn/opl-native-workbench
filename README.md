@@ -73,11 +73,23 @@ proposals and cannot supply permission decisions, write-set decisions, IDs, or
 confirmation fields. WebUI uses the same renderer and contract through a local
 Node HTTP/SSE host. Remote cross-machine coordination remains deferred.
 
-For side-by-side local testing, launch this Candidate from the App repository:
+For repeatable side-by-side local testing, the packaged candidate uses the
+formal visible name `One Person Lab Native`, installs at
+`/Applications/One Person Lab Native.app`, and keeps the isolated internal
+bundle ID `cn.gflab.opl.native-workbench.candidate`. Its OPL icon carries a
+restrained Native badge so it remains recognizable but distinct from the
+AionUI release App in the Dock and application switcher.
+
+Launch the installed Native app from the App repository:
 
 ```bash
 npm run gui -- --shell opl-native-workbench
 ```
+
+Use `--rebuild` to rebuild this checkout, validate its bundle identity, and
+replace only `/Applications/One Person Lab Native.app`. This does not change the
+active release adapter, updater channel, AionUI name, AionUI icon, or AionUI
+installation.
 
 The App launcher injects absolute `opl` and `codex` executable paths plus an
 `app_runtime_executable_identity.v1` readback. Candidate actions are
@@ -189,7 +201,7 @@ npm run smoke:native-live
 ```
 
 `npm run smoke:native-live` is narrower: after `npm run package`, it opens a
-fresh local `out/One Person Lab Native Workbench Candidate.app`, requires a new
+fresh local `out/One Person Lab Native.app`, requires a new
 PID and real window, captures that PID's exact window, verifies renderer markers
 (`Codex` and `5.6 Sol`), and verifies process cleanup before writing
 `out/native-live-smoke.json` and `out/native-live-smoke.png`. Missing window,
