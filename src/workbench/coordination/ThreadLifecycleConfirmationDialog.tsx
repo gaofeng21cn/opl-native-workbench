@@ -1,10 +1,12 @@
 import * as Dialog from "@radix-ui/react-dialog";
-import { Archive, ArchiveRestore, X } from "lucide-react";
+import { Archive, ArchiveRestore, GitFork, X } from "lucide-react";
 import type { WorkbenchThreadItem } from "../workbenchModel";
+
+export type ThreadLifecycleAction = "fork" | "archive" | "unarchive";
 
 type ThreadLifecycleConfirmationDialogProps = {
   thread: WorkbenchThreadItem | null;
-  archived: boolean;
+  action: ThreadLifecycleAction;
   locale: "zh" | "en";
   busy: boolean;
   error?: string;
@@ -14,7 +16,7 @@ type ThreadLifecycleConfirmationDialogProps = {
 
 export function ThreadLifecycleConfirmationDialog({
   thread,
-  archived,
+  action,
   locale,
   busy,
   error,
@@ -22,9 +24,11 @@ export function ThreadLifecycleConfirmationDialog({
   onConfirm
 }: ThreadLifecycleConfirmationDialogProps) {
   const copy = locale === "zh"
-    ? { archive: "确认归档", restore: "确认恢复", archiveAction: "归档对话", restoreAction: "恢复对话", close: "关闭", confirmation: "确认", thread: "对话" }
-    : { archive: "Confirm archive", restore: "Confirm restore", archiveAction: "Archive thread", restoreAction: "Restore thread", close: "Close", confirmation: "Confirmation", thread: "Thread" };
-  const Icon = archived ? Archive : ArchiveRestore;
+    ? { fork: "确认派生", archive: "确认归档", restore: "确认恢复", forkAction: "派生对话", archiveAction: "归档对话", restoreAction: "恢复对话", close: "关闭", confirmation: "确认", thread: "对话" }
+    : { fork: "Confirm fork", archive: "Confirm archive", restore: "Confirm restore", forkAction: "Fork thread", archiveAction: "Archive thread", restoreAction: "Restore thread", close: "Close", confirmation: "Confirmation", thread: "Thread" };
+  const Icon = action === "fork" ? GitFork : action === "archive" ? Archive : ArchiveRestore;
+  const title = action === "fork" ? copy.fork : action === "archive" ? copy.archive : copy.restore;
+  const actionLabel = action === "fork" ? copy.forkAction : action === "archive" ? copy.archiveAction : copy.restoreAction;
 
   return (
     <Dialog.Root open={Boolean(thread)} onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -33,7 +37,7 @@ export function ThreadLifecycleConfirmationDialog({
         <Dialog.Content data-testid="opl-thread-lifecycle-confirmation" className="thread-confirmation-dialog" aria-describedby={undefined}>
           <header>
             <span className="coordination-dialog-icon"><Icon aria-hidden="true" size={17} /></span>
-            <Dialog.Title>{archived ? copy.archive : copy.restore}</Dialog.Title>
+            <Dialog.Title>{title}</Dialog.Title>
             <Dialog.Close asChild><button className="icon-button" type="button" aria-label={copy.close}><X aria-hidden="true" size={16} /></button></Dialog.Close>
           </header>
           <dl>
@@ -43,7 +47,7 @@ export function ThreadLifecycleConfirmationDialog({
           {error ? <p className="coordination-error" role="alert">{error}</p> : null}
           <footer>
             <button className="primary" type="button" disabled={busy || !thread} onClick={onConfirm}>
-              <Icon aria-hidden="true" size={14} />{archived ? copy.archiveAction : copy.restoreAction}
+              <Icon aria-hidden="true" size={14} />{actionLabel}
             </button>
           </footer>
         </Dialog.Content>

@@ -114,8 +114,8 @@ const manifest = {
   opens_default_browser: false,
   primary_visual_reference: {
     product: "ChatGPT Codex macOS",
-    version: "26.707.31123",
-    reference_date: "2026-07-10",
+    version: "26.707.41301",
+    reference_date: "2026-07-11",
     source_usage: "visual_and_interaction_reference_only_no_code_or_brand_copy",
     aligned_regions: [
       "persistent project and conversation rail",
@@ -169,7 +169,8 @@ const manifest = {
   functional_mvp: {
     codex_app_server_thread_turn: true,
     codex_command: "codex app-server --stdio",
-    codex_protocol: "JSON-RPC newline transport with initialize, model/list, thread/start, turn/start, item/agentMessage/delta, turn/completed, thread/resume",
+    codex_protocol: "JSON-RPC newline transport with initialize, model/list, paginated thread/list, thread/read, thread/resume, thread/fork, thread/archive, thread/unarchive, turn/start, turn/steer, thread/status/changed, client-executed dynamicTools item/tool/call, and turn/completed",
+    local_cross_thread_coordination: "typed Desktop/WebUI host adapters with fresh scope/write-set checks, preview tokens, explicit confirmation, bounded queue, bilateral receipts, and no shell-owned thread history",
     codex_model_reasoning_controls: `App product profile Auto policy injected into the shared renderer; known ${rendererBuild.defaultModel} keeps ${rendererBuild.defaultReasoningEffort}, an unknown Codex model/list isDefault entry becomes Auto with its highest advertised reasoning effort, unavailable fixed selections remain blocked, manual reasoning pins the current model and exits Auto, and turn/start receives model and effort overrides`,
     opl_state_bridge: "opl app state --profile fast --json",
     opl_action_bridge: "opl app action execute --action <action_id> --dry-run --json",

@@ -30,6 +30,12 @@ export type WorkbenchThreadMessage = {
   id: string;
   role: "user" | "assistant" | "system";
   text: string;
+  coordination?: {
+    direction: "source" | "target";
+    state: string;
+    summary: string;
+    result?: string;
+  };
 };
 
 export type WorkbenchThreadItem = {
@@ -41,6 +47,7 @@ export type WorkbenchThreadItem = {
   projectId?: string;
   projectLabel?: string;
   workspace?: string;
+  currentWorkspace: boolean;
   goal?: string;
   parentThreadId?: string;
   ancestorThreadIds: string[];
@@ -526,6 +533,7 @@ function threadFromRecord(
     projectId,
     projectLabel,
     workspace,
+    currentWorkspace: firstBoolean(record, ["currentWorkspace", "current_workspace"]),
     goal: firstString(record, ["goal", "objective", "summary"]) ?? undefined,
     parentThreadId: firstString(record, ["parentThreadId", "parent_thread_id", "parentId", "parent_id"]) ?? undefined,
     ancestorThreadIds: asStringArray(record.ancestorThreadIds ?? record.ancestor_thread_ids ?? record.ancestors),
@@ -616,6 +624,20 @@ function messageFromRecord(record: Record<string, unknown>, index: number): Work
   };
 }
 
+function coordinationMessageFromRecord(record: Record<string, unknown>, index: number): WorkbenchThreadMessage | null {
+  const direction = firstString(record, ["direction"]);
+  if (direction !== "source" && direction !== "target") return null;
+  const state = firstString(record, ["state", "status"]) ?? "unknown";
+  const summary = firstString(record, ["summary", "messageSummary", "message_summary"]) ?? "Coordination receipt";
+  const result = firstString(record, ["resultSummaryOrRef", "result_summary_or_ref", "result"]);
+  return {
+    id: firstString(record, ["id", "coordinationId", "coordination_id"]) ?? `coordination-message-${index}`,
+    role: "system",
+    text: summary,
+    coordination: { direction, state, summary, ...(result ? { result } : {}) }
+  };
+}
+
 export function deriveThreadMessages(value: unknown): WorkbenchThreadMessage[] {
   const payload = payloadRecord(value);
   const thread = nestedRecord(payload, ["thread"]);
@@ -626,9 +648,13 @@ export function deriveThreadMessages(value: unknown): WorkbenchThreadMessage[] {
     .filter((record): record is Record<string, unknown> => Boolean(record))
     .flatMap((record) => asRecordArray(record.turns));
   const turnItems = turns.flatMap((turn) => asRecordArray(turn.items ?? turn.messages));
+  const coordinationItems = [payload, thread]
+    .filter((record): record is Record<string, unknown> => Boolean(record))
+    .flatMap((record) => asRecordArray(record.coordinationEvents ?? record.coordination_events));
   return [...direct, ...turnItems]
     .map(messageFromRecord)
-    .filter((message): message is WorkbenchThreadMessage => Boolean(message));
+    .filter((message): message is WorkbenchThreadMessage => Boolean(message))
+    .concat(coordinationItems.map(coordinationMessageFromRecord).filter((message): message is WorkbenchThreadMessage => Boolean(message)));
 }
 
 function coordinationPhase(record: Record<string, unknown> | null): WorkbenchCoordinationPhase {
@@ -646,7 +672,8 @@ export function deriveCoordinationOperation(
 ): WorkbenchCoordinationOperation {
   const record = payloadRecord(value);
   const queueValue = record?.queuePosition ?? record?.queue_position;
-  const queuePosition = typeof queueValue === "number" ? queueValue : Number(asString(queueValue));
+  const queueText = asString(queueValue);
+  const queuePosition = typeof queueValue === "number" ? queueValue : queueText === null ? Number.NaN : Number(queueText);
   const conflict = firstString(record, ["conflict", "conflictReason", "conflict_reason", "error"])
     ?? firstString(nestedRecord(record, ["guard", "safety"]), ["message", "reason", "summary"])
     ?? firstString(nestedRecord(record, ["conflict_detail", "conflictDetail"]), ["summary", "message", "reason"])
@@ -680,23 +707,29 @@ export function deriveCoordinationOperation(
 
 export function deriveCoordinationEvents(value: unknown): WorkbenchCoordinationEvent[] {
   return listRecords(value, ["events", "items", "entries"]).map((record, index) => {
-    const sourceThreadId = firstString(record, ["sourceThreadId", "source_thread_id", "sourceId", "source_id"]) ?? undefined;
-    const targetThreadId = firstString(record, ["targetThreadId", "target_thread_id", "targetId", "target_id"]) ?? undefined;
-    const directionValue = firstString(record, ["direction", "side", "role"])?.toLowerCase() ?? "";
+    const projected = { ...record, ...(asRecord(record.raw) ?? {}) };
+    const sourceThreadId = firstString(projected, ["sourceThreadId", "source_thread_id", "sourceId", "source_id"]) ?? undefined;
+    const targetThreadId = firstString(projected, ["targetThreadId", "target_thread_id", "targetId", "target_id"]) ?? undefined;
+    const directionValue = firstString(projected, ["direction", "side", "role"])?.toLowerCase() ?? "";
     const direction = /source|sender|origin/.test(directionValue)
       ? "source"
       : /target|receiver|destination/.test(directionValue)
         ? "target"
         : "system";
+    const coordinationId = firstString(projected, ["coordinationId", "coordination_id", "previewToken", "preview_token"]);
+    const method = firstString(record, ["method", "type", "kind"]);
+    const state = firstString(projected, ["state", "status", "phase"]);
+    const derivedId = [coordinationId, method, state, direction].filter(Boolean).join(":");
     return {
-      id: firstString(record, ["id", "eventId", "event_id"]) ?? `coordination-event-${index}`,
-      phase: coordinationPhase(record),
+      id: firstString(projected, ["id", "eventId", "event_id"])
+        ?? (derivedId || `coordination-event-${index}`),
+      phase: coordinationPhase(projected),
       direction,
-      label: firstString(record, ["label", "title", "type", "kind", "status"]) ?? "Coordination event",
-      detail: firstString(record, ["detail", "summary", "message", "description", "result", "error"]) ?? "",
+      label: firstString(projected, ["label", "title", "type", "kind", "status", "state"]) ?? method ?? "Coordination event",
+      detail: firstString(projected, ["detail", "summary", "message", "description", "result", "error"]) ?? "",
       sourceThreadId,
       targetThreadId,
-      occurredAt: timestampString(record.occurredAt ?? record.occurred_at ?? record.createdAt ?? record.created_at)
+      occurredAt: timestampString(projected.occurredAt ?? projected.occurred_at ?? projected.createdAt ?? projected.created_at)
     } satisfies WorkbenchCoordinationEvent;
   });
 }

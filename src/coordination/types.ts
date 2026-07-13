@@ -131,7 +131,7 @@ export type ThreadCoordinationEvent = {
   method: string;
   threadId?: string;
   coordinationId?: string;
-  state?: CoordinationThreadState | CoordinationDispatchKind | CoordinationTerminalState;
+  state?: CoordinationThreadState | CoordinationDispatchKind | CoordinationTerminalState | CoordinationPreparation["state"];
   raw: unknown;
 };
 

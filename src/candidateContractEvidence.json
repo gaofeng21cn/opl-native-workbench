@@ -21,7 +21,7 @@
     "default_context_collapsed_chat_first_home",
     "results_and_delivery_first_presentation",
     "codex_style_persistent_left_sidebar",
-    "chatgpt_codex_2026_07_10_visual_alignment",
+    "chatgpt_codex_2026_07_11_visual_alignment",
     "codex_floating_environment_details",
     "lightweight_workspace_session_rail",
     "collapsible_contextual_tabs",
@@ -40,6 +40,14 @@
     "typed_runtime_readback_surface",
     "typed_action_receipt_surface",
     "typed_event_surface",
+    "typed_cross_top_level_thread_host_bridge",
+    "client_executed_dynamic_tools_coordination_bridge",
+    "local_cross_thread_p0_p1",
+    "thread_list_read_resume_fork_archive_unarchive",
+    "turn_start_steer_with_host_queue",
+    "cross_thread_safety_gates",
+    "bilateral_coordination_receipts",
+    "desktop_webui_coordination_parity",
     "settings_persistence",
     "execute_confirmation",
     "artifact_preview_mvp",
@@ -67,13 +75,15 @@
   "functional_mvp": {
     "codex_app_server_thread_turn": true,
     "codex_command": "codex app-server --stdio",
-    "codex_protocol": "JSON-RPC newline transport with initialize, model/list, thread/start, turn/start, item/agentMessage/delta, turn/completed, thread/resume",
+    "codex_protocol": "JSON-RPC newline transport with initialize, model/list, paginated thread/list, thread/read, thread/resume, thread/fork, thread/archive, thread/unarchive, turn/start, turn/steer, thread/status/changed, client-executed dynamicTools item/tool/call, item/agentMessage/delta, and turn/completed",
     "codex_model_reasoning_controls": "The build dynamically injects the App product profile default, complete ordered visible-model allowlist, labels, and reasoning options; runtime model/list follows cursors through the terminal page, filters unadvertised fixed alternatives, and keeps unavailable fixed selections blocked but cannot veto the App default route, Auto resolves the injected default model and default reasoning effort as one policy, manual reasoning pins the resolved model and exits Auto, and turn/start receives model and effort overrides",
     "opl_state_bridge": "opl app state --profile fast --json",
     "opl_action_bridge": "opl app action execute --action <action_id> --dry-run --json",
     "native_bridge": "WKScriptMessageHandler window.webkit.messageHandlers.oplNativeWorkbench",
     "default_sandbox": "read-only",
-    "conversation_persistence": "codex_app_server_thread_id_resume_capable",
+    "conversation_persistence": "codex_app_server_thread_history_authority_with_local_ui_metadata_and_drafts_only",
+    "local_cross_thread_coordination": "typed Desktop and WebUI host adapters with fresh source/target scope and write-set checks, host-generated preview and coordination IDs, explicit confirmation or host preauthorization, bounded nonurgent queue, typed failures, lifecycle proposals, and bilateral result receipts",
+    "dynamic_tools_policy": "client-executed runtime-probed tools reuse the typed host gate; models cannot supply permission decisions, target write sets, confirmation fields, or coordination IDs",
     "settings_persistence": "localStorage model with SETTINGS_STORAGE_KEY, settingsDefaults, readSettings, writeSettings, readRuntimeProfile, and no system write permission",
     "execute_confirmation": "dry_run_first_then_explicit_confirm_before_execute",
     "typed_runtime_readback_surface": "normalized readState/readFullDrilldown envelopes with runtime profile, app_state/drilldown payload, and command readback metadata",
@@ -114,14 +124,16 @@
       "Settings as a first-class route with a localStorage persistence model for model/account access, locale, runtime connection, project, and candidate-about controls",
       "Execute confirmation, rich artifact previews, and professional starters are represented as candidate MVP source markers",
       "Agent Package lifecycle display consumes App/root package refs and action refs without adding a package executor",
-      "Source-level candidate validators for the implemented markers and false-ready boundary, plus a focused arbitrary-model-id regression for App profile drift"
+      "Source-level candidate validators for the implemented markers and false-ready boundary, plus a focused arbitrary-model-id regression for App profile drift",
+      "Local P0+P1 cross-top-level coordination uses App Server thread truth, one typed Desktop/WebUI host contract, paginated discovery, lifecycle actions, start/steer/queue routing, safety gates, model proposals, and bilateral result receipts"
     ],
     "partial": [
       "Packaged GUI artifact exists as candidate evidence, but packaged visual acceptance and clean-VM behavior are not proven here",
       "WebUI parity is source/smoke evidence only until same-cohort live user-path evidence exists",
       "Settings persistence is localStorage-only candidate evidence and does not request system write permission",
       "Package lifecycle fallback may render legacy modules.items rows only as preview/unavailable when canonical agent_packages projection is absent",
-      "Artifact preview, provenance, starter, confirmation, and export surfaces are refs-only candidate UI, not artifact or owner authority"
+      "Artifact preview, provenance, starter, confirmation, and export surfaces are refs-only candidate UI, not artifact or owner authority",
+      "Remote cross-machine P2 remains deferred; local fixtures, live probes, and packaged candidate evidence cannot claim remote readiness"
     ],
     "local_candidate_live_smoke": {
       "command": "npm run smoke:native-live",
@@ -144,6 +156,7 @@
       "domain_ready",
       "clean_vm_ready",
       "full_release_ready",
+      "remote_ready",
       "live_evidence",
       "owner_receipt",
       "package_truth_owned",
@@ -251,6 +264,36 @@
         "file": "src/workbench/workbenchModel.ts",
         "contains": ["settings_control_center", "task_drilldowns", "current_owner_delta_next_action", "action_receipt", "artifact_or_blocker", "review_receipt"]
       }
+    ],
+    "cross_top_level_thread_coordination": [
+      {
+        "file": "src/coordination/foundation.ts",
+        "contains": ["COORDINATION_DYNAMIC_TOOLS", "send_message_to_thread", "writeSetsOverlap", "selectDispatchKind"]
+      },
+      {
+        "file": "scripts/native-workbench-app.swift",
+        "contains": ["thread/list", "thread/read", "turn/steer", "host_queue", "coordination/lifecycle-proposal", "resultSummaryOrRef"]
+      },
+      {
+        "file": "scripts/webui-host/coordination-host.mjs",
+        "contains": ["threadStoreOwner", "host_owned_bounded_jsonl", "coordination/lifecycle-proposal", "queue_expired"]
+      },
+      {
+        "file": "src/workbench/App.tsx",
+        "contains": ["coordination/lifecycle-proposal", "waitCoordination", "ThreadRail", "CoordinationDialog"]
+      },
+      {
+        "file": "src/workbench/coordination/ThreadRail.tsx",
+        "contains": ["opl-real-thread-directory", "opl-thread-scope-filter", "opl-thread-detail-trigger"]
+      },
+      {
+        "file": "src/workbench/coordination/CoordinationDialog.tsx",
+        "contains": ["opl-coordination-dispatch-dialog", "opl-coordination-dispatch", "CoordinationEvents"]
+      },
+      {
+        "file": "src/workbench/coordination/CoordinationEvents.tsx",
+        "contains": ["opl-coordination-events", "proposal", "confirmation", "queued", "conflict", "result"]
+      }
     ]
   },
   "starter_action_ref_policy": {
@@ -284,9 +327,9 @@
     "workspace_rail_default_open": true,
     "inspector_default_open": false,
     "environment_details_default_open": false,
-    "codex_2026_07_10_alignment": {
+    "codex_2026_07_11_alignment": {
       "reference_product": "ChatGPT Codex macOS",
-      "reference_version": "26.707.31123",
+      "reference_version": "26.707.41301",
       "project_rail": "persistent",
       "timeline": "single_conversation_timeline",
       "model_controls": "composer_bottom_row",
@@ -305,8 +348,8 @@
     },
     "primary_visual_reference": {
       "reference_product": "ChatGPT Codex macOS",
-      "reference_version": "26.707.31123",
-      "reference_date": "2026-07-10",
+      "reference_version": "26.707.41301",
+      "reference_date": "2026-07-11",
       "source_usage": "visual_and_interaction_reference_only_no_code_or_brand_copy",
       "left_side": "persistent project and conversation rail",
       "center": "single dominant conversation timeline with bottom composer",
@@ -327,7 +370,10 @@
     "web_transport": "src/bridge/webTransport.ts",
     "gateway": "scripts/dev-webui-server.mjs",
     "shared_surface": true,
-    "events": "GET /api/opl-events uses SSE for Codex app-server events"
+    "events": "GET /api/opl-events and /api/coordination/events use SSE for Codex App Server and typed host events",
+    "coordination_host": "scripts/webui-host/http-host.mjs over local loopback HTTP/SSE and codex app-server stdio",
+    "thread_store_owner": "codex_core_app_server",
+    "coordination_ledger": "bounded host-owned queue and receipt metadata only; no thread history"
   },
   "reuse_policy": {
     "kdense_source_usage": "experience_reference_only",
@@ -361,6 +407,7 @@
     "domain_ready": false,
     "clean_vm_ready": false,
     "full_release_ready": false,
+    "remote_ready": false,
     "live_evidence": false,
     "owner_receipt": false,
     "package_truth_owned": false,
@@ -379,6 +426,7 @@
       "domain_ready",
       "clean_vm_ready",
       "full_release_ready",
+      "remote_ready",
       "live_evidence",
       "owner_receipt",
       "package_truth_owned",

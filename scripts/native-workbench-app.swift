@@ -330,6 +330,14 @@ final class CodexAppServerClient {
     return threadStatuses[threadId]
   }
 
+  func resultSummary(turnId: String) -> String? {
+    lock.lock()
+    defer { lock.unlock() }
+    guard let turn = pendingTurns[turnId] else { return nil }
+    let value = turn.completedText ?? turn.text
+    return value.isEmpty ? nil : value
+  }
+
   private func ensureInitialized() throws {
     if initialized, process?.isRunning == true { return }
     initialized = false
@@ -807,6 +815,7 @@ final class CoordinationLedger {
 
 final class ThreadCoordinationHost {
   private static let dedupeWindow: TimeInterval = 24 * 60 * 60
+  private static let queueWindow: TimeInterval = 30 * 60
   private static let maxHops = 8
   private let appServer: CodexAppServerClient
   private let workspaceRoot: URL
@@ -818,6 +827,7 @@ final class ThreadCoordinationHost {
   private var queued: [[String: Any]] = []
   private var coordinationByTurn: [String: String] = [:]
   private var archivedThreadIds = Set<String>()
+  var onEvent: (([String: Any]) -> Void)?
 
   init(appServer: CodexAppServerClient, workspaceRoot: URL) {
     self.appServer = appServer
@@ -893,6 +903,22 @@ final class ThreadCoordinationHost {
       value = try waitCoordination(wait)
     default: throw BridgeError.invalidPayload("unsupported dynamic coordination tool \(tool)")
     }
+    if tool == "send_message_to_thread" {
+      onEvent?([
+        "method": "coordination/prepared",
+        "threadId": sourceThreadId,
+        "coordinationId": value["coordinationId"] ?? value["previewToken"] ?? "",
+        "state": value["state"] ?? "confirmation_required",
+        "raw": value
+      ])
+    } else if ["fork_thread", "archive_thread", "unarchive_thread"].contains(tool) {
+      onEvent?([
+        "method": "coordination/lifecycle-proposal",
+        "threadId": sourceThreadId,
+        "state": value["state"] ?? "confirmation_required",
+        "raw": value
+      ])
+    }
     return [
       "contentItems": [["type": "inputText", "text": jsonString(value)]],
       "success": true
@@ -913,9 +939,11 @@ final class ThreadCoordinationHost {
     }
     let status = turn["status"] as? String == "completed" ? "completed" : "failed"
     result["state"] = status
+    result["resultSummaryOrRef"] = appServer.resultSummary(turnId: turnId) ?? "thread:\(threadId)/turn:\(turnId)"
+    result["completedAt"] = isoNow()
     result["updatedAt"] = isoNow()
-    results[coordinationId] = result
     lock.unlock()
+    storeResult(coordinationId, result)
     appendLedger(event: "terminal", coordinationId: coordinationId, state: status, targetThreadId: threadId, turnId: turnId)
   }
 
@@ -988,7 +1016,10 @@ final class ThreadCoordinationHost {
     do { target = try readThread(["threadId": targetId, "includeTurns": true]) }
     catch { return rejectedPreparation(payload, coordinationId, "offline", String(describing: error), now) }
     let targetWriteSet = target["writeSet"] as? [String] ?? []
-    let permission = "confirmation_required"
+    let plannedDispatch = dispatchKind(target: target, priority: payload["priority"] as? String ?? "normal")
+    let permission = payload["sender"] as? String == "user" && plannedDispatch != "steered"
+      ? "preauthorized"
+      : "confirmation_required"
     if sourceId == targetId { return rejectedPreparation(payload, coordinationId, "loop_rejected", "source and target must differ", now) }
     if sourceHost != hostId || targetHost != hostId {
       return rejectedPreparation(payload, coordinationId, "scope_mismatch", "local host scope mismatch", now)
@@ -1044,11 +1075,11 @@ final class ThreadCoordinationHost {
     lock.lock()
     preparations[previewToken] = stored
     lock.unlock()
-    appendReceipt(stored, event: "created", state: "confirmation_required", protocolMethod: "preview")
+    appendReceipt(stored, event: "created", state: permission == "preauthorized" ? "prepared" : "confirmation_required", protocolMethod: "preview")
     return [
-      "state": "confirmation_required", "coordinationId": coordinationId, "previewToken": previewToken,
+      "state": permission == "preauthorized" ? "prepared" : "confirmation_required", "coordinationId": coordinationId, "previewToken": previewToken,
       "request": payload, "target": target, "targetWriteSet": targetWriteSet,
-      "plannedDispatch": dispatchKind(target: target, priority: payload["priority"] as? String ?? "normal"),
+      "plannedDispatch": plannedDispatch,
       "permissionDecision": permission, "preparedAt": now
     ]
   }
@@ -1058,7 +1089,8 @@ final class ThreadCoordinationHost {
     lock.lock()
     guard let prepared = preparations[token] else { lock.unlock(); return dispatchFailure(token, "protocol_incompatible", "unknown preview token") }
     lock.unlock()
-    guard payload["confirmed"] as? Bool == true || stringValue(payload["confirmationId"]) != nil else {
+    let preauthorized = prepared["permissionDecision"] as? String == "preauthorized"
+    guard preauthorized || payload["confirmed"] as? Bool == true || stringValue(payload["confirmationId"]) != nil else {
       return dispatchFailure(prepared["coordinationId"] as? String ?? token, "permission_denied", "user confirmation or persisted preauthorization required")
     }
     let targetId = prepared["targetThreadId"] as? String ?? ""
@@ -1069,7 +1101,9 @@ final class ThreadCoordinationHost {
     if writeSetsOverlap(prepared["expectedWriteSet"] as? [String] ?? [], refreshed["writeSet"] as? [String] ?? []) {
       return dispatchFailure(prepared["coordinationId"] as? String ?? token, "write_set_conflict", "fresh target write set conflicts")
     }
-    return try route(prepared, refreshed: refreshed)
+    var authorized = prepared
+    if !preauthorized { authorized["permissionDecision"] = "confirmed" }
+    return try route(authorized, refreshed: refreshed)
   }
 
   private func route(_ prepared: [String: Any], refreshed: [String: Any]) throws -> [String: Any] {
@@ -1083,6 +1117,7 @@ final class ThreadCoordinationHost {
     if state == "running" && priority != "urgent" {
       var queuedItem = prepared
       queuedItem["state"] = "queued"
+      queuedItem["queueExpiresAt"] = ISO8601DateFormatter().string(from: Date().addingTimeInterval(Self.queueWindow))
       lock.lock(); queued.append(queuedItem); lock.unlock()
       let result: [String: Any] = ["coordinationId": coordinationId, "state": "queued", "targetThreadId": targetId, "protocolMethod": "host_queue", "dispatchedAt": now, "updatedAt": now]
       storeResult(coordinationId, result)
@@ -1140,6 +1175,21 @@ final class ThreadCoordinationHost {
     guard let index = queued.firstIndex(where: { $0["targetThreadId"] as? String == threadId }) else { lock.unlock(); return }
     let item = queued.remove(at: index)
     lock.unlock()
+    if let expiresAt = item["queueExpiresAt"] as? String,
+       let expiration = ISO8601DateFormatter().date(from: expiresAt),
+       expiration <= Date() {
+      let coordinationId = item["coordinationId"] as? String ?? ""
+      let now = isoNow()
+      storeResult(coordinationId, [
+        "coordinationId": coordinationId,
+        "state": "cancelled",
+        "targetThreadId": threadId,
+        "resultSummaryOrRef": "queue_expired",
+        "completedAt": now,
+        "updatedAt": now
+      ])
+      return
+    }
     do {
       let refreshed = try readThread(["threadId": threadId, "includeTurns": true])
       _ = try route(item, refreshed: refreshed)
@@ -1166,6 +1216,7 @@ final class ThreadCoordinationHost {
     projected["state"] = state
     projected["summary"] = thread["preview"] as? String ?? ""
     projected["workspace"] = cwd
+    projected["currentWorkspace"] = cwd == workspaceRoot.path
     projected["owner"] = thread["agentRole"] as? String ?? "user"
     projected["goal"] = extra["goal"] as? String ?? ""
     projected["archived"] = archived
@@ -1231,7 +1282,16 @@ final class ThreadCoordinationHost {
     return archived
   }
 
-  private func storeResult(_ id: String, _ result: [String: Any]) { lock.lock(); results[id] = result; lock.unlock() }
+  private func storeResult(_ id: String, _ result: [String: Any]) {
+    lock.lock(); results[id] = result; lock.unlock()
+    onEvent?([
+      "method": "coordination/receipt",
+      "threadId": result["targetThreadId"] ?? "",
+      "coordinationId": result["coordinationId"] ?? id,
+      "state": result["state"] ?? "",
+      "raw": result
+    ])
+  }
 
   private func latestCoordinationId(threadId: String) -> String? {
     lock.lock(); defer { lock.unlock() }
@@ -1283,6 +1343,9 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
       guard let self else { throw BridgeError.invalidPayload("coordination host unavailable") }
       return try self.coordinationHost.handleDynamicTool(params)
     }
+    self.coordinationHost.onEvent = { [weak self] event in
+      self?.emit(event: event)
+    }
   }
 
   func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -1306,7 +1369,7 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
     switch method {
     case "readState":
       let profile = (payload["profile"] as? String) == "full" ? "full" : "fast"
-      return commandPayload(command: ["opl", "app", "state", "--profile", profile, "--json"], input: nil, timeout: 30)
+      return stateCommandPayload(profile: profile)
     case "readFullDrilldown":
       return commandPayload(command: ["opl", "runtime", "app-operator-drilldown", "--detail", "full", "--json"], input: nil, timeout: 45)
     case "executeAction":
@@ -1381,6 +1444,32 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
       "stdout": result.stdout,
       "stderr": result.stderr,
       "timedOut": result.timedOut
+    ]
+  }
+
+  private func stateCommandPayload(profile: String) -> [String: Any] {
+    let command = ["opl", "app", "state", "--profile", profile, "--json"]
+    let result = runCommand(command, input: nil, cwd: workspaceRoot, timeout: 30)
+    let parsed: Any
+    if let data = result.stdout.data(using: .utf8),
+       let value = try? JSONSerialization.jsonObject(with: data) {
+      parsed = value
+    } else {
+      parsed = [:]
+    }
+    return [
+      "profile": profile,
+      "app_state": parsed,
+      "readback": [
+        "command": command.joined(separator: " "),
+        "commandArgs": command,
+        "exitCode": result.exitCode,
+        "stdout": "",
+        "stdoutBytes": result.stdout.utf8.count,
+        "stdoutOmittedFromGuiProjection": true,
+        "stderr": result.stderr,
+        "timedOut": result.timedOut
+      ]
     ]
   }
 
@@ -1462,7 +1551,9 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
 
   private func emit(event: [String: Any]) {
     let js = "window.__oplNativeWorkbenchEvent(\(jsonString(event)));"
-    self.webView?.evaluateJavaScript(js)
+    DispatchQueue.main.async {
+      self.webView?.evaluateJavaScript(js)
+    }
   }
 }
 

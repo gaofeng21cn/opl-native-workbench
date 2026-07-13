@@ -79,6 +79,7 @@ import {
 import { CoordinationDialog, type CoordinationDraftFields } from "./coordination/CoordinationDialog";
 import { ThreadDetailPopover } from "./coordination/ThreadDetailPopover";
 import { ThreadLifecycleConfirmationDialog } from "./coordination/ThreadLifecycleConfirmationDialog";
+import type { ThreadLifecycleAction } from "./coordination/ThreadLifecycleConfirmationDialog";
 import { ThreadRail } from "./coordination/ThreadRail";
 
 const contextTabs = [
@@ -582,7 +583,7 @@ export function App() {
   const [threadDetail, setThreadDetail] = useState<WorkbenchThreadItem | null>(null);
   const [threadActionBusy, setThreadActionBusy] = useState(false);
   const [threadActionError, setThreadActionError] = useState("");
-  const [lifecycleConfirmation, setLifecycleConfirmation] = useState<{ thread: WorkbenchThreadItem; archived: boolean } | null>(null);
+  const [lifecycleConfirmation, setLifecycleConfirmation] = useState<{ thread: WorkbenchThreadItem; action: ThreadLifecycleAction } | null>(null);
   const [coordinationOpen, setCoordinationOpen] = useState(false);
   const [coordinationSourceThreadId, setCoordinationSourceThreadId] = useState<string | undefined>(persistedUi.metadata.selectedThreadId);
   const [coordinationPreparation, setCoordinationPreparation] = useState<CoordinationPreparation | null>(null);
@@ -726,13 +727,15 @@ export function App() {
     setSendState("idle");
     setSendError("");
     try {
-      await coordinationBridge.resumeThread({ threadId: thread.id });
+      const resumed = thread.status === "unloaded";
+      if (resumed) await coordinationBridge.resumeThread({ threadId: thread.id });
       const readback = await coordinationBridge.readThread({ threadId: thread.id, includeTurns: true });
       const nextMessages = deriveThreadMessages(readback);
       setMessages(nextMessages);
       messagesRef.current = nextMessages;
       setActiveView("chat");
       setThreadDetail(null);
+      if (resumed) await loadThreadDirectory(false);
       if (globalThis.matchMedia?.("(max-width: 760px)").matches) setSidebarOpen(false);
     } catch (error) {
       setThreadActionError(String(error));
@@ -741,7 +744,7 @@ export function App() {
     }
   }
 
-  async function loadThreadDirectory(openSavedThread = false) {
+  async function loadThreadDirectory(openSavedThread = false, scope = uiMetadata.threadScope) {
     if (typeof coordinationBridge.listThreads !== "function") {
       setThreadDirectoryStatus("error");
       setThreadDirectoryError("ThreadCoordinationBridge.listThreads is unavailable.");
@@ -750,24 +753,29 @@ export function App() {
     setThreadDirectoryStatus("loading");
     setThreadDirectoryError("");
     try {
-      const [active, archived] = await Promise.all([
-        coordinationBridge.listThreads({ archived: false, limit: 100 }),
-        coordinationBridge.listThreads({ archived: true, limit: 100 })
-      ]);
-      const activeProjects = deriveThreadDirectory(active);
-      const archivedProjects = deriveThreadDirectory(archived);
-      setThreadProjects(activeProjects);
-      setArchivedThreadProjects(archivedProjects);
+      const active = scope === "archived"
+        ? null
+        : await coordinationBridge.listThreads({ archived: false, limit: 100 });
+      const archived = scope === "archived"
+        ? await coordinationBridge.listThreads({ archived: true, limit: 100 })
+        : null;
+      const activeProjects = active ? deriveThreadDirectory(active) : threadProjects;
+      const archivedProjects = archived ? deriveThreadDirectory(archived) : archivedThreadProjects;
+      if (active) setThreadProjects(activeProjects);
+      if (archived) setArchivedThreadProjects(archivedProjects);
       const selectedThreadId = uiMetadata.selectedThreadId;
-      const directoryProjects = uiMetadata.threadScope === "archived" ? archivedProjects : activeProjects;
+      const directoryProjects = scope === "archived" ? archivedProjects : activeProjects;
       const selectedThreadProject = directoryProjects.find((project) => project.threads.some((thread) => thread.id === selectedThreadId));
-      const selectedProject = directoryProjects.find((project) => project.id === uiMetadata.selectedProjectId)
-        ?? selectedThreadProject
-        ?? directoryProjects.find((project) => !project.projectless)
-        ?? directoryProjects[0];
+      const currentWorkspaceProject = directoryProjects.find((project) => project.threads.some((thread) => thread.currentWorkspace));
+      const persistedProject = directoryProjects.find((project) => project.id === uiMetadata.selectedProjectId);
+      const selectedProject = scope === "current"
+        ? currentWorkspaceProject ?? selectedThreadProject ?? persistedProject ?? directoryProjects[0]
+        : persistedProject ?? selectedThreadProject ?? currentWorkspaceProject
+          ?? directoryProjects.find((project) => !project.projectless)
+          ?? directoryProjects[0];
       if (selectedProject && selectedProject.id !== uiMetadata.selectedProjectId) updateUiMetadata({ selectedProjectId: selectedProject.id });
       setThreadDirectoryStatus("ready");
-      if (openSavedThread && selectedThreadId) {
+      if (openSavedThread && scope !== "archived" && selectedThreadId) {
         const savedThread = activeProjects.flatMap((project) => project.threads).find((thread) => thread.id === selectedThreadId);
         if (savedThread) await openThread(savedThread);
       }
@@ -822,8 +830,29 @@ export function App() {
   useEffect(() => {
     if (typeof coordinationBridge.subscribeThreadEvents !== "function") return;
     return coordinationBridge.subscribeThreadEvents((event: ThreadCoordinationEvent) => {
-      const nextEvents = deriveCoordinationEvents([event.raw ?? event]);
-      if (nextEvents.length) setCoordinationEvents((current) => [...nextEvents, ...current].slice(0, 24));
+      if (!event.method.startsWith("coordination/")) return;
+      const nextEvents = deriveCoordinationEvents([event]);
+      if (nextEvents.length) setCoordinationEvents((current) => {
+        const seen = new Set<string>();
+        return [...nextEvents, ...current].filter((item) => !seen.has(item.id) && Boolean(seen.add(item.id))).slice(0, 24);
+      });
+      if (event.method === "coordination/lifecycle-proposal") {
+        const proposal = event.raw as { tool?: unknown; request?: { threadId?: unknown } } | null;
+        const threadId = typeof proposal?.request?.threadId === "string" ? proposal.request.threadId : "";
+        const action: ThreadLifecycleAction | null = proposal?.tool === "fork_thread"
+          ? "fork"
+          : proposal?.tool === "archive_thread"
+            ? "archive"
+            : proposal?.tool === "unarchive_thread"
+              ? "unarchive"
+              : null;
+        const thread = allThreads.find((item) => item.id === threadId);
+        if (action && thread) {
+          setLifecycleConfirmation({ thread, action });
+          setThreadActionError("");
+        }
+        return;
+      }
       const preparation = preparationFromThreadEvent(event);
       if (!preparation || preparation.request.sender !== "model") return;
       setCoordinationPreparation(preparation);
@@ -847,7 +876,7 @@ export function App() {
       setCoordinationSteerConfirmed(false);
       setCoordinationOpen(true);
     });
-  }, [coordinationBridge]);
+  }, [coordinationBridge, allThreads]);
 
   function runDryRun(actionId: string, payload: Record<string, unknown> = {}) {
     setPendingAction({ actionId, payload });
@@ -1024,15 +1053,22 @@ export function App() {
     setThreadActionBusy(true);
     setThreadActionError("");
     try {
-      await coordinationBridge.setArchived({
-        threadId: lifecycleConfirmation.thread.id,
-        archived: lifecycleConfirmation.archived,
-        confirmed: true,
-        confirmationId: `native-workbench:${Date.now()}`
-      });
+      if (lifecycleConfirmation.action === "fork") {
+        await coordinationBridge.forkThread({
+          threadId: lifecycleConfirmation.thread.id,
+          throughTurnId: lifecycleConfirmation.thread.activeTurnId
+        });
+      } else {
+        await coordinationBridge.setArchived({
+          threadId: lifecycleConfirmation.thread.id,
+          archived: lifecycleConfirmation.action === "archive",
+          confirmed: true,
+          confirmationId: `native-workbench:${Date.now()}`
+        });
+      }
       setLifecycleConfirmation(null);
       setThreadDetail(null);
-      if (lifecycleConfirmation.thread.id === codexThreadId && lifecycleConfirmation.archived) startNewChat();
+      if (lifecycleConfirmation.thread.id === codexThreadId && lifecycleConfirmation.action === "archive") startNewChat();
       await loadThreadDirectory(false);
     } catch (error) {
       setThreadActionError(String(error));
@@ -1279,14 +1315,20 @@ export function App() {
                   scope={uiMetadata.threadScope}
                   loading={threadDirectoryStatus === "loading"}
                   error={threadDirectoryStatus === "error" ? threadDirectoryError : undefined}
-                  onScopeChange={(threadScope) => updateUiMetadata({
-                    threadScope,
-                    selectedProjectId: threadScope === "archived"
-                      ? archivedThreadProjects[0]?.id
-                      : threadProjects.some((project) => project.id === uiMetadata.selectedProjectId)
-                        ? uiMetadata.selectedProjectId
-                        : threadProjects[0]?.id
-                  })}
+                  onScopeChange={(threadScope) => {
+                    updateUiMetadata({
+                      threadScope,
+                      selectedProjectId: threadScope === "archived"
+                        ? archivedThreadProjects[0]?.id
+                        : threadProjects.some((project) => project.id === uiMetadata.selectedProjectId)
+                          ? uiMetadata.selectedProjectId
+                          : threadProjects.find((project) => project.threads.some((thread) => thread.currentWorkspace))?.id
+                            ?? threadProjects[0]?.id
+                    });
+                    if (threadScope === "archived" && !archivedThreadProjects.length) {
+                      void loadThreadDirectory(false, "archived");
+                    }
+                  }}
                   onSelectProject={(selectedProjectId) => updateUiMetadata({
                     selectedProjectId,
                     threadScope: uiMetadata.threadScope === "all" ? "current" : uiMetadata.threadScope
@@ -1464,13 +1506,22 @@ export function App() {
                   <article
                     key={message.id}
                     data-testid={message.role === "assistant" ? "opl-conversation-event" : undefined}
-                    className={`message ${message.role}`}
+                    className={`message ${message.role}${message.coordination ? " coordination" : ""}`}
                   >
                     {message.role === "user" ? <span className="message-label">{t.you}</span> : null}
                     {message.role === "assistant" ? <span className="message-label">{t.assistant}</span> : null}
-                    {message.role === "system" ? <span className="message-label">{t.runtime}</span> : null}
+                    {message.role === "system" ? <span className="message-label">{message.coordination ? (settings.locale === "zh" ? "跨对话协调" : "Coordination") : t.runtime}</span> : null}
                     <div className="message-frame">
-                      <p>{message.text || (sendState === "running" ? t.codexWorking : t.waitingReply)}</p>
+                      <p>{message.coordination
+                        ? [
+                            message.coordination.direction === "source"
+                              ? (settings.locale === "zh" ? "已发送" : "Sent")
+                              : (settings.locale === "zh" ? "已接收" : "Received"),
+                            message.coordination.summary,
+                            message.coordination.state,
+                            message.coordination.result
+                          ].filter(Boolean).join(" · ")
+                        : message.text || (sendState === "running" ? t.codexWorking : t.waitingReply)}</p>
                     </div>
                     {message.role === "assistant" && index === messages.length - 1 && sendState === "running" ? (
                       <div className="run-events" aria-label="Current run events">
@@ -1505,7 +1556,7 @@ export function App() {
                       {message.role === "user"
                         ? "Prompt"
                         : message.role === "system"
-                          ? "Action or runtime event"
+                          ? message.coordination ? "Coordination receipt" : "Action or runtime event"
                           : currentSession?.id
                             ? "Streaming via codex app-server"
                             : "Project context loaded"}
@@ -1539,7 +1590,7 @@ export function App() {
                         }}
                       >
                         <Plug aria-hidden="true" size={14} />
-                        {t.capabilities}
+                        <span className="composer-control-label">{t.capabilities}</span>
                       </button>
                       <button
                         data-testid="opl-composer-coordination-action"
@@ -1550,7 +1601,7 @@ export function App() {
                         onClick={() => openCoordinationDialog()}
                       >
                         <Network aria-hidden="true" size={14} />
-                        {settings.locale === "zh" ? "协调" : "Coordinate"}
+                        <span className="composer-control-label">{settings.locale === "zh" ? "协调" : "Coordinate"}</span>
                       </button>
                       <span className={`composer-status ${sendState === "error" || unavailableFixedModel ? "error" : sendState}`} data-testid="opl-composer-run-state" aria-live="polite">
                         {sendState === "running" ? t.working : sendState === "error" ? sendError : unavailableFixedModel ? t.modelSelectionUnavailable : ""}
@@ -1780,11 +1831,13 @@ export function App() {
               {model.actionReceipts.map((receipt) => <ActionReceiptSummary key={receipt.id} receipt={receipt} />)}
             </section>
 
-            <ConfirmationCard
-              card={model.confirmations[0]!}
-              question={model.questions[0]!}
-              onDryRun={runDryRun}
-            />
+            {model.confirmations[0] && model.questions[0] ? (
+              <ConfirmationCard
+                card={model.confirmations[0]}
+                question={model.questions[0]}
+                onDryRun={runDryRun}
+              />
+            ) : null}
           </section>
 
           <section data-testid="opl-starter-forms" className="context-block starter-forms" aria-label="Workflow starters" hidden={activeContextTab !== "opl-starter-forms"}>
@@ -2061,7 +2114,7 @@ export function App() {
         onResume={(thread) => void openThread(thread)}
         onFork={(thread) => void forkThread(thread)}
         onRequestArchive={(thread, archived) => {
-          setLifecycleConfirmation({ thread, archived });
+          setLifecycleConfirmation({ thread, action: archived ? "archive" : "unarchive" });
           setThreadActionError("");
           setThreadDetail(null);
         }}
@@ -2070,7 +2123,7 @@ export function App() {
 
       <ThreadLifecycleConfirmationDialog
         thread={lifecycleConfirmation?.thread ?? null}
-        archived={lifecycleConfirmation?.archived ?? false}
+        action={lifecycleConfirmation?.action ?? "archive"}
         locale={settings.locale}
         busy={threadActionBusy}
         error={threadActionError}

@@ -93,12 +93,20 @@ function waitForWindow(pid) {
   const startedAt = Date.now();
   const deadline = startedAt + 20_000;
   let evidence = windowEvidence(pid);
+  let coreGraphicsWindowId = evidence.status === "checked" ? null : windowIdForProcess(pid);
   while (Date.now() < deadline && evidence.window_count < 1) {
+    if (coreGraphicsWindowId) break;
     run("/bin/sleep", ["0.25"]);
     evidence = windowEvidence(pid);
+    if (evidence.status !== "checked") coreGraphicsWindowId = windowIdForProcess(pid);
   }
   return {
     ...evidence,
+    ...(coreGraphicsWindowId ? {
+      status: "checked_core_graphics_fallback",
+      window_count: 1,
+      window_id: coreGraphicsWindowId
+    } : {}),
     wait_ms: Date.now() - startedAt
   };
 }
@@ -261,7 +269,7 @@ if (processEvidence.processes.length === 0) {
 
 const launchedPid = processEvidence.processes[0].pid;
 const windows = waitForWindow(launchedPid);
-if (windows.status !== "checked" || windows.window_count < 1) {
+if (!windows.status.startsWith("checked") || windows.window_count < 1) {
   const cleanup_status = terminateNewProcesses(processEvidence.processes, beforePids);
   fail("packaged app process started without creating a visible window", {
     process_evidence: processEvidence,

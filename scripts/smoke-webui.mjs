@@ -29,6 +29,10 @@ assert(
 for (const value of ["window.oplNativeWorkbench", "/api/opl-events", "EventSource"]) {
   assert(webTransport.includes(value), `missing WebUI transport marker ${value}`);
 }
+assert(
+  webTransport.indexOf("Object.assign(surface, coordinationBridge())") < webTransport.indexOf("window.oplNativeWorkbench = surface"),
+  "typed coordination methods must be installed before the renderer's first directory read"
+);
 const webuiRendererTestIds = [
   ...evidence.page_state_matrix_mapping.runtime_testids,
   ...deliverySurfaceTestIds(evidence)

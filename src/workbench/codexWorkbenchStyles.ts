@@ -508,6 +508,15 @@ export const codexWorkbenchStyles = `
     color: var(--opl-danger);
   }
 
+  .message.system.coordination .message-label {
+    color: var(--opl-accent);
+  }
+
+  .message.system.coordination .message-frame {
+    border-left-color: var(--opl-accent);
+    color: var(--opl-text);
+  }
+
   .message-frame p {
     margin: 0;
     white-space: pre-wrap;
@@ -1374,7 +1383,7 @@ export const codexWorkbenchStyles = `
     padding: 5px 4px 5px 7px;
   }
 
-  .thread-directory-copy {
+  .history-list li .thread-directory-open .thread-directory-copy {
     min-width: 0;
     display: grid;
     gap: 1px;
@@ -1396,6 +1405,10 @@ export const codexWorkbenchStyles = `
   .thread-directory-open time {
     color: var(--opl-faint);
     font-size: 9.5px;
+  }
+
+  .history-list li .thread-directory-copy small {
+    margin-left: 0;
   }
 
   .thread-directory-open time {
@@ -1798,6 +1811,16 @@ export const codexWorkbenchStyles = `
 
     .composer-select select {
       max-width: 74px;
+    }
+
+    .composer-control {
+      width: 30px;
+      flex: 0 0 30px;
+      padding: 0;
+    }
+
+    .composer-control-label {
+      display: none;
     }
 
     .history-list li .thread-directory-detail {

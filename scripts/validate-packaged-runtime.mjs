@@ -139,7 +139,7 @@ assert(manifest.native_runtime === "AppKit/WKWebView", "native runtime must be A
 assert(manifest.opens_default_browser === false, "candidate app must not open the default browser");
 assert(manifest.app_bundle_workbench === "Contents/Resources/workbench.html", "manifest must point at workbench.html");
 assert(manifest.primary_visual_reference?.product === "ChatGPT Codex macOS", "manifest must record ChatGPT Codex as the primary visual reference");
-assert(manifest.primary_visual_reference?.version === "26.707.31123", "manifest must record the July 10 Codex reference version");
+assert(manifest.primary_visual_reference?.version === "26.707.41301", "manifest must record the current Codex reference version");
 assert(manifest.primary_visual_reference?.source_usage === "visual_and_interaction_reference_only_no_code_or_brand_copy", "manifest must keep Codex reference use visual-only");
 assert(manifest.default_home_layout?.project_rail_visible === true, "manifest must keep the project rail visible by default");
 assert(manifest.default_home_layout?.environment_details_default_open === false, "manifest must keep environment details closed by default");

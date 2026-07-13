@@ -23,7 +23,7 @@ The shell keeps App truth in the App repository:
   `contracts/app-shell-adapter.json` and release gates pass.
 
 The primary visual and interaction reference is ChatGPT Codex macOS
-26.707.31123, inspected on 2026-07-10. The candidate aligns to its persistent
+26.707.41301, inspected on 2026-07-11. The candidate aligns to its persistent
 project/conversation rail, dominant single conversation timeline, compact
 header, model and reasoning controls in the composer, and floating
 user-requested environment details. This is reference-only: no ChatGPT/Codex
@@ -59,10 +59,19 @@ thread/turn JSON-RPC flow (`initialize`, `thread/start`, `turn/start`,
 deltas, and thread resume use the Codex control plane instead of a shell-owned
 one-shot CLI wrapper.
 
-The current candidate also keeps a local chat-session ledger in `localStorage`.
-The left sidebar is no longer static mock data: it can reopen recent chats,
-reuse the saved `threadId`, and show the latest locally-persisted draft even
-before active-shell adoption.
+Codex App Server is the only thread and history store. The left rail uses
+paginated `thread/list`, `thread/read`, and `thread/resume`; `localStorage`
+contains only UI selection and unsent drafts. A one-way migration preserves an
+old candidate chat ledger as read-only backup and removes it from active use.
+
+Local cross-top-level coordination uses the typed host bridge rather than a
+renderer-owned thread database. It supports list/read/resume/fork/archive,
+idle `turn/start`, confirmed urgent `turn/steer`, a bounded nonurgent queue,
+typed failures, and bilateral result receipts. Client-executed `dynamicTools`
+reuse the same host gates; model lifecycle calls produce user-confirmed
+proposals and cannot supply permission decisions, write-set decisions, IDs, or
+confirmation fields. WebUI uses the same renderer and contract through a local
+Node HTTP/SSE host. Remote cross-machine coordination remains deferred.
 
 Settings is a first-class route in the candidate. Global controls such as
 language, model defaults, workspace, and runtime connection live there. The
@@ -130,7 +139,8 @@ Current evidence remains intentionally bounded:
 | Area | Status | Evidence | Boundary |
 | --- | --- | --- | --- |
 | Codex chat runtime | Implemented candidate evidence | App-server thread/turn markers for `initialize`, `thread/start`, `turn/start`, model/effort overrides, streaming deltas, `turn/completed`, and `thread/resume` | Does not replace the Codex control plane |
-| Chat history and session resume | Implemented candidate evidence | Local persisted session list, reusable `threadId`, and sidebar reopen path | Local candidate persistence only |
+| Chat history and session resume | Implemented candidate evidence | App Server paginated thread directory, opaque `threadId`, read/resume, and sidebar reopen path | Codex owns history and persistence; localStorage stores UI metadata and drafts only |
+| Local cross-thread coordination | Implemented candidate evidence | Typed Desktop/WebUI list/read/resume/fork/archive/unarchive, start/steer/queue, safety gates, model proposals, and result receipts | Local P0+P1 only; remote P2 and active-shell adoption remain false |
 | OPL state context | Implemented candidate evidence | `opl app state --profile fast --json`, explicit full state, and full runtime drilldown exception markers | Reads App/Framework truth only |
 | App action flow | Implemented candidate evidence | Dry-run action preview, visible receipt markers, and confirmation card markers | No execution without explicit confirmation |
 | Execute / rollback preview loop | Implemented candidate evidence | Explicit confirmed execute plus rollback-preview request path | Candidate receipt shell only; no owner receipt authority |
@@ -150,6 +160,7 @@ Current evidence remains intentionally bounded:
 ```bash
 npm ci
 npm run typecheck
+npm run test:coordination
 npm run validate:candidate
 npm run validate:state-model
 npm run smoke:webui

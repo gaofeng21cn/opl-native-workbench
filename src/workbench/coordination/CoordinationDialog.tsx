@@ -64,7 +64,15 @@ export function CoordinationDialog({
   const copy = locale === "zh"
     ? { title: "跨对话协调", source: "源对话", target: "目标对话", reason: "原因", intent: "意图", intents: { delegate: "委派", inform: "告知", review: "审阅", block: "阻塞", handoff: "移交" }, message: "消息", summary: "摘要", writeSet: "预期写集", steer: "确认引导目标对话的活动 Turn", select: "选择目标对话", selectIntent: "选择意图", prepare: "生成提案", review: "审阅并确认", dispatch: "确认并派发", close: "关闭", missingSource: "请先打开一个真实对话", missingTarget: "请选择另一个目标对话" }
     : { title: "Cross-thread coordination", source: "Source thread", target: "Target thread", reason: "Reason", intent: "Intent", intents: { delegate: "Delegate", inform: "Inform", review: "Review", block: "Block", handoff: "Handoff" }, message: "Message", summary: "Summary", writeSet: "Expected write set", steer: "Confirm steering the target thread's active turn", select: "Select a target thread", selectIntent: "Select intent", prepare: "Prepare proposal", review: "Review and confirm", dispatch: "Confirm and dispatch", close: "Close", missingSource: "Open a real thread first", missingTarget: "Select another target thread" };
-  const targets = threads.filter((thread) => thread.id !== sourceThread?.id && !thread.archived);
+  const sourceProjectKey = sourceThread?.projectKey ?? null;
+  const sourceProjectless = !sourceProjectKey || sourceProjectKey === "__projectless__";
+  const sourceHostId = sourceThread?.hostId ?? "local";
+  const targets = threads.filter((thread) => {
+    if (!sourceThread || thread.id === sourceThread.id || thread.archived || (thread.hostId ?? "local") !== sourceHostId) return false;
+    if (!sourceProjectless) return thread.projectKey === sourceProjectKey;
+    const targetProjectless = !thread.projectKey || thread.projectKey === "__projectless__";
+    return targetProjectless && Boolean(sourceThread.workspace) && thread.workspace === sourceThread.workspace;
+  });
   const canPrepare = Boolean(sourceThread && targetThreadId && draft.reason.trim() && draft.intent && draft.message.trim() && draft.summary.trim() && !busy);
   const effectivePhase = reviewConfirmation ? "confirmation" : operation?.phase;
   const activeSteer = operation?.plannedDispatch === "steered";

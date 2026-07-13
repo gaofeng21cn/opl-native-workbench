@@ -92,19 +92,32 @@ export async function createWebUiHost({
   } catch (error) {
     appServerError = { code: error.code ?? "app_server_unavailable", message: error.message };
   }
-  const eventClients = new Set();
-  const emit = (event) => {
+  const oplEventClients = new Set();
+  const coordinationEventClients = new Set();
+  const emitTo = (clients, event) => {
     const frame = `data: ${JSON.stringify(event)}\n\n`;
-    for (const client of eventClients) client.write(frame);
+    for (const client of clients) client.write(frame);
   };
-  coordination.on("event", emit);
-  transport.on("availability", (availability) => emit({ method: "host/availability", params: availability }));
-  transport.on("dynamicTools", (capability) => emit({ method: "host/dynamicTools", params: capability }));
+  coordination.on("event", (event) => {
+    emitTo(oplEventClients, event);
+    if (event.method?.startsWith("coordination/")) emitTo(coordinationEventClients, event);
+  });
+  transport.on("availability", (availability) => {
+    const event = { method: "host/availability", params: availability };
+    emitTo(oplEventClients, event);
+    emitTo(coordinationEventClients, event);
+  });
+  transport.on("dynamicTools", (capability) => {
+    const event = { method: "host/dynamicTools", params: capability };
+    emitTo(oplEventClients, event);
+    emitTo(coordinationEventClients, event);
+  });
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     try {
       if (req.method === "GET" && (url.pathname === "/api/opl-events" || url.pathname === "/api/coordination/events")) {
+        const clients = url.pathname === "/api/coordination/events" ? coordinationEventClients : oplEventClients;
         res.writeHead(200, {
           "content-type": "text/event-stream; charset=utf-8",
           "cache-control": "no-cache, no-transform",
@@ -112,11 +125,11 @@ export async function createWebUiHost({
           "x-accel-buffering": "no"
         });
         res.write(`data: ${JSON.stringify({ method: "host/ready", params: coordination.capabilities() })}\n\n`);
-        eventClients.add(res);
+        clients.add(res);
         const heartbeat = setInterval(() => res.write(": heartbeat\n\n"), 15_000);
         req.once("close", () => {
           clearInterval(heartbeat);
-          eventClients.delete(res);
+          clients.delete(res);
         });
         return;
       }
@@ -191,7 +204,7 @@ export async function createWebUiHost({
     transport,
     coordination,
     async close() {
-      for (const client of eventClients) client.end();
+      for (const client of [...oplEventClients, ...coordinationEventClients]) client.end();
       await new Promise((resolve) => server.close(resolve));
       await transport.stop();
     }

@@ -137,6 +137,7 @@ function projectThread(thread, scope = {}) {
     state: stateFromStatus(status),
     summary: thread?.name ?? thread?.preview ?? "",
     workspace: thread?.cwd ?? "",
+    currentWorkspace: Boolean(scope.currentWorkspace && thread?.cwd === scope.currentWorkspace),
     owner: thread?.owner ?? thread?.agentRole ?? thread?.agentNickname ?? "",
     goal: thread?.goal ?? thread?.name ?? thread?.preview ?? "",
     archived: Boolean(thread?.archived ?? scope.archived),
@@ -316,7 +317,7 @@ export class ThreadCoordinationHost extends EventEmitter {
       if (cursor) seenCursors.add(cursor);
     } while (cursor);
     const workspaceFilter = Array.isArray(request.workspace) ? request.workspace : request.workspace ? [request.workspace] : [];
-    const projected = data.map((thread) => projectThread(thread));
+    const projected = data.map((thread) => projectThread(thread, { currentWorkspace: this.transport.cwd }));
     return {
       data: projected.filter((thread) => (
         (request.projectKey === undefined || thread.projectKey === request.projectKey)
@@ -330,8 +331,26 @@ export class ThreadCoordinationHost extends EventEmitter {
 
   async readThread({ threadId, includeTurns = false, ...scope }) {
     await this.ready();
-    const response = await this.transport.readThread(requiredString(threadId, "threadId"), includeTurns);
-    return projectThread(response.thread, scope);
+    const id = requiredString(threadId, "threadId");
+    const response = await this.transport.readThread(id, includeTurns);
+    const coordinationEvents = [...this.receipts.values()]
+      .filter((receipt) => receipt.sourceThreadId === id || receipt.targetThreadId === id)
+      .sort((left, right) => String(left.updatedAt ?? left.createdAt).localeCompare(String(right.updatedAt ?? right.createdAt)))
+      .slice(-20)
+      .map((receipt) => ({
+        id: `coordination:${receipt.coordinationId}:${receipt.state}`,
+        type: "coordinationReceipt",
+        role: "system",
+        direction: receipt.sourceThreadId === id ? "source" : "target",
+        coordinationId: receipt.coordinationId,
+        sourceThreadId: receipt.sourceThreadId,
+        targetThreadId: receipt.targetThreadId,
+        state: receipt.state,
+        summary: receipt.messageSummary,
+        resultSummaryOrRef: receipt.resultSummaryOrRef,
+        occurredAt: receipt.completedAt ?? receipt.updatedAt ?? receipt.createdAt
+      }));
+    return { ...projectThread(response.thread, scope), coordinationEvents };
   }
 
   async resumeThread({ threadId }) {
@@ -608,12 +627,16 @@ export class ThreadCoordinationHost extends EventEmitter {
       }
       case "fork_thread": {
         ensureSameScope(await this.readThread({ threadId: args.threadId, includeTurns: false }));
-        return confirmationProposal(tool, args, "Fork requires user confirmation");
+        const proposal = confirmationProposal(tool, args, "Fork requires user confirmation");
+        this.#emit("coordination/lifecycle-proposal", { threadId, state: proposal.state, raw: proposal });
+        return proposal;
       }
       case "archive_thread":
       case "unarchive_thread": {
         ensureSameScope(await this.readThread({ threadId: args.threadId, includeTurns: false }));
-        return confirmationProposal(tool, args, `${tool} requires user confirmation`);
+        const proposal = confirmationProposal(tool, args, `${tool} requires user confirmation`);
+        this.#emit("coordination/lifecycle-proposal", { threadId, state: proposal.state, raw: proposal });
+        return proposal;
       }
       case "wait_thread": {
         const coordinationId = optionalString(args.coordinationId)

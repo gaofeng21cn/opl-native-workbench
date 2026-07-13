@@ -40,7 +40,12 @@ const requiredFiles = [
   "scripts/smoke-visual.mjs",
   "scripts/package-native-workbench.mjs",
   "scripts/resolve-app-repo-root.mjs",
-  "scripts/native-workbench-app.swift"
+  "scripts/native-workbench-app.swift",
+  "src/coordination/types.ts",
+  "src/coordination/foundation.ts",
+  "scripts/webui-host/coordination-host.mjs",
+  "scripts/webui-host/app-server-transport.mjs",
+  "tests/renderer/cross-thread-renderer-source.test.mjs"
 ];
 
 const requiredScripts = [
@@ -50,6 +55,8 @@ const requiredScripts = [
   "build:webui",
   "package",
   "test:model-list-pagination",
+  "test:coordination",
+  "test:webui-host",
   "validate:candidate",
   "validate:state-model",
   "validate:package",
@@ -74,7 +81,13 @@ const requiredTestIds = [
   "opl-memory-panel",
   "opl-always-on-panel",
   "opl-web-transport",
-  "opl-locale-toggle"
+  "opl-locale-toggle",
+  "opl-real-thread-directory",
+  "opl-thread-scope-filter",
+  "opl-thread-detail-popover",
+  "opl-thread-lifecycle-confirmation",
+  "opl-coordination-dispatch-dialog",
+  "opl-coordination-events"
 ];
 
 for (const file of requiredFiles) {
@@ -120,8 +133,8 @@ function assertCodexJuly2026Alignment(evidence, app, readme) {
   const normalizedReadme = readme.replace(/\s+/g, " ");
   assert(alignment, "missing ChatGPT Codex July 2026 alignment evidence");
   assert(alignment.reference_product === "ChatGPT Codex macOS", "Codex reference product must be recorded");
-  assert(alignment.reference_version === "26.707.31123", "Codex reference version must be recorded");
-  assert(alignment.reference_date === "2026-07-10", "Codex reference date must be recorded");
+  assert(alignment.reference_version === "26.707.41301", "Codex reference version must be recorded");
+  assert(alignment.reference_date === "2026-07-11", "Codex reference date must be recorded");
   assert(alignment.left_side === "persistent project and conversation rail", "Codex project rail placement must be recorded");
   assert(alignment.center === "single dominant conversation timeline with bottom composer", "Codex conversation placement must be recorded");
   assert(alignment.model_controls === "composer_bottom_row", "model controls must stay in the composer");
@@ -129,7 +142,7 @@ function assertCodexJuly2026Alignment(evidence, app, readme) {
   assert(evidence.default_home_layout?.workspace_rail_default_open === true, "project rail must be visible by default");
   assert(evidence.default_home_layout?.environment_details_default_open === false, "environment details must be closed by default");
   assert(evidence.webui_parity?.desktop_and_webui_default_home === "chat_first_default_collapsed", "desktop and WebUI must share the chat-first default-collapsed home");
-  assert(normalizedReadme.includes("ChatGPT Codex macOS") && normalizedReadme.includes("26.707.31123"), "README must record the Codex reference build");
+  assert(normalizedReadme.includes("ChatGPT Codex macOS") && normalizedReadme.includes("26.707.41301"), "README must record the Codex reference build");
   assert(normalizedReadme.includes("model and reasoning controls in the composer"), "README must record composer model control placement");
   assert(normalizedReadme.includes("The rail is visible by default"), "README must record the default-visible project rail");
   assert(normalizedReadme.includes("environment details are closed by default and open as a floating"), "README must record the default-closed floating environment details");
@@ -220,7 +233,7 @@ function assertCodexModelControls(evidence, app) {
   assert(rendererBuilder.includes("__OPL_CODEX_MODEL_POLICY__"), "renderer build must inject the App-owned model policy");
   assert(rendererBuilder.includes("resolveAppRepoRoot"), "renderer build must resolve the App repo through the shared helper");
   assert(appRepoResolver.includes('"contracts", "app-product-profile.json"'), "App repo resolver must require the App product profile");
-  const alignment = evidence.default_home_layout?.codex_2026_07_10_alignment ?? {};
+  const alignment = evidence.default_home_layout?.codex_2026_07_11_alignment ?? {};
   assert(!("default_model" in alignment) && !("default_reasoning_effort" in alignment), "candidate evidence must not copy App model defaults");
 
   assert(app.includes('effectiveSelection === "__auto" && reasoningLevel !== codexModelPolicy.defaultReasoningEffort') && app.includes("writeSettings({ modelAccess, reasoningLevel })"), "changing Auto reasoning must pin the resolved model before applying the override");
@@ -236,7 +249,7 @@ assertFunctionalMvpCloseout(evidence);
 assertSourceMarkerRequirements(evidence);
 assertCodexJuly2026Alignment(evidence, app, read("README.md"));
 assertCodexModelControls(evidence, app);
-assertRendererTestIds(app, requiredTestIds);
+assertRendererTestIds(rendererSource, requiredTestIds);
 assertRendererTestIds(rendererSource, deliverySurfaceTestIds(evidence));
 
 const bridge = read("src/bridge/oplBridge.ts");
@@ -260,7 +273,10 @@ for (const capability of [
   "opl_app_state_bridge",
   "opl_app_action_bridge",
   "default_context_collapsed_chat_first_home",
-  "chatgpt_codex_2026_07_10_visual_alignment",
+  "chatgpt_codex_2026_07_11_visual_alignment",
+  "typed_cross_top_level_thread_host_bridge",
+  "client_executed_dynamic_tools_coordination_bridge",
+  "desktop_webui_coordination_parity",
   "codex_floating_environment_details",
   "webui_renderer_parity",
   "candidate_app_bundle_package",

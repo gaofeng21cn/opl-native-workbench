@@ -42,6 +42,8 @@ test("ordinary fallback data and example content stay out of the renderer", () =
   for (const example of ["GlycoFold", "Project brief.md", "Data inventory.csv", "Result summary"]) {
     assert.doesNotMatch(`${app}\n${model}`, new RegExp(example.replace(".", "\\.")));
   }
+  assert.doesNotMatch(app, /model\.confirmations\[0\]!/);
+  assert.match(app, /model\.confirmations\[0\] && model\.questions\[0\]/);
 });
 
 test("local storage keeps only UI metadata and drafts after one-way legacy backup", () => {
@@ -59,16 +61,28 @@ test("rail, lifecycle, and dispatch states are explicit", () => {
   assert.match(detail, /onRequestArchive/);
   assert.doesNotMatch(detail, /onArchive/);
   assert.match(lifecycle, /opl-thread-lifecycle-confirmation/);
+  assert.match(lifecycle, /ThreadLifecycleAction/);
+  assert.match(app, /coordination\/lifecycle-proposal/);
+  assert.match(app, /action === "fork"/);
   assert.match(app, /confirmed: true/);
+  assert.match(app, /if \(resumed\) await loadThreadDirectory\(false\)/);
 
   for (const intent of ["delegate", "inform", "review", "block", "handoff"]) assert.match(dialog, new RegExp(`${intent}:`));
   for (const field of ["reason", "intent", "message", "summary", "expectedWriteSet"]) assert.match(dialog, new RegExp(`draft\\.${field}`));
+  assert.match(dialog, /targetProjectless && Boolean\(sourceThread\.workspace\) && thread\.workspace === sourceThread\.workspace/);
   assert.match(dialog, /coordination-steer-confirmation/);
   assert.match(dialog, /activeSteer && !steerConfirmed/);
   for (const phase of ["proposal", "confirmation", "queued", "conflict", "result"]) assert.match(events, new RegExp(`${phase}:`));
   assert.match(events, /source/);
   assert.match(events, /target/);
   assert.match(app, /preparation\.request\.sender !== "model"/);
+  assert.match(model, /coordinationItems\.map\(coordinationMessageFromRecord\)/);
+  assert.match(app, /Coordination receipt/);
+  assert.match(app, /message\.coordination \? " coordination"/);
+  assert.match(model, /queueText === null \? Number\.NaN/);
+  assert.match(model, /coordinationId, method, state, direction/);
+  assert.match(app, /if \(!event\.method\.startsWith\("coordination\/"\)\) return/);
+  assert.match(app, /const seen = new Set<string>\(\)/);
 });
 
 test("desktop remains two-column and mobile overlays are full-height", () => {
@@ -78,4 +92,7 @@ test("desktop remains two-column and mobile overlays are full-height", () => {
   assert.match(styles, /\.thread-detail-popover,\s*\.thread-confirmation-dialog,\s*\.coordination-dialog\s*\{\s*inset: 0;/s);
   assert.match(styles, /height: 100dvh/);
   assert.match(styles, /border-radius: 0/);
+  assert.match(styles, /\.history-list li \.thread-directory-open \.thread-directory-copy/);
+  assert.match(styles, /\.message\.system\.coordination \.message-frame/);
+  assert.match(styles, /\.composer-control-label \{\s*display: none;/s);
 });

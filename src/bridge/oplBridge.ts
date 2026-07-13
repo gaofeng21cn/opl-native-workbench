@@ -399,7 +399,7 @@ export function normalizeThreadCoordinationEvent(value: unknown): ThreadCoordina
     threadId: asString(record?.threadId) ?? asString(params?.threadId),
     coordinationId: asString(record?.coordinationId) ?? asString(params?.coordinationId),
     state: asString(record?.state) as ThreadCoordinationEvent["state"] | undefined,
-    raw: value
+    raw: record?.raw ?? params ?? value
   };
 }
 
@@ -774,15 +774,16 @@ export function normalizeStateReadback(value: unknown, profile = readRuntimeProf
   );
   const record = asRecord(value);
   const parsedState = parseJsonValue(commandReadback.stdout);
-  const rawState = asRecord(parsedState) ?? asRecord(record?.raw_state) ?? undefined;
-  const stateSource = rawState ?? record;
+  const stateSource = asRecord(parsedState)
+    ?? asRecord(record?.raw_state)
+    ?? asRecord(record?.app_state)
+    ?? record;
   return {
     profile: normalizedProfile,
     app_state: normalizeStateObject(stateSource, fallback),
     readback: record?.readback
       ? normalizeCommandReadback(record.readback, commandReadback.command, commandReadback.commandArgs)
       : commandReadback,
-    raw_state: rawState
   };
 }
 

@@ -16,7 +16,8 @@ for (const marker of [
   'method: "turn/start"', 'method: "turn/steer"', 'method == "thread/status/changed"',
   'method == "item/tool/call"', 'try self.send(frame: ["id": requestId, "result": result])',
   'state: "accepted_unverified"', 'state: "verified_available"', '"type": "function"',
-  '"previewToken"', '"confirmationId"', '"host_queue"'
+  '"previewToken"', '"confirmationId"', '"host_queue"', '"preauthorized"',
+  'coordination/lifecycle-proposal', 'resultSummaryOrRef', 'queueWindow'
 ]) assert(source.includes(marker), `missing protocol marker ${marker}`);
 assert.equal(source.includes("mcp_servers.opl_coordination"), false, "coordination must not spawn a parallel MCP bridge");
 

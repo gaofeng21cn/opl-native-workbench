@@ -72,6 +72,12 @@ test("prepare token gates idle dispatch and durable receipt/dedupe survive resta
   assert.equal(receipt.protocolMethod, "turn/start");
   const completed = await host.waitCoordination({ coordinationId: receipt.coordinationId, timeoutMs: 1_000 });
   assert.equal(completed.state, "completed");
+  assert.equal(completed.resultSummaryOrRef.startsWith("completed turn-created-"), true);
+  const sourceReadback = await host.readThread({ threadId: request.sourceThreadId, includeTurns: true });
+  const targetReadback = await host.readThread({ threadId: request.targetThreadId, includeTurns: true });
+  assert.equal(sourceReadback.coordinationEvents.at(-1).direction, "source");
+  assert.equal(targetReadback.coordinationEvents.at(-1).direction, "target");
+  assert.equal(sourceReadback.coordinationEvents.at(-1).resultSummaryOrRef, completed.resultSummaryOrRef);
 
   const restoredTransport = { on() {}, setToolDispatcher() {}, initialized: false, dynamicToolsStatus: "unprobed" };
   const restored = new ThreadCoordinationHost(restoredTransport, {
@@ -146,6 +152,8 @@ test("dynamic tools become available only after a real client-executed tool call
 
 test("model tools can only propose mutations and cannot spoof host-owned decisions", async (t) => {
   const { host } = await harness(t);
+  const events = [];
+  host.on("event", (event) => events.push(event));
   const tools = coordinationDynamicTools();
   const sendSchema = tools.find((tool) => tool.name === "send_message_to_thread").inputSchema;
   for (const forbidden of ["confirmed", "confirmationId", "permissionDecision", "targetWriteSet", "coordinationId"]) {
@@ -173,6 +181,7 @@ test("model tools can only propose mutations and cannot spoof host-owned decisio
   assert.equal(preview.permissionDecision, "confirmation_required");
   assert.equal(preview.request.sender, "model");
   assert.equal("confirmed" in preview.request, false);
+  assert.equal(events.some((event) => event.method === "coordination/prepared" && event.raw?.previewToken === preview.previewToken), true);
   const archive = await host.dispatchTool({
     threadId: "thread-source",
     namespace: null,
@@ -180,6 +189,7 @@ test("model tools can only propose mutations and cannot spoof host-owned decisio
     arguments: { threadId: "thread-idle", confirmed: true, confirmationId: "model-forged" }
   });
   assert.equal(archive.state, "confirmation_required");
+  assert.equal(events.some((event) => event.method === "coordination/lifecycle-proposal" && event.raw?.tool === "archive_thread"), true);
 });
 
 test("projectless coordination is allowed only within the exact workspace", async (t) => {
