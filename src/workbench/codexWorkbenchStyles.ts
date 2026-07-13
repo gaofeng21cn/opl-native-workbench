@@ -1302,6 +1302,442 @@ export const codexWorkbenchStyles = `
     font-size: 10px;
   }
 
+  .project-directory {
+    min-width: 0;
+    display: grid;
+    gap: 3px;
+  }
+
+  .thread-scope-filter {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2px;
+    margin: 0 0 7px;
+    padding: 2px;
+    border: 1px solid var(--opl-border);
+    border-radius: 7px;
+    background: #f1f1ef;
+  }
+
+  .thread-scope-filter button {
+    min-width: 0;
+    min-height: 25px;
+    padding: 0 5px;
+    overflow: hidden;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--opl-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10.5px;
+  }
+
+  .thread-scope-filter button[data-active="true"] {
+    background: #fff;
+    color: var(--opl-text);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  .project-directory-group {
+    min-width: 0;
+  }
+
+  .project-directory-group[data-projectless="true"] .project-root {
+    color: var(--opl-muted);
+  }
+
+  .thread-directory-state {
+    margin: 6px 9px 10px;
+    color: var(--opl-muted);
+    font-size: 11px;
+  }
+
+  .thread-directory-state.error,
+  .coordination-error {
+    color: var(--opl-danger);
+  }
+
+  .thread-directory-row {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 26px;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .history-list li .thread-directory-open {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 14px minmax(0, 1fr) auto;
+    gap: 6px;
+    padding: 5px 4px 5px 7px;
+  }
+
+  .thread-directory-copy {
+    min-width: 0;
+    display: grid;
+    gap: 1px;
+  }
+
+  .thread-directory-copy strong,
+  .thread-directory-copy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .thread-directory-copy strong {
+    font-size: 11.5px;
+    font-weight: 510;
+  }
+
+  .thread-directory-copy small,
+  .thread-directory-open time {
+    color: var(--opl-faint);
+    font-size: 9.5px;
+  }
+
+  .thread-directory-open time {
+    white-space: nowrap;
+  }
+
+  .history-list li .thread-directory-detail {
+    width: 26px;
+    min-height: 26px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    opacity: 0;
+  }
+
+  .thread-directory-row:hover .thread-directory-detail,
+  .thread-directory-detail:focus-visible {
+    opacity: 1;
+  }
+
+  .current-project-context {
+    margin-top: 9px;
+    padding-top: 7px;
+    border-top: 1px solid var(--opl-border);
+  }
+
+  .current-project-context .project-root {
+    min-height: 29px;
+  }
+
+  .coordination-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    background: rgba(20, 21, 20, 0.28);
+  }
+
+  .thread-detail-popover,
+  .thread-confirmation-dialog,
+  .coordination-dialog {
+    position: fixed;
+    z-index: 81;
+    min-width: 0;
+    overflow: auto;
+    border: 1px solid var(--opl-border);
+    border-radius: 8px;
+    outline: 0;
+    background: #fff;
+    box-shadow: 0 18px 52px rgba(0, 0, 0, 0.18);
+  }
+
+  .thread-detail-popover {
+    top: 64px;
+    left: 286px;
+    width: min(390px, calc(100vw - 318px));
+    max-height: calc(100vh - 88px);
+    padding: 14px;
+  }
+
+  .thread-confirmation-dialog,
+  .coordination-dialog {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .thread-confirmation-dialog {
+    width: min(430px, calc(100vw - 32px));
+    padding: 16px;
+  }
+
+  .coordination-dialog {
+    width: min(680px, calc(100vw - 32px));
+    max-height: min(780px, calc(100vh - 32px));
+    padding: 16px;
+  }
+
+  .thread-detail-popover > header,
+  .thread-confirmation-dialog > header,
+  .coordination-dialog-header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) 30px;
+    align-items: center;
+    gap: 9px;
+    min-height: 34px;
+  }
+
+  .thread-detail-popover > header {
+    grid-template-columns: minmax(0, 1fr) 30px;
+  }
+
+  .thread-detail-popover h2,
+  .thread-confirmation-dialog h2,
+  .coordination-dialog h2 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .coordination-dialog-icon {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 7px;
+    background: var(--opl-accent-soft);
+    color: var(--opl-accent);
+  }
+
+  .thread-detail-title {
+    display: block;
+    margin: 12px 0 8px;
+    overflow-wrap: anywhere;
+    font-size: 13px;
+  }
+
+  .thread-detail-popover dl,
+  .thread-confirmation-dialog dl {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    border-top: 1px solid var(--opl-border);
+  }
+
+  .thread-detail-popover dl > div,
+  .thread-confirmation-dialog dl > div {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 94px minmax(0, 1fr);
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--opl-border);
+  }
+
+  .thread-detail-popover dt,
+  .thread-confirmation-dialog dt {
+    color: var(--opl-muted);
+  }
+
+  .thread-detail-popover dd,
+  .thread-confirmation-dialog dd {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .thread-detail-popover code,
+  .thread-confirmation-dialog code {
+    white-space: pre-wrap;
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 10px;
+  }
+
+  .thread-detail-actions,
+  .thread-confirmation-dialog footer,
+  .coordination-dialog footer {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 14px;
+  }
+
+  .thread-detail-actions button,
+  .thread-confirmation-dialog footer button,
+  .coordination-dialog footer button {
+    min-height: 31px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 10px;
+    border: 1px solid var(--opl-border);
+    border-radius: 7px;
+    background: #fff;
+    color: var(--opl-text);
+  }
+
+  .thread-confirmation-dialog footer .primary,
+  .coordination-dialog footer .primary {
+    border-color: #202123;
+    background: #202123;
+    color: #fff;
+  }
+
+  .coordination-route {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr);
+    align-items: end;
+    gap: 9px;
+    margin: 14px 0;
+  }
+
+  .coordination-route > svg {
+    margin-bottom: 9px;
+    color: var(--opl-muted);
+  }
+
+  .coordination-route label,
+  .coordination-fields label {
+    min-width: 0;
+    display: grid;
+    gap: 5px;
+  }
+
+  .coordination-route label > span,
+  .coordination-fields label > span {
+    color: var(--opl-muted);
+    font-size: 10.5px;
+  }
+
+  .coordination-route strong {
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    padding: 0 9px;
+    overflow: hidden;
+    border: 1px solid var(--opl-border);
+    border-radius: 7px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  .coordination-route select,
+  .coordination-fields input,
+  .coordination-fields select,
+  .coordination-fields textarea {
+    width: 100%;
+    min-height: 34px;
+    padding: 7px 9px;
+    border: 1px solid var(--opl-border);
+    border-radius: 7px;
+    outline: 0;
+    background: #fff;
+    color: var(--opl-text);
+  }
+
+  .coordination-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .coordination-fields label:nth-child(3),
+  .coordination-fields label:nth-child(5) {
+    grid-column: 1 / -1;
+  }
+
+  .coordination-fields textarea {
+    min-height: 76px;
+    resize: vertical;
+  }
+
+  .coordination-fields .coordination-write-set {
+    min-height: 54px;
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 11px;
+  }
+
+  .coordination-events {
+    margin-top: 12px;
+  }
+
+  .coordination-current-state {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px;
+    padding: 9px;
+    border-left: 3px solid var(--opl-accent);
+    background: #f7f8f7;
+  }
+
+  .coordination-current-state[data-phase="conflict"] {
+    border-left-color: var(--opl-danger);
+  }
+
+  .coordination-current-state > span,
+  .coordination-events li header > span {
+    color: var(--opl-accent);
+    font-size: 10.5px;
+    font-weight: 600;
+  }
+
+  .coordination-current-state p,
+  .coordination-events p {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .coordination-events ol {
+    display: grid;
+    gap: 6px;
+    max-height: 150px;
+    margin: 8px 0 0;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+  }
+
+  .coordination-events li {
+    padding: 8px 9px;
+    border: 1px solid var(--opl-border);
+    border-radius: 7px;
+  }
+
+  .coordination-events li header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 7px;
+    align-items: center;
+  }
+
+  .coordination-events li header strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+  }
+
+  .coordination-events li header small {
+    color: var(--opl-faint);
+    font-size: 9.5px;
+  }
+
+  .coordination-steer-confirmation {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 10px;
+    border: 1px solid #e1b65b;
+    border-radius: 7px;
+    background: #fff9e9;
+  }
+
+  .coordination-error {
+    margin: 10px 0 0;
+    font-size: 11px;
+  }
+
   .visually-hidden {
     position: absolute;
     width: 1px;
@@ -1362,6 +1798,53 @@ export const codexWorkbenchStyles = `
 
     .composer-select select {
       max-width: 74px;
+    }
+
+    .history-list li .thread-directory-detail {
+      opacity: 1;
+    }
+
+    .thread-detail-popover,
+    .thread-confirmation-dialog,
+    .coordination-dialog {
+      inset: 0;
+      width: 100%;
+      height: 100dvh;
+      max-height: none;
+      padding: 16px;
+      transform: none;
+      border: 0;
+      border-radius: 0;
+    }
+
+    .coordination-dialog {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .coordination-route,
+    .coordination-fields {
+      grid-template-columns: 1fr;
+    }
+
+    .coordination-route > svg {
+      display: none;
+    }
+
+    .coordination-fields label:nth-child(3),
+    .coordination-fields label:nth-child(5) {
+      grid-column: auto;
+    }
+
+    .coordination-dialog footer {
+      margin-top: auto;
+      padding-top: 16px;
+    }
+
+    .coordination-dialog footer button,
+    .thread-confirmation-dialog footer button {
+      width: 100%;
+      min-height: 42px;
     }
   }
 `;

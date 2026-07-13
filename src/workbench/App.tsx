@@ -8,6 +8,7 @@ import {
   Download,
   FileText,
   Folder,
+  Network,
   MoreVertical,
   PanelLeft,
   PanelRightOpen,
@@ -22,6 +23,15 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createBrowserBridge, type CodexModelCatalogEntry } from "../bridge/oplBridge";
+import type {
+  CoordinationDispatch,
+  CoordinationIntent,
+  CoordinationPreparation,
+  CoordinationRequest,
+  CoordinationThread,
+  ThreadCoordinationBridge,
+  ThreadCoordinationEvent
+} from "../coordination/types";
 import {
   ActionReceiptSummary,
   ArtifactPreviewCard,
@@ -32,9 +42,19 @@ import {
 } from "../ui/workbenchPrimitives";
 import {
   deriveWorkbenchModelFromState,
+  deriveCoordinationEvents,
+  deriveCoordinationOperation,
+  deriveThreadDirectory,
+  deriveThreadMessages,
   initialWorkbenchModel,
+  workbenchBridgeUnavailableDiagnostic,
+  type WorkbenchCoordinationEvent,
+  type WorkbenchCoordinationOperation,
+  type WorkbenchProjectGroup,
   type WorkbenchActionRef,
-  type WorkbenchStarter
+  type WorkbenchStarter,
+  type WorkbenchThreadItem,
+  type WorkbenchThreadMessage
 } from "./workbenchModel";
 import {
   readSettings,
@@ -56,6 +76,10 @@ import {
   resolveCodexSelection,
   type CodexModelId
 } from "./modelPolicy";
+import { CoordinationDialog, type CoordinationDraftFields } from "./coordination/CoordinationDialog";
+import { ThreadDetailPopover } from "./coordination/ThreadDetailPopover";
+import { ThreadLifecycleConfirmationDialog } from "./coordination/ThreadLifecycleConfirmationDialog";
+import { ThreadRail } from "./coordination/ThreadRail";
 
 const contextTabs = [
   ["opl-files-panel", "sources"],
@@ -341,20 +365,23 @@ const localizedSettingsSections = {
 const previewActionRefId = "task_action_receipt_preview";
 const exportActionRefId = "task_export_bundle_preview";
 const runtimeActionRefId = "provider_scheduler_status";
-const chatSessionsStorageKey = "opl.nativeWorkbench.chatSessions.v1";
+const legacyChatSessionsStorageKey = "opl.nativeWorkbench.chatSessions.v1";
+const legacyChatSessionsBackupKey = "opl.nativeWorkbench.chatSessions.legacyReadOnlyBackup.v1";
+const uiMetadataStorageKey = "opl.nativeWorkbench.uiMetadata.v2";
+const draftStorageKey = "opl.nativeWorkbench.drafts.v2";
 
-type ChatMessage = {
-  id: string;
-  role: "user" | "assistant" | "system";
-  text: string;
+type ThreadScope = "current" | "all" | "archived";
+
+type WorkbenchUiMetadata = {
+  selectedProjectId?: string;
+  selectedThreadId?: string;
+  threadScope: ThreadScope;
 };
 
-type ChatSession = {
-  id: string;
-  title: string;
-  threadId?: string;
-  messages: ChatMessage[];
-  updatedAt: string;
+type WorkbenchDrafts = {
+  prompts: Record<string, string>;
+  coordination: CoordinationDraftFields;
+  coordinationTargetThreadId: string;
 };
 
 type SidebarDisplayItem = {
@@ -390,18 +417,14 @@ function createIntroMessages(): ChatMessage[] {
   return [];
 }
 
-function isDesignExampleMessage(message: ChatMessage): boolean {
-  return message.text === "Please review the current results and methods refs, then suggest improvements for clarity and reproducibility."
-    || message.text === "I reviewed the available OPL project refs. Key issues are clarity, reproducibility, evidence linkage, and delivery traceability. I can draft revisions, prepare an export packet, or start a workflow preview.";
-}
+type ChatMessage = WorkbenchThreadMessage;
 
-function projectInputItems(sourceRefs: { ref: string; summary: string }[]): SidebarDisplayItem[] {
-  const inputNames = ["Project brief.md", "Literature notes", "Data inventory.csv", "Results summary.md"];
-  return inputNames.map((label, index) => ({
-    id: `project-input-${index}`,
-    label,
-    ref: `project-context://${label}`,
-    summary: sourceRefs[index]?.summary ?? "Optional project input"
+function projectInputItems(sourceRefs: { id: string; label: string; ref: string; summary: string }[]): SidebarDisplayItem[] {
+  return sourceRefs.map((source) => ({
+    id: source.id,
+    label: source.label,
+    ref: source.ref,
+    summary: source.summary
   }));
 }
 
@@ -429,65 +452,62 @@ function sessionStorage() {
   return globalThis.localStorage;
 }
 
-function normalizeChatSession(value: unknown): ChatSession | null {
-  if (!value || typeof value !== "object") return null;
-  const candidate = value as Partial<ChatSession>;
-  if (typeof candidate.id !== "string" || !candidate.id) return null;
-  const messages = Array.isArray(candidate.messages)
-    ? candidate.messages.filter((message): message is ChatMessage => Boolean(message && typeof message === "object" && typeof (message as ChatMessage).id === "string"))
-    : [];
-  const visibleMessages = messages.filter((message) => !isDesignExampleMessage(message));
-  return {
-    id: candidate.id,
-    title: typeof candidate.title === "string" && candidate.title ? candidate.title : "New chat",
-    threadId: typeof candidate.threadId === "string" && candidate.threadId ? candidate.threadId : undefined,
-    messages: visibleMessages.length ? visibleMessages : createIntroMessages(),
-    updatedAt: typeof candidate.updatedAt === "string" && candidate.updatedAt ? candidate.updatedAt : new Date(0).toISOString()
-  };
-}
+const emptyCoordinationDraft: CoordinationDraftFields = { reason: "", intent: "", message: "", summary: "", expectedWriteSet: "" };
 
-function readChatSessions(): ChatSession[] {
+function readPersistedWorkbenchUi(): { metadata: WorkbenchUiMetadata; drafts: WorkbenchDrafts } {
+  const storage = sessionStorage();
+  const fallback = {
+    metadata: { threadScope: "current" as const },
+    drafts: { prompts: {}, coordination: { ...emptyCoordinationDraft }, coordinationTargetThreadId: "" }
+  };
+  if (!storage) return fallback;
   try {
-    const raw = sessionStorage()?.getItem(chatSessionsStorageKey);
-    if (!raw) {
-      return [{
-        id: "session-initial",
-        title: "Current project",
-        messages: createIntroMessages(),
-        updatedAt: new Date().toISOString()
-      }];
+    const metadata = JSON.parse(storage.getItem(uiMetadataStorageKey) ?? "null") as Partial<WorkbenchUiMetadata> | null;
+    const drafts = JSON.parse(storage.getItem(draftStorageKey) ?? "null") as Partial<WorkbenchDrafts> | null;
+    const legacy = storage.getItem(legacyChatSessionsStorageKey);
+    let selectedThreadId = typeof metadata?.selectedThreadId === "string" ? metadata.selectedThreadId : undefined;
+    if (legacy) {
+      if (!storage.getItem(legacyChatSessionsBackupKey)) storage.setItem(legacyChatSessionsBackupKey, legacy);
+      if (!selectedThreadId) {
+        const legacyRows = JSON.parse(legacy) as unknown;
+        const first = Array.isArray(legacyRows) && legacyRows[0] && typeof legacyRows[0] === "object"
+          ? legacyRows[0] as { threadId?: unknown }
+          : null;
+        selectedThreadId = typeof first?.threadId === "string" ? first.threadId : undefined;
+      }
+      storage.removeItem(legacyChatSessionsStorageKey);
     }
-    const parsed = JSON.parse(raw);
-    const sessions = Array.isArray(parsed) ? parsed.map(normalizeChatSession).filter((session): session is ChatSession => Boolean(session)) : [];
-    return sessions.length ? sessions.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)) : [{
-      id: "session-initial",
-      title: "Current project",
-      messages: createIntroMessages(),
-      updatedAt: new Date().toISOString()
-    }];
+    return {
+      metadata: {
+        selectedProjectId: typeof metadata?.selectedProjectId === "string" ? metadata.selectedProjectId : undefined,
+        selectedThreadId,
+        threadScope: metadata?.threadScope === "all" || metadata?.threadScope === "archived" ? metadata.threadScope : "current"
+      },
+      drafts: {
+        prompts: drafts?.prompts && typeof drafts.prompts === "object" ? drafts.prompts : {},
+        coordination: {
+          reason: typeof drafts?.coordination?.reason === "string" ? drafts.coordination.reason : "",
+          intent: ["delegate", "inform", "review", "block", "handoff"].includes(drafts?.coordination?.intent ?? "")
+            ? drafts?.coordination?.intent as CoordinationIntent
+            : "",
+          message: typeof drafts?.coordination?.message === "string" ? drafts.coordination.message : "",
+          summary: typeof drafts?.coordination?.summary === "string" ? drafts.coordination.summary : "",
+          expectedWriteSet: typeof drafts?.coordination?.expectedWriteSet === "string" ? drafts.coordination.expectedWriteSet : ""
+        },
+        coordinationTargetThreadId: typeof drafts?.coordinationTargetThreadId === "string" ? drafts.coordinationTargetThreadId : ""
+      }
+    };
   } catch {
-    return [{
-      id: "session-initial",
-      title: "Current project",
-      messages: createIntroMessages(),
-      updatedAt: new Date().toISOString()
-    }];
+    return fallback;
   }
 }
 
-function writeChatSessions(sessions: ChatSession[]) {
-  sessionStorage()?.setItem(chatSessionsStorageKey, JSON.stringify(sessions));
+function writeUiMetadata(metadata: WorkbenchUiMetadata) {
+  sessionStorage()?.setItem(uiMetadataStorageKey, JSON.stringify(metadata));
 }
 
-function sessionTitleFromMessages(messages: ChatMessage[]): string {
-  const firstUser = messages.find((message) => message.role === "user" && message.text.trim());
-  return firstUser?.text.trim().slice(0, 40) || "New chat";
-}
-
-function formatTimestamp(value: string, locale: WorkbenchSettings["locale"]): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return locale === "zh" ? "本地草稿" : "Local draft";
-  return date.toLocaleString(locale === "zh" ? "zh-CN" : "en-US", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+function writeDrafts(drafts: WorkbenchDrafts) {
+  sessionStorage()?.setItem(draftStorageKey, JSON.stringify(drafts));
 }
 
 function eventMethod(event: unknown): string {
@@ -517,11 +537,28 @@ function eventCompletedText(event: unknown): string {
   return typeof item.text === "string" ? item.text : "";
 }
 
+function splitWriteSet(value: string): string[] {
+  return [...new Set(value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean))];
+}
+
+function newIdempotencyKey(sourceThreadId: string, targetThreadId: string): string {
+  const random = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `native-workbench:${sourceThreadId}:${targetThreadId}:${random}`;
+}
+
+function preparationFromThreadEvent(event: ThreadCoordinationEvent): CoordinationPreparation | null {
+  const raw = event.raw as Partial<CoordinationPreparation> | null;
+  if (!raw || !raw.request || !["prepared", "confirmation_required", "rejected"].includes(raw.state ?? "")) return null;
+  return raw as CoordinationPreparation;
+}
+
 export function App() {
   const bridge = useMemo(() => createBrowserBridge(), []);
-  const initialSessions = useMemo(() => readChatSessions(), []);
+  const coordinationBridge = bridge as typeof bridge & ThreadCoordinationBridge;
+  const persistedUi = useMemo(() => readPersistedWorkbenchUi(), []);
   const pendingAssistantIdRef = useRef<string | null>(null);
-  const messagesRef = useRef<ChatMessage[]>(initialSessions[0]?.messages ?? createIntroMessages());
+  const coordinationDedupeKeyRef = useRef("");
+  const messagesRef = useRef<ChatMessage[]>(createIntroMessages());
   const [model, setModel] = useState(initialWorkbenchModel);
   const [stateStatus, setStateStatus] = useState<"loading" | "ready" | "error">("loading");
   const [stateError, setStateError] = useState("");
@@ -530,14 +567,31 @@ export function App() {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [lastDryRun, setLastDryRun] = useState("No action preview yet.");
   const [pendingAction, setPendingAction] = useState<{ actionId: string; payload: Record<string, unknown> } | null>(null);
-  const [prompt, setPrompt] = useState("");
+  const [uiMetadata, setUiMetadata] = useState<WorkbenchUiMetadata>(persistedUi.metadata);
+  const [drafts, setDrafts] = useState<WorkbenchDrafts>(persistedUi.drafts);
+  const [prompt, setPrompt] = useState(persistedUi.drafts.prompts[persistedUi.metadata.selectedThreadId ?? "new"] ?? "");
   const [sendState, setSendState] = useState<"idle" | "running" | "error">("idle");
   const [sendError, setSendError] = useState("");
-  const [chatSessions, setChatSessions] = useState<ChatSession[]>(initialSessions);
-  const [currentSessionId, setCurrentSessionId] = useState(initialSessions[0]?.id ?? "session-initial");
-  const [messages, setMessages] = useState<ChatMessage[]>(initialSessions[0]?.messages ?? createIntroMessages());
+  const [threadProjects, setThreadProjects] = useState<WorkbenchProjectGroup[]>([]);
+  const [archivedThreadProjects, setArchivedThreadProjects] = useState<WorkbenchProjectGroup[]>([]);
+  const [threadDirectoryStatus, setThreadDirectoryStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [threadDirectoryError, setThreadDirectoryError] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>(createIntroMessages());
   const [eventFeed, setEventFeed] = useState<string[]>(["bridge.preview_only"]);
-  const [codexThreadId, setCodexThreadId] = useState<string | undefined>(initialSessions[0]?.threadId);
+  const [codexThreadId, setCodexThreadId] = useState<string | undefined>(persistedUi.metadata.selectedThreadId);
+  const [threadDetail, setThreadDetail] = useState<WorkbenchThreadItem | null>(null);
+  const [threadActionBusy, setThreadActionBusy] = useState(false);
+  const [threadActionError, setThreadActionError] = useState("");
+  const [lifecycleConfirmation, setLifecycleConfirmation] = useState<{ thread: WorkbenchThreadItem; archived: boolean } | null>(null);
+  const [coordinationOpen, setCoordinationOpen] = useState(false);
+  const [coordinationSourceThreadId, setCoordinationSourceThreadId] = useState<string | undefined>(persistedUi.metadata.selectedThreadId);
+  const [coordinationPreparation, setCoordinationPreparation] = useState<CoordinationPreparation | null>(null);
+  const [coordinationOperation, setCoordinationOperation] = useState<WorkbenchCoordinationOperation | null>(null);
+  const [coordinationEvents, setCoordinationEvents] = useState<WorkbenchCoordinationEvent[]>([]);
+  const [coordinationReviewConfirmation, setCoordinationReviewConfirmation] = useState(false);
+  const [coordinationSteerConfirmed, setCoordinationSteerConfirmed] = useState(false);
+  const [coordinationBusy, setCoordinationBusy] = useState(false);
+  const [coordinationError, setCoordinationError] = useState("");
   const [settings, setSettings] = useState<WorkbenchSettings>(() => readSettings());
   const [codexCatalog, setCodexCatalog] = useState<CodexModelCatalogEntry[]>([]);
   const [starterDrafts, setStarterDrafts] = useState<Record<string, Record<string, string>>>({});
@@ -551,11 +605,24 @@ export function App() {
   const exportAction = model.contextActions.find((action) => action.id === exportActionRefId && action.dryRunSupported) ?? previewAction;
   const purposePreviewAction = model.contextActions.find((action) => action.id === previewActionRefId && action.dryRunSupported) ?? previewAction;
   const runtimeAction = model.contextActions.find((action) => action.id === runtimeActionRefId && action.dryRunSupported);
-  const currentSession = chatSessions.find((session) => session.id === currentSessionId) ?? chatSessions[0];
+  const activeThreads = useMemo(() => threadProjects.flatMap((project) => project.threads), [threadProjects]);
+  const archivedThreads = useMemo(() => archivedThreadProjects.flatMap((project) => project.threads), [archivedThreadProjects]);
+  const allThreads = useMemo(() => [...activeThreads, ...archivedThreads], [activeThreads, archivedThreads]);
+  const currentSession = allThreads.find((thread) => thread.id === codexThreadId);
+  const coordinationSourceThread = allThreads.find((thread) => thread.id === coordinationSourceThreadId) ?? null;
+  const selectedProject = threadProjects.find((project) => project.id === uiMetadata.selectedProjectId)
+    ?? threadProjects.find((project) => project.threads.some((thread) => thread.id === codexThreadId))
+    ?? threadProjects[0];
+  const visibleThreadProjects = uiMetadata.threadScope === "archived"
+    ? archivedThreadProjects
+    : uiMetadata.threadScope === "all"
+      ? threadProjects
+      : selectedProject ? [selectedProject] : [];
+  const chatSessions = selectedProject?.threads ?? [];
   const contextStatusText = stateStatus === "loading"
     ? "Loading OPL App state..."
     : stateStatus === "error"
-      ? `Bridge unavailable. Preview only. ${stateError}`
+      ? `Bridge unavailable. Preview only. ${workbenchBridgeUnavailableDiagnostic.nextStep}. ${stateError}`
       : model.stateGeneratedAt
         ? `App state loaded from opl app state --profile fast --json at ${model.stateGeneratedAt}.`
         : "App state loaded from the current App state.";
@@ -564,7 +631,7 @@ export function App() {
     : stateStatus === "ready"
       ? "App state loaded"
       : "Bridge unavailable";
-  const currentProject = model.sessions[0]?.workspace ?? settings.defaultWorkspace ?? "Current project";
+  const currentProject = selectedProject?.label ?? settings.defaultWorkspace ?? "Current project";
   const previewItems = useMemo(() => [...model.artifactPreviews].sort((left, right) => {
     if (left.previewKind === right.previewKind) return 0;
     if (left.previewKind === "markdown") return -1;
@@ -608,22 +675,26 @@ export function App() {
     messagesRef.current = messages;
   }, [messages]);
 
-  function commitSession(nextMessages: ChatMessage[], nextThreadId: string | undefined, sessionId = currentSessionId) {
-    const nextSession: ChatSession = {
-      id: sessionId,
-      title: sessionTitleFromMessages(nextMessages),
-      threadId: nextThreadId,
-      messages: nextMessages,
-      updatedAt: new Date().toISOString()
-    };
-    setMessages(nextMessages);
-    setCodexThreadId(nextThreadId);
-    setChatSessions((current) => {
-      const merged = [nextSession, ...current.filter((session) => session.id !== sessionId)]
-        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
-      writeChatSessions(merged);
+  function updateUiMetadata(next: Partial<WorkbenchUiMetadata>) {
+    setUiMetadata((current) => {
+      const merged = { ...current, ...next };
+      writeUiMetadata(merged);
       return merged;
     });
+  }
+
+  function updateDrafts(next: (current: WorkbenchDrafts) => WorkbenchDrafts) {
+    setDrafts((current) => {
+      const merged = next(current);
+      writeDrafts(merged);
+      return merged;
+    });
+  }
+
+  function updatePrompt(value: string) {
+    setPrompt(value);
+    const key = codexThreadId ?? "new";
+    updateDrafts((current) => ({ ...current, prompts: { ...current.prompts, [key]: value } }));
   }
 
   function loadState(profile = settings.runtimeProfile) {
@@ -641,9 +712,78 @@ export function App() {
       });
   }
 
+  async function openThread(thread: WorkbenchThreadItem) {
+    setThreadActionBusy(true);
+    setThreadActionError("");
+    setCodexThreadId(thread.id);
+    setCoordinationSourceThreadId(thread.id);
+    updateUiMetadata({
+      selectedThreadId: thread.id,
+      selectedProjectId: threadProjects.find((project) => project.threads.some((item) => item.id === thread.id))?.id
+        ?? uiMetadata.selectedProjectId
+    });
+    setPrompt(drafts.prompts[thread.id] ?? "");
+    setSendState("idle");
+    setSendError("");
+    try {
+      await coordinationBridge.resumeThread({ threadId: thread.id });
+      const readback = await coordinationBridge.readThread({ threadId: thread.id, includeTurns: true });
+      const nextMessages = deriveThreadMessages(readback);
+      setMessages(nextMessages);
+      messagesRef.current = nextMessages;
+      setActiveView("chat");
+      setThreadDetail(null);
+      if (globalThis.matchMedia?.("(max-width: 760px)").matches) setSidebarOpen(false);
+    } catch (error) {
+      setThreadActionError(String(error));
+    } finally {
+      setThreadActionBusy(false);
+    }
+  }
+
+  async function loadThreadDirectory(openSavedThread = false) {
+    if (typeof coordinationBridge.listThreads !== "function") {
+      setThreadDirectoryStatus("error");
+      setThreadDirectoryError("ThreadCoordinationBridge.listThreads is unavailable.");
+      return;
+    }
+    setThreadDirectoryStatus("loading");
+    setThreadDirectoryError("");
+    try {
+      const [active, archived] = await Promise.all([
+        coordinationBridge.listThreads({ archived: false, limit: 100 }),
+        coordinationBridge.listThreads({ archived: true, limit: 100 })
+      ]);
+      const activeProjects = deriveThreadDirectory(active);
+      const archivedProjects = deriveThreadDirectory(archived);
+      setThreadProjects(activeProjects);
+      setArchivedThreadProjects(archivedProjects);
+      const selectedThreadId = uiMetadata.selectedThreadId;
+      const directoryProjects = uiMetadata.threadScope === "archived" ? archivedProjects : activeProjects;
+      const selectedThreadProject = directoryProjects.find((project) => project.threads.some((thread) => thread.id === selectedThreadId));
+      const selectedProject = directoryProjects.find((project) => project.id === uiMetadata.selectedProjectId)
+        ?? selectedThreadProject
+        ?? directoryProjects.find((project) => !project.projectless)
+        ?? directoryProjects[0];
+      if (selectedProject && selectedProject.id !== uiMetadata.selectedProjectId) updateUiMetadata({ selectedProjectId: selectedProject.id });
+      setThreadDirectoryStatus("ready");
+      if (openSavedThread && selectedThreadId) {
+        const savedThread = activeProjects.flatMap((project) => project.threads).find((thread) => thread.id === selectedThreadId);
+        if (savedThread) await openThread(savedThread);
+      }
+    } catch (error) {
+      setThreadDirectoryStatus("error");
+      setThreadDirectoryError(String(error));
+    }
+  }
+
   useEffect(() => {
     void loadState(settings.runtimeProfile);
   }, [bridge, settings.runtimeProfile]);
+
+  useEffect(() => {
+    void loadThreadDirectory(true);
+  }, [coordinationBridge]);
 
   useEffect(() => {
     void bridge.readCodexModels()
@@ -678,6 +818,36 @@ export function App() {
         : item));
     }
   }), [bridge]);
+
+  useEffect(() => {
+    if (typeof coordinationBridge.subscribeThreadEvents !== "function") return;
+    return coordinationBridge.subscribeThreadEvents((event: ThreadCoordinationEvent) => {
+      const nextEvents = deriveCoordinationEvents([event.raw ?? event]);
+      if (nextEvents.length) setCoordinationEvents((current) => [...nextEvents, ...current].slice(0, 24));
+      const preparation = preparationFromThreadEvent(event);
+      if (!preparation || preparation.request.sender !== "model") return;
+      setCoordinationPreparation(preparation);
+      setCoordinationOperation(deriveCoordinationOperation(preparation, {
+        sourceThreadId: preparation.request.sourceThreadId,
+        targetThreadId: preparation.request.targetThreadId
+      }));
+      setCoordinationSourceThreadId(preparation.request.sourceThreadId);
+      updateDrafts((current) => ({
+        ...current,
+        coordination: {
+          reason: preparation.request.reason,
+          intent: preparation.request.intent,
+          message: preparation.request.message,
+          summary: preparation.request.summary,
+          expectedWriteSet: preparation.request.expectedWriteSet.join("\n")
+        },
+        coordinationTargetThreadId: preparation.request.targetThreadId
+      }));
+      setCoordinationReviewConfirmation(preparation.state === "confirmation_required");
+      setCoordinationSteerConfirmed(false);
+      setCoordinationOpen(true);
+    });
+  }, [coordinationBridge]);
 
   function runDryRun(actionId: string, payload: Record<string, unknown> = {}) {
     setPendingAction({ actionId, payload });
@@ -720,6 +890,157 @@ export function App() {
       .catch((error) => setLastDryRun(formatReceipt({ ...pendingAction, mode: "rollback", error: String(error) })));
   }
 
+  function openCoordinationDialog(target?: WorkbenchThreadItem) {
+    if (!currentSession) {
+      setCoordinationError(settings.locale === "zh" ? "请先打开一个真实对话。" : "Open a real thread first.");
+      setCoordinationOpen(true);
+      return;
+    }
+    const targetThreadId = target?.id === currentSession.id ? "" : target?.id ?? drafts.coordinationTargetThreadId;
+    coordinationDedupeKeyRef.current = newIdempotencyKey(currentSession.id, targetThreadId || "pending");
+    setCoordinationSourceThreadId(currentSession.id);
+    setCoordinationPreparation(null);
+    setCoordinationOperation(null);
+    setCoordinationEvents([]);
+    setCoordinationReviewConfirmation(false);
+    setCoordinationSteerConfirmed(false);
+    setCoordinationError("");
+    updateDrafts((current) => ({ ...current, coordinationTargetThreadId: targetThreadId }));
+    setCoordinationOpen(true);
+    setThreadDetail(null);
+  }
+
+  function appendCoordinationEvents(value: unknown, sourceThreadId?: string, targetThreadId?: string) {
+    const base = deriveCoordinationEvents([value]);
+    if (!base.length) return;
+    const paired = base.flatMap((event) => [
+      { ...event, id: `${event.id}:source`, direction: "source" as const, sourceThreadId, targetThreadId },
+      { ...event, id: `${event.id}:target`, direction: "target" as const, sourceThreadId, targetThreadId }
+    ]);
+    setCoordinationEvents((current) => [...paired, ...current].slice(0, 24));
+  }
+
+  async function prepareCoordination() {
+    const source = allThreads.find((thread) => thread.id === coordinationSourceThreadId);
+    const target = allThreads.find((thread) => thread.id === drafts.coordinationTargetThreadId);
+    const draft = drafts.coordination;
+    if (!source || !target || !draft.intent) return;
+    const request: CoordinationRequest = {
+      sourceThreadId: source.id,
+      targetThreadId: target.id,
+      sourceHostId: source.hostId ?? "",
+      targetHostId: target.hostId ?? "",
+      projectKey: source.projectKey ?? "",
+      sender: "user",
+      intent: draft.intent,
+      reason: draft.reason.trim(),
+      message: draft.message.trim(),
+      summary: draft.summary.trim(),
+      expectedWriteSet: splitWriteSet(draft.expectedWriteSet),
+      ancestorCoordinationIds: [],
+      priority: "normal",
+      dedupeKey: coordinationDedupeKeyRef.current || newIdempotencyKey(source.id, target.id),
+      hopCount: 0,
+      model: resolvedModel?.id,
+      reasoningEffort: resolvedReasoning
+    };
+    setCoordinationBusy(true);
+    setCoordinationError("");
+    try {
+      const preparation = await coordinationBridge.prepareCoordination(request);
+      setCoordinationPreparation(preparation);
+      const operation = deriveCoordinationOperation(preparation, {
+        sourceThreadId: source.id,
+        targetThreadId: target.id,
+        summary: draft.summary
+      });
+      setCoordinationOperation(operation);
+      setCoordinationReviewConfirmation(preparation.state === "confirmation_required");
+      appendCoordinationEvents(preparation, source.id, target.id);
+    } catch (error) {
+      setCoordinationError(String(error));
+    } finally {
+      setCoordinationBusy(false);
+    }
+  }
+
+  async function dispatchCoordination() {
+    if (!coordinationPreparation?.previewToken) return;
+    setCoordinationBusy(true);
+    setCoordinationError("");
+    try {
+      const dispatch: CoordinationDispatch = await coordinationBridge.dispatchCoordination({
+        previewToken: coordinationPreparation.previewToken,
+        confirmed: true,
+        confirmationId: `native-workbench:${Date.now()}`
+      });
+      setCoordinationReviewConfirmation(false);
+      setCoordinationOperation(deriveCoordinationOperation(dispatch, {
+        id: dispatch.coordinationId,
+        phase: dispatch.state === "rejected" ? "conflict" : "queued",
+        sourceThreadId: coordinationPreparation.request.sourceThreadId,
+        targetThreadId: dispatch.targetThreadId,
+        plannedDispatch: dispatch.state === "rejected" ? undefined : dispatch.state
+      }));
+      appendCoordinationEvents(dispatch, coordinationPreparation.request.sourceThreadId, dispatch.targetThreadId);
+      if (dispatch.state === "rejected" || !dispatch.coordinationId) return;
+      const result = await coordinationBridge.waitCoordination({ coordinationId: dispatch.coordinationId, timeoutMs: 180_000 });
+      setCoordinationOperation(deriveCoordinationOperation(result, {
+        id: result.coordinationId,
+        phase: ["completed", "failed", "cancelled", "rejected", "wait_timeout"].includes(result.state) ? "result" : "queued",
+        sourceThreadId: coordinationPreparation.request.sourceThreadId,
+        targetThreadId: result.targetThreadId,
+        result: result.resultSummaryOrRef
+      }));
+      appendCoordinationEvents(result, coordinationPreparation.request.sourceThreadId, result.targetThreadId);
+      await loadThreadDirectory(false);
+    } catch (error) {
+      setCoordinationError(String(error));
+    } finally {
+      setCoordinationBusy(false);
+    }
+  }
+
+  async function forkThread(thread: WorkbenchThreadItem) {
+    setThreadActionBusy(true);
+    setThreadActionError("");
+    try {
+      const forked: CoordinationThread = await coordinationBridge.forkThread({
+        threadId: thread.id,
+        throughTurnId: thread.activeTurnId
+      });
+      await loadThreadDirectory(false);
+      const forkedView = deriveThreadDirectory({ data: [forked] })[0]?.threads[0];
+      if (forkedView) await openThread(forkedView);
+    } catch (error) {
+      setThreadActionError(String(error));
+    } finally {
+      setThreadActionBusy(false);
+    }
+  }
+
+  async function confirmThreadLifecycle() {
+    if (!lifecycleConfirmation) return;
+    setThreadActionBusy(true);
+    setThreadActionError("");
+    try {
+      await coordinationBridge.setArchived({
+        threadId: lifecycleConfirmation.thread.id,
+        archived: lifecycleConfirmation.archived,
+        confirmed: true,
+        confirmationId: `native-workbench:${Date.now()}`
+      });
+      setLifecycleConfirmation(null);
+      setThreadDetail(null);
+      if (lifecycleConfirmation.thread.id === codexThreadId && lifecycleConfirmation.archived) startNewChat();
+      await loadThreadDirectory(false);
+    } catch (error) {
+      setThreadActionError(String(error));
+    } finally {
+      setThreadActionBusy(false);
+    }
+  }
+
   function sendCodexMessage(event?: FormEvent) {
     event?.preventDefault();
     const text = prompt.trim();
@@ -729,8 +1050,9 @@ export function App() {
     const pendingMessage: ChatMessage = { id: pendingId, role: "assistant", text: "" };
     const pendingMessages = messagesRef.current.concat([userMessage, pendingMessage]);
     pendingAssistantIdRef.current = pendingId;
+    messagesRef.current = pendingMessages;
     setMessages(pendingMessages);
-    setPrompt("");
+    updatePrompt("");
     setSendState("running");
     setSendError("");
     void bridge
@@ -750,13 +1072,18 @@ export function App() {
         const nextMessages = messagesRef.current.map((item) => item.id === pendingId
           ? { id: pendingId, role: "assistant" as const, text: finalMessage || formatReceipt(reply) }
           : item);
+        messagesRef.current = nextMessages;
         setMessages(nextMessages);
-        commitSession(
-          nextMessages,
-          nextThreadId || codexThreadId
-        );
+        const resolvedThreadId = nextThreadId || codexThreadId;
+        setCodexThreadId(resolvedThreadId);
+        setCoordinationSourceThreadId(resolvedThreadId);
+        updateUiMetadata({ selectedThreadId: resolvedThreadId });
+        if (resolvedThreadId) {
+          updateDrafts((current) => ({ ...current, prompts: { ...current.prompts, [resolvedThreadId]: "" } }));
+        }
         pendingAssistantIdRef.current = null;
         setSendState("idle");
+        void loadThreadDirectory(false);
       })
       .catch(() => {
         const message = t.sendFailed;
@@ -764,31 +1091,22 @@ export function App() {
         setSendState("error");
         const errorMessage: ChatMessage = { id: pendingId, role: "system", text: message };
         const nextMessages = messagesRef.current.map((item) => item.id === pendingId ? errorMessage : item);
+        messagesRef.current = nextMessages;
         setMessages(nextMessages);
-        commitSession(nextMessages, codexThreadId);
         pendingAssistantIdRef.current = null;
       });
   }
 
   function startNewChat() {
-    const sessionId = `session-${Date.now()}`;
     const nextMessages = createIntroMessages();
-    setCurrentSessionId(sessionId);
-    setPrompt("");
+    messagesRef.current = nextMessages;
+    setMessages(nextMessages);
+    setCodexThreadId(undefined);
+    setCoordinationSourceThreadId(undefined);
+    updateUiMetadata({ selectedThreadId: undefined });
+    setPrompt(drafts.prompts.new ?? "");
     setPendingAction(null);
     setLastDryRun("No action preview yet.");
-    setSendState("idle");
-    setSendError("");
-    commitSession(nextMessages, undefined, sessionId);
-  }
-
-  function openSession(sessionId: string) {
-    const session = chatSessions.find((item) => item.id === sessionId);
-    if (!session) return;
-    setCurrentSessionId(session.id);
-    setMessages(session.messages);
-    setCodexThreadId(session.threadId);
-    setPrompt("");
     setSendState("idle");
     setSendError("");
   }
@@ -948,17 +1266,45 @@ export function App() {
           </nav>
 
           <section className="sidebar-panel" aria-label="Current project">
-          <div className="sidebar-section-head">
+            <div className="sidebar-section-head">
               <strong>{t.projects}</strong>
-          </div>
-            <button className="project-root" type="button" onClick={() => setActiveView("chat")}>
-              <Folder aria-hidden="true" size={15} />
-              <strong>{currentProject}</strong>
-              <span className="project-device">{t.local}</span>
-              <span className="project-status-dot" aria-label={shellBoundaryStatus} />
-            </button>
+            </div>
+            <div data-testid="opl-project-chats">
+              <div data-testid="opl-session-list">
+                <ThreadRail
+                  projects={visibleThreadProjects}
+                  selectedProjectId={uiMetadata.selectedProjectId}
+                  selectedThreadId={codexThreadId}
+                  locale={settings.locale}
+                  scope={uiMetadata.threadScope}
+                  loading={threadDirectoryStatus === "loading"}
+                  error={threadDirectoryStatus === "error" ? threadDirectoryError : undefined}
+                  onScopeChange={(threadScope) => updateUiMetadata({
+                    threadScope,
+                    selectedProjectId: threadScope === "archived"
+                      ? archivedThreadProjects[0]?.id
+                      : threadProjects.some((project) => project.id === uiMetadata.selectedProjectId)
+                        ? uiMetadata.selectedProjectId
+                        : threadProjects[0]?.id
+                  })}
+                  onSelectProject={(selectedProjectId) => updateUiMetadata({
+                    selectedProjectId,
+                    threadScope: uiMetadata.threadScope === "all" ? "current" : uiMetadata.threadScope
+                  })}
+                  onSelectThread={(thread) => void openThread(thread)}
+                  onOpenDetail={setThreadDetail}
+                />
+              </div>
+            </div>
 
-            <div className="project-children">
+            {uiMetadata.threadScope !== "archived" ? (
+              <div className="current-project-context">
+                <div className="project-root" aria-label={currentProject}>
+                  <Folder aria-hidden="true" size={15} />
+                  <strong>{currentProject}</strong>
+                  <span className="project-device">{t.local}</span>
+                  <span className="project-status-dot" aria-label={shellBoundaryStatus} />
+                </div>
               <div className="project-context-links">
                 <button
                   data-testid="opl-project-inputs"
@@ -987,21 +1333,8 @@ export function App() {
                   <span>{projectAttachments.length}</span>
                 </button>
               </div>
-
-              <section data-testid="opl-project-chats" className="history-list" aria-label="Project chats">
-                <ol data-testid="opl-session-list">
-                  {chatSessions.map((session) => (
-                    <li key={session.id} className={session.id === currentSessionId ? "active" : undefined}>
-                      <button type="button" onClick={() => openSession(session.id)}>
-                        <strong>{localizedSessionTitle(session.title, settings.locale)}</strong>
-                        <span>{session.threadId ? "Codex resumable thread" : "Local draft session"}</span>
-                        <small>{formatTimestamp(session.updatedAt, settings.locale)}</small>
-                      </button>
-                    </li>
-                  ))}
-                </ol>
-              </section>
-            </div>
+              </div>
+            ) : null}
           </section>
         </div>
 
@@ -1028,7 +1361,7 @@ export function App() {
               <Folder aria-hidden="true" size={15} />
               <h1>{activeView === "settings" ? t.settings : localizedSessionTitle(currentSession?.title || t.newTaskTitle, settings.locale)}</h1>
             </div>
-            <button className="icon-button" type="button" aria-label={t.conversationMenu}>
+            <button className="icon-button" type="button" aria-label={t.conversationMenu} disabled={!currentSession} onClick={() => setThreadDetail(currentSession ?? null)}>
               <CircleEllipsis aria-hidden="true" size={16} />
             </button>
           </div>
@@ -1117,7 +1450,7 @@ export function App() {
                             key={purpose}
                             data-testid="opl-delivery-mode-option"
                             type="button"
-                            onClick={() => setPrompt(settings.locale === "zh" ? `${purposeCopy[purpose]}：${currentProject}` : `${purposeCopy[purpose]} for ${currentProject}`)}
+                            onClick={() => updatePrompt(settings.locale === "zh" ? `${purposeCopy[purpose]}：${currentProject}` : `${purposeCopy[purpose]} for ${currentProject}`)}
                           >
                             {purposeCopy[purpose]}
                           </button>
@@ -1173,7 +1506,7 @@ export function App() {
                         ? "Prompt"
                         : message.role === "system"
                           ? "Action or runtime event"
-                          : currentSession?.threadId
+                          : currentSession?.id
                             ? "Streaming via codex app-server"
                             : "Project context loaded"}
                     </span>
@@ -1188,7 +1521,7 @@ export function App() {
                     aria-label="Prompt"
                     placeholder={t.prompt}
                     value={prompt}
-                    onChange={(event) => setPrompt(event.currentTarget.value)}
+                    onChange={(event) => updatePrompt(event.currentTarget.value)}
                     disabled={sendState === "running"}
                   />
                   <footer>
@@ -1207,6 +1540,17 @@ export function App() {
                       >
                         <Plug aria-hidden="true" size={14} />
                         {t.capabilities}
+                      </button>
+                      <button
+                        data-testid="opl-composer-coordination-action"
+                        className="composer-control"
+                        type="button"
+                        disabled={!currentSession}
+                        aria-label={settings.locale === "zh" ? "跨对话协调" : "Cross-thread coordination"}
+                        onClick={() => openCoordinationDialog()}
+                      >
+                        <Network aria-hidden="true" size={14} />
+                        {settings.locale === "zh" ? "协调" : "Coordinate"}
                       </button>
                       <span className={`composer-status ${sendState === "error" || unavailableFixedModel ? "error" : sendState}`} data-testid="opl-composer-run-state" aria-live="polite">
                         {sendState === "running" ? t.working : sendState === "error" ? sendError : unavailableFixedModel ? t.modelSelectionUnavailable : ""}
@@ -1708,6 +2052,63 @@ export function App() {
 
         </div>
       </aside>
+
+      <ThreadDetailPopover
+        thread={threadDetail}
+        locale={settings.locale}
+        busy={threadActionBusy}
+        onClose={() => setThreadDetail(null)}
+        onResume={(thread) => void openThread(thread)}
+        onFork={(thread) => void forkThread(thread)}
+        onRequestArchive={(thread, archived) => {
+          setLifecycleConfirmation({ thread, archived });
+          setThreadActionError("");
+          setThreadDetail(null);
+        }}
+        onCoordinate={(thread) => openCoordinationDialog(thread)}
+      />
+
+      <ThreadLifecycleConfirmationDialog
+        thread={lifecycleConfirmation?.thread ?? null}
+        archived={lifecycleConfirmation?.archived ?? false}
+        locale={settings.locale}
+        busy={threadActionBusy}
+        error={threadActionError}
+        onClose={() => setLifecycleConfirmation(null)}
+        onConfirm={() => void confirmThreadLifecycle()}
+      />
+
+      <CoordinationDialog
+        open={coordinationOpen}
+        locale={settings.locale}
+        sourceThread={coordinationSourceThread}
+        threads={activeThreads}
+        targetThreadId={drafts.coordinationTargetThreadId}
+        draft={drafts.coordination}
+        operation={coordinationOperation}
+        reviewConfirmation={coordinationReviewConfirmation}
+        steerConfirmed={coordinationSteerConfirmed}
+        events={coordinationEvents}
+        busy={coordinationBusy}
+        error={coordinationError}
+        onOpenChange={setCoordinationOpen}
+        onTargetChange={(coordinationTargetThreadId) => {
+          updateDrafts((current) => ({ ...current, coordinationTargetThreadId }));
+          setCoordinationPreparation(null);
+          setCoordinationOperation(null);
+          setCoordinationReviewConfirmation(false);
+          setCoordinationSteerConfirmed(false);
+          coordinationDedupeKeyRef.current = newIdempotencyKey(coordinationSourceThread?.id ?? "unknown", coordinationTargetThreadId || "pending");
+        }}
+        onDraftChange={(field, value) => updateDrafts((current) => ({
+          ...current,
+          coordination: { ...current.coordination, [field]: value } as CoordinationDraftFields
+        }))}
+        onSteerConfirmedChange={setCoordinationSteerConfirmed}
+        onPrepare={() => void prepareCoordination()}
+        onReview={() => setCoordinationReviewConfirmation(true)}
+        onDispatch={() => void dispatchCoordination()}
+      />
     </main>
   );
 }

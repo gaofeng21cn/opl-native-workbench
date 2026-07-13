@@ -26,6 +26,68 @@ export type WorkspaceSession = {
   nextStep: string;
 };
 
+export type WorkbenchThreadMessage = {
+  id: string;
+  role: "user" | "assistant" | "system";
+  text: string;
+};
+
+export type WorkbenchThreadItem = {
+  id: string;
+  sessionId?: string;
+  projectKey?: string;
+  hostId?: string;
+  title: string;
+  projectId?: string;
+  projectLabel?: string;
+  workspace?: string;
+  goal?: string;
+  parentThreadId?: string;
+  ancestorThreadIds: string[];
+  activeTurnId?: string;
+  writeSet: string[];
+  status: string;
+  preview: string;
+  updatedAt?: string;
+  archived: boolean;
+};
+
+export type WorkbenchProjectGroup = {
+  id: string;
+  label: string;
+  workspace?: string;
+  projectless: boolean;
+  threads: WorkbenchThreadItem[];
+};
+
+export type WorkbenchCoordinationPhase = "proposal" | "confirmation" | "queued" | "conflict" | "result";
+
+export type WorkbenchCoordinationEvent = {
+  id: string;
+  phase: WorkbenchCoordinationPhase;
+  direction: "source" | "target" | "system";
+  label: string;
+  detail: string;
+  sourceThreadId?: string;
+  targetThreadId?: string;
+  occurredAt?: string;
+};
+
+export type WorkbenchCoordinationOperation = {
+  id?: string;
+  phase: WorkbenchCoordinationPhase;
+  sourceThreadId?: string;
+  targetThreadId?: string;
+  summary: string;
+  requiresConfirmation: boolean;
+  plannedDispatch?: "started" | "steered" | "queued";
+  safetyState?: string;
+  guardCode?: string;
+  queuePosition?: number;
+  conflict?: string;
+  result?: string;
+};
+
 export type ArtifactPreview = {
   id: string;
   label: string;
@@ -227,167 +289,20 @@ export type WorkbenchModel = {
   stateGeneratedAt?: string;
 };
 
+export const workbenchBridgeUnavailableDiagnostic = {
+  status: "candidate_surface_only",
+  nextStep: "Consume opl app state/action refs"
+} as const;
+
 export const initialWorkbenchModel: WorkbenchModel = {
   purposes: ["research", "grant", "presentation", "review"],
-  sessions: [
-    {
-      id: "workspace-current",
-      workspace: "GlycoFold",
-      session: "Delivery review",
-      status: "candidate_surface_only",
-      nextStep: "Draft from project refs, then preview the action"
-    },
-    {
-      id: "workspace-review",
-      workspace: "Result package",
-      session: "Export draft",
-      status: "needs_human_confirmation",
-      nextStep: "Inspect trace and preview the export receipt"
-    },
-    {
-      id: "workspace-starters",
-      workspace: "Workflow setup",
-      session: "Research, grant, presentation",
-      status: "starter_preview_routes_payload_required",
-      nextStep: "Choose a module form and preview through App action refs, not domain CLI"
-    }
-  ],
-  results: [
-    {
-      id: "result-summary",
-      title: "Result summary",
-      kind: "result",
-      status: "needs_review",
-      previewKind: "markdown",
-      ref: "opl://result/summary",
-      summary: "Chat answer distilled into a refs-only product result.",
-      provenance: ["App fast state", "conversation event refs", "candidate plan"],
-      actions: ["Open preview", "Ask follow-up", "Preview export"]
-    },
-    {
-      id: "gap-map",
-      title: "Gap map",
-      kind: "result",
-      status: "blocked",
-      previewKind: "mermaid",
-      ref: "opl://result/non-live-gap-map",
-      summary: "Non-Live gaps that still need visual, packaged, owner, or release evidence.",
-      provenance: ["false-ready boundary", "candidate evidence"],
-      actions: ["Route to owner question", "Keep as residual risk"]
-    }
-  ],
-  deliverables: [
-    {
-      id: "delivery-package",
-      title: "Delivery package",
-      kind: "deliverable",
-      status: "needs_review",
-      previewKind: "code",
-      ref: "opl://delivery/package",
-      summary: "Exportable packet shell for result refs, receipt refs, and reviewer notes.",
-      provenance: ["delivery workbench model", "artifact preview tabs"],
-      actions: ["Preview export", "Attach receipt ref", "Rollback request"]
-    },
-    {
-      id: "owner-brief",
-      title: "Review brief",
-      kind: "deliverable",
-      status: "needs_review",
-      previewKind: "markdown",
-      ref: "opl://delivery/owner-brief",
-      summary: "Compact handoff brief that stays below owner-receipt authority.",
-      provenance: ["confirmation card", "question card"],
-      actions: ["Review risks", "Ask owner question"]
-    }
-  ],
-  receipts: [
-    {
-      id: "dry-run-receipt",
-      title: "Action preview receipt",
-      kind: "receipt",
-      status: "needs_review",
-      previewKind: "code",
-      ref: "opl://receipt/dry-run",
-      summary: "Bridge preview receipt; no domain execution is implied.",
-      provenance: ["opl app action execute --dry-run", "browser bridge"],
-      actions: ["Copy command ref", "Compare payload"]
-    }
-  ],
-  artifactPreviews: [
-    {
-      id: "preview-markdown",
-      label: "Markdown",
-      previewKind: "markdown",
-      rendererModuleId: "streamdown",
-      title: "Result narrative",
-      ref: "artifact://candidate/result-summary.md",
-      summary: "Streaming markdown preview for result prose and reviewer notes."
-    },
-    {
-      id: "preview-math",
-      label: "Math",
-      previewKind: "math",
-      rendererModuleId: "katex",
-      title: "Methods note",
-      ref: "artifact://candidate/methods-equation.tex",
-      summary: "KaTeX-backed formula preview for scientific workbench notes."
-    },
-    {
-      id: "preview-diagram",
-      label: "Mermaid",
-      previewKind: "mermaid",
-      rendererModuleId: "mermaid",
-      title: "Delivery flow",
-      ref: "artifact://candidate/delivery-flow.mmd",
-      summary: "Mermaid preview slot for routing, confirmation, and receipt flow."
-    },
-    {
-      id: "preview-code",
-      label: "Code",
-      previewKind: "code",
-      rendererModuleId: "@codemirror/view",
-      title: "Patch excerpt",
-      ref: "artifact://candidate/patch-ref.ts",
-      summary: "CodeMirror preview slot for diff and code references."
-    },
-    {
-      id: "preview-pdf",
-      label: "PDF",
-      previewKind: "pdf",
-      rendererModuleId: "pdfjs-dist",
-      title: "Export proof",
-      ref: "artifact://candidate/export-preview.pdf",
-      summary: "PDF.js preview slot for local export artifacts."
-    }
-  ],
-  deliveryPackages: [
-    {
-      id: "delivery-package",
-      title: "Delivery package",
-      status: "needs_review",
-      summary: "Refs-only package shell for deliverable refs, receipt refs, and source refs; preview route requires App payload.",
-      deliverableRefs: ["opl://delivery/package", "opl://delivery/owner-brief"],
-      receiptRefs: ["opl://receipt/dry-run"],
-      sourceRefs: ["opl app state --profile fast --json"],
-      runtimeStatus: "candidate_surface_only",
-      authorityBoundary: "No artifact body, owner receipt, domain truth, or release authority."
-    }
-  ],
-  actionReceipts: [
-    {
-      id: "receipt-task-export-bundle-preview",
-      title: "Export bundle preview receipt",
-      status: "unavailable",
-      mutates: "none_read_only",
-      receiptRef: "opl://receipt/unavailable",
-      summary: "No live App action ref is bound in fallback mode; open App state before previewing a receipt.",
-      payloadFields: ["task_id", "export_bundle_ref"],
-      owner: "opl_framework",
-      authorityBoundary: "Structured preview receipt only; no export execution authority.",
-      sourceRefs: ["opl app state --profile fast --json"],
-      checks: ["Bind a live App action ref before previewing the receipt.", "Fallback mode does not create an action id, owner receipt, or artifact body."]
-    }
-  ],
+  sessions: [],
+  results: [],
+  deliverables: [],
+  receipts: [],
+  artifactPreviews: [],
+  deliveryPackages: [],
+  actionReceipts: [],
   packageLifecycle: [
     {
       id: "package-lifecycle-missing-bridge",
@@ -448,8 +363,8 @@ export const initialWorkbenchModel: WorkbenchModel = {
       module: "MedAutoScience",
       intent: "Prepare a paper-mission preview request from local fields.",
       fields: [
-        { name: "study", label: "Study", input: "text", value: "DM-CVD candidate" },
-        { name: "question", label: "Scientific question", input: "textarea", value: "What evidence package should be reviewed next?" },
+        { name: "study", label: "Study", input: "text", value: "" },
+        { name: "question", label: "Scientific question", input: "textarea", value: "" },
         { name: "output", label: "Output", input: "select", value: "decision_packet", options: ["decision_packet", "figure_refs", "review_response"] }
       ],
       available: false,
@@ -464,8 +379,8 @@ export const initialWorkbenchModel: WorkbenchModel = {
       module: "MedAutoGrant",
       intent: "Shape a grant-authoring preview request without grant authority.",
       fields: [
-        { name: "mechanism", label: "Mechanism", input: "text", value: "R01-style concept" },
-        { name: "aim", label: "Aim", input: "textarea", value: "Draft specific aims from approved refs only." },
+        { name: "mechanism", label: "Mechanism", input: "text", value: "" },
+        { name: "aim", label: "Aim", input: "textarea", value: "" },
         { name: "stage", label: "Stage", input: "select", value: "outline", options: ["outline", "significance", "approach"] }
       ],
       available: false,
@@ -480,8 +395,8 @@ export const initialWorkbenchModel: WorkbenchModel = {
       module: "RedCube AI",
       intent: "Prepare a visual-deliverable preview request from refs.",
       fields: [
-        { name: "scene", label: "Scene", input: "text", value: "Mechanism overview" },
-        { name: "assets", label: "Assets", input: "textarea", value: "Use approved local refs; no generated authority claim." },
+        { name: "scene", label: "Scene", input: "text", value: "" },
+        { name: "assets", label: "Assets", input: "textarea", value: "" },
         { name: "format", label: "Format", input: "select", value: "slide_panel", options: ["slide_panel", "poster_panel", "figure_panel"] }
       ],
       available: false,
@@ -496,8 +411,8 @@ export const initialWorkbenchModel: WorkbenchModel = {
       module: "OPL BookForge",
       intent: "Start a manuscript-structure preview request.",
       fields: [
-        { name: "book", label: "Book", input: "text", value: "One Person Lab methods" },
-        { name: "chapter", label: "Chapter brief", input: "textarea", value: "Turn confirmed results into a chapter outline." },
+        { name: "book", label: "Book", input: "text", value: "" },
+        { name: "chapter", label: "Chapter brief", input: "textarea", value: "" },
         { name: "mode", label: "Mode", input: "select", value: "outline", options: ["outline", "section_draft", "revision_map"] }
       ],
       available: false,
@@ -505,78 +420,12 @@ export const initialWorkbenchModel: WorkbenchModel = {
       sourceRef: "unavailable:no live App state action ref"
     }
   ],
-  confirmations: [
-    {
-      id: "confirm-export",
-      title: "Prepare delivery export",
-      question: "Preview the current result refs and receipt refs as a delivery package?",
-      risks: ["Refs may be stale until App state is refreshed", "Packet is not owner acceptance"],
-      willChange: ["Create an App action preview request", "Record the proposed export payload"],
-      willNotChange: ["No domain artifact body is written", "No owner receipt or release claim is created"],
-      receipt: "Preview receipt from opl app action execute --dry-run",
-      rollback: "Discard the candidate packet request before explicit execution"
-    },
-    {
-      id: "confirm-owner-question",
-      title: "Ask owner question",
-      question: "Route the unresolved decision as an owner-facing question?",
-      risks: ["Owner may reject the proposed route", "Question may require newer runtime readback"],
-      willChange: ["Prepare a typed question payload", "Attach refs and rollback path"],
-      willNotChange: ["No active-shell adoption", "No runtime/domain truth transfer"],
-      receipt: "Question dry-run receipt with source refs",
-      rollback: "Remove the question card from the draft packet"
-    }
-  ],
-  questions: [
-    {
-      id: "question-authority",
-      question: "Which App state ref is authoritative for this delivery?",
-      whyItMatters: "The shell can present refs, but the App/domain owner decides truth.",
-      answerType: "single source ref"
-    },
-    {
-      id: "question-acceptance",
-      question: "What evidence would promote this from candidate UI to visual acceptance?",
-      whyItMatters: "Source smoke is not packaged GUI, clean VM, or owner acceptance.",
-      answerType: "evidence checklist"
-    },
-    {
-      id: "question-rollback",
-      question: "What should be discarded if the dry-run route is rejected?",
-      whyItMatters: "Rollback must be explicit before an export or owner question.",
-      answerType: "rollback note"
-    }
-  ],
-  activeProjectLines: [
-    {
-      status: "candidate_surface_only",
-      activeRunId: null,
-      nextVisibleStep: "Consume opl app state/action refs",
-      progressDeltaClassification: "platform_or_observability_delta",
-      deliverableProgressDelta: "result refs visible",
-      platformRepairDelta: "native workbench non-live delivery surface",
-      nextForcedDelta: "owner adoption gate"
-    }
-  ],
-  contextSources: [
-    {
-      id: "fallback-fast-state",
-      label: "Fast state",
-      ref: "opl app state --profile fast --json",
-      summary: "Default GUI state read surface."
-    },
-    {
-      id: "fallback-action",
-      label: "Action bridge",
-      ref: "opl app action execute --action <action_id> --dry-run --json",
-      summary: "Preview receipts before execution."
-    }
-  ],
+  confirmations: [],
+  questions: [],
+  activeProjectLines: [],
+  contextSources: [],
   contextActions: [],
-  contextTrace: [
-    { id: "fallback-owner", label: "Owner", value: "one-person-lab-app GUI refs" },
-    { id: "fallback-boundary", label: "Boundary", value: "refs-only, no domain artifact body ownership" }
-  ]
+  contextTrace: []
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -599,6 +448,257 @@ function asBoolean(value: unknown): boolean {
 
 function asRecordArray(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? value.map(asRecord).filter((item): item is Record<string, unknown> => Boolean(item)) : [];
+}
+
+function firstString(record: Record<string, unknown> | null, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = asString(record?.[key]);
+    if (value) return value;
+  }
+  return null;
+}
+
+function firstBoolean(record: Record<string, unknown> | null, keys: string[]): boolean {
+  return keys.some((key) => asBoolean(record?.[key]));
+}
+
+function nestedRecord(record: Record<string, unknown> | null, keys: string[]): Record<string, unknown> | null {
+  for (const key of keys) {
+    const value = asRecord(record?.[key]);
+    if (value) return value;
+  }
+  return null;
+}
+
+function payloadRecord(value: unknown): Record<string, unknown> | null {
+  const record = asRecord(value);
+  return nestedRecord(record, ["result", "data", "payload", "response"]) ?? record;
+}
+
+function listRecords(value: unknown, keys: string[]): Record<string, unknown>[] {
+  if (Array.isArray(value)) return asRecordArray(value);
+  const payload = payloadRecord(value);
+  for (const key of keys) {
+    const items = asRecordArray(payload?.[key]);
+    if (items.length || Array.isArray(payload?.[key])) return items;
+  }
+  return [];
+}
+
+function timestampString(value: unknown): string | undefined {
+  const text = asString(value);
+  if (text) return text;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const milliseconds = value > 10_000_000_000 ? value : value * 1000;
+    return new Date(milliseconds).toISOString();
+  }
+  return undefined;
+}
+
+function pathLabel(value: string): string {
+  const normalized = value.replace(/\/$/, "");
+  return normalized.split("/").filter(Boolean).at(-1) ?? value;
+}
+
+function threadFromRecord(
+  record: Record<string, unknown>,
+  inheritedProject?: Record<string, unknown>
+): WorkbenchThreadItem | null {
+  const id = firstString(record, ["id", "threadId", "thread_id", "threadID"]);
+  if (!id) return null;
+  const project = nestedRecord(record, ["project", "projectRef", "project_ref"]) ?? inheritedProject ?? null;
+  const projectId = firstString(record, ["projectId", "project_id"])
+    ?? firstString(project, ["id", "projectId", "project_id"])
+    ?? undefined;
+  const projectLabel = firstString(record, ["projectLabel", "project_label", "projectName", "project_name"])
+    ?? firstString(project, ["label", "name", "title"])
+    ?? undefined;
+  const workspace = firstString(record, ["workspace", "workspaceRoot", "workspace_root", "cwd", "path"])
+    ?? firstString(project, ["workspace", "workspaceRoot", "workspace_root", "cwd", "path"])
+    ?? undefined;
+  return {
+    id,
+    sessionId: firstString(record, ["sessionId", "session_id"]) ?? undefined,
+    projectKey: firstString(record, ["projectKey", "project_key"]) ?? undefined,
+    hostId: firstString(record, ["hostId", "host_id"]) ?? undefined,
+    title: firstString(record, ["title", "name", "displayName", "display_name", "summary", "preview", "subject"])
+      ?? `Thread ${id.slice(0, 8)}`,
+    projectId,
+    projectLabel,
+    workspace,
+    goal: firstString(record, ["goal", "objective", "summary"]) ?? undefined,
+    parentThreadId: firstString(record, ["parentThreadId", "parent_thread_id", "parentId", "parent_id"]) ?? undefined,
+    ancestorThreadIds: asStringArray(record.ancestorThreadIds ?? record.ancestor_thread_ids ?? record.ancestors),
+    activeTurnId: firstString(record, ["activeTurnId", "active_turn_id"])
+      ?? firstString(nestedRecord(record, ["activeTurn", "active_turn"]), ["id", "turnId", "turn_id"])
+      ?? undefined,
+    writeSet: asStringArray(record.writeSet ?? record.write_set ?? record.expectedWriteSet ?? record.expected_write_set),
+    status: firstString(record, ["status", "state", "phase"]) ?? "unknown",
+    preview: firstString(record, ["preview", "summary", "lastMessage", "last_message", "snippet"]) ?? "",
+    updatedAt: timestampString(record.updatedAt ?? record.updated_at ?? record.modifiedAt ?? record.modified_at),
+    archived: firstBoolean(record, ["archived", "isArchived", "is_archived"])
+  };
+}
+
+export function deriveThreadDirectory(value: unknown): WorkbenchProjectGroup[] {
+  const payload = payloadRecord(value);
+  const projectRows = asRecordArray(payload?.projects ?? payload?.workspaces);
+  const inheritedThreads = projectRows.flatMap((project) => {
+    const rows = asRecordArray(project.threads ?? project.items);
+    return rows.map((thread) => threadFromRecord(thread, project));
+  });
+  const directThreads = listRecords(value, ["data", "threads", "items", "entries"])
+    .map((thread) => threadFromRecord(thread));
+  const threads = [...inheritedThreads, ...directThreads]
+    .filter((thread): thread is WorkbenchThreadItem => Boolean(thread));
+  const uniqueThreads = Array.from(new Map(threads.map((thread) => [thread.id, thread])).values());
+  const groups = new Map<string, WorkbenchProjectGroup>();
+
+  for (const thread of uniqueThreads) {
+    const hasProject = Boolean(thread.projectKey || thread.projectId || thread.projectLabel);
+    const projectKey = thread.projectKey
+      ? `project:${thread.projectKey}`
+      : thread.projectId
+      ? `project:${thread.projectId}`
+      : thread.projectLabel
+        ? `project-label:${thread.projectLabel}`
+        : `projectless:${thread.workspace ?? "none"}`;
+    const projectless = !hasProject;
+    const group = groups.get(projectKey) ?? {
+      id: projectKey,
+      label: projectless
+        ? thread.workspace ? `No project / ${pathLabel(thread.workspace)}` : "No project"
+        : thread.projectLabel ?? thread.projectKey ?? (thread.workspace ? pathLabel(thread.workspace) : thread.projectId ?? "Project"),
+      workspace: thread.workspace,
+      projectless,
+      threads: []
+    };
+    group.threads.push(thread);
+    groups.set(projectKey, group);
+  }
+
+  return Array.from(groups.values())
+    .map((group) => ({
+      ...group,
+      threads: group.threads.sort((left, right) => (right.updatedAt ?? "").localeCompare(left.updatedAt ?? ""))
+    }))
+    .sort((left, right) => Number(left.projectless) - Number(right.projectless) || left.label.localeCompare(right.label));
+}
+
+function textFromContent(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(textFromContent).filter(Boolean).join("\n");
+  const record = asRecord(value);
+  if (!record) return "";
+  return firstString(record, ["text", "content", "message", "delta", "output_text"])
+    ?? textFromContent(record.parts ?? record.items ?? record.content)
+    ?? "";
+}
+
+function messageFromRecord(record: Record<string, unknown>, index: number): WorkbenchThreadMessage | null {
+  const type = firstString(record, ["type", "kind", "event"])?.toLowerCase() ?? "";
+  const explicitRole = firstString(record, ["role", "author"]);
+  const role = explicitRole === "user" || /user.?message|input.?message/.test(type)
+    ? "user"
+    : explicitRole === "assistant" || /agent.?message|assistant.?message|output.?message/.test(type)
+      ? "assistant"
+      : explicitRole === "system"
+        ? "system"
+        : null;
+  if (!role) return null;
+  const text = firstString(record, ["text", "message", "output_text"])
+    ?? textFromContent(record.content ?? record.parts ?? record.items);
+  if (!text.trim()) return null;
+  return {
+    id: firstString(record, ["id", "itemId", "item_id", "messageId", "message_id"]) ?? `thread-message-${index}`,
+    role,
+    text
+  };
+}
+
+export function deriveThreadMessages(value: unknown): WorkbenchThreadMessage[] {
+  const payload = payloadRecord(value);
+  const thread = nestedRecord(payload, ["thread"]);
+  const direct = [payload, thread]
+    .filter((record): record is Record<string, unknown> => Boolean(record))
+    .flatMap((record) => asRecordArray(record.messages ?? record.items));
+  const turns = [payload, thread]
+    .filter((record): record is Record<string, unknown> => Boolean(record))
+    .flatMap((record) => asRecordArray(record.turns));
+  const turnItems = turns.flatMap((turn) => asRecordArray(turn.items ?? turn.messages));
+  return [...direct, ...turnItems]
+    .map(messageFromRecord)
+    .filter((message): message is WorkbenchThreadMessage => Boolean(message));
+}
+
+function coordinationPhase(record: Record<string, unknown> | null): WorkbenchCoordinationPhase {
+  const state = firstString(record, ["phase", "status", "state", "type", "kind"])?.toLowerCase() ?? "";
+  if (firstString(record, ["conflict", "conflictReason", "conflict_reason"]) || /conflict|blocked|rejected/.test(state)) return "conflict";
+  if (record?.result !== undefined || record?.output !== undefined || /result|complete|completed|succeeded|failed|cancelled/.test(state)) return "result";
+  if (record?.queuePosition !== undefined || record?.queue_position !== undefined || /queue|pending|waiting|running|started|steered/.test(state)) return "queued";
+  if (firstBoolean(record, ["requiresConfirmation", "requires_confirmation", "confirmationRequired", "confirmation_required"]) || /confirm|approval/.test(state)) return "confirmation";
+  return "proposal";
+}
+
+export function deriveCoordinationOperation(
+  value: unknown,
+  fallback: Partial<WorkbenchCoordinationOperation> = {}
+): WorkbenchCoordinationOperation {
+  const record = payloadRecord(value);
+  const queueValue = record?.queuePosition ?? record?.queue_position;
+  const queuePosition = typeof queueValue === "number" ? queueValue : Number(asString(queueValue));
+  const conflict = firstString(record, ["conflict", "conflictReason", "conflict_reason", "error"])
+    ?? firstString(nestedRecord(record, ["guard", "safety"]), ["message", "reason", "summary"])
+    ?? firstString(nestedRecord(record, ["conflict_detail", "conflictDetail"]), ["summary", "message", "reason"])
+    ?? fallback.conflict;
+  const result = firstString(record, ["result", "output", "resultSummary", "result_summary", "resultSummaryOrRef"])
+    ?? firstString(nestedRecord(record, ["result", "output"]), ["summary", "message", "text"])
+    ?? fallback.result;
+  return {
+    id: firstString(record, ["coordinationId", "coordination_id", "previewToken", "preview_token", "proposalId", "proposal_id", "id"]) ?? fallback.id,
+    phase: coordinationPhase(record) ?? fallback.phase ?? "proposal",
+    sourceThreadId: firstString(record, ["sourceThreadId", "source_thread_id", "sourceId", "source_id"]) ?? fallback.sourceThreadId,
+    targetThreadId: firstString(record, ["targetThreadId", "target_thread_id", "targetId", "target_id"]) ?? fallback.targetThreadId,
+    summary: firstString(record, ["summary", "message", "description", "prompt", "intent"])
+      ?? fallback.summary
+      ?? "Coordination proposal prepared.",
+    requiresConfirmation: firstBoolean(record, ["requiresConfirmation", "requires_confirmation", "confirmationRequired", "confirmation_required"])
+      || coordinationPhase(record) === "confirmation",
+    plannedDispatch: (() => {
+      const dispatch = firstString(record, ["plannedDispatch", "planned_dispatch", "dispatchKind", "dispatch_kind", "state"]);
+      return dispatch === "started" || dispatch === "steered" || dispatch === "queued" ? dispatch : fallback.plannedDispatch;
+    })(),
+    safetyState: firstString(record, ["safetyState", "safety_state", "state"]) ?? fallback.safetyState,
+    guardCode: firstString(nestedRecord(record, ["guard", "safety"]), ["code", "state", "type"])
+      ?? firstString(record, ["guardCode", "guard_code"])
+      ?? fallback.guardCode,
+    queuePosition: Number.isFinite(queuePosition) ? queuePosition : fallback.queuePosition,
+    conflict,
+    result
+  };
+}
+
+export function deriveCoordinationEvents(value: unknown): WorkbenchCoordinationEvent[] {
+  return listRecords(value, ["events", "items", "entries"]).map((record, index) => {
+    const sourceThreadId = firstString(record, ["sourceThreadId", "source_thread_id", "sourceId", "source_id"]) ?? undefined;
+    const targetThreadId = firstString(record, ["targetThreadId", "target_thread_id", "targetId", "target_id"]) ?? undefined;
+    const directionValue = firstString(record, ["direction", "side", "role"])?.toLowerCase() ?? "";
+    const direction = /source|sender|origin/.test(directionValue)
+      ? "source"
+      : /target|receiver|destination/.test(directionValue)
+        ? "target"
+        : "system";
+    return {
+      id: firstString(record, ["id", "eventId", "event_id"]) ?? `coordination-event-${index}`,
+      phase: coordinationPhase(record),
+      direction,
+      label: firstString(record, ["label", "title", "type", "kind", "status"]) ?? "Coordination event",
+      detail: firstString(record, ["detail", "summary", "message", "description", "result", "error"]) ?? "",
+      sourceThreadId,
+      targetThreadId,
+      occurredAt: timestampString(record.occurredAt ?? record.occurred_at ?? record.createdAt ?? record.created_at)
+    } satisfies WorkbenchCoordinationEvent;
+  });
 }
 
 function uniqueByRef<T extends { ref?: string; route?: string; id: string }>(items: T[]): T[] {
@@ -2056,17 +2156,19 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
   ] : fallback.deliveryPackages;
 
   const leadTaskNextStep = compactText(leadTask?.next_visible_step, "Review current App refs before execution.");
-  const confirmations = fallback.confirmations.map((card, index): ConfirmationCard => index === 0 && previewAction ? {
-    ...card,
+  const confirmations: ConfirmationCard[] = previewAction ? [{
+    id: `confirm-${previewAction.id}`,
     title: `Preview ${leadTaskTitle} package`,
     question: `Preview ${previewAction.label} for ${leadTaskTitle} as a refs-only delivery package?`,
-    risks: [`Runtime status: ${runtimeStatus}`, leadTaskNextStep, "Preview receipt is not owner acceptance"],
+    risks: [`Runtime status: ${runtimeStatus}`, leadTaskNextStep, "needs_human_confirmation"],
     willChange: [`Create dry-run request for ${previewAction.id}`, "Attach current App state refs"],
-    receipt: ensureDryRunJsonRoute(previewAction.route),
+    willNotChange: ["No domain artifact body is written", "No owner receipt or release claim is created"],
+    receipt: "Preview receipt from opl app action execute --dry-run",
+    rollback: "Discard the candidate packet request before explicit execution",
     dryRunAction: previewAction.id
-  } : card);
+  }] : [];
 
-  const questions = [
+  const questions = leadTask ? [
     {
       id: "question-owner-shape",
       question: compactText(currentOwnerDelta?.desired_delta_description, leadTaskNextStep),
@@ -2085,7 +2187,7 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
       whyItMatters: "Export bundle previews remain App-owned dry-run refs, not artifact bodies.",
       answerType: "export bundle ref"
     }
-  ];
+  ] : [];
 
   const contextTrace = [
     { id: "profile", label: "Profile", value: `${asString(meta?.profile) ?? "fast"} | ${formatTimestamp(meta?.generated_at) ?? "no timestamp"}` },
