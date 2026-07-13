@@ -7,8 +7,11 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), "utf8");
 const app = read("src/workbench/App.tsx");
+const main = read("src/main.tsx");
 const model = read("src/workbench/workbenchModel.ts");
 const styles = read("src/workbench/codexWorkbenchStyles.ts");
+const nativeWindow = read("scripts/native-workbench-app.swift");
+const nativeSmoke = read("scripts/smoke-native-app-live.mjs");
 const dialog = read("src/workbench/coordination/CoordinationDialog.tsx");
 const rail = read("src/workbench/coordination/ThreadRail.tsx");
 const detail = read("src/workbench/coordination/ThreadDetailPopover.tsx");
@@ -59,6 +62,9 @@ test("rail, lifecycle, and dispatch states are explicit", () => {
   assert.match(rail, /data-projectless/);
   assert.match(detail, /opl-thread-resume/);
   assert.match(detail, /onRequestArchive/);
+  assert.match(detail, /onCoordinate/);
+  assert.match(detail, /copy\.coordinate/);
+  assert.doesNotMatch(app, /opl-composer-coordination-action/);
   assert.doesNotMatch(detail, /onArchive/);
   assert.match(lifecycle, /opl-thread-lifecycle-confirmation/);
   assert.match(lifecycle, /ThreadLifecycleAction/);
@@ -83,6 +89,23 @@ test("rail, lifecycle, and dispatch states are explicit", () => {
   assert.match(model, /coordinationId, method, state, direction/);
   assert.match(app, /if \(!event\.method\.startsWith\("coordination\/"\)\) return/);
   assert.match(app, /const seen = new Set<string>\(\)/);
+});
+
+test("native window chrome follows the compact Codex composition", () => {
+  assert.doesNotMatch(app, /className="brand-name">Codex/);
+  assert.match(app, /<strong className="brand-mark">One Person Lab<\/strong>/);
+  assert.match(main, /document\.documentElement\.dataset\.oplHost = nativeTransportInstalled \? "native" : "web"/);
+  assert.match(styles, /:root\[data-opl-host="native"\]/);
+  assert.match(styles, /--opl-native-titlebar-inset: 34px/);
+  assert.match(styles, /padding-top: var\(--opl-native-titlebar-inset\)/);
+  assert.match(nativeWindow, /\.fullSizeContentView/);
+  assert.match(nativeWindow, /window\.titleVisibility = \.hidden/);
+  assert.match(nativeWindow, /window\.titlebarAppearsTransparent = true/);
+  assert.match(nativeWindow, /window\.titlebarSeparatorStyle = \.none/);
+  assert.match(nativeWindow, /window\.isMovableByWindowBackground = true/);
+  assert.match(nativeSmoke, /output\.includes\("brand=1"\)/);
+  assert.match(nativeSmoke, /output\.includes\("codex=0"\)/);
+  assert.match(nativeSmoke, /screenshot_absent_markers: \["Codex"\]/);
 });
 
 test("desktop remains two-column and mobile overlays are full-height", () => {

@@ -8,7 +8,6 @@ import {
   Download,
   FileText,
   Folder,
-  Network,
   MoreVertical,
   PanelLeft,
   PanelRightOpen,
@@ -1261,7 +1260,6 @@ export function App() {
           <img src="branding/opl-app-logo.png" alt="One Person Lab App" />
           <span className="brand-lockup">
             <strong className="brand-mark">One Person Lab</strong>
-            <span className="brand-name">Codex</span>
           </span>
           <button className="icon-button sidebar-search" type="button" aria-label={settings.locale === "zh" ? "搜索对话" : "Search conversations"}>
             <Search aria-hidden="true" size={15} />
@@ -1591,17 +1589,6 @@ export function App() {
                       >
                         <Plug aria-hidden="true" size={14} />
                         <span className="composer-control-label">{t.capabilities}</span>
-                      </button>
-                      <button
-                        data-testid="opl-composer-coordination-action"
-                        className="composer-control"
-                        type="button"
-                        disabled={!currentSession}
-                        aria-label={settings.locale === "zh" ? "跨对话协调" : "Cross-thread coordination"}
-                        onClick={() => openCoordinationDialog()}
-                      >
-                        <Network aria-hidden="true" size={14} />
-                        <span className="composer-control-label">{settings.locale === "zh" ? "协调" : "Coordinate"}</span>
                       </button>
                       <span className={`composer-status ${sendState === "error" || unavailableFixedModel ? "error" : sendState}`} data-testid="opl-composer-run-state" aria-live="polite">
                         {sendState === "running" ? t.working : sendState === "error" ? sendError : unavailableFixedModel ? t.modelSelectionUnavailable : ""}

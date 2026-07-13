@@ -74,7 +74,10 @@ function installNativeTransport(): boolean {
   return true;
 }
 
-if (!installNativeTransport() && window.location.protocol !== "file:") {
+const nativeTransportInstalled = installNativeTransport();
+document.documentElement.dataset.oplHost = nativeTransportInstalled ? "native" : "web";
+
+if (!nativeTransportInstalled && window.location.protocol !== "file:") {
   installWebTransport();
 }
 

@@ -141,14 +141,15 @@ function readScreenshotMarkers() {
     "request.usesLanguageCorrection = false",
     "try VNImageRequestHandler(cgImage: cgImage).perform([request])",
     "let text = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: \" \" )",
+    "let hasBrand = text.localizedCaseInsensitiveContains(\"One Person Lab\")",
     "let hasCodex = text.localizedCaseInsensitiveContains(\"Codex\")",
     "let hasModel = text.localizedCaseInsensitiveContains(\"5.6 Sol\")",
-    "print(\"codex=\\(hasCodex ? 1 : 0);model=\\(hasModel ? 1 : 0)\")"
+    "print(\"brand=\\(hasBrand ? 1 : 0);codex=\\(hasCodex ? 1 : 0);model=\\(hasModel ? 1 : 0)\")"
   ].join("\n");
   const result = run("/usr/bin/swift", ["-e", source, screenshotPath]);
   const output = result.stdout.trim();
   return {
-    ready: result.status === 0 && output.includes("codex=1") && output.includes("model=1"),
+    ready: result.status === 0 && output.includes("brand=1") && output.includes("codex=0") && output.includes("model=1"),
     output,
     error: result.status === 0 ? "" : (result.stderr || result.stdout).trim()
   };
@@ -182,7 +183,8 @@ function captureScreenshot(pid) {
           screenshot_path: path.relative(root, screenshotPath),
           screenshot_bytes: fs.statSync(screenshotPath).size,
           screenshot_window_id: windowId,
-          screenshot_markers: ["Codex", "5.6 Sol"]
+          screenshot_markers: ["One Person Lab", "5.6 Sol"],
+          screenshot_absent_markers: ["Codex"]
         };
       }
     }

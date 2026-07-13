@@ -1,6 +1,7 @@
 export const codexWorkbenchStyles = `
   :root {
     color-scheme: light;
+    --opl-native-titlebar-inset: 0px;
     --opl-accent: #0d9488;
     --opl-accent-soft: #e7f5f3;
     --opl-canvas: #ffffff;
@@ -12,6 +13,10 @@ export const codexWorkbenchStyles = `
     --opl-muted: #73746f;
     --opl-faint: #9a9b96;
     --opl-danger: #d65342;
+  }
+
+  :root[data-opl-host="native"] {
+    --opl-native-titlebar-inset: 34px;
   }
 
   * {
@@ -61,6 +66,7 @@ export const codexWorkbenchStyles = `
     overflow: hidden;
     border-right: 1px solid var(--opl-border);
     background: var(--opl-sidebar);
+    padding-top: var(--opl-native-titlebar-inset);
   }
 
   .sidebar-closed .sidebar {
@@ -92,11 +98,6 @@ export const codexWorkbenchStyles = `
 
   .brand-mark {
     color: var(--opl-text);
-  }
-
-  .brand-name {
-    color: var(--opl-accent);
-    font-weight: 560;
   }
 
   .icon-button {
