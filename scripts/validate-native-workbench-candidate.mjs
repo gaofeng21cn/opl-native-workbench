@@ -217,6 +217,17 @@ function assertCodexModelControls(evidence, app) {
   assert(nativeApp.includes("models.append(contentsOf: pageModels)"), "native app must merge model/list pages");
   assert(nativeApp.includes('turnParams["model"] = model'), "native app must pass model to app-server turn/start");
   assert(nativeApp.includes('turnParams["effort"] = effort'), "native app must pass effort to app-server turn/start");
+  for (const marker of [
+    "OPL_CODEX_BIN",
+    "OPL_APP_OPL_BIN",
+    "OPL_APP_RUNTIME_IDENTITY_JSON",
+    "readRuntimeIdentity",
+    "OPL_NATIVE_WORKBENCH_READ_ONLY",
+    "blocked_read_only",
+    "candidate_read_only_policy"
+  ]) {
+    assert(nativeApp.includes(marker), `native app must preserve launcher/runtime safety marker ${marker}`);
+  }
   assert(rendererBuilder.includes("__OPL_CODEX_MODEL_POLICY__"), "renderer build must inject the App-owned model policy");
   assert(rendererBuilder.includes("resolveAppRepoRoot"), "renderer build must resolve the App repo through the shared helper");
   assert(appRepoResolver.includes('"contracts", "app-product-profile.json"'), "App repo resolver must require the App product profile");

@@ -59,6 +59,20 @@ thread/turn JSON-RPC flow (`initialize`, `thread/start`, `turn/start`,
 deltas, and thread resume use the Codex control plane instead of a shell-owned
 one-shot CLI wrapper.
 
+For side-by-side local testing, launch this Candidate from the App repository:
+
+```bash
+npm run gui -- --shell opl-native-workbench
+```
+
+The App launcher injects absolute `opl` and `codex` executable paths plus an
+`app_runtime_executable_identity.v1` readback. Candidate actions are
+dry-run-only by default; non-dry-run requests return a typed
+`blocked_read_only` receipt without executing OPL. `--allow-actions` is an
+explicit local override and requires restarting an already-running Candidate.
+Opening this bundle directly remains a host-PATH fallback and does not prove
+Runtime parity with AionUI.
+
 The current candidate also keeps a local chat-session ledger in `localStorage`.
 The left sidebar is no longer static mock data: it can reopen recent chats,
 reuse the saved `threadId`, and show the latest locally-persisted draft even
@@ -132,7 +146,7 @@ Current evidence remains intentionally bounded:
 | Codex chat runtime | Implemented candidate evidence | App-server thread/turn markers for `initialize`, `thread/start`, `turn/start`, model/effort overrides, streaming deltas, `turn/completed`, and `thread/resume` | Does not replace the Codex control plane |
 | Chat history and session resume | Implemented candidate evidence | Local persisted session list, reusable `threadId`, and sidebar reopen path | Local candidate persistence only |
 | OPL state context | Implemented candidate evidence | `opl app state --profile fast --json`, explicit full state, and full runtime drilldown exception markers | Reads App/Framework truth only |
-| App action flow | Implemented candidate evidence | Dry-run action preview, visible receipt markers, and confirmation card markers | No execution without explicit confirmation |
+| App action flow | Implemented candidate evidence | Dry-run action preview, visible receipt markers, confirmation card markers, and launcher-default `blocked_read_only` policy | No execution from the default Candidate launcher; explicit `--allow-actions` plus confirmation is required |
 | Execute / rollback preview loop | Implemented candidate evidence | Explicit confirmed execute plus rollback-preview request path | Candidate receipt shell only; no owner receipt authority |
 | Settings route | Implemented candidate evidence | Settings page markers for model/account access, locale, runtime connection, project, and candidate-about controls | UI candidate only |
 | Settings persistence model | Implemented candidate evidence | `src/workbench/settingsModel.ts` defines sections, keys, defaults, `SETTINGS_STORAGE_KEY`, and localStorage read/write helpers | localStorage only; no system write permission |

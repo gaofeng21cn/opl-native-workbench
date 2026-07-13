@@ -104,6 +104,23 @@ runCommand("swiftc", [
 const manifest = {
   status: "candidate_app_bundle_built",
   package_kind: "explicit_candidate_app_bundle",
+  bundle_identity: {
+    bundle_id: "cn.gflab.opl.native-workbench.candidate",
+    isolated_from_active_mainline_bundle_id: "cn.onepersonlab.opl"
+  },
+  launcher_runtime_resolution: {
+    source: "one-person-lab-app npm run gui",
+    identity_schema: "app_runtime_executable_identity.v1",
+    explicit_executable_env: ["OPL_APP_OPL_BIN", "OPL_CODEX_BIN"],
+    identity_readback_env: "OPL_APP_RUNTIME_IDENTITY_JSON",
+    direct_launch_fallback: "host_path_without_runtime_parity_claim"
+  },
+  candidate_mutation_policy: {
+    launcher_default: "dry_run_only",
+    guard_env: "OPL_NATIVE_WORKBENCH_READ_ONLY=1",
+    explicit_override: "one-person-lab-app gui launcher --allow-actions",
+    blocked_receipt_kind: "blocked_read_only"
+  },
   app_bundle_path: `out/${appName}.app`,
   app_bundle_executable: appName,
   app_bundle_icon: "Contents/Resources/app.icns",
