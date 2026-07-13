@@ -23,10 +23,11 @@ import type {
 export type OplStateProfile = "fast" | "full";
 
 export type OplActionMode = "preview" | "execute" | "rollback";
-export type OplActionReceiptKind = OplActionMode | "confirmation_required";
+export type OplActionReceiptKind = OplActionMode | "confirmation_required" | "blocked_read_only";
 export type OplActionReceiptStatus =
   | "preview_ready"
   | "confirmation_required"
+  | "blocked_read_only"
   | "executed"
   | "error"
   | "timed_out";
@@ -161,6 +162,7 @@ export type OplActionReceipt = {
   confirmationId?: string;
   receiptId?: string;
   rollbackRef?: string;
+  blockedReason?: string;
 };
 
 export type CodexMessageRequest = {
@@ -627,6 +629,7 @@ function actionReceiptStatus(
   timedOut: boolean
 ): OplActionReceiptStatus {
   if (timedOut) return "timed_out";
+  if (receiptKind === "blocked_read_only") return "blocked_read_only";
   if (receiptKind === "confirmation_required") return "confirmation_required";
   if (exitCode !== 0) return "error";
   return dryRun ? "preview_ready" : "executed";
@@ -837,7 +840,8 @@ export function normalizeActionReceipt(value: unknown, request: OplActionRequest
     stderrJson: parseJsonValue(readback.stderr),
     confirmationId: asString(record.confirmationId) ?? fallback.confirmationId,
     receiptId: asString(record.receiptId) ?? fallback.receiptId,
-    rollbackRef: asString(record.rollbackRef) ?? fallback.rollbackRef
+    rollbackRef: asString(record.rollbackRef) ?? fallback.rollbackRef,
+    blockedReason: asString(record.blockedReason) ?? fallback.blockedReason
   };
 }
 

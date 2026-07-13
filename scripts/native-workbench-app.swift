@@ -496,8 +496,13 @@ final class CodexAppServerClient {
   private func startProcess() throws {
     if process?.isRunning == true { return }
     let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    process.arguments = ["codex", "app-server", "--stdio"]
+    if let configured = ProcessInfo.processInfo.environment["OPL_CODEX_BIN"], !configured.isEmpty {
+      process.executableURL = URL(fileURLWithPath: configured)
+      process.arguments = ["app-server", "--stdio"]
+    } else {
+      process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+      process.arguments = ["codex", "app-server", "--stdio"]
+    }
     process.currentDirectoryURL = workspaceRoot
     process.environment = ProcessInfo.processInfo.environment
 
@@ -1367,6 +1372,8 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
 
   private func handle(method: String, payload: [String: Any]) throws -> [String: Any] {
     switch method {
+    case "readRuntimeIdentity":
+      return runtimeIdentityPayload()
     case "readState":
       let profile = (payload["profile"] as? String) == "full" ? "full" : "fast"
       return stateCommandPayload(profile: profile)
@@ -1390,6 +1397,21 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
         args.append("--dry-run")
       }
       args.append("--json")
+      if candidateActionBlocked(dryRun: dryRun) {
+        return actionCommandPayload(
+          actionId: actionId,
+          command: args,
+          result: CommandResult(exitCode: -1, stdout: "", stderr: "candidate_read_only_policy", timedOut: false),
+          dryRun: false,
+          confirmationRequired: false,
+          canExecute: false,
+          receiptKind: "blocked_read_only",
+          confirmationId: stringValue(actionPayload["confirmationId"]),
+          receiptId: stringValue(actionPayload["receiptId"]),
+          rollbackRef: rollbackRef,
+          blockedReason: "candidate_read_only_policy"
+        )
+      }
       if !dryRun && !confirmed {
         return actionCommandPayload(
           actionId: actionId,
@@ -1473,6 +1495,26 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
     ]
   }
 
+  private func runtimeIdentityPayload() -> [String: Any] {
+    let environment = ProcessInfo.processInfo.environment
+    guard
+      let raw = environment["OPL_APP_RUNTIME_IDENTITY_JSON"],
+      let data = raw.data(using: .utf8),
+      var identity = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]
+    else {
+      return [
+        "schema": "app_runtime_executable_identity.v1",
+        "status": "launcher_identity_unavailable",
+        "source": "direct_launch_host_path_fallback",
+        "candidateReadOnly": environment["OPL_NATIVE_WORKBENCH_READ_ONLY"] == "1"
+      ]
+    }
+    identity["status"] = "launcher_identity_available"
+    identity["source"] = "app_root_gui_launcher"
+    identity["candidateReadOnly"] = environment["OPL_NATIVE_WORKBENCH_READ_ONLY"] == "1"
+    return identity
+  }
+
   private func actionCommandPayload(
     actionId: String,
     command: [String],
@@ -1483,7 +1525,8 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
     receiptKind: String,
     confirmationId: String?,
     receiptId: String?,
-    rollbackRef: String?
+    rollbackRef: String?,
+    blockedReason: String? = nil
   ) -> [String: Any] {
     var payload: [String: Any] = [
       "actionId": actionId,
@@ -1501,13 +1544,19 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
     if let confirmationId { payload["confirmationId"] = confirmationId }
     if let receiptId { payload["receiptId"] = receiptId }
     if let rollbackRef { payload["rollbackRef"] = rollbackRef }
+    if let blockedReason { payload["blockedReason"] = blockedReason }
     return payload
   }
 
   private func runCommand(_ args: [String], input: String?, cwd: URL, timeout: TimeInterval) -> CommandResult {
     let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    process.arguments = args
+    if args.first == "opl", let configured = ProcessInfo.processInfo.environment["OPL_APP_OPL_BIN"], !configured.isEmpty {
+      process.executableURL = URL(fileURLWithPath: configured)
+      process.arguments = Array(args.dropFirst())
+    } else {
+      process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+      process.arguments = args
+    }
     process.currentDirectoryURL = cwd
     process.environment = ProcessInfo.processInfo.environment
 
@@ -1559,6 +1608,13 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
 
 enum BridgeError: Error {
   case invalidPayload(String)
+}
+
+func candidateActionBlocked(
+  dryRun: Bool,
+  environment: [String: String] = ProcessInfo.processInfo.environment
+) -> Bool {
+  !dryRun && environment["OPL_NATIVE_WORKBENCH_READ_ONLY"] == "1"
 }
 
 func actionReceiptKind(mode: String?, dryRun: Bool, confirmed: Bool, rollbackRef: String?) -> String {
@@ -1666,6 +1722,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 let app = NSApplication.shared
+
+if ProcessInfo.processInfo.environment["OPL_NATIVE_WORKBENCH_POLICY_SMOKE"] == "1" {
+  let mutationBlocked = candidateActionBlocked(dryRun: false)
+  let dryRunAllowed = !candidateActionBlocked(dryRun: true)
+  print(jsonString([
+    "status": "candidate_action_policy_smoke",
+    "mutationBlocked": mutationBlocked,
+    "dryRunAllowed": dryRunAllowed
+  ]))
+  exit(mutationBlocked && dryRunAllowed ? 0 : 1)
+}
+
 let delegate = AppDelegate()
 app.delegate = delegate
 app.setActivationPolicy(.regular)

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { assert, readJson, root } from "./native-workbench-gates.mjs";
 import { readCodexModelPolicy } from "./build-renderer.mjs";
 
@@ -31,6 +32,20 @@ const executable = fs.readFileSync(executablePath);
 const magic = executable.subarray(0, 4).toString("hex");
 assert(executable.subarray(0, 2).toString() !== "#!", "packaged executable must not be a shell script");
 assert(["cffaedfe", "feedfacf", "cafebabe", "cafebabf"].includes(magic), `packaged executable is not Mach-O: ${magic}`);
+
+const policySmoke = spawnSync(executablePath, [], {
+  cwd: root,
+  encoding: "utf8",
+  env: {
+    ...process.env,
+    OPL_NATIVE_WORKBENCH_POLICY_SMOKE: "1",
+    OPL_NATIVE_WORKBENCH_READ_ONLY: "1"
+  }
+});
+assert(policySmoke.status === 0, `Candidate action policy smoke failed\n${policySmoke.stdout}\n${policySmoke.stderr}`);
+const policySmokePayload = JSON.parse(policySmoke.stdout);
+assert(policySmokePayload.mutationBlocked === true, "Candidate read-only policy must block non-dry-run mutation");
+assert(policySmokePayload.dryRunAllowed === true, "Candidate read-only policy must preserve dry-run actions");
 
 const workbench = fs.readFileSync(workbenchPath, "utf8");
 const renderer = fs.readFileSync(rendererPath, "utf8");
@@ -99,7 +114,13 @@ for (const marker of [
   "process.terminationHandler",
   "turn timed out after",
   "opl\", \"app\", \"state",
-  "--dry-run"
+  "--dry-run",
+  "OPL_CODEX_BIN",
+  "OPL_APP_OPL_BIN",
+  "OPL_APP_RUNTIME_IDENTITY_JSON",
+  "readRuntimeIdentity",
+  "OPL_NATIVE_WORKBENCH_READ_ONLY",
+  "blocked_read_only"
 ]) {
   assert(nativeSource.includes(marker), `missing native bridge marker ${marker}`);
 }
@@ -135,6 +156,12 @@ for (const asset of [
 
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 assert(manifest.status === "candidate_app_bundle_built", "package status must describe a built candidate, not readiness");
+assert(manifest.bundle_identity?.bundle_id === "cn.gflab.opl.native-workbench.candidate", "manifest must preserve the isolated candidate bundle id");
+assert(manifest.bundle_identity?.isolated_from_active_mainline_bundle_id === "cn.onepersonlab.opl", "manifest must record the active mainline bundle isolation boundary");
+assert(manifest.launcher_runtime_resolution?.identity_schema === "app_runtime_executable_identity.v1", "manifest must record launcher Runtime identity readback");
+assert(manifest.launcher_runtime_resolution?.direct_launch_fallback === "host_path_without_runtime_parity_claim", "direct Candidate launch must not claim Runtime parity");
+assert(manifest.candidate_mutation_policy?.launcher_default === "dry_run_only", "Candidate launcher must default actions to dry-run only");
+assert(manifest.candidate_mutation_policy?.blocked_receipt_kind === "blocked_read_only", "Candidate package must record the typed read-only blocker");
 assert(manifest.native_runtime === "AppKit/WKWebView", "native runtime must be AppKit/WKWebView");
 assert(manifest.opens_default_browser === false, "candidate app must not open the default browser");
 assert(manifest.app_bundle_workbench === "Contents/Resources/workbench.html", "manifest must point at workbench.html");
