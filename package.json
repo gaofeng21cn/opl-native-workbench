@@ -34,11 +34,15 @@
     "package": "node scripts/package-native-workbench.mjs",
     "smoke:native-live": "node scripts/smoke-native-app-live.mjs",
     "test:model-list-pagination": "node scripts/model-list-pagination-regression.mjs",
+    "test:coordination-security": "node --experimental-strip-types scripts/coordination-security-regression.mjs",
+    "test:coordination-protocol": "node scripts/coordination-protocol-regression.mjs",
+    "test:coordination": "npm run test:coordination-security && npm run test:coordination-protocol",
+    "smoke:coordination-dynamic-tools-live": "node scripts/smoke-coordination-dynamic-tools-live.mjs",
     "validate:candidate": "node scripts/validate-native-workbench-candidate.mjs",
     "validate:state-model": "node scripts/validate-state-model.mjs",
     "validate:package": "node scripts/validate-packaged-runtime.mjs",
     "smoke:webui": "node scripts/smoke-webui.mjs",
     "smoke:visual": "node scripts/smoke-visual.mjs",
-    "test": "npm run typecheck && npm run validate:candidate && npm run validate:state-model && npm run smoke:webui && npm run smoke:visual && npm run package && npm run validate:package"
+    "test": "npm run typecheck && npm run test:coordination && npm run validate:candidate && npm run validate:state-model && npm run smoke:webui && npm run smoke:visual && npm run package && npm run validate:package"
   }
 }

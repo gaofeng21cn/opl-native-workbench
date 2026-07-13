@@ -1,0 +1,12 @@
+[
+  { "name": "permission denied", "mutation": { "permission": "denied" }, "expected": "permission_denied" },
+  { "name": "duplicate in 24h", "mutation": { "duplicate": true }, "expected": "duplicate_rejected" },
+  { "name": "same target", "mutation": { "sameTarget": true }, "expected": "loop_rejected" },
+  { "name": "hop over eight", "mutation": { "hopCount": 9 }, "expected": "loop_rejected" },
+  { "name": "project mismatch", "mutation": { "projectKey": "other-project" }, "expected": "scope_mismatch" },
+  { "name": "host mismatch", "mutation": { "targetHostId": "other-host" }, "expected": "scope_mismatch" },
+  { "name": "write set overlap", "mutation": { "expectedWriteSet": ["src/coordination/types.ts"] }, "expected": "write_set_conflict" },
+  { "name": "archived target", "mutation": { "archived": true }, "expected": "archived_target" },
+  { "name": "stale status", "mutation": { "state": "system_error" }, "expected": "stale_status" },
+  { "name": "valid projectless request", "mutation": { "projectKey": null }, "expected": null }
+]

@@ -1,4 +1,24 @@
 import { normalizeRuntimeProfile, readRuntimeProfile } from "../workbench/settingsModel";
+import { normalizeThreadState, selectDispatchKind } from "../coordination/foundation";
+import type {
+  CodexThreadRuntimeStatus,
+  CodexTurn,
+  CoordinationDispatch,
+  CoordinationPreparation,
+  CoordinationRequest,
+  CoordinationThread,
+  CoordinationWaitResult,
+  DispatchCoordinationRequest,
+  SetArchivedRequest,
+  ThreadCoordinationBridge,
+  ThreadCoordinationEvent,
+  ThreadForkRequest,
+  ThreadListRequest,
+  ThreadListResult,
+  ThreadReadRequest,
+  ThreadResumeRequest,
+  WaitCoordinationRequest
+} from "../coordination/types";
 
 export type OplStateProfile = "fast" | "full";
 
@@ -198,7 +218,10 @@ export type OplBridgeMethodEvent = BaseBridgeEvent & {
 
 export type OplBridgeEvent = OplBridgeTypeEvent | OplBridgeMethodEvent;
 
-export type OplNativeWorkbenchSurface = OplBridge & {
+export type OplNativeWorkbenchSurface = Pick<
+  OplBridge,
+  "readState" | "readFullDrilldown" | "executeAction" | "readCodexModels" | "sendMessage" | "subscribeEvents"
+> & Partial<ThreadCoordinationBridge> & {
   eventSourceUrl?: string;
   connectEvents?: (onEvent: (event: OplBridgeEvent) => void) => () => void;
 };
@@ -226,7 +249,7 @@ export const CODEX_APP_SERVER = {
   turnTimeoutSeconds: 180
 } as const;
 
-export type OplBridge = {
+export type OplBridge = ThreadCoordinationBridge & {
   readState(profile?: OplStateProfile): Promise<OplStateReadback>;
   readFullDrilldown(): Promise<OplFullDrilldownReadback>;
   executeAction(request: OplActionRequest): Promise<OplActionReceipt>;
@@ -249,6 +272,135 @@ function asBoolean(value: unknown): boolean | undefined {
 
 function asNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function normalizeThreadStatus(value: unknown): CodexThreadRuntimeStatus {
+  const record = asRecord(value);
+  const type = asString(record?.type);
+  if (type === "idle" || type === "notLoaded" || type === "systemError") return { type };
+  if (type === "active") {
+    return {
+      type,
+      activeFlags: Array.isArray(record?.activeFlags) ? record.activeFlags.map(String) : []
+    };
+  }
+  return { type: "systemError" };
+}
+
+function normalizeTurn(value: unknown): CodexTurn | undefined {
+  const record = asRecord(value);
+  const id = asString(record?.id);
+  const status = asString(record?.status);
+  if (!id || !["completed", "interrupted", "failed", "inProgress"].includes(status ?? "")) return undefined;
+  return { ...record, id, status: status as CodexTurn["status"] };
+}
+
+export function normalizeCoordinationThread(value: unknown): CoordinationThread {
+  const record = asRecord(value);
+  const source = asRecord(record?.thread) ?? record ?? {};
+  const id = asString(source.id) ?? "";
+  const status = normalizeThreadStatus(source.status);
+  const turns = Array.isArray(source.turns) ? source.turns.flatMap((turn) => normalizeTurn(turn) ?? []) : [];
+  return {
+    ...source,
+    id,
+    sessionId: asString(source.sessionId) ?? id,
+    projectKey: asString(source.projectKey) ?? asString(asRecord(source.extra)?.projectKey) ?? null,
+    hostId: asString(source.hostId) ?? asString(asRecord(source.extra)?.hostId) ?? "local",
+    status,
+    state: normalizeThreadState(status),
+    summary: asString(source.summary) ?? asString(source.preview) ?? "",
+    workspace: asString(source.workspace) ?? asString(source.cwd) ?? "",
+    owner: asString(source.owner) ?? asString(source.agentRole) ?? "user",
+    goal: asString(source.goal) ?? asString(asRecord(source.extra)?.goal) ?? "",
+    archived: asBoolean(source.archived) ?? false,
+    parentThreadId: asString(source.parentThreadId) ?? null,
+    ancestorThreadIds: Array.isArray(source.ancestorThreadIds) ? source.ancestorThreadIds.map(String) : [],
+    writeSet: Array.isArray(source.writeSet) ? source.writeSet.map(String) : [],
+    createdAt: asNumber(source.createdAt) ?? 0,
+    updatedAt: asNumber(source.updatedAt) ?? 0,
+    turns,
+    activeTurnId: asString(source.activeTurnId) ?? turns.find((turn) => turn.status === "inProgress")?.id
+  };
+}
+
+export function normalizeThreadListResult(value: unknown): ThreadListResult {
+  const record = asRecord(value);
+  const data = Array.isArray(record?.data) ? record.data.map(normalizeCoordinationThread).filter((thread) => thread.id) : [];
+  return { data, nextCursor: null };
+}
+
+export function normalizeCoordinationPreparation(
+  value: unknown,
+  request: CoordinationRequest
+): CoordinationPreparation {
+  const record = asRecord(value);
+  const guard = asRecord(record?.guard);
+  const state = asString(record?.state);
+  const target = record?.target ? normalizeCoordinationThread(record.target) : undefined;
+  return {
+    state: state === "prepared" || state === "confirmation_required" ? state : "rejected",
+    coordinationId: asString(record?.coordinationId),
+    previewToken: asString(record?.previewToken),
+    request,
+    target,
+    targetWriteSet: Array.isArray(record?.targetWriteSet)
+      ? record.targetWriteSet.map(String)
+      : target?.writeSet ?? [],
+    plannedDispatch: (asString(record?.plannedDispatch) as CoordinationPreparation["plannedDispatch"] | undefined)
+      ?? (target ? selectDispatchKind(target.state, request.priority) : undefined),
+    permissionDecision: (asString(record?.permissionDecision) as CoordinationPreparation["permissionDecision"] | undefined)
+      ?? "denied",
+    guard: guard ? {
+      code: String(guard.code) as NonNullable<CoordinationPreparation["guard"]>["code"],
+      message: asString(guard.message) ?? "coordination rejected"
+    } : undefined,
+    preparedAt: asString(record?.preparedAt) ?? new Date().toISOString()
+  };
+}
+
+export function normalizeCoordinationDispatch(value: unknown): CoordinationDispatch {
+  const record = asRecord(value);
+  const guard = asRecord(record?.guard);
+  const state = asString(record?.state);
+  return {
+    coordinationId: asString(record?.coordinationId) ?? "",
+    state: state === "started" || state === "steered" || state === "queued" ? state : "rejected",
+    targetThreadId: asString(record?.targetThreadId) ?? "",
+    turnId: asString(record?.turnId),
+    protocolMethod: asString(record?.protocolMethod) as CoordinationDispatch["protocolMethod"] | undefined,
+    guard: guard ? {
+      code: String(guard.code) as NonNullable<CoordinationDispatch["guard"]>["code"],
+      message: asString(guard.message) ?? "coordination rejected"
+    } : undefined,
+    dispatchedAt: asString(record?.dispatchedAt) ?? new Date().toISOString()
+  };
+}
+
+export function normalizeCoordinationWaitResult(value: unknown): CoordinationWaitResult {
+  const record = asRecord(value);
+  const state = asString(record?.state);
+  const allowed = ["started", "steered", "queued", "completed", "failed", "cancelled", "rejected", "wait_timeout"];
+  return {
+    coordinationId: asString(record?.coordinationId) ?? "",
+    state: (allowed.includes(state ?? "") ? state : "failed") as CoordinationWaitResult["state"],
+    targetThreadId: asString(record?.targetThreadId) ?? "",
+    turnId: asString(record?.turnId),
+    resultSummaryOrRef: asString(record?.resultSummaryOrRef),
+    updatedAt: asString(record?.updatedAt) ?? new Date().toISOString()
+  };
+}
+
+export function normalizeThreadCoordinationEvent(value: unknown): ThreadCoordinationEvent {
+  const record = asRecord(value);
+  const params = asRecord(record?.params);
+  return {
+    method: asString(record?.method) ?? asString(record?.type) ?? "coordination/event",
+    threadId: asString(record?.threadId) ?? asString(params?.threadId),
+    coordinationId: asString(record?.coordinationId) ?? asString(params?.coordinationId),
+    state: asString(record?.state) as ThreadCoordinationEvent["state"] | undefined,
+    raw: value
+  };
 }
 
 export function normalizeCodexModelCatalog(value: unknown): CodexModelCatalog {
@@ -805,6 +957,119 @@ export function createBrowserBridge(): OplBridge {
         simulated: true
       });
       return Promise.resolve(promise).then((value) => normalizeSendMessageResponse(value, request));
+    },
+    listThreads(request: ThreadListRequest = {}) {
+      const promise = candidate?.listThreads?.(request) ?? Promise.resolve({ data: [], nextCursor: null });
+      return Promise.resolve(promise).then(normalizeThreadListResult);
+    },
+    readThread(request: ThreadReadRequest) {
+      const promise = candidate?.readThread?.(request) ?? Promise.resolve({
+        id: request.threadId,
+        status: { type: "notLoaded" },
+        sessionId: request.threadId,
+        projectKey: null,
+        hostId: "local",
+        summary: "",
+        workspace: "",
+        owner: "user",
+        goal: "",
+        archived: false,
+        parentThreadId: null,
+        ancestorThreadIds: [],
+        writeSet: [],
+        createdAt: 0,
+        updatedAt: 0,
+        turns: []
+      });
+      return Promise.resolve(promise).then(normalizeCoordinationThread);
+    },
+    resumeThread(request: ThreadResumeRequest) {
+      const promise = candidate?.resumeThread?.(request) ?? Promise.resolve({
+        id: request.threadId,
+        status: { type: "notLoaded" },
+        sessionId: request.threadId,
+        projectKey: null,
+        hostId: "local",
+        summary: "",
+        workspace: "",
+        owner: "user",
+        goal: "",
+        archived: false,
+        parentThreadId: null,
+        ancestorThreadIds: [],
+        writeSet: [],
+        createdAt: 0,
+        updatedAt: 0,
+        turns: []
+      });
+      return Promise.resolve(promise).then(normalizeCoordinationThread);
+    },
+    prepareCoordination(request: CoordinationRequest) {
+      const promise = candidate?.prepareCoordination?.(request) ?? Promise.resolve({
+        state: "rejected",
+        request,
+        targetWriteSet: [],
+        permissionDecision: "denied",
+        guard: { code: "permission_denied", message: "native coordination host unavailable" },
+        preparedAt: new Date().toISOString()
+      });
+      return Promise.resolve(promise).then((value) => normalizeCoordinationPreparation(value, request));
+    },
+    dispatchCoordination(request: DispatchCoordinationRequest) {
+      const promise = candidate?.dispatchCoordination?.(request) ?? Promise.resolve({
+        coordinationId: request.previewToken,
+        state: "rejected",
+        targetThreadId: "",
+        guard: { code: "permission_denied", message: "native coordination host unavailable" },
+        dispatchedAt: new Date().toISOString()
+      });
+      return Promise.resolve(promise).then(normalizeCoordinationDispatch);
+    },
+    forkThread(request: ThreadForkRequest) {
+      const promise = candidate?.forkThread?.(request) ?? Promise.resolve({
+        id: "",
+        status: { type: "notLoaded" },
+        sessionId: "",
+        projectKey: null,
+        hostId: "local",
+        summary: "",
+        workspace: "",
+        owner: "user",
+        goal: "",
+        archived: false,
+        parentThreadId: null,
+        ancestorThreadIds: [],
+        writeSet: [],
+        createdAt: 0,
+        updatedAt: 0,
+        turns: []
+      });
+      return Promise.resolve(promise).then(normalizeCoordinationThread);
+    },
+    setArchived(request: SetArchivedRequest) {
+      const promise = candidate?.setArchived?.(request) ?? Promise.resolve(request);
+      return Promise.resolve(promise).then(() => ({ threadId: request.threadId, archived: request.archived }));
+    },
+    waitCoordination(request: WaitCoordinationRequest) {
+      const promise = candidate?.waitCoordination?.(request) ?? Promise.resolve({
+        coordinationId: request.coordinationId,
+        state: "failed",
+        targetThreadId: "",
+        updatedAt: new Date().toISOString()
+      });
+      return Promise.resolve(promise).then(normalizeCoordinationWaitResult);
+    },
+    subscribeThreadEvents(onEvent) {
+      if (candidate?.subscribeThreadEvents) {
+        return candidate.subscribeThreadEvents((event) => onEvent(normalizeThreadCoordinationEvent(event)));
+      }
+      if (candidate?.subscribeEvents) {
+        return candidate.subscribeEvents((event) => {
+          const normalized = normalizeThreadCoordinationEvent(event);
+          if (normalized.threadId || normalized.method.startsWith("coordination/")) onEvent(normalized);
+        });
+      }
+      return () => undefined;
     },
     subscribeEvents(onEvent) {
       if (candidate?.subscribeEvents) {
