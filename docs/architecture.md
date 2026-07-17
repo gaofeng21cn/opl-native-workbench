@@ -60,11 +60,19 @@ permissions, model catalog, and turn state. Native consumes the App Server
 thread/turn/event flow; `localStorage` is limited to UI selection, settings,
 and unsent drafts.
 
-The repository contains candidate experiments for local cross-thread
-coordination and client-executed dynamic tools. Their presence is implementation
-evidence only. The App owner has explicitly deferred making those experiments
-product requirements, a second coordination control plane, or a cross-host
-handoff contract.
+Desktop and WebUI use one standard adapter for `thread/list`, `thread/read`,
+`thread/resume`, `thread/fork`, `thread/archive`, and `thread/unarchive`.
+`parentThreadId`, `agentRole`, `agentNickname`, subagent source kinds,
+`collabAgentToolCall`, and `subAgentActivity` are read-only Codex projections;
+the candidate does not infer or own subagent scheduling.
+
+The retired private cross-thread layer is not an adapter or product capability.
+Native has no separate proposal/dispatch/wait protocol, host queue, delivery
+ledger, bilateral coordination receipt, client-executed dynamic tool set, or
+cross-host handoff contract. AionUI Team is separately a shell-level
+multi-executor facility for Codex CLI, Claude Code, and other executors. It is
+not the Codex-native subagent capability and is outside this repository's
+thread adapter.
 
 ## Model And Settings Boundary
 

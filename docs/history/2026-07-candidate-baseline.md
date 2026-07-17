@@ -14,8 +14,8 @@ The candidate cohort implemented or exercised:
 - a native WKWebView host and local WebUI transport around one React renderer;
 - Codex App Server thread/turn streaming and history consumption;
 - App state readback, action dry-run/confirmation, and refs-only package display;
-- Settings, artifact preview, professional starter, coordination, and delivery
-  candidate surfaces;
+- Settings, artifact preview, professional starter, delivery, and a now-retired
+  private coordination experiment;
 - an isolated local bundle and structural/package/local-window validation.
 
 The source-level marker inventory remains in
@@ -37,7 +37,9 @@ GUI docs. This dated observation cannot override a newer App baseline.
 ## Supersession
 
 App later kept Native as the foreground alternative candidate while deferring
-further product expansion outside the active AionUI release line. Model-driven
-cross-thread tools, private delivery ledgers, cross-host handoff, and a second
-thread runtime are not current requirements. Any future use requires the
-explicit re-entry gate in the current Active Truth plan.
+further product expansion outside the active AionUI release line. The private
+cross-thread tools, queue, ledger, bilateral receipts, and dynamic-tool host were
+removed rather than retained as dormant maintenance surface. Standard Codex
+thread lifecycle and Codex-native subagent projection remain. AionUI Team is a
+separate multi-executor shell facility. Any new orchestration requirement needs
+the explicit re-entry gate in the current Active Truth plan.

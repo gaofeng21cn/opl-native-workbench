@@ -22,15 +22,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createBrowserBridge, type CodexModelCatalogEntry } from "../bridge/oplBridge";
-import type {
-  CoordinationDispatch,
-  CoordinationIntent,
-  CoordinationPreparation,
-  CoordinationRequest,
-  CoordinationThread,
-  ThreadCoordinationBridge,
-  ThreadCoordinationEvent
-} from "../coordination/types";
+import type { CodexThread } from "../threads/types";
 import {
   ActionReceiptSummary,
   ArtifactPreviewCard,
@@ -41,14 +33,10 @@ import {
 } from "../ui/workbenchPrimitives";
 import {
   deriveWorkbenchModelFromState,
-  deriveCoordinationEvents,
-  deriveCoordinationOperation,
   deriveThreadDirectory,
   deriveThreadMessages,
   initialWorkbenchModel,
   workbenchBridgeUnavailableDiagnostic,
-  type WorkbenchCoordinationEvent,
-  type WorkbenchCoordinationOperation,
   type WorkbenchProjectGroup,
   type WorkbenchActionRef,
   type WorkbenchStarter,
@@ -75,11 +63,10 @@ import {
   resolveCodexSelection,
   type CodexModelId
 } from "./modelPolicy";
-import { CoordinationDialog, type CoordinationDraftFields } from "./coordination/CoordinationDialog";
-import { ThreadDetailPopover } from "./coordination/ThreadDetailPopover";
-import { ThreadLifecycleConfirmationDialog } from "./coordination/ThreadLifecycleConfirmationDialog";
-import type { ThreadLifecycleAction } from "./coordination/ThreadLifecycleConfirmationDialog";
-import { ThreadRail } from "./coordination/ThreadRail";
+import { ThreadDetailPopover } from "./threads/ThreadDetailPopover";
+import { ThreadLifecycleConfirmationDialog } from "./threads/ThreadLifecycleConfirmationDialog";
+import type { ThreadLifecycleAction } from "./threads/ThreadLifecycleConfirmationDialog";
+import { ThreadRail } from "./threads/ThreadRail";
 
 const contextTabs = [
   ["opl-files-panel", "sources"],
@@ -380,8 +367,6 @@ type WorkbenchUiMetadata = {
 
 type WorkbenchDrafts = {
   prompts: Record<string, string>;
-  coordination: CoordinationDraftFields;
-  coordinationTargetThreadId: string;
 };
 
 type SidebarDisplayItem = {
@@ -452,13 +437,11 @@ function sessionStorage() {
   return globalThis.localStorage;
 }
 
-const emptyCoordinationDraft: CoordinationDraftFields = { reason: "", intent: "", message: "", summary: "", expectedWriteSet: "" };
-
 function readPersistedWorkbenchUi(): { metadata: WorkbenchUiMetadata; drafts: WorkbenchDrafts } {
   const storage = sessionStorage();
   const fallback = {
     metadata: { threadScope: "current" as const },
-    drafts: { prompts: {}, coordination: { ...emptyCoordinationDraft }, coordinationTargetThreadId: "" }
+    drafts: { prompts: {} }
   };
   if (!storage) return fallback;
   try {
@@ -484,17 +467,7 @@ function readPersistedWorkbenchUi(): { metadata: WorkbenchUiMetadata; drafts: Wo
         threadScope: metadata?.threadScope === "all" || metadata?.threadScope === "archived" ? metadata.threadScope : "current"
       },
       drafts: {
-        prompts: drafts?.prompts && typeof drafts.prompts === "object" ? drafts.prompts : {},
-        coordination: {
-          reason: typeof drafts?.coordination?.reason === "string" ? drafts.coordination.reason : "",
-          intent: ["delegate", "inform", "review", "block", "handoff"].includes(drafts?.coordination?.intent ?? "")
-            ? drafts?.coordination?.intent as CoordinationIntent
-            : "",
-          message: typeof drafts?.coordination?.message === "string" ? drafts.coordination.message : "",
-          summary: typeof drafts?.coordination?.summary === "string" ? drafts.coordination.summary : "",
-          expectedWriteSet: typeof drafts?.coordination?.expectedWriteSet === "string" ? drafts.coordination.expectedWriteSet : ""
-        },
-        coordinationTargetThreadId: typeof drafts?.coordinationTargetThreadId === "string" ? drafts.coordinationTargetThreadId : ""
+        prompts: drafts?.prompts && typeof drafts.prompts === "object" ? drafts.prompts : {}
       }
     };
   } catch {
@@ -537,27 +510,10 @@ function eventCompletedText(event: unknown): string {
   return typeof item.text === "string" ? item.text : "";
 }
 
-function splitWriteSet(value: string): string[] {
-  return [...new Set(value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean))];
-}
-
-function newIdempotencyKey(sourceThreadId: string, targetThreadId: string): string {
-  const random = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  return `native-workbench:${sourceThreadId}:${targetThreadId}:${random}`;
-}
-
-function preparationFromThreadEvent(event: ThreadCoordinationEvent): CoordinationPreparation | null {
-  const raw = event.raw as Partial<CoordinationPreparation> | null;
-  if (!raw || !raw.request || !["prepared", "confirmation_required", "rejected"].includes(raw.state ?? "")) return null;
-  return raw as CoordinationPreparation;
-}
-
 export function App() {
   const bridge = useMemo(() => createBrowserBridge(), []);
-  const coordinationBridge = bridge as typeof bridge & ThreadCoordinationBridge;
   const persistedUi = useMemo(() => readPersistedWorkbenchUi(), []);
   const pendingAssistantIdRef = useRef<string | null>(null);
-  const coordinationDedupeKeyRef = useRef("");
   const messagesRef = useRef<ChatMessage[]>(createIntroMessages());
   const [model, setModel] = useState(initialWorkbenchModel);
   const [stateStatus, setStateStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -583,15 +539,6 @@ export function App() {
   const [threadActionBusy, setThreadActionBusy] = useState(false);
   const [threadActionError, setThreadActionError] = useState("");
   const [lifecycleConfirmation, setLifecycleConfirmation] = useState<{ thread: WorkbenchThreadItem; action: ThreadLifecycleAction } | null>(null);
-  const [coordinationOpen, setCoordinationOpen] = useState(false);
-  const [coordinationSourceThreadId, setCoordinationSourceThreadId] = useState<string | undefined>(persistedUi.metadata.selectedThreadId);
-  const [coordinationPreparation, setCoordinationPreparation] = useState<CoordinationPreparation | null>(null);
-  const [coordinationOperation, setCoordinationOperation] = useState<WorkbenchCoordinationOperation | null>(null);
-  const [coordinationEvents, setCoordinationEvents] = useState<WorkbenchCoordinationEvent[]>([]);
-  const [coordinationReviewConfirmation, setCoordinationReviewConfirmation] = useState(false);
-  const [coordinationSteerConfirmed, setCoordinationSteerConfirmed] = useState(false);
-  const [coordinationBusy, setCoordinationBusy] = useState(false);
-  const [coordinationError, setCoordinationError] = useState("");
   const [settings, setSettings] = useState<WorkbenchSettings>(() => readSettings());
   const [codexCatalog, setCodexCatalog] = useState<CodexModelCatalogEntry[]>([]);
   const [starterDrafts, setStarterDrafts] = useState<Record<string, Record<string, string>>>({});
@@ -609,7 +556,6 @@ export function App() {
   const archivedThreads = useMemo(() => archivedThreadProjects.flatMap((project) => project.threads), [archivedThreadProjects]);
   const allThreads = useMemo(() => [...activeThreads, ...archivedThreads], [activeThreads, archivedThreads]);
   const currentSession = allThreads.find((thread) => thread.id === codexThreadId);
-  const coordinationSourceThread = allThreads.find((thread) => thread.id === coordinationSourceThreadId) ?? null;
   const selectedProject = threadProjects.find((project) => project.id === uiMetadata.selectedProjectId)
     ?? threadProjects.find((project) => project.threads.some((thread) => thread.id === codexThreadId))
     ?? threadProjects[0];
@@ -718,7 +664,6 @@ export function App() {
     setThreadActionBusy(true);
     setThreadActionError("");
     setCodexThreadId(thread.id);
-    setCoordinationSourceThreadId(thread.id);
     updateUiMetadata({
       selectedThreadId: thread.id,
       selectedProjectId: threadProjects.find((project) => project.threads.some((item) => item.id === thread.id))?.id
@@ -729,8 +674,8 @@ export function App() {
     setSendError("");
     try {
       const resumed = thread.status === "unloaded";
-      if (resumed) await coordinationBridge.resumeThread({ threadId: thread.id });
-      const readback = await coordinationBridge.readThread({ threadId: thread.id, includeTurns: true });
+      if (resumed) await bridge.resumeThread({ threadId: thread.id });
+      const readback = await bridge.readThread({ threadId: thread.id, includeTurns: true });
       const nextMessages = deriveThreadMessages(readback);
       setMessages(nextMessages);
       messagesRef.current = nextMessages;
@@ -746,9 +691,9 @@ export function App() {
   }
 
   async function loadThreadDirectory(openSavedThread = false, scope = uiMetadata.threadScope) {
-    if (typeof coordinationBridge.listThreads !== "function") {
+    if (typeof bridge.listThreads !== "function") {
       setThreadDirectoryStatus("error");
-      setThreadDirectoryError("ThreadCoordinationBridge.listThreads is unavailable.");
+      setThreadDirectoryError("Codex thread adapter is unavailable.");
       return;
     }
     setThreadDirectoryStatus("loading");
@@ -756,9 +701,9 @@ export function App() {
     try {
       const active = scope === "archived"
         ? null
-        : await coordinationBridge.listThreads({ archived: false, limit: 100 });
+        : await bridge.listThreads({ archived: false, limit: 100 });
       const archived = scope === "archived"
-        ? await coordinationBridge.listThreads({ archived: true, limit: 100 })
+        ? await bridge.listThreads({ archived: true, limit: 100 })
         : null;
       const activeProjects = active ? deriveThreadDirectory(active) : threadProjects;
       const archivedProjects = archived ? deriveThreadDirectory(archived) : archivedThreadProjects;
@@ -792,7 +737,7 @@ export function App() {
 
   useEffect(() => {
     void loadThreadDirectory(true);
-  }, [coordinationBridge]);
+  }, [bridge]);
 
   useEffect(() => {
     void bridge.readCodexModels()
@@ -827,57 +772,6 @@ export function App() {
         : item));
     }
   }), [bridge]);
-
-  useEffect(() => {
-    if (typeof coordinationBridge.subscribeThreadEvents !== "function") return;
-    return coordinationBridge.subscribeThreadEvents((event: ThreadCoordinationEvent) => {
-      if (!event.method.startsWith("coordination/")) return;
-      const nextEvents = deriveCoordinationEvents([event]);
-      if (nextEvents.length) setCoordinationEvents((current) => {
-        const seen = new Set<string>();
-        return [...nextEvents, ...current].filter((item) => !seen.has(item.id) && Boolean(seen.add(item.id))).slice(0, 24);
-      });
-      if (event.method === "coordination/lifecycle-proposal") {
-        const proposal = event.raw as { tool?: unknown; request?: { threadId?: unknown } } | null;
-        const threadId = typeof proposal?.request?.threadId === "string" ? proposal.request.threadId : "";
-        const action: ThreadLifecycleAction | null = proposal?.tool === "fork_thread"
-          ? "fork"
-          : proposal?.tool === "archive_thread"
-            ? "archive"
-            : proposal?.tool === "unarchive_thread"
-              ? "unarchive"
-              : null;
-        const thread = allThreads.find((item) => item.id === threadId);
-        if (action && thread) {
-          setLifecycleConfirmation({ thread, action });
-          setThreadActionError("");
-        }
-        return;
-      }
-      const preparation = preparationFromThreadEvent(event);
-      if (!preparation || preparation.request.sender !== "model") return;
-      setCoordinationPreparation(preparation);
-      setCoordinationOperation(deriveCoordinationOperation(preparation, {
-        sourceThreadId: preparation.request.sourceThreadId,
-        targetThreadId: preparation.request.targetThreadId
-      }));
-      setCoordinationSourceThreadId(preparation.request.sourceThreadId);
-      updateDrafts((current) => ({
-        ...current,
-        coordination: {
-          reason: preparation.request.reason,
-          intent: preparation.request.intent,
-          message: preparation.request.message,
-          summary: preparation.request.summary,
-          expectedWriteSet: preparation.request.expectedWriteSet.join("\n")
-        },
-        coordinationTargetThreadId: preparation.request.targetThreadId
-      }));
-      setCoordinationReviewConfirmation(preparation.state === "confirmation_required");
-      setCoordinationSteerConfirmed(false);
-      setCoordinationOpen(true);
-    });
-  }, [coordinationBridge, allThreads]);
 
   function runDryRun(actionId: string, payload: Record<string, unknown> = {}) {
     setPendingAction({ actionId, payload });
@@ -920,122 +814,11 @@ export function App() {
       .catch((error) => setLastDryRun(formatReceipt({ ...pendingAction, mode: "rollback", error: String(error) })));
   }
 
-  function openCoordinationDialog(target?: WorkbenchThreadItem) {
-    if (!currentSession) {
-      setCoordinationError(settings.locale === "zh" ? "请先打开一个真实对话。" : "Open a real thread first.");
-      setCoordinationOpen(true);
-      return;
-    }
-    const targetThreadId = target?.id === currentSession.id ? "" : target?.id ?? drafts.coordinationTargetThreadId;
-    coordinationDedupeKeyRef.current = newIdempotencyKey(currentSession.id, targetThreadId || "pending");
-    setCoordinationSourceThreadId(currentSession.id);
-    setCoordinationPreparation(null);
-    setCoordinationOperation(null);
-    setCoordinationEvents([]);
-    setCoordinationReviewConfirmation(false);
-    setCoordinationSteerConfirmed(false);
-    setCoordinationError("");
-    updateDrafts((current) => ({ ...current, coordinationTargetThreadId: targetThreadId }));
-    setCoordinationOpen(true);
-    setThreadDetail(null);
-  }
-
-  function appendCoordinationEvents(value: unknown, sourceThreadId?: string, targetThreadId?: string) {
-    const base = deriveCoordinationEvents([value]);
-    if (!base.length) return;
-    const paired = base.flatMap((event) => [
-      { ...event, id: `${event.id}:source`, direction: "source" as const, sourceThreadId, targetThreadId },
-      { ...event, id: `${event.id}:target`, direction: "target" as const, sourceThreadId, targetThreadId }
-    ]);
-    setCoordinationEvents((current) => [...paired, ...current].slice(0, 24));
-  }
-
-  async function prepareCoordination() {
-    const source = allThreads.find((thread) => thread.id === coordinationSourceThreadId);
-    const target = allThreads.find((thread) => thread.id === drafts.coordinationTargetThreadId);
-    const draft = drafts.coordination;
-    if (!source || !target || !draft.intent) return;
-    const request: CoordinationRequest = {
-      sourceThreadId: source.id,
-      targetThreadId: target.id,
-      sourceHostId: source.hostId ?? "",
-      targetHostId: target.hostId ?? "",
-      projectKey: source.projectKey ?? "",
-      sender: "user",
-      intent: draft.intent,
-      reason: draft.reason.trim(),
-      message: draft.message.trim(),
-      summary: draft.summary.trim(),
-      expectedWriteSet: splitWriteSet(draft.expectedWriteSet),
-      ancestorCoordinationIds: [],
-      priority: "normal",
-      dedupeKey: coordinationDedupeKeyRef.current || newIdempotencyKey(source.id, target.id),
-      hopCount: 0,
-      model: resolvedModel?.id,
-      reasoningEffort: resolvedReasoning
-    };
-    setCoordinationBusy(true);
-    setCoordinationError("");
-    try {
-      const preparation = await coordinationBridge.prepareCoordination(request);
-      setCoordinationPreparation(preparation);
-      const operation = deriveCoordinationOperation(preparation, {
-        sourceThreadId: source.id,
-        targetThreadId: target.id,
-        summary: draft.summary
-      });
-      setCoordinationOperation(operation);
-      setCoordinationReviewConfirmation(preparation.state === "confirmation_required");
-      appendCoordinationEvents(preparation, source.id, target.id);
-    } catch (error) {
-      setCoordinationError(String(error));
-    } finally {
-      setCoordinationBusy(false);
-    }
-  }
-
-  async function dispatchCoordination() {
-    if (!coordinationPreparation?.previewToken) return;
-    setCoordinationBusy(true);
-    setCoordinationError("");
-    try {
-      const dispatch: CoordinationDispatch = await coordinationBridge.dispatchCoordination({
-        previewToken: coordinationPreparation.previewToken,
-        confirmed: true,
-        confirmationId: `native-workbench:${Date.now()}`
-      });
-      setCoordinationReviewConfirmation(false);
-      setCoordinationOperation(deriveCoordinationOperation(dispatch, {
-        id: dispatch.coordinationId,
-        phase: dispatch.state === "rejected" ? "conflict" : "queued",
-        sourceThreadId: coordinationPreparation.request.sourceThreadId,
-        targetThreadId: dispatch.targetThreadId,
-        plannedDispatch: dispatch.state === "rejected" ? undefined : dispatch.state
-      }));
-      appendCoordinationEvents(dispatch, coordinationPreparation.request.sourceThreadId, dispatch.targetThreadId);
-      if (dispatch.state === "rejected" || !dispatch.coordinationId) return;
-      const result = await coordinationBridge.waitCoordination({ coordinationId: dispatch.coordinationId, timeoutMs: 180_000 });
-      setCoordinationOperation(deriveCoordinationOperation(result, {
-        id: result.coordinationId,
-        phase: ["completed", "failed", "cancelled", "rejected", "wait_timeout"].includes(result.state) ? "result" : "queued",
-        sourceThreadId: coordinationPreparation.request.sourceThreadId,
-        targetThreadId: result.targetThreadId,
-        result: result.resultSummaryOrRef
-      }));
-      appendCoordinationEvents(result, coordinationPreparation.request.sourceThreadId, result.targetThreadId);
-      await loadThreadDirectory(false);
-    } catch (error) {
-      setCoordinationError(String(error));
-    } finally {
-      setCoordinationBusy(false);
-    }
-  }
-
   async function forkThread(thread: WorkbenchThreadItem) {
     setThreadActionBusy(true);
     setThreadActionError("");
     try {
-      const forked: CoordinationThread = await coordinationBridge.forkThread({
+      const forked: CodexThread = await bridge.forkThread({
         threadId: thread.id,
         throughTurnId: thread.activeTurnId
       });
@@ -1055,12 +838,12 @@ export function App() {
     setThreadActionError("");
     try {
       if (lifecycleConfirmation.action === "fork") {
-        await coordinationBridge.forkThread({
+        await bridge.forkThread({
           threadId: lifecycleConfirmation.thread.id,
           throughTurnId: lifecycleConfirmation.thread.activeTurnId
         });
       } else {
-        await coordinationBridge.setArchived({
+        await bridge.setArchived({
           threadId: lifecycleConfirmation.thread.id,
           archived: lifecycleConfirmation.action === "archive",
           confirmed: true,
@@ -1113,7 +896,6 @@ export function App() {
         setMessages(nextMessages);
         const resolvedThreadId = nextThreadId || codexThreadId;
         setCodexThreadId(resolvedThreadId);
-        setCoordinationSourceThreadId(resolvedThreadId);
         updateUiMetadata({ selectedThreadId: resolvedThreadId });
         if (resolvedThreadId) {
           updateDrafts((current) => ({ ...current, prompts: { ...current.prompts, [resolvedThreadId]: "" } }));
@@ -1139,7 +921,6 @@ export function App() {
     messagesRef.current = nextMessages;
     setMessages(nextMessages);
     setCodexThreadId(undefined);
-    setCoordinationSourceThreadId(undefined);
     updateUiMetadata({ selectedThreadId: undefined });
     setPrompt(drafts.prompts.new ?? "");
     setPendingAction(null);
@@ -1506,22 +1287,13 @@ export function App() {
                   <article
                     key={message.id}
                     data-testid={message.role === "assistant" ? "opl-conversation-event" : undefined}
-                    className={`message ${message.role}${message.coordination ? " coordination" : ""}`}
+                    className={`message ${message.role}${message.subagent ? " subagent" : ""}`}
                   >
                     {message.role === "user" ? <span className="message-label">{t.you}</span> : null}
                     {message.role === "assistant" ? <span className="message-label">{t.assistant}</span> : null}
-                    {message.role === "system" ? <span className="message-label">{message.coordination ? (settings.locale === "zh" ? "跨对话协调" : "Coordination") : t.runtime}</span> : null}
+                    {message.role === "system" ? <span className="message-label">{message.subagent ? (settings.locale === "zh" ? "子智能体" : "Subagent") : t.runtime}</span> : null}
                     <div className="message-frame">
-                      <p>{message.coordination
-                        ? [
-                            message.coordination.direction === "source"
-                              ? (settings.locale === "zh" ? "已发送" : "Sent")
-                              : (settings.locale === "zh" ? "已接收" : "Received"),
-                            message.coordination.summary,
-                            message.coordination.state,
-                            message.coordination.result
-                          ].filter(Boolean).join(" · ")
-                        : message.text || (sendState === "running" ? t.codexWorking : t.waitingReply)}</p>
+                      <p>{message.text || (sendState === "running" ? t.codexWorking : t.waitingReply)}</p>
                     </div>
                     {message.role === "assistant" && index === messages.length - 1 && sendState === "running" ? (
                       <div className="run-events" aria-label="Current run events">
@@ -1556,7 +1328,9 @@ export function App() {
                       {message.role === "user"
                         ? "Prompt"
                         : message.role === "system"
-                          ? message.coordination ? "Coordination receipt" : "Action or runtime event"
+                          ? message.subagent
+                            ? [message.subagent.agentNickname, message.subagent.agentRole, message.subagent.type].filter(Boolean).join(" · ")
+                            : "Action or runtime event"
                           : currentSession?.id
                             ? "Streaming via codex app-server"
                             : "Project context loaded"}
@@ -2107,7 +1881,6 @@ export function App() {
           setThreadActionError("");
           setThreadDetail(null);
         }}
-        onCoordinate={(thread) => openCoordinationDialog(thread)}
       />
 
       <ThreadLifecycleConfirmationDialog
@@ -2120,37 +1893,6 @@ export function App() {
         onConfirm={() => void confirmThreadLifecycle()}
       />
 
-      <CoordinationDialog
-        open={coordinationOpen}
-        locale={settings.locale}
-        sourceThread={coordinationSourceThread}
-        threads={activeThreads}
-        targetThreadId={drafts.coordinationTargetThreadId}
-        draft={drafts.coordination}
-        operation={coordinationOperation}
-        reviewConfirmation={coordinationReviewConfirmation}
-        steerConfirmed={coordinationSteerConfirmed}
-        events={coordinationEvents}
-        busy={coordinationBusy}
-        error={coordinationError}
-        onOpenChange={setCoordinationOpen}
-        onTargetChange={(coordinationTargetThreadId) => {
-          updateDrafts((current) => ({ ...current, coordinationTargetThreadId }));
-          setCoordinationPreparation(null);
-          setCoordinationOperation(null);
-          setCoordinationReviewConfirmation(false);
-          setCoordinationSteerConfirmed(false);
-          coordinationDedupeKeyRef.current = newIdempotencyKey(coordinationSourceThread?.id ?? "unknown", coordinationTargetThreadId || "pending");
-        }}
-        onDraftChange={(field, value) => updateDrafts((current) => ({
-          ...current,
-          coordination: { ...current.coordination, [field]: value } as CoordinationDraftFields
-        }))}
-        onSteerConfirmedChange={setCoordinationSteerConfirmed}
-        onPrepare={() => void prepareCoordination()}
-        onReview={() => setCoordinationReviewConfirmation(true)}
-        onDispatch={() => void dispatchCoordination()}
-      />
     </main>
   );
 }

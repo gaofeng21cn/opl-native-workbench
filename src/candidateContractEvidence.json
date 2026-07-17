@@ -40,14 +40,11 @@
     "typed_runtime_readback_surface",
     "typed_action_receipt_surface",
     "typed_event_surface",
-    "typed_cross_top_level_thread_host_bridge",
-    "client_executed_dynamic_tools_coordination_bridge",
-    "local_cross_thread_p0_p1",
+    "codex_thread_adapter",
+    "codex_subagent_read_only_projection",
+    "desktop_webui_thread_lifecycle_parity",
+    "private_coordination_layer_removed",
     "thread_list_read_resume_fork_archive_unarchive",
-    "turn_start_steer_with_host_queue",
-    "cross_thread_safety_gates",
-    "bilateral_coordination_receipts",
-    "desktop_webui_coordination_parity",
     "settings_persistence",
     "execute_confirmation",
     "artifact_preview_mvp",
@@ -75,15 +72,13 @@
   "functional_mvp": {
     "codex_app_server_thread_turn": true,
     "codex_command": "codex app-server --stdio",
-    "codex_protocol": "JSON-RPC newline transport with initialize, model/list, paginated thread/list, thread/read, thread/resume, thread/fork, thread/archive, thread/unarchive, turn/start, turn/steer, thread/status/changed, client-executed dynamicTools item/tool/call, item/agentMessage/delta, and turn/completed",
+    "codex_protocol": "JSON-RPC newline transport with initialize, model/list, paginated thread/list, thread/read, thread/resume, thread/fork, thread/archive, thread/unarchive, turn/start, turn/steer, thread/status/changed, item/agentMessage/delta, item/completed, and turn/completed",
     "codex_model_reasoning_controls": "The build dynamically injects the App product profile default, complete ordered visible-model allowlist, labels, and reasoning options; runtime model/list follows cursors through the terminal page, filters unadvertised fixed alternatives, and keeps unavailable fixed selections blocked but cannot veto the App default route, Auto resolves the injected default model and default reasoning effort as one policy, manual reasoning pins the resolved model and exits Auto, and turn/start receives model and effort overrides",
     "opl_state_bridge": "opl app state --profile fast --json",
     "opl_action_bridge": "opl app action execute --action <action_id> --dry-run --json",
     "native_bridge": "WKScriptMessageHandler window.webkit.messageHandlers.oplNativeWorkbench",
     "default_sandbox": "read-only",
     "conversation_persistence": "codex_app_server_thread_history_authority_with_local_ui_metadata_and_drafts_only",
-    "local_cross_thread_coordination": "typed Desktop and WebUI host adapters with fresh source/target scope and write-set checks, host-generated preview and coordination IDs, explicit confirmation or host preauthorization, bounded nonurgent queue, typed failures, lifecycle proposals, and bilateral result receipts",
-    "dynamic_tools_policy": "client-executed runtime-probed tools reuse the typed host gate; models cannot supply permission decisions, target write sets, confirmation fields, or coordination IDs",
     "settings_persistence": "localStorage model with SETTINGS_STORAGE_KEY, settingsDefaults, readSettings, writeSettings, readRuntimeProfile, and no system write permission",
     "execute_confirmation": "dry_run_first_then_explicit_confirm_before_execute",
     "typed_runtime_readback_surface": "normalized readState/readFullDrilldown envelopes with runtime profile, app_state/drilldown payload, and command readback metadata",
@@ -92,7 +87,10 @@
     "artifact_preview_mvp": "rich refs-only preview adapters for markdown, math, mermaid, code, and pdf",
     "professional_starters_mvp": "research, grant, presentation, and book starter forms route to real App state action refs; preview routes are not domain execution",
     "agent_package_lifecycle_display": "package lifecycle rows consume app_state.agent_packages directory/status_index first, fall back to modules.items as preview-only, and expose only App/root action refs",
-    "acp_app_server_reuse_status": "implemented_with_codex_app_server_thread_turn_stream"
+    "acp_app_server_reuse_status": "implemented_with_codex_app_server_thread_turn_stream",
+    "thread_lifecycle": "one Desktop/WebUI adapter projects Codex App Server thread truth and routes list, read, resume, fork, archive, and unarchive without a second thread store",
+    "codex_subagent_projection": "read-only parentThreadId, agentRole, agentNickname, source-kind, collabAgentToolCall, and subAgentActivity projection from Codex App Server thread and turn items",
+    "private_coordination_layer": false
   },
   "model_policy_regression": {
     "validation_command": "npm run validate:candidate",
@@ -125,7 +123,7 @@
       "Execute confirmation, rich artifact previews, and professional starters are represented as candidate MVP source markers",
       "Agent Package lifecycle display consumes App/root package refs and action refs without adding a package executor",
       "Source-level candidate validators for the implemented markers and false-ready boundary, plus a focused arbitrary-model-id regression for App profile drift",
-      "Local P0+P1 cross-top-level coordination uses App Server thread truth, one typed Desktop/WebUI host contract, paginated discovery, lifecycle actions, start/steer/queue routing, safety gates, model proposals, and bilateral result receipts"
+      "Standard Codex thread lifecycle uses one Desktop/WebUI adapter with paginated discovery, read/resume/fork/archive/unarchive, explicit archive confirmation, and read-only native subagent metadata/item projection"
     ],
     "partial": [
       "Packaged GUI artifact exists as candidate evidence, but packaged visual acceptance and clean-VM behavior are not proven here",
@@ -133,7 +131,7 @@
       "Settings persistence is localStorage-only candidate evidence and does not request system write permission",
       "Package lifecycle fallback may render legacy modules.items rows only as preview/unavailable when canonical agent_packages projection is absent",
       "Artifact preview, provenance, starter, confirmation, and export surfaces are refs-only candidate UI, not artifact or owner authority",
-      "Remote cross-machine P2 remains deferred; local fixtures, live probes, and packaged candidate evidence cannot claim remote readiness"
+      "Codex subagent projection is covered by source and App Server fixtures in this tranche; no live nested-agent execution claim is made"
     ],
     "local_candidate_live_smoke": {
       "command": "npm run smoke:native-live",
@@ -162,137 +160,270 @@
       "package_truth_owned",
       "runtime_authority_transfer",
       "domain_truth_owned"
+    ],
+    "non_goals": [
+      "private cross-thread proposal, dispatch, wait, queue, ledger, bilateral receipt, and client-executed dynamic-tool orchestration",
+      "cross-host handoff or candidate-owned thread authority",
+      "AionUI Team executor orchestration; that remains separate from Codex native subagent projection"
     ]
   },
   "source_marker_requirements": {
     "chat_runtime": [
       {
         "file": "src/bridge/oplBridge.ts",
-        "contains": ["codex app-server --stdio", "thread/start", "turn/start", "thread/resume", "item/agentMessage/delta"]
+        "contains": [
+          "codex app-server --stdio",
+          "thread/start",
+          "turn/start",
+          "thread/resume",
+          "item/agentMessage/delta"
+        ]
       },
       {
         "file": "scripts/native-workbench-app.swift",
-        "contains": ["initialize", "thread/start", "turn/start", "item/agentMessage/delta", "turn/completed", "thread/resume"]
+        "contains": [
+          "initialize",
+          "thread/start",
+          "turn/start",
+          "item/agentMessage/delta",
+          "turn/completed",
+          "thread/resume"
+        ]
       },
       {
         "file": "src/workbench/App.tsx",
-        "contains": ["sendCodexMessage", "codexThreadId", "opl-codex-reply"]
+        "contains": [
+          "sendCodexMessage",
+          "codexThreadId",
+          "opl-codex-reply"
+        ]
       }
     ],
     "state_context": [
       {
         "file": "src/bridge/oplBridge.ts",
-        "contains": ["opl app state --profile fast --json", "opl app state --profile full --json", "opl runtime app-operator-drilldown --detail full --json", "readState", "readFullDrilldown"]
+        "contains": [
+          "opl app state --profile fast --json",
+          "opl app state --profile full --json",
+          "opl runtime app-operator-drilldown --detail full --json",
+          "readState",
+          "readFullDrilldown"
+        ]
       },
       {
         "file": "src/workbench/App.tsx",
-        "contains": ["opl-secondary-runtime-context", "opl-runtime-summary", "opl-runtime-full-detail-button"]
+        "contains": [
+          "opl-secondary-runtime-context",
+          "opl-runtime-summary",
+          "opl-runtime-full-detail-button"
+        ]
       },
       {
         "file": "src/workbench/workbenchModel.ts",
-        "contains": ["activeProjectLines", "candidate_surface_only", "Consume opl app state/action refs"]
+        "contains": [
+          "activeProjectLines",
+          "candidate_surface_only",
+          "Consume opl app state/action refs"
+        ]
       }
     ],
     "action_preview_receipt": [
       {
         "file": "src/bridge/oplBridge.ts",
-        "contains": ["opl app action execute --action", "--dry-run", "executeAction"]
+        "contains": [
+          "opl app action execute --action",
+          "--dry-run",
+          "executeAction"
+        ]
       },
       {
         "file": "src/workbench/App.tsx",
-        "contains": ["runDryRun", "opl-runtime-action-dry-run", "opl-runtime-action-receipt", "Preview action"]
+        "contains": [
+          "runDryRun",
+          "opl-runtime-action-dry-run",
+          "opl-runtime-action-receipt",
+          "Preview action"
+        ]
       },
       {
         "file": "src/ui/workbenchPrimitives.tsx",
-        "contains": ["opl-confirmation-card", "Preview action", "preview receipts stay separate"]
+        "contains": [
+          "opl-confirmation-card",
+          "Preview action",
+          "preview receipts stay separate"
+        ]
       }
     ],
     "settings_route": [
       {
         "file": "src/workbench/App.tsx",
-        "contains": ["activeView", "settings", "opl-settings-panel", "opl-model-access-entry", "opl-locale-toggle", "Back to chat"]
+        "contains": [
+          "activeView",
+          "settings",
+          "opl-settings-panel",
+          "opl-model-access-entry",
+          "opl-locale-toggle",
+          "Back to chat"
+        ]
       }
     ],
     "settings_persistence": [
       {
         "file": "src/workbench/settingsModel.ts",
-        "contains": ["SETTINGS_STORAGE_KEY", "settingsSections", "settingsDefaults", "localStorage", "readSettings", "writeSettings", "confirmBeforeExecute", "artifactPreviewMode", "professionalStarterDefaults"]
+        "contains": [
+          "SETTINGS_STORAGE_KEY",
+          "settingsSections",
+          "settingsDefaults",
+          "localStorage",
+          "readSettings",
+          "writeSettings",
+          "confirmBeforeExecute",
+          "artifactPreviewMode",
+          "professionalStarterDefaults"
+        ]
       }
     ],
     "execute_confirmation": [
       {
         "file": "src/ui/workbenchPrimitives.tsx",
-        "contains": ["opl-confirmation-card", "Confirm the action before execution", "preview receipts stay separate"]
+        "contains": [
+          "opl-confirmation-card",
+          "Confirm the action before execution",
+          "preview receipts stay separate"
+        ]
       },
       {
         "file": "src/workbench/workbenchModel.ts",
-        "contains": ["needs_human_confirmation", "Preview receipt from opl app action execute --dry-run", "Discard the candidate packet request before explicit execution"]
+        "contains": [
+          "needs_human_confirmation",
+          "Preview receipt from opl app action execute --dry-run",
+          "Discard the candidate packet request before explicit execution"
+        ]
       }
     ],
     "artifact_preview_mvp": [
       {
         "file": "src/renderers/moduleRegistry.ts",
-        "contains": ["Markdown result preview", "Math preview", "Diagram preview", "Code and diff preview", "PDF export preview", "Refs-only artifact preview"]
+        "contains": [
+          "Markdown result preview",
+          "Math preview",
+          "Diagram preview",
+          "Code and diff preview",
+          "PDF export preview",
+          "Refs-only artifact preview"
+        ]
       },
       {
         "file": "src/workbench/App.tsx",
-        "contains": ["opl-artifact-preview-tabs", "opl-artifact-preview-panel", "data-preview-kind"]
+        "contains": [
+          "opl-artifact-preview-tabs",
+          "opl-artifact-preview-panel",
+          "data-preview-kind"
+        ]
       }
     ],
     "professional_starters_mvp": [
       {
         "file": "src/workbench/workbenchModel.ts",
-        "contains": ["task_action_receipt_preview", "task_export_bundle_preview", "workspace_ensure", "settings_sync_capabilities", "preview_route_not_domain_execution"]
+        "contains": [
+          "task_action_receipt_preview",
+          "task_export_bundle_preview",
+          "workspace_ensure",
+          "settings_sync_capabilities",
+          "preview_route_not_domain_execution"
+        ]
       },
       {
         "file": "src/workbench/App.tsx",
-        "contains": ["opl-starter-forms", "opl-starter-form", "starterPayload"]
+        "contains": [
+          "opl-starter-forms",
+          "opl-starter-form",
+          "starterPayload"
+        ]
       }
     ],
     "agent_package_lifecycle_display": [
       {
         "file": "src/workbench/workbenchModel.ts",
-        "contains": ["appState.agent_packages", "canonical_agent_packages", "legacy_modules_fallback", "missing_bridge", "agent_package_update", "agent_package_repair", "agent_package_uninstall", "agent_package_preferences_set"]
+        "contains": [
+          "appState.agent_packages",
+          "canonical_agent_packages",
+          "legacy_modules_fallback",
+          "missing_bridge",
+          "agent_package_update",
+          "agent_package_repair",
+          "agent_package_uninstall",
+          "agent_package_preferences_set"
+        ]
       },
       {
         "file": "src/workbench/App.tsx",
-        "contains": ["opl-package-lifecycle-panel", "opl-package-lifecycle-card", "opl-package-lifecycle-action", "Package status and actions come from App/root contracts"]
+        "contains": [
+          "opl-package-lifecycle-panel",
+          "opl-package-lifecycle-card",
+          "opl-package-lifecycle-action",
+          "Package status and actions come from App/root contracts"
+        ]
       }
     ],
     "workbench_model_live_derivation": [
       {
         "file": "src/workbench/workbenchModel.ts",
-        "contains": ["settings_control_center", "task_drilldowns", "current_owner_delta_next_action", "action_receipt", "artifact_or_blocker", "review_receipt"]
+        "contains": [
+          "settings_control_center",
+          "task_drilldowns",
+          "current_owner_delta_next_action",
+          "action_receipt",
+          "artifact_or_blocker",
+          "review_receipt"
+        ]
       }
     ],
-    "cross_top_level_thread_coordination": [
+    "codex_thread_adapter_and_subagents": [
       {
-        "file": "src/coordination/foundation.ts",
-        "contains": ["COORDINATION_DYNAMIC_TOOLS", "send_message_to_thread", "writeSetsOverlap", "selectDispatchKind"]
+        "file": "scripts/webui-host/thread-adapter.mjs",
+        "contains": [
+          "threadStoreOwner",
+          "privateCoordinationLayer: false",
+          "parentThreadId",
+          "subagentProjection",
+          "collabAgentToolCall",
+          "subAgentActivity"
+        ]
       },
       {
         "file": "scripts/native-workbench-app.swift",
-        "contains": ["thread/list", "thread/read", "turn/steer", "host_queue", "coordination/lifecycle-proposal", "resultSummaryOrRef"]
+        "contains": [
+          "final class CodexThreadAdapter",
+          "listThreads",
+          "readThread",
+          "resumeThread",
+          "forkThread",
+          "setArchived",
+          "parentThreadId",
+          "agentRole",
+          "agentNickname",
+          "sourceKind"
+        ]
       },
       {
-        "file": "scripts/webui-host/coordination-host.mjs",
-        "contains": ["threadStoreOwner", "host_owned_bounded_jsonl", "coordination/lifecycle-proposal", "queue_expired"]
+        "file": "src/workbench/workbenchModel.ts",
+        "contains": [
+          "deriveThreadDirectory",
+          "deriveThreadMessages",
+          "collabAgentToolCall",
+          "subAgentActivity",
+          "parentThreadId",
+          "sourceKind"
+        ]
       },
       {
-        "file": "src/workbench/App.tsx",
-        "contains": ["coordination/lifecycle-proposal", "waitCoordination", "ThreadRail", "CoordinationDialog"]
-      },
-      {
-        "file": "src/workbench/coordination/ThreadRail.tsx",
-        "contains": ["opl-real-thread-directory", "opl-thread-scope-filter", "opl-thread-detail-trigger"]
-      },
-      {
-        "file": "src/workbench/coordination/CoordinationDialog.tsx",
-        "contains": ["opl-coordination-dispatch-dialog", "opl-coordination-dispatch", "CoordinationEvents"]
-      },
-      {
-        "file": "src/workbench/coordination/CoordinationEvents.tsx",
-        "contains": ["opl-coordination-events", "proposal", "confirmation", "queued", "conflict", "result"]
+        "file": "src/workbench/threads/ThreadRail.tsx",
+        "contains": [
+          "opl-real-thread-directory",
+          "opl-thread-scope-filter",
+          "opl-thread-detail-trigger"
+        ]
       }
     ]
   },
@@ -323,7 +454,11 @@
   },
   "default_home_layout": {
     "policy": "ordinary home opens with the Codex project and conversation rail visible, the chat canvas dominant, model and reasoning controls in the composer, and the inspector closed until explicitly requested",
-    "stage_classes": ["codex-sidebar-chat", "with-rail", "without-inspector"],
+    "stage_classes": [
+      "codex-sidebar-chat",
+      "with-rail",
+      "without-inspector"
+    ],
     "workspace_rail_default_open": true,
     "inspector_default_open": false,
     "environment_details_default_open": false,
@@ -356,11 +491,33 @@
       "model_controls": "composer_bottom_row",
       "right_side": "floating user-requested environment details",
       "implementation_markers": {
-        "project_rail": ["Projects", "project-root", "opl-project-chats", "chatSessions"],
-        "project_context": ["Project context", "Files & outputs", "opl-project-inputs", "opl-project-attachments"],
-        "composer_model_config": ["composer-model-controls", "opl-topbar-model-config", "opl-model-access-entry"],
-        "right_environment_popover": ["context-inspector", "useState(false)", "opl-context-tabs"],
-        "settings_route": ["account-copy", "opl-settings-panel", "opl-locale-toggle"]
+        "project_rail": [
+          "Projects",
+          "project-root",
+          "opl-project-chats",
+          "chatSessions"
+        ],
+        "project_context": [
+          "Project context",
+          "Files & outputs",
+          "opl-project-inputs",
+          "opl-project-attachments"
+        ],
+        "composer_model_config": [
+          "composer-model-controls",
+          "opl-topbar-model-config",
+          "opl-model-access-entry"
+        ],
+        "right_environment_popover": [
+          "context-inspector",
+          "useState(false)",
+          "opl-context-tabs"
+        ],
+        "settings_route": [
+          "account-copy",
+          "opl-settings-panel",
+          "opl-locale-toggle"
+        ]
       }
     },
     "visual_style_reference": {
@@ -394,10 +551,11 @@
     "web_transport": "src/bridge/webTransport.ts",
     "gateway": "scripts/dev-webui-server.mjs",
     "shared_surface": true,
-    "events": "GET /api/opl-events and /api/coordination/events use SSE for Codex App Server and typed host events",
-    "coordination_host": "scripts/webui-host/http-host.mjs over local loopback HTTP/SSE and codex app-server stdio",
+    "events": "GET /api/opl-events uses SSE for Codex App Server and typed host events",
     "thread_store_owner": "codex_core_app_server",
-    "coordination_ledger": "bounded host-owned queue and receipt metadata only; no thread history"
+    "thread_adapter": "scripts/webui-host/http-host.mjs over local loopback HTTP/SSE and codex app-server stdio",
+    "private_coordination_layer": false,
+    "subagent_projection": "Codex-owned lineage, agent metadata, source kind, collabAgentToolCall, and subAgentActivity are rendered read-only"
   },
   "reuse_policy": {
     "kdense_source_usage": "experience_reference_only",
@@ -418,7 +576,13 @@
   },
   "reused_oss_module_policy": {
     "policy": "reference_and_adapter_only",
-    "allowed_reference_modules": ["K-Dense", "OpenClaudeScience", "AionUI", "Hermes Desktop", "AGUI"],
+    "allowed_reference_modules": [
+      "K-Dense",
+      "OpenClaudeScience",
+      "AionUI",
+      "Hermes Desktop",
+      "AGUI"
+    ],
     "copied_source": false,
     "runtime_authority_transfer": false,
     "user_visible_protocol_copy": false,
@@ -463,7 +627,11 @@
       "capability": "artifact_preview_tabs",
       "status_field": "artifact_preview_status",
       "live_evidence": false,
-      "layout_markers": ["artifact-preview-tabs", "artifact-preview", "data-preview-kind"],
+      "layout_markers": [
+        "artifact-preview-tabs",
+        "artifact-preview",
+        "data-preview-kind"
+      ],
       "renderer_testids": [
         "opl-artifact-preview-tabs",
         "opl-artifact-preview-tab",
@@ -474,7 +642,9 @@
       "capability": "provenance_drawer",
       "status_field": "provenance_drawer_status",
       "live_evidence": false,
-      "layout_markers": ["opl-provenance-drawer"],
+      "layout_markers": [
+        "opl-provenance-drawer"
+      ],
       "renderer_testids": [
         "opl-provenance-drawer",
         "opl-provenance-ref"
@@ -484,7 +654,10 @@
       "capability": "starter_forms",
       "status_field": "starter_forms_status",
       "live_evidence": false,
-      "layout_markers": ["starter-forms", "opl-starter-form-${starter.purpose}"],
+      "layout_markers": [
+        "starter-forms",
+        "opl-starter-form-${starter.purpose}"
+      ],
       "renderer_testids": [
         "opl-starter-forms",
         "opl-starter-form"
@@ -494,7 +667,11 @@
       "capability": "agent_package_lifecycle_display",
       "status_field": "agent_package_lifecycle_status",
       "live_evidence": false,
-      "layout_markers": ["package-lifecycle-panel", "package-lifecycle-card", "packageLifecycle"],
+      "layout_markers": [
+        "package-lifecycle-panel",
+        "package-lifecycle-card",
+        "packageLifecycle"
+      ],
       "renderer_testids": [
         "opl-package-lifecycle-panel",
         "opl-package-lifecycle-card",
@@ -505,7 +682,9 @@
       "capability": "confirmation_interview_cards",
       "status_field": "confirmation_cards_status",
       "live_evidence": false,
-      "layout_markers": ["confirmation-card"],
+      "layout_markers": [
+        "confirmation-card"
+      ],
       "renderer_testids": [
         "opl-confirmation-card",
         "opl-question-card",
@@ -516,7 +695,9 @@
       "capability": "renderer_module_registry",
       "status_field": "renderer_module_registry_status",
       "live_evidence": false,
-      "layout_markers": ["RendererModuleRegistryPanel"],
+      "layout_markers": [
+        "RendererModuleRegistryPanel"
+      ],
       "renderer_testids": [
         "opl-renderer-module-registry",
         "opl-renderer-module-card"
@@ -526,7 +707,9 @@
       "capability": "delivery_mode_selection",
       "status_field": "delivery_mode_status",
       "live_evidence": false,
-      "layout_markers": ["delivery-workbench"],
+      "layout_markers": [
+        "delivery-workbench"
+      ],
       "renderer_testids": [
         "opl-workbench-delivery-mode",
         "opl-delivery-mode",
@@ -537,7 +720,9 @@
       "capability": "export_action",
       "status_field": "export_action_status",
       "live_evidence": false,
-      "layout_markers": ["task_export_bundle_preview"],
+      "layout_markers": [
+        "task_export_bundle_preview"
+      ],
       "renderer_testids": [
         "opl-export-action",
         "opl-export-action-dry-run"
@@ -545,7 +730,13 @@
     }
   },
   "page_state_matrix_mapping": {
-    "page_ids": ["home", "runtime", "settings", "first_run", "release"],
+    "page_ids": [
+      "home",
+      "runtime",
+      "settings",
+      "first_run",
+      "release"
+    ],
     "runtime_testids": [
       "opl-workspace-rail",
       "opl-session-list",
@@ -563,7 +754,11 @@
       "opl-package-lifecycle-panel",
       "opl-package-lifecycle-action"
     ],
-    "settings_testids": ["opl-settings-panel", "opl-model-access-entry", "opl-locale-toggle"]
+    "settings_testids": [
+      "opl-settings-panel",
+      "opl-model-access-entry",
+      "opl-locale-toggle"
+    ]
   },
   "first_run_matrix_mapping": {
     "required_shell_testids": [
@@ -590,9 +785,37 @@
     ]
   },
   "settings_information_architecture": {
-    "visible_tabs": ["general", "access", "capabilities", "environment", "storage", "appearance", "advanced"],
-    "labels_en": ["General", "Access", "Agents & Capabilities", "Local Environment", "Storage", "Appearance", "Advanced"],
-    "legacy_tabs_hidden": ["overview", "runtime", "system", "model", "agent", "assistants", "skills-hub", "tools", "display", "webui", "pet"],
+    "visible_tabs": [
+      "general",
+      "access",
+      "capabilities",
+      "environment",
+      "storage",
+      "appearance",
+      "advanced"
+    ],
+    "labels_en": [
+      "General",
+      "Access",
+      "Agents & Capabilities",
+      "Local Environment",
+      "Storage",
+      "Appearance",
+      "Advanced"
+    ],
+    "legacy_tabs_hidden": [
+      "overview",
+      "runtime",
+      "system",
+      "model",
+      "agent",
+      "assistants",
+      "skills-hub",
+      "tools",
+      "display",
+      "webui",
+      "pet"
+    ],
     "persistence_model": {
       "file": "src/workbench/settingsModel.ts",
       "storage_key": "opl.nativeWorkbench.settings.v1",
@@ -601,33 +824,89 @@
       "release_ready": false,
       "live_evidence": false,
       "runtime_profile_helper": "readRuntimeProfile",
-      "keys": ["locale", "modelAccess", "reasoningLevel", "defaultWorkspace", "runtimeProfile", "confirmBeforeExecute", "artifactPreviewMode", "professionalStarterDefaults", "theme", "developerDetails"]
+      "keys": [
+        "locale",
+        "modelAccess",
+        "reasoningLevel",
+        "defaultWorkspace",
+        "runtimeProfile",
+        "confirmBeforeExecute",
+        "artifactPreviewMode",
+        "professionalStarterDefaults",
+        "theme",
+        "developerDetails"
+      ]
     }
   },
   "bilingual_ui": {
     "default_locale": "zh",
-    "supported_locales": ["zh", "en"],
+    "supported_locales": [
+      "zh",
+      "en"
+    ],
     "ordinary_ui_policy": "same_screen_single_language_for_user_visible_chrome",
     "language_toggle_testid": "opl-locale-toggle",
-    "zh_purpose_labels": ["科研", "基金", "演示"],
-    "en_purpose_labels": ["Research", "Grant", "Presentation"]
+    "zh_purpose_labels": [
+      "科研",
+      "基金",
+      "演示"
+    ],
+    "en_purpose_labels": [
+      "Research",
+      "Grant",
+      "Presentation"
+    ]
   },
   "secondary_runtime_context_refs": {
     "authority": "opl_framework_refs_only_projection",
     "source": "Runtime page and secondary context surfaces only",
-    "display_groups": ["needs_attention", "active_projects", "recent_projects"],
+    "display_groups": [
+      "needs_attention",
+      "active_projects",
+      "recent_projects"
+    ],
     "default_placement": "runtime_page_or_secondary_context_not_home",
     "home_surface_policy": "ordinary_home_must_not_render_runtime_activity_or_continue_work",
     "empty_state_policy": "stable_empty_state_without_page_wide_spinner",
-    "forbidden_body_display": ["domain artifact body", "memory body", "quality verdict body", "provider implementation details"],
-    "renderer_testids": ["opl-runtime-summary", "opl-secondary-runtime-context", "opl-runtime-context-group", "opl-runtime-context-item"]
+    "forbidden_body_display": [
+      "domain artifact body",
+      "memory body",
+      "quality verdict body",
+      "provider implementation details"
+    ],
+    "renderer_testids": [
+      "opl-runtime-summary",
+      "opl-secondary-runtime-context",
+      "opl-runtime-context-group",
+      "opl-runtime-context-item"
+    ]
   },
   "conversation_event_rendering": {
-    "event_kinds": ["tool", "process", "diff", "file", "receipt", "user_input", "permission"],
+    "event_kinds": [
+      "tool",
+      "process",
+      "diff",
+      "file",
+      "receipt",
+      "user_input",
+      "permission"
+    ],
     "display_policy": "summary_first_compact_conversation_events_or_expandable_refs",
-    "forbidden_visible_protocol_copy": ["AG-UI event name", "ACP wire detail", "app-server raw frame"],
-    "renderer_testids": ["opl-conversation-event", "opl-event-feed"],
-    "typed_event_fields": ["source", "eventKind", "summary", "raw"]
+    "forbidden_visible_protocol_copy": [
+      "AG-UI event name",
+      "ACP wire detail",
+      "app-server raw frame"
+    ],
+    "renderer_testids": [
+      "opl-conversation-event",
+      "opl-event-feed"
+    ],
+    "typed_event_fields": [
+      "source",
+      "eventKind",
+      "summary",
+      "raw"
+    ]
   },
   "webui_parity": {
     "shared_renderer": true,
@@ -638,9 +917,20 @@
     "sse_subscription_surface": "subscribeEvents uses GET /api/opl-events and normalizes message payloads to typed bridge events"
   },
   "bridge_readback_contract": {
-    "state_profiles": ["fast", "full"],
-    "state_readback_fields": ["profile", "app_state", "readback"],
-    "full_drilldown_fields": ["detail", "drilldown", "readback"],
+    "state_profiles": [
+      "fast",
+      "full"
+    ],
+    "state_readback_fields": [
+      "profile",
+      "app_state",
+      "readback"
+    ],
+    "full_drilldown_fields": [
+      "detail",
+      "drilldown",
+      "readback"
+    ],
     "action_receipt_fields": [
       "actionId",
       "receiptKind",
@@ -699,7 +989,14 @@
     "legacy_fallback_projection": "opl app state --profile fast --json#app_state.modules.items[]",
     "action_authority": "opl app state --profile fast --json#app_state.actions",
     "display_policy": "canonical agent_packages projection first; legacy modules fallback is preview-only and cannot infer installed, ready, synced, release, or package truth",
-    "action_kinds": ["discover", "install", "update", "repair", "uninstall", "exposure"],
+    "action_kinds": [
+      "discover",
+      "install",
+      "update",
+      "repair",
+      "uninstall",
+      "exposure"
+    ],
     "required_action_refs": [
       "refresh_registry",
       "install_from_manifest_url",
@@ -737,5 +1034,18 @@
     "starter_payload_policy": "starter payload fields must derive from live action payload_fields plus task/module refs when available",
     "receipt_ref_policy": "receipt summaries and preview refs must derive from task_drilldowns action_receipt review_receipt and artifact_or_blocker surfaces",
     "context_policy": "context sources and actions must prefer live App state refs over static candidate copy while staying refs-only"
+  },
+  "thread_list_pagination_regression": {
+    "validation_command": "npm run test:thread-list-pagination",
+    "fixtures": [
+      "scripts/thread-list-pagination-regression.swift",
+      "scripts/webui-host/thread-adapter.test.mjs"
+    ],
+    "coverage": [
+      "Desktop and WebUI thread/list follow every cursor and reject a repeated cursor",
+      "standard list, read, resume, fork, archive, and unarchive lifecycle routes remain available",
+      "parentThreadId, agentRole, agentNickname, source kinds, collabAgentToolCall, and subAgentActivity survive projection",
+      "private coordination queue, ledger, dynamic-tools, and bilateral receipt markers are rejected"
+    ]
   }
 }

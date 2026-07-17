@@ -14,18 +14,20 @@ npm ci
 npm test
 ```
 
-`npm test` runs the repository's current typecheck, native-command regression,
-Gateway-account projection regression, coordination tests, candidate and state
-validators, WebUI and visual smoke, package construction, and packaged-runtime
-validation. Read `package.json` before relying on this summary because the
-script is the command owner.
+`npm test` runs the repository's current typecheck, native-command and model
+pagination regressions, Gateway-account projection regression, standard thread
+adapter/lifecycle/subagent tests, candidate and state validators, WebUI and
+visual smoke, package construction, and packaged-runtime validation. Read
+`package.json` before relying on this summary because the script is the command
+owner.
 
 ## Focused Commands
 
 | Command | Evidence layer |
 | --- | --- |
 | `npm run typecheck` | TypeScript source consistency |
-| `npm run test:coordination` | Local coordination protocol/security and renderer-source tests |
+| `npm run test:threads` | Standard Desktop/WebUI thread lifecycle, pagination, renderer, and Codex subagent projection tests |
+| `npm run test:thread-list-pagination` | Native Swift thread/list aggregation and repeated-cursor rejection |
 | `npm run validate:candidate` | Required source markers and false-ready guards |
 | `npm run validate:state-model` | App-state projection mapping |
 | `npm run smoke:webui` | Local WebUI host/renderer smoke |

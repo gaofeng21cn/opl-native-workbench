@@ -11,11 +11,6 @@ export class AppServerTransportError extends Error {
   }
 }
 
-function rpcError(error) {
-  if (error instanceof AppServerTransportError) return error;
-  return new AppServerTransportError("app_server_error", String(error));
-}
-
 export class CodexAppServerTransport extends EventEmitter {
   constructor({
     command = process.env.CODEX_APP_SERVER_COMMAND ?? "codex",
@@ -39,12 +34,6 @@ export class CodexAppServerTransport extends EventEmitter {
     this.initialized = false;
     this.startPromise = null;
     this.stderrTail = "";
-    this.dynamicToolsStatus = "unprobed";
-    this.toolDispatcher = null;
-  }
-
-  setToolDispatcher(dispatcher) {
-    this.toolDispatcher = dispatcher;
   }
 
   async start() {
@@ -213,65 +202,28 @@ export class CodexAppServerTransport extends EventEmitter {
     });
   }
 
-  async startThread({ dynamicTools, ...params } = {}) {
-    try {
-      const response = await this.request("thread/start", {
-        cwd: this.cwd,
-        approvalPolicy: "never",
-        sandbox: "read-only",
-        ephemeral: false,
-        ...params,
-        ...(dynamicTools ? { dynamicTools } : {})
-      });
-      return response;
-    } catch (error) {
-      throw error;
-    }
+  async startThread(params = {}) {
+    return this.request("thread/start", {
+      cwd: this.cwd,
+      approvalPolicy: "never",
+      sandbox: "read-only",
+      ephemeral: false,
+      ...params
+    });
   }
 
-  async probeDynamicTools(dynamicTools) {
-    if (this.dynamicToolsStatus !== "unprobed") return this.dynamicToolsStatus;
-    try {
-      const started = await this.startThread({ dynamicTools, ephemeral: true });
-      const threadId = started.thread?.id;
-      if (!threadId) throw new AppServerTransportError("invalid_app_server_response", "Dynamic tool probe returned no thread id");
-      const turn = await this.startTurn(
-        threadId,
-        "Call the coordination_capability_probe tool exactly once, then reply with its result."
-      );
-      if (!turn.turn?.id) throw new AppServerTransportError("invalid_app_server_response", "Dynamic tool probe returned no turn id");
-      await this.waitForTurn(turn.turn.id, 45_000);
-      if (this.dynamicToolsStatus !== "available") this.dynamicToolsStatus = "unavailable";
-    } catch {
-      this.dynamicToolsStatus = "unavailable";
-    }
-    return this.dynamicToolsStatus;
-  }
-
-  async sendMessage({ prompt, threadId, model, reasoningEffort, dynamicTools }) {
+  async sendMessage({ prompt, threadId, model, reasoningEffort }) {
     let activeThreadId = threadId;
     if (activeThreadId) {
       await this.resumeThread(activeThreadId, { cwd: this.cwd, approvalPolicy: "never", sandbox: "read-only" });
     } else {
-      try {
-        const started = await this.startThread({
-          dynamicTools,
-          model: model || undefined,
-          cwd: this.cwd,
-          approvalPolicy: "never",
-          sandbox: "read-only"
-        });
-        activeThreadId = started.thread?.id;
-      } catch (error) {
-        if (!dynamicTools) throw error;
-        const started = await this.startThread({
-          model: model || undefined,
-          cwd: this.cwd,
-          approvalPolicy: "never",
-          sandbox: "read-only"
-        });
-        activeThreadId = started.thread?.id;
-      }
+      const started = await this.startThread({
+        model: model || undefined,
+        cwd: this.cwd,
+        approvalPolicy: "never",
+        sandbox: "read-only"
+      });
+      activeThreadId = started.thread?.id;
     }
     if (!activeThreadId) {
       throw new AppServerTransportError("invalid_app_server_response", "thread/start returned no thread id");
@@ -370,58 +322,10 @@ export class CodexAppServerTransport extends EventEmitter {
   }
 
   async #handleServerRequest(message) {
-    if (message.method !== "item/tool/call") {
-      this.#write({
-        id: message.id,
-        error: { code: -32601, message: `Unsupported app-server request: ${message.method}` }
-      });
-      return;
-    }
-    const params = message.params ?? {};
-    try {
-      this.dynamicToolsStatus = "available";
-      this.emit("dynamicTools", { available: true, params });
-      if (params.tool === "coordination_capability_probe") {
-        this.#write({
-          id: message.id,
-          result: {
-            contentItems: [{ type: "inputText", text: JSON.stringify({ available: true, transport: "client_executed_dynamic_tools" }) }],
-            success: true
-          }
-        });
-        return;
-      }
-      if (!this.toolDispatcher) {
-        throw new AppServerTransportError("dynamic_tools_unavailable", "Dynamic tool dispatcher is unavailable");
-      }
-      const result = await this.toolDispatcher({
-        threadId: params.threadId,
-        turnId: params.turnId,
-        callId: params.callId,
-        namespace: params.namespace,
-        tool: params.tool,
-        arguments: params.arguments
-      });
-      this.#write({
-        id: message.id,
-        result: {
-          contentItems: [{ type: "inputText", text: JSON.stringify(result) }],
-          success: true
-        }
-      });
-    } catch (error) {
-      const typed = rpcError(error);
-      this.#write({
-        id: message.id,
-        result: {
-          contentItems: [{
-            type: "inputText",
-            text: JSON.stringify({ error: { code: typed.code, message: typed.message, details: typed.details } })
-          }],
-          success: false
-        }
-      });
-    }
+    this.#write({
+      id: message.id,
+      error: { code: -32601, message: `Unsupported app-server request: ${message.method}` }
+    });
   }
 
   #recordEvent(message) {

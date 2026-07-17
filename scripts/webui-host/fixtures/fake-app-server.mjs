@@ -10,17 +10,24 @@ const threads = new Map([
   ["thread-idle", thread("thread-idle", { type: "idle" }, ["src/idle.ts"])],
   ["thread-unloaded", thread("thread-unloaded", { type: "notLoaded" }, ["src/unloaded.ts"])],
   ["thread-running", thread("thread-running", { type: "active", activeFlags: [] }, ["src/running.ts"], [turn("turn-running", "inProgress")])],
-  ["thread-queue", thread("thread-queue", { type: "active", activeFlags: [] }, ["src/queue.ts"], [turn("turn-queue", "inProgress")])]
+  ["thread-subagent", thread("thread-subagent", { type: "idle" }, [], [turn("turn-subagent", "completed", [
+    { id: "collab-call", type: "collabAgentToolCall", agentRole: "reviewer", text: "Review delegated" },
+    { id: "subagent-activity", type: "subAgentActivity", agentNickname: "Scout", text: "Review completed" }
+  ])], {
+    parentThreadId: "thread-source",
+    agentRole: "reviewer",
+    agentNickname: "Scout",
+    threadSource: { type: "subAgentReview" }
+  })]
 ]);
 let nextThread = 1;
 let nextTurn = 1;
-let pendingProbeTurn = null;
 
-function turn(id, status) {
-  return { id, items: [], itemsView: { type: "full" }, status, error: null, startedAt: 1, completedAt: null, durationMs: null };
+function turn(id, status, items = []) {
+  return { id, items, itemsView: { type: "full" }, status, error: null, startedAt: 1, completedAt: null, durationMs: null };
 }
 
-function thread(id, status, writeSet = [], turns = []) {
+function thread(id, status, writeSet = [], turns = [], overrides = {}) {
   return {
     id,
     sessionId: `session-${id}`,
@@ -47,7 +54,8 @@ function thread(id, status, writeSet = [], turns = []) {
     hostId: "local",
     goal: `Goal ${id}`,
     writeSet,
-    archived: false
+    archived: false,
+    ...overrides
   };
 }
 
@@ -72,20 +80,13 @@ function completeTurn(threadId, turnId, status = "completed") {
 
 async function handle(frame) {
   log(frame);
-  if (frame.id !== undefined && !frame.method) {
-    if (pendingProbeTurn && frame.id === 900) {
-      const pending = pendingProbeTurn;
-      pendingProbeTurn = null;
-      setTimeout(() => completeTurn(pending.threadId, pending.turnId), 5);
-    }
-    return;
-  }
+  if (frame.id !== undefined && !frame.method) return;
   const { id, method, params = {} } = frame;
   if (id === undefined) return;
   if (method === "initialize") return send({ id, result: { userAgent: "fake-app-server/0.144.1" } });
   if (method === "thread/list") {
     const page = params.cursor === "page-2"
-      ? [threads.get("thread-running"), threads.get("thread-queue")]
+      ? [threads.get("thread-running"), threads.get("thread-subagent")]
       : [threads.get("thread-source"), threads.get("thread-idle"), threads.get("thread-unloaded")];
     return send({ id, result: { data: page, nextCursor: params.cursor ? null : "page-2", backwardsCursor: null } });
   }
@@ -104,7 +105,6 @@ async function handle(frame) {
     const threadId = `thread-created-${nextThread++}`;
     const target = thread(threadId, { type: "idle" });
     target.ephemeral = Boolean(params.ephemeral);
-    target.dynamicTools = params.dynamicTools;
     threads.set(threadId, target);
     return send({ id, result: { thread: target, model: "gpt-test", modelProvider: "openai", cwd: workspace } });
   }
@@ -131,24 +131,7 @@ async function handle(frame) {
     target.status = { type: "active", activeFlags: [] };
     target.turns.push(turn(turnId, "inProgress"));
     send({ id, result: { turn: turn(turnId, "inProgress") } });
-    const probe = target.dynamicTools?.some((tool) => tool.name === "coordination_capability_probe");
-    if (probe) {
-      pendingProbeTurn = { threadId: params.threadId, turnId };
-      setTimeout(() => send({
-        id: 900,
-        method: "item/tool/call",
-        params: {
-          threadId: params.threadId,
-          turnId,
-          callId: "probe-call",
-          namespace: null,
-          tool: "coordination_capability_probe",
-          arguments: {}
-        }
-      }), 5);
-    } else {
-      setTimeout(() => completeTurn(params.threadId, turnId), 10);
-    }
+    setTimeout(() => completeTurn(params.threadId, turnId), 10);
     return;
   }
   if (method === "turn/steer") {
@@ -158,13 +141,6 @@ async function handle(frame) {
   }
   if (method === "model/list") {
     return send({ id, result: { data: [{ id: "gpt-test", model: "gpt-test", isDefault: true }], nextCursor: null } });
-  }
-  if (method === "test/make-idle") {
-    const target = threads.get(params.threadId);
-    target.status = { type: "idle" };
-    send({ id, result: {} });
-    send({ method: "thread/status/changed", params: { threadId: params.threadId, status: { type: "idle" } } });
-    return;
   }
   send({ id, error: { code: -32601, message: `unsupported fake method ${method}` } });
 }

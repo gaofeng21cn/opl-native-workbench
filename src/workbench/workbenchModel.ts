@@ -30,11 +30,10 @@ export type WorkbenchThreadMessage = {
   id: string;
   role: "user" | "assistant" | "system";
   text: string;
-  coordination?: {
-    direction: "source" | "target";
-    state: string;
-    summary: string;
-    result?: string;
+  subagent?: {
+    type: "collabAgentToolCall" | "subAgentActivity";
+    agentRole?: string;
+    agentNickname?: string;
   };
 };
 
@@ -42,17 +41,16 @@ export type WorkbenchThreadItem = {
   id: string;
   sessionId?: string;
   projectKey?: string;
-  hostId?: string;
+  sourceKind?: string;
+  agentRole?: string;
+  agentNickname?: string;
   title: string;
   projectId?: string;
   projectLabel?: string;
   workspace?: string;
   currentWorkspace: boolean;
-  goal?: string;
   parentThreadId?: string;
-  ancestorThreadIds: string[];
   activeTurnId?: string;
-  writeSet: string[];
   status: string;
   preview: string;
   updatedAt?: string;
@@ -65,34 +63,6 @@ export type WorkbenchProjectGroup = {
   workspace?: string;
   projectless: boolean;
   threads: WorkbenchThreadItem[];
-};
-
-export type WorkbenchCoordinationPhase = "proposal" | "confirmation" | "queued" | "conflict" | "result";
-
-export type WorkbenchCoordinationEvent = {
-  id: string;
-  phase: WorkbenchCoordinationPhase;
-  direction: "source" | "target" | "system";
-  label: string;
-  detail: string;
-  sourceThreadId?: string;
-  targetThreadId?: string;
-  occurredAt?: string;
-};
-
-export type WorkbenchCoordinationOperation = {
-  id?: string;
-  phase: WorkbenchCoordinationPhase;
-  sourceThreadId?: string;
-  targetThreadId?: string;
-  summary: string;
-  requiresConfirmation: boolean;
-  plannedDispatch?: "started" | "steered" | "queued";
-  safetyState?: string;
-  guardCode?: string;
-  queuePosition?: number;
-  conflict?: string;
-  result?: string;
 };
 
 export type ArtifactPreview = {
@@ -534,20 +504,24 @@ function threadFromRecord(
     id,
     sessionId: firstString(record, ["sessionId", "session_id"]) ?? undefined,
     projectKey: firstString(record, ["projectKey", "project_key"]) ?? undefined,
-    hostId: firstString(record, ["hostId", "host_id"]) ?? undefined,
+    sourceKind: firstString(record, ["sourceKind", "source_kind"])
+      ?? firstString(nestedRecord(record, ["threadSource", "thread_source"]), ["type", "kind"])
+      ?? firstString(record, ["threadSource", "thread_source"])
+      ?? firstString(nestedRecord(record, ["source"]), ["type", "kind"])
+      ?? firstString(record, ["source"])
+      ?? undefined,
+    agentRole: firstString(record, ["agentRole", "agent_role"]) ?? undefined,
+    agentNickname: firstString(record, ["agentNickname", "agent_nickname"]) ?? undefined,
     title: firstString(record, ["title", "name", "displayName", "display_name", "summary", "preview", "subject"])
       ?? `Thread ${id.slice(0, 8)}`,
     projectId,
     projectLabel,
     workspace,
     currentWorkspace: firstBoolean(record, ["currentWorkspace", "current_workspace"]),
-    goal: firstString(record, ["goal", "objective", "summary"]) ?? undefined,
     parentThreadId: firstString(record, ["parentThreadId", "parent_thread_id", "parentId", "parent_id"]) ?? undefined,
-    ancestorThreadIds: asStringArray(record.ancestorThreadIds ?? record.ancestor_thread_ids ?? record.ancestors),
     activeTurnId: firstString(record, ["activeTurnId", "active_turn_id"])
       ?? firstString(nestedRecord(record, ["activeTurn", "active_turn"]), ["id", "turnId", "turn_id"])
       ?? undefined,
-    writeSet: asStringArray(record.writeSet ?? record.write_set ?? record.expectedWriteSet ?? record.expected_write_set),
     status: firstString(record, ["status", "state", "phase"]) ?? "unknown",
     preview: firstString(record, ["preview", "summary", "lastMessage", "last_message", "snippet"]) ?? "",
     updatedAt: timestampString(record.updatedAt ?? record.updated_at ?? record.modifiedAt ?? record.modified_at),
@@ -612,6 +586,27 @@ function textFromContent(value: unknown): string {
 
 function messageFromRecord(record: Record<string, unknown>, index: number): WorkbenchThreadMessage | null {
   const type = firstString(record, ["type", "kind", "event"])?.toLowerCase() ?? "";
+  const subagentType = type === "collabagenttoolcall"
+    ? "collabAgentToolCall"
+    : type === "subagentactivity"
+      ? "subAgentActivity"
+      : null;
+  if (subagentType) {
+    const agent = nestedRecord(record, ["agent", "subAgent", "sub_agent"]);
+    const agentRole = firstString(record, ["agentRole", "agent_role"]) ?? firstString(agent, ["role", "agentRole", "agent_role"]) ?? undefined;
+    const agentNickname = firstString(record, ["agentNickname", "agent_nickname", "nickname"])
+      ?? firstString(agent, ["nickname", "agentNickname", "agent_nickname"])
+      ?? undefined;
+    const status = firstString(record, ["status", "state", "phase"]);
+    const text = firstString(record, ["text", "message", "summary", "title", "tool"])
+      ?? [agentNickname ?? agentRole ?? "Subagent", status].filter(Boolean).join(" · ");
+    return {
+      id: firstString(record, ["id", "itemId", "item_id", "callId", "call_id"]) ?? `subagent-item-${index}`,
+      role: "system",
+      text,
+      subagent: { type: subagentType, agentRole, agentNickname }
+    };
+  }
   const explicitRole = firstString(record, ["role", "author"]);
   const role = explicitRole === "user" || /user.?message|input.?message/.test(type)
     ? "user"
@@ -631,20 +626,6 @@ function messageFromRecord(record: Record<string, unknown>, index: number): Work
   };
 }
 
-function coordinationMessageFromRecord(record: Record<string, unknown>, index: number): WorkbenchThreadMessage | null {
-  const direction = firstString(record, ["direction"]);
-  if (direction !== "source" && direction !== "target") return null;
-  const state = firstString(record, ["state", "status"]) ?? "unknown";
-  const summary = firstString(record, ["summary", "messageSummary", "message_summary"]) ?? "Coordination receipt";
-  const result = firstString(record, ["resultSummaryOrRef", "result_summary_or_ref", "result"]);
-  return {
-    id: firstString(record, ["id", "coordinationId", "coordination_id"]) ?? `coordination-message-${index}`,
-    role: "system",
-    text: summary,
-    coordination: { direction, state, summary, ...(result ? { result } : {}) }
-  };
-}
-
 export function deriveThreadMessages(value: unknown): WorkbenchThreadMessage[] {
   const payload = payloadRecord(value);
   const thread = nestedRecord(payload, ["thread"]);
@@ -655,90 +636,9 @@ export function deriveThreadMessages(value: unknown): WorkbenchThreadMessage[] {
     .filter((record): record is Record<string, unknown> => Boolean(record))
     .flatMap((record) => asRecordArray(record.turns));
   const turnItems = turns.flatMap((turn) => asRecordArray(turn.items ?? turn.messages));
-  const coordinationItems = [payload, thread]
-    .filter((record): record is Record<string, unknown> => Boolean(record))
-    .flatMap((record) => asRecordArray(record.coordinationEvents ?? record.coordination_events));
   return [...direct, ...turnItems]
     .map(messageFromRecord)
-    .filter((message): message is WorkbenchThreadMessage => Boolean(message))
-    .concat(coordinationItems.map(coordinationMessageFromRecord).filter((message): message is WorkbenchThreadMessage => Boolean(message)));
-}
-
-function coordinationPhase(record: Record<string, unknown> | null): WorkbenchCoordinationPhase {
-  const state = firstString(record, ["phase", "status", "state", "type", "kind"])?.toLowerCase() ?? "";
-  if (firstString(record, ["conflict", "conflictReason", "conflict_reason"]) || /conflict|blocked|rejected/.test(state)) return "conflict";
-  if (record?.result !== undefined || record?.output !== undefined || /result|complete|completed|succeeded|failed|cancelled/.test(state)) return "result";
-  if (record?.queuePosition !== undefined || record?.queue_position !== undefined || /queue|pending|waiting|running|started|steered/.test(state)) return "queued";
-  if (firstBoolean(record, ["requiresConfirmation", "requires_confirmation", "confirmationRequired", "confirmation_required"]) || /confirm|approval/.test(state)) return "confirmation";
-  return "proposal";
-}
-
-export function deriveCoordinationOperation(
-  value: unknown,
-  fallback: Partial<WorkbenchCoordinationOperation> = {}
-): WorkbenchCoordinationOperation {
-  const record = payloadRecord(value);
-  const queueValue = record?.queuePosition ?? record?.queue_position;
-  const queueText = asString(queueValue);
-  const queuePosition = typeof queueValue === "number" ? queueValue : queueText === null ? Number.NaN : Number(queueText);
-  const conflict = firstString(record, ["conflict", "conflictReason", "conflict_reason", "error"])
-    ?? firstString(nestedRecord(record, ["guard", "safety"]), ["message", "reason", "summary"])
-    ?? firstString(nestedRecord(record, ["conflict_detail", "conflictDetail"]), ["summary", "message", "reason"])
-    ?? fallback.conflict;
-  const result = firstString(record, ["result", "output", "resultSummary", "result_summary", "resultSummaryOrRef"])
-    ?? firstString(nestedRecord(record, ["result", "output"]), ["summary", "message", "text"])
-    ?? fallback.result;
-  return {
-    id: firstString(record, ["coordinationId", "coordination_id", "previewToken", "preview_token", "proposalId", "proposal_id", "id"]) ?? fallback.id,
-    phase: coordinationPhase(record) ?? fallback.phase ?? "proposal",
-    sourceThreadId: firstString(record, ["sourceThreadId", "source_thread_id", "sourceId", "source_id"]) ?? fallback.sourceThreadId,
-    targetThreadId: firstString(record, ["targetThreadId", "target_thread_id", "targetId", "target_id"]) ?? fallback.targetThreadId,
-    summary: firstString(record, ["summary", "message", "description", "prompt", "intent"])
-      ?? fallback.summary
-      ?? "Coordination proposal prepared.",
-    requiresConfirmation: firstBoolean(record, ["requiresConfirmation", "requires_confirmation", "confirmationRequired", "confirmation_required"])
-      || coordinationPhase(record) === "confirmation",
-    plannedDispatch: (() => {
-      const dispatch = firstString(record, ["plannedDispatch", "planned_dispatch", "dispatchKind", "dispatch_kind", "state"]);
-      return dispatch === "started" || dispatch === "steered" || dispatch === "queued" ? dispatch : fallback.plannedDispatch;
-    })(),
-    safetyState: firstString(record, ["safetyState", "safety_state", "state"]) ?? fallback.safetyState,
-    guardCode: firstString(nestedRecord(record, ["guard", "safety"]), ["code", "state", "type"])
-      ?? firstString(record, ["guardCode", "guard_code"])
-      ?? fallback.guardCode,
-    queuePosition: Number.isFinite(queuePosition) ? queuePosition : fallback.queuePosition,
-    conflict,
-    result
-  };
-}
-
-export function deriveCoordinationEvents(value: unknown): WorkbenchCoordinationEvent[] {
-  return listRecords(value, ["events", "items", "entries"]).map((record, index) => {
-    const projected = { ...record, ...(asRecord(record.raw) ?? {}) };
-    const sourceThreadId = firstString(projected, ["sourceThreadId", "source_thread_id", "sourceId", "source_id"]) ?? undefined;
-    const targetThreadId = firstString(projected, ["targetThreadId", "target_thread_id", "targetId", "target_id"]) ?? undefined;
-    const directionValue = firstString(projected, ["direction", "side", "role"])?.toLowerCase() ?? "";
-    const direction = /source|sender|origin/.test(directionValue)
-      ? "source"
-      : /target|receiver|destination/.test(directionValue)
-        ? "target"
-        : "system";
-    const coordinationId = firstString(projected, ["coordinationId", "coordination_id", "previewToken", "preview_token"]);
-    const method = firstString(record, ["method", "type", "kind"]);
-    const state = firstString(projected, ["state", "status", "phase"]);
-    const derivedId = [coordinationId, method, state, direction].filter(Boolean).join(":");
-    return {
-      id: firstString(projected, ["id", "eventId", "event_id"])
-        ?? (derivedId || `coordination-event-${index}`),
-      phase: coordinationPhase(projected),
-      direction,
-      label: firstString(projected, ["label", "title", "type", "kind", "status", "state"]) ?? method ?? "Coordination event",
-      detail: firstString(projected, ["detail", "summary", "message", "description", "result", "error"]) ?? "",
-      sourceThreadId,
-      targetThreadId,
-      occurredAt: timestampString(projected.occurredAt ?? projected.occurred_at ?? projected.createdAt ?? projected.created_at)
-    } satisfies WorkbenchCoordinationEvent;
-  });
+    .filter((message): message is WorkbenchThreadMessage => Boolean(message));
 }
 
 function uniqueByRef<T extends { ref?: string; route?: string; id: string }>(items: T[]): T[] {

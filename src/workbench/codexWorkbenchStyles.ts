@@ -528,11 +528,11 @@ export const codexWorkbenchStyles = `
     color: var(--opl-danger);
   }
 
-  .message.system.coordination .message-label {
+  .message.system.subagent .message-label {
     color: var(--opl-accent);
   }
 
-  .message.system.coordination .message-frame {
+  .message.system.subagent .message-frame {
     border-left-color: var(--opl-accent);
     color: var(--opl-text);
   }
@@ -1383,7 +1383,7 @@ export const codexWorkbenchStyles = `
   }
 
   .thread-directory-state.error,
-  .coordination-error {
+  .dialog-error {
     color: var(--opl-danger);
   }
 
@@ -1459,7 +1459,7 @@ export const codexWorkbenchStyles = `
     min-height: 29px;
   }
 
-  .coordination-overlay {
+  .dialog-overlay {
     position: fixed;
     inset: 0;
     z-index: 80;
@@ -1467,8 +1467,7 @@ export const codexWorkbenchStyles = `
   }
 
   .thread-detail-popover,
-  .thread-confirmation-dialog,
-  .coordination-dialog {
+  .thread-confirmation-dialog {
     position: fixed;
     z-index: 81;
     min-width: 0;
@@ -1488,8 +1487,7 @@ export const codexWorkbenchStyles = `
     padding: 14px;
   }
 
-  .thread-confirmation-dialog,
-  .coordination-dialog {
+  .thread-confirmation-dialog {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
@@ -1500,15 +1498,8 @@ export const codexWorkbenchStyles = `
     padding: 16px;
   }
 
-  .coordination-dialog {
-    width: min(680px, calc(100vw - 32px));
-    max-height: min(780px, calc(100vh - 32px));
-    padding: 16px;
-  }
-
   .thread-detail-popover > header,
-  .thread-confirmation-dialog > header,
-  .coordination-dialog-header {
+  .thread-confirmation-dialog > header {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) 30px;
     align-items: center;
@@ -1521,21 +1512,10 @@ export const codexWorkbenchStyles = `
   }
 
   .thread-detail-popover h2,
-  .thread-confirmation-dialog h2,
-  .coordination-dialog h2 {
+  .thread-confirmation-dialog h2 {
     margin: 0;
     font-size: 14px;
     font-weight: 500;
-  }
-
-  .coordination-dialog-icon {
-    width: 28px;
-    height: 28px;
-    display: grid;
-    place-items: center;
-    border-radius: 7px;
-    background: var(--opl-accent-soft);
-    color: var(--opl-accent);
   }
 
   .thread-detail-title {
@@ -1583,8 +1563,7 @@ export const codexWorkbenchStyles = `
   }
 
   .thread-detail-actions,
-  .thread-confirmation-dialog footer,
-  .coordination-dialog footer {
+  .thread-confirmation-dialog footer {
     display: flex;
     justify-content: flex-end;
     flex-wrap: wrap;
@@ -1593,8 +1572,7 @@ export const codexWorkbenchStyles = `
   }
 
   .thread-detail-actions button,
-  .thread-confirmation-dialog footer button,
-  .coordination-dialog footer button {
+  .thread-confirmation-dialog footer button {
     min-height: 31px;
     display: inline-flex;
     align-items: center;
@@ -1607,169 +1585,12 @@ export const codexWorkbenchStyles = `
     color: var(--opl-text);
   }
 
-  .thread-confirmation-dialog footer .primary,
-  .coordination-dialog footer .primary {
+  .thread-confirmation-dialog footer .primary {
     border-color: var(--opl-text);
     background: var(--opl-text);
     color: var(--opl-canvas);
   }
 
-  .coordination-route {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr);
-    align-items: end;
-    gap: 9px;
-    margin: 14px 0;
-  }
-
-  .coordination-route > svg {
-    margin-bottom: 9px;
-    color: var(--opl-muted);
-  }
-
-  .coordination-route label,
-  .coordination-fields label {
-    min-width: 0;
-    display: grid;
-    gap: 5px;
-  }
-
-  .coordination-route label > span,
-  .coordination-fields label > span {
-    color: var(--opl-muted);
-    font-size: 10.5px;
-  }
-
-  .coordination-route strong {
-    min-height: 34px;
-    display: flex;
-    align-items: center;
-    padding: 0 9px;
-    overflow: hidden;
-    border: 1px solid var(--opl-border);
-    border-radius: 7px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-weight: 500;
-  }
-
-  .coordination-route select,
-  .coordination-fields input,
-  .coordination-fields select,
-  .coordination-fields textarea {
-    width: 100%;
-    min-height: 34px;
-    padding: 7px 9px;
-    border: 1px solid var(--opl-border);
-    border-radius: 7px;
-    outline: 0;
-    background: var(--opl-canvas);
-    color: var(--opl-text);
-  }
-
-  .coordination-fields {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-
-  .coordination-fields label:nth-child(3),
-  .coordination-fields label:nth-child(5) {
-    grid-column: 1 / -1;
-  }
-
-  .coordination-fields textarea {
-    min-height: 76px;
-    resize: vertical;
-  }
-
-  .coordination-fields .coordination-write-set {
-    min-height: 54px;
-    font-family: var(--opl-font-mono);
-    font-size: 11px;
-  }
-
-  .coordination-events {
-    margin-top: 12px;
-  }
-
-  .coordination-current-state {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: start;
-    gap: 8px;
-    padding: 9px;
-    border-left: 3px solid var(--opl-accent);
-    background: var(--opl-sidebar);
-  }
-
-  .coordination-current-state[data-phase="conflict"] {
-    border-left-color: var(--opl-danger);
-  }
-
-  .coordination-current-state > span,
-  .coordination-events li header > span {
-    color: var(--opl-accent);
-    font-size: 10.5px;
-    font-weight: 600;
-  }
-
-  .coordination-current-state p,
-  .coordination-events p {
-    margin: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .coordination-events ol {
-    display: grid;
-    gap: 6px;
-    max-height: 150px;
-    margin: 8px 0 0;
-    padding: 0;
-    overflow-y: auto;
-    list-style: none;
-  }
-
-  .coordination-events li {
-    padding: 8px 9px;
-    border: 1px solid var(--opl-border);
-    border-radius: 7px;
-  }
-
-  .coordination-events li header {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 7px;
-    align-items: center;
-  }
-
-  .coordination-events li header strong {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 11px;
-  }
-
-  .coordination-events li header small {
-    color: var(--opl-faint);
-    font-size: 9.5px;
-  }
-
-  .coordination-steer-confirmation {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    margin-top: 12px;
-    padding: 10px;
-    border: 1px solid color-mix(in oklab, var(--opl-warning) 35%, transparent);
-    border-radius: 7px;
-    background: var(--opl-warning-soft);
-  }
-
-  .coordination-error {
-    margin: 10px 0 0;
-    font-size: 11px;
-  }
 
   .visually-hidden {
     position: absolute;
@@ -1848,8 +1669,7 @@ export const codexWorkbenchStyles = `
     }
 
     .thread-detail-popover,
-    .thread-confirmation-dialog,
-    .coordination-dialog {
+    .thread-confirmation-dialog {
       inset: 0;
       width: 100%;
       height: 100dvh;
@@ -1860,31 +1680,6 @@ export const codexWorkbenchStyles = `
       border-radius: 0;
     }
 
-    .coordination-dialog {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .coordination-route,
-    .coordination-fields {
-      grid-template-columns: 1fr;
-    }
-
-    .coordination-route > svg {
-      display: none;
-    }
-
-    .coordination-fields label:nth-child(3),
-    .coordination-fields label:nth-child(5) {
-      grid-column: auto;
-    }
-
-    .coordination-dialog footer {
-      margin-top: auto;
-      padding-top: 16px;
-    }
-
-    .coordination-dialog footer button,
     .thread-confirmation-dialog footer button {
       width: 100%;
       min-height: 42px;

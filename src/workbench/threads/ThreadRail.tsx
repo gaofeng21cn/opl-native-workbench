@@ -59,12 +59,7 @@ export function ThreadRail({
         const ProjectIcon = project.projectless ? Inbox : selected ? FolderOpen : Folder;
         return (
           <section className="project-directory-group" key={project.id} data-projectless={project.projectless || undefined}>
-            <button
-              className="project-root"
-              type="button"
-              aria-expanded={selected}
-              onClick={() => onSelectProject(project.id)}
-            >
+            <button className="project-root" type="button" aria-expanded={selected} onClick={() => onSelectProject(project.id)}>
               <ProjectIcon aria-hidden="true" size={15} />
               <strong>{project.projectless
                 ? `${copy.noProject}${project.workspace ? ` / ${project.workspace.split("/").filter(Boolean).at(-1) ?? project.workspace}` : ""}`
@@ -83,7 +78,7 @@ export function ThreadRail({
                             <MessageSquare aria-hidden="true" size={13} />
                             <span className="thread-directory-copy">
                               <strong>{thread.title}</strong>
-                              <small>{thread.preview || thread.status}</small>
+                              <small>{(thread.agentNickname ?? thread.agentRole ?? thread.preview) || thread.status}</small>
                             </span>
                             <time>{threadTimestamp(thread.updatedAt, locale)}</time>
                           </button>

@@ -9,7 +9,7 @@ host.server.listen(port, address, () => {
     address,
     port,
     app_server_available: host.transport.initialized,
-    dynamic_tools: host.transport.dynamicToolsStatus
+    thread_adapter: host.threads.capabilities()
   }, null, 2));
 });
 

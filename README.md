@@ -20,6 +20,8 @@ channel, App product truth, or ownership boundaries.
 
 - a persistent project and conversation rail around one dominant chat timeline;
 - Codex App Server thread, turn, streaming, and history integration;
+- read-only Codex subagent lineage, role, source, and activity projection from
+  native App Server thread/turn items;
 - App state readback and action preview through the typed OPL bridge;
 - Settings, artifact previews, professional starter forms, and package status
   projections that remain refs-only;
@@ -61,8 +63,10 @@ App-managed launcher.
 The App candidate registry keeps Native as the foreground alternative, but the
 App candidate boundary currently defers further product expansion until an
 explicit re-entry decision names scope, maintenance owner, App contract delta,
-and release relationship. Existing experimental coordination or delivery
-surfaces are not active App requirements by themselves.
+and release relationship. Native does not maintain a private proposal,
+dispatch, wait, queue, ledger, bilateral-receipt, or client-executed dynamic-tool
+layer. AionUI Team's multi-executor orchestration is a separate shell capability;
+it does not replace Codex-native subagents and is not implemented here.
 
 ## Current Evidence Boundary
 

@@ -17,11 +17,9 @@ export const requiredDeliverySurfaceKeys = [
 export const rendererSourcePaths = [
   "src/workbench/App.tsx",
   "src/workbench/codexWorkbenchStyles.ts",
-  "src/workbench/coordination/ThreadRail.tsx",
-  "src/workbench/coordination/ThreadDetailPopover.tsx",
-  "src/workbench/coordination/ThreadLifecycleConfirmationDialog.tsx",
-  "src/workbench/coordination/CoordinationDialog.tsx",
-  "src/workbench/coordination/CoordinationEvents.tsx",
+  "src/workbench/threads/ThreadRail.tsx",
+  "src/workbench/threads/ThreadDetailPopover.tsx",
+  "src/workbench/threads/ThreadLifecycleConfirmationDialog.tsx",
   "src/ui/workbenchPrimitives.tsx",
   "src/renderers/moduleRegistry.ts"
 ];

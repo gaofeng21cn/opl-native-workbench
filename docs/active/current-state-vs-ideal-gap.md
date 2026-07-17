@@ -28,6 +28,8 @@ relationship. AionUI remains the active release shell.
 | Candidate product work | `deferred_pending_explicit_reentry` | Existing experiments are not current App requirements or release blockers |
 | Renderer/hosts | `source_implemented_candidate_evidence` | Native and WebUI target one renderer/bridge shape; live equivalence is not proven |
 | Thread/history | `codex_app_server_owned` | Candidate consumes thread/turn APIs and keeps only UI metadata/drafts locally |
+| Codex subagents | `read_only_app_server_projection` | Lineage, role, nickname, source kind, tool-call, and activity items are displayed without owning scheduling |
+| Private cross-thread layer | `removed_non_goal` | No proposal/dispatch/wait protocol, host queue, ledger, bilateral receipt, or dynamic-tool bridge remains |
 | OPL state/actions | `app_framework_consumer` | Reads App state and dispatches owner action refs; no internal-state or package-truth ownership |
 | Local launcher | `implemented_candidate_path` | Isolated bundle; actions dry-run-only by default |
 | Validation | `repo_native_structural_gates_present` | Tests/build/package/smoke prove only their exact layers |
@@ -43,8 +45,10 @@ relationship. AionUI remains the active release shell.
 
 Remote cross-machine coordination, model-driven permission/write-set decisions,
 private thread runtimes, and candidate-owned delivery ledgers are explicitly not
-open product gaps. They require a new App decision and must not be resurrected
-from source experiments or history.
+open product gaps. Their implementation surfaces have been removed and must not
+be resurrected from history. AionUI Team remains a separate multi-executor shell
+facility; Codex-native subagent display continues through App Server truth and
+does not depend on Team mode.
 
 ## Next-Round Agent Prompt
 
@@ -72,6 +76,8 @@ audit and stop with the owner gate intact.
   authority;
 - no revival of cross-host handoff, dynamic-tool product requirements, or
   private delivery ledgers merely because experimental source exists;
+- no conflation of AionUI Team executor orchestration with Codex App Server
+  subagent lineage and activity projection;
 - no AionUI, Hermes, AGUI, K-Dense, Open Science, or Codex source/brand vendoring.
 
 ### Live Truth Inputs

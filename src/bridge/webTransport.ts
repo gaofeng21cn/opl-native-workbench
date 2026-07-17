@@ -4,25 +4,8 @@ import {
   type OplBridgeEvent,
   type OplNativeWorkbenchSurface
 } from "./oplBridge";
-import type {
-  CoordinationDispatch,
-  CoordinationPreparation,
-  CoordinationRequest,
-  CoordinationWaitResult,
-  ThreadCoordinationBridge,
-  ThreadCoordinationEvent,
-  ThreadListResult
-} from "../coordination";
 
-type WebCapability = {
-  available: boolean;
-  transport: string;
-  dynamicTools: "unprobed" | "available" | "unavailable";
-};
-
-type WebSurface = OplNativeWorkbenchSurface & Partial<ThreadCoordinationBridge> & {
-  threadCoordinationCapability?: WebCapability;
-};
+type WebSurface = OplNativeWorkbenchSurface;
 
 class WebTransportError extends Error {
   code: string;
@@ -77,44 +60,6 @@ function connectServerEvents(
   return () => source.close();
 }
 
-function connectThreadEvents(
-  eventSourceUrl: string,
-  onEvent: (event: ThreadCoordinationEvent) => void
-): () => void {
-  const source = new EventSource(eventSourceUrl);
-  source.onmessage = (message) => {
-    try {
-      const value = JSON.parse(message.data);
-      const record = value && typeof value === "object" ? value as Record<string, unknown> : {};
-      onEvent({
-        method: typeof record.method === "string" ? record.method : "host/event",
-        threadId: typeof record.threadId === "string" ? record.threadId : undefined,
-        coordinationId: typeof record.coordinationId === "string" ? record.coordinationId : undefined,
-        state: typeof record.state === "string" ? record.state as ThreadCoordinationEvent["state"] : undefined,
-        raw: record.raw ?? record.params ?? value
-      });
-    } catch {
-      onEvent({ method: "host/protocol-error", raw: message.data });
-    }
-  };
-  source.onerror = () => onEvent({ method: "host/availability", raw: { available: false } });
-  return () => source.close();
-}
-
-function coordinationBridge(): ThreadCoordinationBridge {
-  return {
-    listThreads: (request = {}) => postJson<ThreadListResult>("/api/threads/list", request),
-    readThread: (request) => postJson("/api/threads/read", request),
-    resumeThread: (request) => postJson("/api/threads/resume", request),
-    prepareCoordination: (request: CoordinationRequest) => postJson<CoordinationPreparation>("/api/coordination/prepare", request),
-    dispatchCoordination: (request) => postJson<CoordinationDispatch>("/api/coordination/dispatch", request),
-    forkThread: (request) => postJson("/api/threads/fork", request),
-    setArchived: (request) => postJson(request.archived ? "/api/threads/archive" : "/api/threads/unarchive", request),
-    waitCoordination: (request) => postJson<CoordinationWaitResult>("/api/coordination/wait", request),
-    subscribeThreadEvents: (onEvent) => connectThreadEvents("/api/coordination/events", onEvent)
-  };
-}
-
 export function installWebTransport(): void {
   const eventSourceUrl = "/api/opl-events";
   const subscribeEvents = (onEvent: (event: OplBridgeEvent) => void) => connectServerEvents(eventSourceUrl, onEvent);
@@ -125,19 +70,13 @@ export function installWebTransport(): void {
     executeAction: (request) => postJson("/api/opl/action", request),
     readCodexModels: () => requestJson("/api/codex/models"),
     sendMessage: (request) => postJson("/api/send-message", request),
+    listThreads: (request = {}) => postJson("/api/threads/list", request),
+    readThread: (request) => postJson("/api/threads/read", request),
+    resumeThread: (request) => postJson("/api/threads/resume", request),
+    forkThread: (request) => postJson("/api/threads/fork", request),
+    setArchived: (request) => postJson(request.archived ? "/api/threads/archive" : "/api/threads/unarchive", request),
     subscribeEvents,
     connectEvents: subscribeEvents
   };
-  Object.assign(surface, coordinationBridge());
   window.oplNativeWorkbench = surface;
-
-  void requestJson<{
-    localHost: boolean;
-    threadCoordination: WebCapability;
-  }>("/api/capabilities").then((capabilities) => {
-    if (!capabilities.localHost || !capabilities.threadCoordination.available) return;
-    surface.threadCoordinationCapability = capabilities.threadCoordination;
-  }).catch(() => {
-    // Static/browser-only builds intentionally do not declare coordination capability.
-  });
 }

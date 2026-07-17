@@ -33,10 +33,10 @@ export function ThreadLifecycleConfirmationDialog({
   return (
     <Dialog.Root open={Boolean(thread)} onOpenChange={(open) => { if (!open) onClose(); }}>
       <Dialog.Portal>
-        <Dialog.Overlay className="coordination-overlay" />
+        <Dialog.Overlay className="dialog-overlay" />
         <Dialog.Content data-testid="opl-thread-lifecycle-confirmation" className="thread-confirmation-dialog" aria-describedby={undefined}>
           <header>
-            <span className="coordination-dialog-icon"><Icon aria-hidden="true" size={17} /></span>
+            <span className="dialog-icon"><Icon aria-hidden="true" size={17} /></span>
             <Dialog.Title>{title}</Dialog.Title>
             <Dialog.Close asChild><button className="icon-button" type="button" aria-label={copy.close}><X aria-hidden="true" size={16} /></button></Dialog.Close>
           </header>
@@ -44,7 +44,7 @@ export function ThreadLifecycleConfirmationDialog({
             <div><dt>{copy.thread}</dt><dd>{thread?.title ?? "-"}</dd></div>
             <div><dt>{copy.confirmation}</dt><dd><code>{thread?.id ?? "-"}</code></dd></div>
           </dl>
-          {error ? <p className="coordination-error" role="alert">{error}</p> : null}
+          {error ? <p className="dialog-error" role="alert">{error}</p> : null}
           <footer>
             <button className="primary" type="button" disabled={busy || !thread} onClick={onConfirm}>
               <Icon aria-hidden="true" size={14} />{actionLabel}

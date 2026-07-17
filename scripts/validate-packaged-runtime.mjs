@@ -77,6 +77,10 @@ for (const marker of [
   'opl-project-inputs',
   'opl-project-attachments',
   'opl-project-chats',
+  'opl-real-thread-directory',
+  'opl-thread-scope-filter',
+  'opl-thread-detail-popover',
+  'opl-thread-lifecycle-confirmation',
   'opl-topbar-model-config',
   'opl-assistant-artifact-card',
   'opl-selected-artifact-preview',
@@ -101,7 +105,12 @@ for (const marker of [
   "initialize",
   "model/list",
   "thread/start",
+  "thread/list",
+  "thread/read",
   "thread/resume",
+  "thread/fork",
+  "thread/archive",
+  "thread/unarchive",
   "turn/start",
   "turn/completed",
   "item/agentMessage/delta",
@@ -123,6 +132,27 @@ for (const marker of [
   "blocked_read_only"
 ]) {
   assert(nativeSource.includes(marker), `missing native bridge marker ${marker}`);
+}
+for (const marker of [
+  "final class CodexThreadAdapter",
+  'projected["parentThreadId"]',
+  'projected["agentRole"]',
+  'projected["agentNickname"]',
+  'projected["sourceKind"]'
+]) {
+  assert(nativeSource.includes(marker), `missing native thread projection marker ${marker}`);
+}
+for (const retired of [
+  "prepareCoordination",
+  "dispatchCoordination",
+  "waitCoordination",
+  "host_queue",
+  "item/tool/call",
+  "dynamicTools",
+  "CoordinationLedger",
+  "ThreadCoordinationHost"
+]) {
+  assert(!nativeSource.includes(retired), `retired private thread marker must not be packaged: ${retired}`);
 }
 for (const marker of ["runtimeWorkspaceRoots", "excludeTurns"]) {
   assert(!nativeSource.includes(marker), `native bridge must not send unsupported app-server param ${marker}`);
@@ -192,6 +222,9 @@ assert(manifest.external_layout_reference?.adapted_patterns?.includes("environme
 assert(manifest.external_layout_reference?.adapted_patterns?.includes("K-Dense and Open Science remain feature references rather than the visual shell baseline"), "manifest must demote external workbenches to feature references");
 assert(manifest.functional_mvp?.codex_app_server_thread_turn === true, "manifest must record Codex app-server thread/turn MVP");
 assert(manifest.functional_mvp?.codex_protocol?.includes("model/list"), "manifest must record app-server model availability reads");
+assert(manifest.functional_mvp?.thread_lifecycle?.includes("archive"), "manifest must record standard thread lifecycle");
+assert(manifest.functional_mvp?.codex_subagent_projection?.includes("collabAgentToolCall"), "manifest must record Codex subagent projection");
+assert(manifest.functional_mvp?.private_coordination_layer === false, "manifest must reject a private coordination layer");
 assert(manifest.functional_mvp?.default_sandbox === "read-only", "manifest must record read-only Codex sandbox");
 for (const field of evidence.functional_mvp_closeout?.not_ready ?? []) {
   assert(manifest[field] !== true, `candidate package must not claim ${field}`);

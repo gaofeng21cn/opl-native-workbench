@@ -4,14 +4,8 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CodexAppServerTransport } from "./app-server-transport.mjs";
-import {
-  CoordinationError,
-  ThreadCoordinationHost,
-  coordinationDynamicTools,
-  dynamicToolProbeSpec
-} from "./coordination-host.mjs";
-import { CoordinationLedger } from "./coordination-ledger.mjs";
 import { createOplPassthrough } from "./opl-passthrough.mjs";
+import { CodexThreadAdapter, ThreadAdapterError } from "./thread-adapter.mjs";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const mimeTypes = new Map([
@@ -29,9 +23,9 @@ function json(res, status, body) {
 }
 
 function errorResponse(res, error) {
-  const typed = error instanceof CoordinationError
+  const typed = error instanceof ThreadAdapterError
     ? error
-    : new CoordinationError(error.code ?? "host_error", error.message ?? String(error), error.details ?? {}, 502);
+    : new ThreadAdapterError(error.code ?? "host_error", error.message ?? String(error), error.details ?? {}, 502);
   json(res, typed.httpStatus ?? 502, {
     error: { code: typed.code, message: typed.message, details: typed.details ?? {} }
   });
@@ -42,14 +36,14 @@ async function body(req) {
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > 1_048_576) throw new CoordinationError("protocol_incompatible", "Request body exceeds 1 MiB", {}, 413);
+    if (size > 1_048_576) throw new ThreadAdapterError("invalid_request", "Request body exceeds 1 MiB", {}, 413);
     chunks.push(chunk);
   }
   if (!chunks.length) return {};
   try {
     return JSON.parse(Buffer.concat(chunks).toString("utf8"));
   } catch {
-    throw new CoordinationError("protocol_incompatible", "Request body must be valid JSON", {}, 400);
+    throw new ThreadAdapterError("invalid_request", "Request body must be valid JSON", {}, 400);
   }
 }
 
@@ -79,13 +73,10 @@ async function serveStatic(url, res, webRoot) {
 
 export async function createWebUiHost({
   transport = new CodexAppServerTransport({ cwd: process.env.OPL_NATIVE_WORKBENCH_CODEX_CWD ?? repositoryRoot }),
-  ledger = new CoordinationLedger(),
   opl = createOplPassthrough({ cwd: process.env.OPL_NATIVE_WORKBENCH_CODEX_CWD ?? repositoryRoot }),
-  webRoot = path.join(repositoryRoot, "dist", "webui"),
-  canonicalStateDbOnly = false
+  webRoot = path.join(repositoryRoot, "dist", "webui")
 } = {}) {
-  const coordination = new ThreadCoordinationHost(transport, { ledger, canonicalStateDbOnly });
-  await coordination.ready();
+  const threads = new CodexThreadAdapter(transport);
   let appServerError = null;
   try {
     await transport.start();
@@ -93,58 +84,42 @@ export async function createWebUiHost({
     appServerError = { code: error.code ?? "app_server_unavailable", message: error.message };
   }
   const oplEventClients = new Set();
-  const coordinationEventClients = new Set();
   const emitTo = (clients, event) => {
     const frame = `data: ${JSON.stringify(event)}\n\n`;
     for (const client of clients) client.write(frame);
   };
-  coordination.on("event", (event) => {
-    emitTo(oplEventClients, event);
-    if (event.method?.startsWith("coordination/")) emitTo(coordinationEventClients, event);
-  });
+  threads.on("event", (event) => emitTo(oplEventClients, event));
   transport.on("availability", (availability) => {
     const event = { method: "host/availability", params: availability };
     emitTo(oplEventClients, event);
-    emitTo(coordinationEventClients, event);
-  });
-  transport.on("dynamicTools", (capability) => {
-    const event = { method: "host/dynamicTools", params: capability };
-    emitTo(oplEventClients, event);
-    emitTo(coordinationEventClients, event);
   });
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     try {
-      if (req.method === "GET" && (url.pathname === "/api/opl-events" || url.pathname === "/api/coordination/events")) {
-        const clients = url.pathname === "/api/coordination/events" ? coordinationEventClients : oplEventClients;
+      if (req.method === "GET" && url.pathname === "/api/opl-events") {
         res.writeHead(200, {
           "content-type": "text/event-stream; charset=utf-8",
           "cache-control": "no-cache, no-transform",
           connection: "keep-alive",
           "x-accel-buffering": "no"
         });
-        res.write(`data: ${JSON.stringify({ method: "host/ready", params: coordination.capabilities() })}\n\n`);
-        clients.add(res);
+        res.write(`data: ${JSON.stringify({ method: "host/ready", params: threads.capabilities() })}\n\n`);
+        oplEventClients.add(res);
         const heartbeat = setInterval(() => res.write(": heartbeat\n\n"), 15_000);
         req.once("close", () => {
           clearInterval(heartbeat);
-          clients.delete(res);
+          oplEventClients.delete(res);
         });
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/capabilities") {
         json(res, 200, {
           localHost: true,
-          threadCoordination: coordination.capabilities(),
+          threadAdapter: threads.capabilities(),
           appServerError,
           oplPassthrough: { available: true, authorityBoundary: "app_bridge_no_domain_authority" }
         });
-        return;
-      }
-      if (req.method === "POST" && url.pathname === "/api/capabilities/dynamic-tools/probe") {
-        const status = await transport.probeDynamicTools([dynamicToolProbeSpec()]);
-        json(res, 200, { status, evidence: status === "available" ? "item/tool/call_received" : "probe_turn_without_tool_call" });
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/opl/state") {
@@ -165,24 +140,18 @@ export async function createWebUiHost({
       }
       if (req.method === "POST" && url.pathname === "/api/send-message") {
         const request = await body(req);
-        const response = await transport.sendMessage({
-          ...request,
-          dynamicTools: coordinationDynamicTools()
-        });
+        const response = await transport.sendMessage(request);
         json(res, 200, response);
         return;
       }
 
       const postRoutes = new Map([
-        ["/api/threads/list", (value) => coordination.listThreads(value)],
-        ["/api/threads/read", (value) => coordination.readThread(value)],
-        ["/api/threads/resume", (value) => coordination.resumeThread(value)],
-        ["/api/coordination/prepare", (value) => coordination.prepareCoordination(value)],
-        ["/api/coordination/dispatch", (value) => coordination.dispatchCoordination(value)],
-        ["/api/threads/fork", (value) => coordination.forkThread(value)],
-        ["/api/threads/archive", (value) => coordination.setArchived({ ...value, archived: true })],
-        ["/api/threads/unarchive", (value) => coordination.setArchived({ ...value, archived: false })],
-        ["/api/coordination/wait", (value) => coordination.waitCoordination(value)]
+        ["/api/threads/list", (value) => threads.listThreads(value)],
+        ["/api/threads/read", (value) => threads.readThread(value)],
+        ["/api/threads/resume", (value) => threads.resumeThread(value)],
+        ["/api/threads/fork", (value) => threads.forkThread(value)],
+        ["/api/threads/archive", (value) => threads.setArchived({ ...value, archived: true })],
+        ["/api/threads/unarchive", (value) => threads.setArchived({ ...value, archived: false })]
       ]);
       const route = req.method === "POST" ? postRoutes.get(url.pathname) : undefined;
       if (route) {
@@ -202,10 +171,13 @@ export async function createWebUiHost({
   return {
     server,
     transport,
-    coordination,
+    threads,
     async close() {
-      for (const client of [...oplEventClients, ...coordinationEventClients]) client.end();
-      await new Promise((resolve) => server.close(resolve));
+      for (const client of oplEventClients) client.end();
+      if (server.listening) {
+        server.closeAllConnections?.();
+        await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+      }
       await transport.stop();
     }
   };

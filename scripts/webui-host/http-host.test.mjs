@@ -4,7 +4,6 @@ import path from "node:path";
 import { mkdtemp } from "node:fs/promises";
 import test from "node:test";
 import { CodexAppServerTransport } from "./app-server-transport.mjs";
-import { CoordinationLedger } from "./coordination-ledger.mjs";
 import { createWebUiHost } from "./http-host.mjs";
 
 const fixture = new URL("./fixtures/fake-app-server.mjs", import.meta.url).pathname;
@@ -18,7 +17,7 @@ async function post(baseUrl, route, value) {
   return { status: response.status, body: await response.json() };
 }
 
-test("loopback HTTP host exposes parity endpoints, typed failures, SSE, and real bridge passthrough shape", async (t) => {
+test("loopback HTTP host exposes standard thread lifecycle, subagent projection, SSE, and OPL passthrough", async (t) => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "opl-webui-http-test-"));
   const transport = new CodexAppServerTransport({
     command: process.execPath,
@@ -36,69 +35,56 @@ test("loopback HTTP host exposes parity endpoints, typed failures, SSE, and real
       status: request.dryRun === false ? "executed" : "preview_ready"
     })
   };
-  const host = await createWebUiHost({
-    transport,
-    ledger: new CoordinationLedger({ filePath: path.join(directory, "ledger.jsonl"), maxEntries: 100 }),
-    opl,
-    webRoot: directory
+  const host = await createWebUiHost({ transport, opl, webRoot: directory });
+  t.after(async () => {
+    host.server.closeAllConnections();
+    await host.close();
   });
-  await new Promise((resolve) => host.server.listen(0, "127.0.0.1", resolve));
-  t.after(() => host.close());
+  await new Promise((resolve, reject) => {
+    host.server.once("error", reject);
+    host.server.listen(0, "127.0.0.1", resolve);
+  });
   const address = host.server.address();
   const baseUrl = `http://127.0.0.1:${address.port}`;
 
   const capabilities = await fetch(`${baseUrl}/api/capabilities`).then((response) => response.json());
   assert.equal(capabilities.localHost, true);
-  assert.equal(capabilities.threadCoordination.available, true);
-  assert.equal(capabilities.threadCoordination.dynamicTools, "unprobed");
+  assert.equal(capabilities.threadAdapter.available, true);
+  assert.equal(capabilities.threadAdapter.threadStoreOwner, "codex_core_app_server");
+  assert.equal(capabilities.threadAdapter.privateCoordinationLayer, false);
+  assert.deepEqual(
+    capabilities.threadAdapter.subagentProjection.itemTypes,
+    ["collabAgentToolCall", "subAgentActivity"]
+  );
 
-  const eventResponse = await fetch(`${baseUrl}/api/coordination/events`);
+  const eventAbort = new AbortController();
+  const eventResponse = await fetch(`${baseUrl}/api/opl-events`, { signal: eventAbort.signal });
   const eventReader = eventResponse.body.getReader();
   const firstEvent = await eventReader.read();
   assert.match(new TextDecoder().decode(firstEvent.value), /host\/ready/);
   await eventReader.cancel();
+  eventAbort.abort();
 
-  const list = await post(baseUrl, "/api/threads/list", { projectKey: "project-a", hostId: "local" });
+  const list = await post(baseUrl, "/api/threads/list", { projectKey: "project-a" });
   assert.equal(list.status, 200);
   assert.equal(list.body.data.length, 5);
   assert.equal(list.body.data.find((thread) => thread.id === "thread-idle").sessionId, "session-thread-idle");
-  const read = await post(baseUrl, "/api/threads/read", { threadId: "thread-idle", includeTurns: true });
-  assert.equal(read.body.id, "thread-idle");
+  const subagent = list.body.data.find((thread) => thread.id === "thread-subagent");
+  assert.equal(subagent.parentThreadId, "thread-source");
+  assert.equal(subagent.agentRole, "reviewer");
+  assert.equal(subagent.agentNickname, "Scout");
+  assert.equal(subagent.sourceKind, "subAgentReview");
+
+  const read = await post(baseUrl, "/api/threads/read", { threadId: "thread-subagent", includeTurns: true });
+  assert.equal(read.body.id, "thread-subagent");
+  assert.deepEqual(
+    read.body.turns[0].items.map((item) => item.type),
+    ["collabAgentToolCall", "subAgentActivity"]
+  );
   const resumed = await post(baseUrl, "/api/threads/resume", { threadId: "thread-unloaded" });
   assert.equal(resumed.body.state, "idle");
-  const forked = await post(baseUrl, "/api/threads/fork", { threadId: "thread-idle" });
-  assert.equal(forked.body.parent, null);
-
-  const preview = await post(baseUrl, "/api/coordination/prepare", {
-    sourceThreadId: "thread-source",
-    targetThreadId: "thread-idle",
-    sender: "user",
-    intent: "handoff",
-    reason: "handoff evidence",
-    message: "Continue with this verified evidence.",
-    messageSummary: "Continue with verified evidence",
-    expectedWriteSet: [],
-    idempotencyKey: "http-smoke",
-    ancestorCoordinationIds: [],
-    project: { key: "project-a" },
-    host: { sourceHostId: "local", targetHostId: "local" },
-    priority: "normal",
-    hopCount: 0
-  });
-  assert.equal(preview.status, 200);
-  assert.ok(preview.body.previewToken);
-  const dispatched = await post(baseUrl, "/api/coordination/dispatch", { previewToken: preview.body.previewToken });
-  assert.equal(dispatched.status, 200);
-  assert.equal(dispatched.body.protocolMethod, "turn/start");
-  const waited = await post(baseUrl, "/api/coordination/wait", {
-    coordinationId: dispatched.body.coordinationId,
-    timeoutMs: 1_000
-  });
-  assert.equal(waited.body.state, "completed");
-
-  const missingToken = await post(baseUrl, "/api/coordination/dispatch", { previewToken: "missing" });
-  assert.equal(missingToken.status, 404);
-  assert.equal(missingToken.body.error.code, "protocol_incompatible");
+  const forked = await post(baseUrl, "/api/threads/fork", { threadId: "thread-idle", throughTurnId: "turn-1" });
+  assert.equal(forked.body.parentThreadId, "thread-idle");
 
   const archiveDenied = await post(baseUrl, "/api/threads/archive", { threadId: "thread-idle" });
   assert.equal(archiveDenied.status, 409);
@@ -111,6 +97,10 @@ test("loopback HTTP host exposes parity endpoints, typed failures, SSE, and real
   assert.equal(archived.body.archived, true);
   const unarchived = await post(baseUrl, "/api/threads/unarchive", { threadId: "thread-idle" });
   assert.equal(unarchived.body.archived, false);
+
+  const retiredEndpoint = await post(baseUrl, "/api/coordination/prepare", {});
+  assert.equal(retiredEndpoint.status, 404);
+  assert.equal(retiredEndpoint.body.error.code, "endpoint_not_found");
 
   const state = await fetch(`${baseUrl}/api/opl/state?profile=full`).then((response) => response.json());
   assert.equal(state.profile, "full");

@@ -29,10 +29,23 @@ assert(
 for (const value of ["window.oplNativeWorkbench", "/api/opl-events", "EventSource"]) {
   assert(webTransport.includes(value), `missing WebUI transport marker ${value}`);
 }
-assert(
-  webTransport.indexOf("Object.assign(surface, coordinationBridge())") < webTransport.indexOf("window.oplNativeWorkbench = surface"),
-  "typed coordination methods must be installed before the renderer's first directory read"
-);
+for (const marker of [
+  "/api/threads/list",
+  "/api/threads/read",
+  "/api/threads/resume",
+  "/api/threads/fork",
+  "/api/threads/archive",
+  "/api/threads/unarchive"
+]) {
+  assert(webTransport.includes(marker), `missing standard WebUI thread route ${marker}`);
+  assert(
+    webTransport.indexOf(marker) < webTransport.indexOf("window.oplNativeWorkbench = surface"),
+    `thread route must be installed before renderer startup: ${marker}`
+  );
+}
+for (const retired of ["coordinationBridge", "/api/coordination/", "prepareCoordination", "waitCoordination"]) {
+  assert(!webTransport.includes(retired), `retired private thread marker must stay absent from WebUI transport: ${retired}`);
+}
 const webuiRendererTestIds = [
   ...evidence.page_state_matrix_mapping.runtime_testids,
   ...deliverySurfaceTestIds(evidence)

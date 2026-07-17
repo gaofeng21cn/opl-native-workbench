@@ -8,36 +8,41 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), "utf8");
 const app = read("src/workbench/App.tsx");
 const main = read("src/main.tsx");
+const bridge = read("src/bridge/oplBridge.ts");
+const webTransport = read("src/bridge/webTransport.ts");
 const model = read("src/workbench/workbenchModel.ts");
 const styles = read("src/workbench/codexWorkbenchStyles.ts");
 const nativeWindow = read("scripts/native-workbench-app.swift");
 const nativeSmoke = read("scripts/smoke-native-app-live.mjs");
-const dialog = read("src/workbench/coordination/CoordinationDialog.tsx");
-const rail = read("src/workbench/coordination/ThreadRail.tsx");
-const detail = read("src/workbench/coordination/ThreadDetailPopover.tsx");
-const lifecycle = read("src/workbench/coordination/ThreadLifecycleConfirmationDialog.tsx");
-const events = read("src/workbench/coordination/CoordinationEvents.tsx");
+const rail = read("src/workbench/threads/ThreadRail.tsx");
+const detail = read("src/workbench/threads/ThreadDetailPopover.tsx");
+const lifecycle = read("src/workbench/threads/ThreadLifecycleConfirmationDialog.tsx");
 
-test("renderer consumes the host coordination authority", () => {
-  assert.match(app, /from "\.\.\/coordination\/types"/);
-  for (const method of [
-    "listThreads",
-    "readThread",
-    "resumeThread",
+test("renderer consumes one standard Codex thread adapter", () => {
+  assert.match(app, /from "\.\.\/threads\/types"/);
+  assert.match(app, /from "\.\/threads\/ThreadRail"/);
+  for (const method of ["listThreads", "readThread", "resumeThread", "forkThread", "setArchived"]) {
+    assert.match(main, new RegExp(`${method}:`));
+    assert.match(bridge, new RegExp(`${method}\\(`));
+  }
+  for (const route of ["/api/threads/list", "/api/threads/read", "/api/threads/resume", "/api/threads/fork", "/api/threads/archive", "/api/threads/unarchive"]) {
+    assert.ok(webTransport.includes(route), `missing WebUI thread route ${route}`);
+  }
+
+  const runtimeSources = `${app}\n${main}\n${bridge}\n${webTransport}\n${nativeWindow}`;
+  for (const retired of [
     "prepareCoordination",
     "dispatchCoordination",
-    "forkThread",
-    "setArchived",
     "waitCoordination",
-    "subscribeThreadEvents"
-  ]) {
-    assert.match(app, new RegExp(`coordinationBridge\\.${method}`));
-  }
-  for (const field of ["sourceHostId", "targetHostId", "sender", "intent", "reason", "message", "summary", "expectedWriteSet", "ancestorCoordinationIds", "dedupeKey"]) {
-    assert.match(app, new RegExp(`${field}:`));
-  }
-  assert.doesNotMatch(app, /type CoordinationRequest\s*=/);
+    "subscribeThreadEvents",
+    "CoordinationDialog",
+    "coordination/lifecycle-proposal",
+    "host_queue",
+    "CoordinationLedger",
+    "ThreadCoordinationHost"
+  ]) assert.doesNotMatch(runtimeSources, new RegExp(retired));
 });
+
 test("ordinary fallback data and example content stay out of the renderer", () => {
   for (const field of ["sessions", "results", "deliverables", "receipts", "artifactPreviews", "deliveryPackages", "actionReceipts", "confirmations", "questions", "activeProjectLines", "contextSources", "contextActions", "contextTrace"]) {
     assert.match(model, new RegExp(`${field}: \\[\\]`));
@@ -57,38 +62,24 @@ test("local storage keeps only UI metadata and drafts after one-way legacy backu
   assert.doesNotMatch(app, /writeChatSessions|messages:\s*nextMessages|setItem\(legacyChatSessionsStorageKey/);
 });
 
-test("rail, lifecycle, and dispatch states are explicit", () => {
+test("thread rail, lifecycle, and Codex subagent projection stay explicit", () => {
   for (const scope of ["current", "all", "archived"]) assert.match(rail, new RegExp(`"${scope}"`));
   assert.match(rail, /data-projectless/);
+  assert.match(rail, /agentNickname \?\? thread\.agentRole/);
   assert.match(detail, /opl-thread-resume/);
   assert.match(detail, /onRequestArchive/);
-  assert.match(detail, /onCoordinate/);
-  assert.match(detail, /copy\.coordinate/);
-  assert.doesNotMatch(app, /opl-composer-coordination-action/);
-  assert.doesNotMatch(detail, /onArchive/);
+  assert.doesNotMatch(detail, /onCoordinate|coordinate/);
   assert.match(lifecycle, /opl-thread-lifecycle-confirmation/);
   assert.match(lifecycle, /ThreadLifecycleAction/);
-  assert.match(app, /coordination\/lifecycle-proposal/);
   assert.match(app, /action === "fork"/);
   assert.match(app, /confirmed: true/);
-  assert.match(app, /if \(resumed\) await loadThreadDirectory\(false\)/);
-
-  for (const intent of ["delegate", "inform", "review", "block", "handoff"]) assert.match(dialog, new RegExp(`${intent}:`));
-  for (const field of ["reason", "intent", "message", "summary", "expectedWriteSet"]) assert.match(dialog, new RegExp(`draft\\.${field}`));
-  assert.match(dialog, /targetProjectless && Boolean\(sourceThread\.workspace\) && thread\.workspace === sourceThread\.workspace/);
-  assert.match(dialog, /coordination-steer-confirmation/);
-  assert.match(dialog, /activeSteer && !steerConfirmed/);
-  for (const phase of ["proposal", "confirmation", "queued", "conflict", "result"]) assert.match(events, new RegExp(`${phase}:`));
-  assert.match(events, /source/);
-  assert.match(events, /target/);
-  assert.match(app, /preparation\.request\.sender !== "model"/);
-  assert.match(model, /coordinationItems\.map\(coordinationMessageFromRecord\)/);
-  assert.match(app, /Coordination receipt/);
-  assert.match(app, /message\.coordination \? " coordination"/);
-  assert.match(model, /queueText === null \? Number\.NaN/);
-  assert.match(model, /coordinationId, method, state, direction/);
-  assert.match(app, /if \(!event\.method\.startsWith\("coordination\/"\)\) return/);
-  assert.match(app, /const seen = new Set<string>\(\)/);
+  assert.match(app, /deriveThreadMessages/);
+  assert.match(app, /message\.subagent \? " subagent"/);
+  assert.match(model, /"collabAgentToolCall" \| "subAgentActivity"/);
+  assert.match(model, /type === "collabagenttoolcall"/);
+  assert.match(model, /type === "subagentactivity"/);
+  assert.match(model, /parentThreadId/);
+  assert.match(model, /sourceKind/);
 });
 
 test("native window chrome follows the compact Codex composition", () => {
@@ -125,9 +116,7 @@ test("native visual tokens track the current ChatGPT Codex light workbench", () 
     "--opl-muted: color-mix(in oklab, var(--opl-text) 70%, transparent)",
     "--opl-faint: color-mix(in oklab, var(--opl-text) 50%, transparent)",
     "--opl-border: color-mix(in oklab, var(--opl-text) 8%, transparent)"
-  ]) {
-    assert.ok(styles.includes(marker), `missing ChatGPT Codex visual token: ${marker}`);
-  }
+  ]) assert.ok(styles.includes(marker), `missing ChatGPT Codex visual token: ${marker}`);
   assert.match(styles, /font-family: var\(--opl-font-sans\);\s*font-size: 14px;\s*font-weight: 430;\s*line-height: 1\.5;/s);
   assert.match(styles, /\.composer-frame \{[^}]*border-radius: 20px;/s);
   for (const legacyColor of ["#0d9488", "#e7f5f3", "#202123", "#f7f7f7", "#eeeeec", "#e9e9e7"]) {
@@ -153,14 +142,15 @@ test("sidebar account identity consumes only the canonical Gateway display name"
   assert.doesNotMatch(app, /masked_email/);
 });
 
-test("desktop remains two-column and mobile overlays are full-height", () => {
+test("desktop remains two-column and mobile thread dialogs are full-height", () => {
   assert.match(styles, /grid-template-columns: var\(--opl-sidebar-width\) minmax\(0, 1fr\)/);
   assert.doesNotMatch(styles, /grid-template-columns:\s*var\(--opl-sidebar-width\)\s+minmax\(0, 1fr\)\s+\d/);
   assert.match(styles, /@media \(max-width: 760px\)/);
-  assert.match(styles, /\.thread-detail-popover,\s*\.thread-confirmation-dialog,\s*\.coordination-dialog\s*\{\s*inset: 0;/s);
+  assert.match(styles, /\.thread-detail-popover,\s*\.thread-confirmation-dialog \{\s*inset: 0;/s);
   assert.match(styles, /height: 100dvh/);
   assert.match(styles, /border-radius: 0/);
   assert.match(styles, /\.history-list li \.thread-directory-open \.thread-directory-copy/);
-  assert.match(styles, /\.message\.system\.coordination \.message-frame/);
+  assert.match(styles, /\.message\.system\.subagent \.message-frame/);
+  assert.doesNotMatch(styles, /\.coordination-/);
   assert.match(styles, /\.composer-control-label \{\s*display: none;/s);
 });

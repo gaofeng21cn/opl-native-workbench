@@ -68,6 +68,11 @@ function installNativeTransport(): boolean {
     executeAction: (request) => post("executeAction", request as Record<string, unknown>),
     readCodexModels: () => post("readCodexModels"),
     sendMessage: (request) => post("sendMessage", request as Record<string, unknown>),
+    listThreads: (request = {}) => post("listThreads", request),
+    readThread: (request) => post("readThread", request),
+    resumeThread: (request) => post("resumeThread", request),
+    forkThread: (request) => post("forkThread", request),
+    setArchived: (request) => post("setArchived", request),
     subscribeEvents,
     connectEvents: subscribeEvents
   };

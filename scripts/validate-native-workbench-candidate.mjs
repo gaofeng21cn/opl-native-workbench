@@ -35,10 +35,16 @@ const requiredFiles = [
   "src/workbench/modelPolicy.ts",
   "src/workbench/workbenchModel.ts",
   "src/workbench/settingsModel.ts",
+  "src/threads/types.ts",
+  "src/workbench/threads/ThreadRail.tsx",
+  "src/workbench/threads/ThreadDetailPopover.tsx",
+  "src/workbench/threads/ThreadLifecycleConfirmationDialog.tsx",
   "src/candidateContractEvidence.json",
   "scripts/build-renderer.mjs",
   "scripts/model-list-pagination-regression.mjs",
   "scripts/model-list-pagination-regression.swift",
+  "scripts/thread-list-pagination-regression.mjs",
+  "scripts/thread-list-pagination-regression.swift",
   "scripts/model-policy-regression.ts",
   "scripts/validate-state-model.mjs",
   "scripts/validate-packaged-runtime.mjs",
@@ -47,11 +53,10 @@ const requiredFiles = [
   "scripts/package-native-workbench.mjs",
   "scripts/resolve-app-repo-root.mjs",
   "scripts/native-workbench-app.swift",
-  "src/coordination/types.ts",
-  "src/coordination/foundation.ts",
-  "scripts/webui-host/coordination-host.mjs",
   "scripts/webui-host/app-server-transport.mjs",
-  "tests/renderer/cross-thread-renderer-source.test.mjs"
+  "scripts/webui-host/thread-adapter.mjs",
+  "scripts/webui-host/thread-adapter.test.mjs",
+  "tests/renderer/thread-renderer-source.test.mjs"
 ];
 
 const requiredScripts = [
@@ -61,7 +66,8 @@ const requiredScripts = [
   "build:webui",
   "package",
   "test:model-list-pagination",
-  "test:coordination",
+  "test:thread-list-pagination",
+  "test:threads",
   "test:webui-host",
   "validate:candidate",
   "validate:state-model",
@@ -91,13 +97,26 @@ const requiredTestIds = [
   "opl-real-thread-directory",
   "opl-thread-scope-filter",
   "opl-thread-detail-popover",
-  "opl-thread-lifecycle-confirmation",
-  "opl-coordination-dispatch-dialog",
-  "opl-coordination-events"
+  "opl-thread-lifecycle-confirmation"
+];
+
+const retiredPrivateThreadFiles = [
+  "src/coordination/foundation.ts",
+  "src/coordination/index.ts",
+  "src/coordination/types.ts",
+  "src/workbench/coordination/CoordinationDialog.tsx",
+  "src/workbench/coordination/CoordinationEvents.tsx",
+  "scripts/webui-host/coordination-host.mjs",
+  "scripts/webui-host/coordination-ledger.mjs",
+  "scripts/smoke-coordination-dynamic-tools-live.mjs",
+  "scripts/smoke-coordination-live.mjs"
 ];
 
 for (const file of requiredFiles) {
   assert(fs.existsSync(path.join(root, file)), `missing ${file}`);
+}
+for (const file of retiredPrivateThreadFiles) {
+  assert(!fs.existsSync(path.join(root, file)), `retired private thread file must stay removed: ${file}`);
 }
 
 const pkg = JSON.parse(read("package.json"));
@@ -131,6 +150,51 @@ function assertSourceMarkerRequirements(evidence) {
         assert(source.includes(marker), `missing ${group} marker ${marker} in ${requirement.file}`);
       }
     }
+  }
+}
+
+function assertPrivateThreadLayerRemoved(evidence) {
+  const runtimeSources = [
+    "scripts/native-workbench-app.swift",
+    "scripts/webui-host/app-server-transport.mjs",
+    "scripts/webui-host/http-host.mjs",
+    "scripts/webui-host/thread-adapter.mjs",
+    "src/bridge/oplBridge.ts",
+    "src/bridge/webTransport.ts",
+    "src/main.tsx",
+    "src/workbench/App.tsx",
+    "src/workbench/workbenchModel.ts",
+    "src/workbench/codexWorkbenchStyles.ts"
+  ].map(read).join("\n");
+  for (const marker of [
+    "prepareCoordination",
+    "dispatchCoordination",
+    "waitCoordination",
+    "CoordinationLedger",
+    "ThreadCoordinationHost",
+    "CoordinationDialog",
+    "host_queue",
+    "item/tool/call",
+    "dynamicTools",
+    "/api/coordination/"
+  ]) {
+    assert(!runtimeSources.includes(marker), `retired private thread marker must stay removed: ${marker}`);
+  }
+  assert(evidence.functional_mvp?.private_coordination_layer === false, "functional MVP must reject a private coordination layer");
+  assert(evidence.webui_transport?.private_coordination_layer === false, "WebUI must reject a private coordination layer");
+  assert(evidence.functional_mvp?.codex_subagent_projection?.includes("collabAgentToolCall"), "functional MVP must record Codex subagent item projection");
+  assert(evidence.thread_list_pagination_regression?.validation_command === "npm run test:thread-list-pagination", "candidate evidence must record the thread/list regression command");
+  assert(evidence.thread_list_pagination_regression?.fixtures?.includes("scripts/webui-host/thread-adapter.test.mjs"), "candidate evidence must record the WebUI thread adapter fixture");
+  for (const retired of [
+    "typed_cross_top_level_thread_host_bridge",
+    "client_executed_dynamic_tools_coordination_bridge",
+    "local_cross_thread_p0_p1",
+    "turn_start_steer_with_host_queue",
+    "cross_thread_safety_gates",
+    "bilateral_coordination_receipts",
+    "desktop_webui_coordination_parity"
+  ]) {
+    assert(!evidence.capabilities.includes(retired), `retired capability must stay removed: ${retired}`);
   }
 }
 
@@ -283,6 +347,7 @@ assertFallbackBoundaryDowngrades({
 });
 assertFunctionalMvpCloseout(evidence);
 assertSourceMarkerRequirements(evidence);
+assertPrivateThreadLayerRemoved(evidence);
 assertCodexJuly2026Alignment(evidence, app);
 assertCodexModelControls(evidence, app);
 assertRendererTestIds(rendererSource, requiredTestIds);
@@ -310,9 +375,10 @@ for (const capability of [
   "opl_app_action_bridge",
   "default_context_collapsed_chat_first_home",
   "chatgpt_codex_2026_07_11_visual_alignment",
-  "typed_cross_top_level_thread_host_bridge",
-  "client_executed_dynamic_tools_coordination_bridge",
-  "desktop_webui_coordination_parity",
+  "codex_thread_adapter",
+  "codex_subagent_read_only_projection",
+  "desktop_webui_thread_lifecycle_parity",
+  "private_coordination_layer_removed",
   "codex_floating_environment_details",
   "webui_renderer_parity",
   "candidate_app_bundle_package",

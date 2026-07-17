@@ -35,18 +35,15 @@
     "smoke:native-live": "node scripts/smoke-native-app-live.mjs",
     "test:native-command-output": "node scripts/native-command-output-regression.mjs",
     "test:model-list-pagination": "node scripts/model-list-pagination-regression.mjs",
+    "test:thread-list-pagination": "node scripts/thread-list-pagination-regression.mjs",
     "test:gateway-account-projection": "bun run scripts/gateway-account-projection-regression.ts",
-    "test:coordination-security": "node --experimental-strip-types scripts/coordination-security-regression.mjs",
-    "test:coordination-protocol": "node scripts/coordination-protocol-regression.mjs",
-    "test:webui-host": "node --test scripts/webui-host/coordination-host.test.mjs scripts/webui-host/http-host.test.mjs scripts/webui-host/opl-passthrough.test.mjs",
-    "test:coordination": "npm run test:coordination-security && npm run test:coordination-protocol && npm run test:webui-host && node --test tests/renderer/cross-thread-renderer-source.test.mjs",
-    "smoke:coordination-dynamic-tools-live": "node scripts/smoke-coordination-dynamic-tools-live.mjs",
-    "smoke:coordination-live": "node scripts/smoke-coordination-live.mjs",
+    "test:webui-host": "node --test scripts/webui-host/thread-adapter.test.mjs scripts/webui-host/http-host.test.mjs scripts/webui-host/opl-passthrough.test.mjs",
+    "test:threads": "npm run test:thread-list-pagination && npm run test:webui-host && node --test tests/renderer/thread-renderer-source.test.mjs",
     "validate:candidate": "node scripts/validate-native-workbench-candidate.mjs",
     "validate:state-model": "node scripts/validate-state-model.mjs",
     "validate:package": "node scripts/validate-packaged-runtime.mjs",
     "smoke:webui": "node scripts/smoke-webui.mjs",
     "smoke:visual": "node scripts/smoke-visual.mjs",
-    "test": "npm run typecheck && npm run test:native-command-output && npm run test:gateway-account-projection && npm run test:coordination && npm run validate:candidate && npm run validate:state-model && npm run smoke:webui && npm run smoke:visual && npm run package && npm run validate:package"
+    "test": "npm run typecheck && npm run test:native-command-output && npm run test:model-list-pagination && npm run test:gateway-account-projection && npm run test:threads && npm run validate:candidate && npm run validate:state-model && npm run smoke:webui && npm run smoke:visual && npm run package && npm run validate:package"
   }
 }
