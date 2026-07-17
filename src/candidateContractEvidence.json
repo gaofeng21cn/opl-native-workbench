@@ -725,7 +725,6 @@
     "authority": "opl app state --profile fast --json",
     "required_projections": [
       "app_state.actions",
-      "app_state.modules.items",
       "app_state.operator.workbench.task_drilldowns",
       "app_state.settings_control_center.task_entries"
     ],

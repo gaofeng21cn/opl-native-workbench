@@ -1,214 +1,96 @@
 # OPL Native Workbench
 
-`opl-native-workbench` is an independent One Person Lab App shell candidate.
-It is mounted by the App repository as `shells/opl-native-workbench` and
-selected only through `OPL_APP_SHELL_ADAPTER_CONTRACT`.
+<!--
+Owner: `one-person-lab-app`
+Purpose: `public_candidate_entry`
+State: `foreground_alternative_candidate`
+Machine boundary: Human-readable candidate-shell entry. App product and adoption truth stays in one-person-lab-app contracts; runtime/package truth stays in OPL Framework; domain truth stays with domain owners. This page does not prove active-shell adoption, release readiness, owner acceptance, or production readiness.
+-->
 
-Public role: this repo is the foreground/developer backup candidate for the OPL
-App GUI. It may preview a chat-first workbench, WebUI convergence, local
-history, and environment-detail UX, but it must consume App/root state instead of
-owning product, runtime, package, or domain truth. Simulated, fallback, or
-unavailable data must stay visibly non-authoritative and cannot be displayed as
-active shell adoption, release readiness, runtime truth, package truth, owner
-receipt, or domain readiness.
+`opl-native-workbench` is the foreground alternative shell candidate for One
+Person Lab App. It offers a chat-first native macOS and WebUI implementation for
+local evaluation while consuming the same App-owned product contracts and
+Framework state/action surfaces as other shell implementations.
 
-The shell keeps App truth in the App repository:
+AionUI remains the active release shell. Selecting or launching Native is a
+local candidate choice only; it does not change the release adapter, updater
+channel, App product truth, or ownership boundaries.
 
-- Reads: `opl app state --profile fast --json` and explicit full-state
-  commands.
-- Mutations: `opl app action execute --action <id> ... --json`.
-- Domain/runtime truth: owned by OPL Framework and domain repos, not by this
-  renderer.
-- Release adoption: forbidden until the App owner deliberately changes
-  `contracts/app-shell-adapter.json` and release gates pass.
+## What You Can Evaluate
 
-The primary interaction reference is ChatGPT Codex macOS 26.707.41301,
-inspected on 2026-07-11. The current light-workbench visual style reference is
-26.707.61608, inspected on 2026-07-13. The candidate aligns to its persistent
-project/conversation rail, dominant single conversation timeline, compact
-header, model and reasoning controls in the composer, and floating
-user-requested environment details. Palette and typography use the current
-white/gray surfaces, system font stack, 14px base size, 430 ordinary weight,
-1.5 line height, and 336px rail from the installed 61608 workbench. This is
-reference-only: no ChatGPT/Codex source code, brand asset, OpenAI Sans font
-binary, or product authority is copied or redistributed. K-Dense and Open Science
-remain feature references for delivery and scientific preview behavior only.
+- a persistent project and conversation rail around one dominant chat timeline;
+- Codex App Server thread, turn, streaming, and history integration;
+- App state readback and action preview through the typed OPL bridge;
+- Settings, artifact previews, professional starter forms, and package status
+  projections that remain refs-only;
+- one renderer target across the packaged macOS candidate and WebUI transport.
 
-## Current UI structure
+The candidate may display only state and actions supplied by App/Framework
+contracts. Placeholder, fallback, or unavailable data remains visibly
+non-authoritative and cannot become package, runtime, artifact, domain, or
+readiness truth.
 
-The candidate now documents one stable user-facing information architecture:
+## Try It Locally
 
-- Left rail: global task/agent entries, projects, compact project context links,
-  and project conversations use one quiet hierarchy. The rail is visible by
-  default on desktop and can be collapsed explicitly.
-- Center: one dominant chat timeline. The header contains conversation-local
-  navigation only; model and reasoning controls stay in the composer bottom
-  row beside attach, capability, and send controls.
-- Right side: environment details are closed by default and open as a floating
-  panel without resizing the chat canvas. Sources, previews, provenance,
-  workflows, packages, and runtime remain secondary surfaces.
-- Settings: the account row at the lower left opens a separate Settings route.
-  Language remains under General rather than inside the composer or context
-  panel.
-
-This README and the generated package manifest describe candidate alignment
-evidence only. Neither claims App adoption, release readiness, or live operator
-validation.
-
-The packaged macOS MVP includes a native `WKScriptMessageHandler` bridge. The
-renderer can read `opl app state`, request App action dry-runs, and talk to
-Codex through `codex app-server --stdio`. The bridge uses the app-server
-thread/turn JSON-RPC flow (`initialize`, `thread/start`, `turn/start`,
-`item/agentMessage/delta`, `turn/completed`) so multi-turn state, streaming
-deltas, and thread resume use the Codex control plane instead of a shell-owned
-one-shot CLI wrapper.
-
-Codex App Server is the only thread and history store. The left rail uses
-paginated `thread/list`, `thread/read`, and `thread/resume`; `localStorage`
-contains only UI selection and unsent drafts. A one-way migration preserves an
-old candidate chat ledger as read-only backup and removes it from active use.
-
-Local cross-top-level coordination uses the typed host bridge rather than a
-renderer-owned thread database. It supports list/read/resume/fork/archive,
-idle `turn/start`, confirmed urgent `turn/steer`, a bounded nonurgent queue,
-typed failures, and bilateral result receipts. Client-executed `dynamicTools`
-reuse the same host gates; model lifecycle calls produce user-confirmed
-proposals and cannot supply permission decisions, write-set decisions, IDs, or
-confirmation fields. WebUI uses the same renderer and contract through a local
-Node HTTP/SSE host. Remote cross-machine coordination remains deferred.
-
-For repeatable side-by-side local testing, the packaged candidate uses the
-formal visible name `One Person Lab Native`, installs at
-`/Applications/One Person Lab Native.app`, and keeps the isolated internal
-bundle ID `cn.gflab.opl.native-workbench.candidate`. Its OPL icon carries a
-restrained Native badge so it remains recognizable but distinct from the
-AionUI release App in the Dock and application switcher.
-
-Launch the installed Native app from the App repository:
+Launch the candidate from the One Person Lab App repository:
 
 ```bash
 npm run gui -- --shell opl-native-workbench
 ```
 
-Use `--rebuild` to rebuild this checkout, validate its bundle identity, and
-replace only `/Applications/One Person Lab Native.app`. This does not change the
-active release adapter, updater channel, AionUI name, AionUI icon, or AionUI
-installation.
+Use `--rebuild` to rebuild and replace only
+`/Applications/One Person Lab Native.app`. The candidate has the isolated bundle
+id `cn.gflab.opl.native-workbench.candidate` and does not replace
+`/Applications/One Person Lab.app`.
 
-The App launcher injects absolute `opl` and `codex` executable paths plus an
-`app_runtime_executable_identity.v1` readback. Candidate actions are
-dry-run-only by default; non-dry-run requests return a typed
-`blocked_read_only` receipt without executing OPL. `--allow-actions` is an
-explicit local override and requires restarting an already-running Candidate.
-Opening this bundle directly remains a host-PATH fallback and does not prove
-Runtime parity with AionUI.
+Candidate actions are dry-run-only by default. `--allow-actions` is an explicit
+local override that still requires the candidate confirmation path. Directly
+opening the bundle uses host-path fallback and does not prove parity with the
+App-managed launcher.
 
-Settings is a first-class route in the candidate. Global controls such as
-language, model defaults, workspace, and runtime connection live there. The
-composer exposes the current model and reasoning effort as conversation controls,
-matching Codex placement; those values are persisted in Settings and passed
-through the existing Codex app-server `turn/start` `model` and `effort` fields.
-The model policy is injected from
-`one-person-lab-app/contracts/app-product-profile.json#codex.auto_model_policy`:
-each build consumes the App-owned known-model preferences, known reasoning
-overrides, catalog fallback, and persistence policy rather than maintaining a
-second candidate catalog. Every renderer build injects that policy; a missing
-or invalid injection fails explicitly instead of silently selecting a stale
-model or reasoning effort. At runtime the native bridge calls
-Codex app-server `model/list`. Auto keeps the known `gpt-5.6-sol` override at
-`max`; the bridge follows catalog cursors through the terminal page, so when
-Codex advertises a newer unknown `isDefault` model on any page, Auto follows
-that model and uses its last advertised supported reasoning effort. A missing
-catalog falls back to the App-owned model and reasoning pair. Choosing another
-model or reasoning effort pins the resolved choice and exits Auto before
-sending. If a previously fixed alternative is no longer
-advertised, sending remains blocked until the user chooses Auto or another
-available model; the Workbench never silently substitutes a different model.
-`runtimeProfile` now drives actual `opl app state` readback shape, and the
-Settings page exposes runtime readback status instead of a pure placeholder.
+## Authority Boundary
 
-Maintainers change the default pair only at
-`one-person-lab-app/contracts/app-product-profile.json#codex.auto_model_policy.configured_default`
-and run the App repository's `npm run codex:model-policy:sync`. This candidate
-keeps no generated model-default copy: `npm run validate:candidate` and renderer
-builds read the neighboring App profile and fail if its projections disagree.
-Do not add a Native model or reasoning allowlist for future Codex CLI values.
+| Concern | Owner | Native role |
+| --- | --- | --- |
+| GUI product behavior, model policy, page states, and adoption | `one-person-lab-app` contracts | Implementation consumer only |
+| Runtime and package state/actions | OPL Framework | Read/project exact refs; dispatch owner actions only |
+| Thread identity, history, permissions, and turns | Codex App Server | Client and renderer only |
+| Professional truth, quality, artifacts, and delivery | Domain owners | Refs-only presentation |
+| Candidate source, bridge, renderer, packaging, and focused tests | This repository | Implementation evidence only |
 
-Agent Package lifecycle is also a candidate display surface only. The
-Workbench prefers `opl app state --profile fast --json#app_state.agent_packages`
-directory/status-index refs, shows package lock, receipt, rollback, exposure,
-and action refs when App/root provides them, and marks discover/install/update/
-repair/uninstall/exposure actions as available only when an App/root action ref
-exists. Older `modules.items` payloads may appear as preview-only fallback rows;
-they must not be displayed as package installed, ready, synced, or release
-truth.
+The App candidate registry keeps Native as the foreground alternative, but the
+App candidate boundary currently defers further product expansion until an
+explicit re-entry decision names scope, maintenance owner, App contract delta,
+and release relationship. Existing experimental coordination or delivery
+surfaces are not active App requirements by themselves.
 
-## Renderer convergence boundary
+## Current Evidence Boundary
 
-The current target is convergence, not a finished parity claim:
+Source validators, tests, renderer smoke, WebUI smoke, package construction, and
+local packaged-app smoke can prove their exact candidate layers. They do not
+prove active-shell adoption, release readiness, clean-VM readiness, shared
+physical Runtime parity, domain readiness, owner acceptance, or production
+readiness.
 
-- Source, packaged macOS candidate, and WebUI should converge on the same
-  renderer surface and the same bridge/event shape.
-- WebUI reuses the candidate renderer and adapts transport through
-  `window.oplNativeWorkbench` plus the Web transport/SSE bridge; packaged macOS
-  reuses the same renderer through the native bridge.
-- This repository can therefore describe one renderer target and one candidate
-  interaction model, but the evidence level still differs by surface.
+## Documentation
 
-Current evidence remains intentionally bounded:
+- [Documentation and owner map](docs/README.md)
+- [Implementation and authority architecture](docs/architecture.md)
+- [Current state, gaps, and next Agent prompt](docs/active/current-state-vs-ideal-gap.md)
+- [Verification and evidence boundaries](docs/verification.md)
+- [Historical candidate baseline](docs/history/README.md)
 
-- Source renderer and candidate validators are structural/source evidence.
-- WebUI parity is shared-renderer and smoke evidence only.
-- Packaged `.app` evidence is candidate packaging/smoke evidence only.
-- None of the above claims active-shell adoption, release readiness,
-  production readiness, clean-VM readiness, domain readiness, owner receipt, or
-  live user-path completion.
-
-## Functional MVP Closeout
-
-| Area | Status | Evidence | Boundary |
-| --- | --- | --- | --- |
-| Codex chat runtime | Implemented candidate evidence | App-server thread/turn markers for `initialize`, `thread/start`, `turn/start`, model/effort overrides, streaming deltas, `turn/completed`, and `thread/resume` | Does not replace the Codex control plane |
-| Chat history and session resume | Implemented candidate evidence | App Server paginated thread directory, opaque `threadId`, read/resume, and sidebar reopen path | Codex owns history and persistence; localStorage stores UI metadata and drafts only |
-| Local cross-thread coordination | Implemented candidate evidence | Typed Desktop/WebUI list/read/resume/fork/archive/unarchive, start/steer/queue, safety gates, model proposals, and result receipts | Local P0+P1 only; remote P2 and active-shell adoption remain false |
-| OPL state context | Implemented candidate evidence | `opl app state --profile fast --json`, explicit full state, and full runtime drilldown exception markers | Reads App/Framework truth only |
-| App action flow | Implemented candidate evidence | Dry-run action preview, visible receipt markers, confirmation card markers, and launcher-default `blocked_read_only` policy | No execution from the default Candidate launcher; explicit `--allow-actions` plus confirmation is required |
-| Execute / rollback preview loop | Implemented candidate evidence | Explicit confirmed execute plus rollback-preview request path | Candidate receipt shell only; no owner receipt authority |
-| Settings route | Implemented candidate evidence | Settings page markers for model/account access, locale, runtime connection, project, and candidate-about controls | UI candidate only |
-| Settings persistence model | Implemented candidate evidence | `src/workbench/settingsModel.ts` defines sections, keys, defaults, `SETTINGS_STORAGE_KEY`, and localStorage read/write helpers | localStorage only; no system write permission |
-| Runtime readback helpers | Implemented candidate evidence | Bridge-normalized state/drilldown/action envelopes plus typed event surface | Structural/runtime readback helper only |
-| Browser fallback boundary | Implemented candidate evidence | Browser placeholder receipts are preview-only, non-executable, and surfaced as bridge unavailable without `preview_ready` execution semantics | Fallback/simulated data cannot promote App/root readiness |
-| Artifact preview MVP | Implemented candidate evidence | Rich preview markers for markdown, math, Mermaid, code, PDF, and receipt-like refs | Refs-only preview; no artifact authority |
-| Professional starters MVP | Implemented candidate evidence | Research, grant, presentation, and book starter forms now edit fields and route to live dry-run actions when available | No domain execution authority |
-| Agent Package lifecycle | Implemented candidate evidence | Packages inspector reads App/root package lifecycle refs and action availability | No package executor, package truth, installed/ready/synced claim, or active-shell adoption |
-| Validator gates | Implemented candidate evidence | `npm run validate:candidate` and `npm run smoke:visual` check source markers and false-ready boundaries | Structural gates only |
-| Packaged `.app`, WebUI, and source convergence | Partial / non-live evidence | Shared renderer target plus candidate package, WebUI, source visual, and source UI smoke surfaces | Not clean-VM or same-cohort live user-path evidence |
-| Release and Live readiness | Not ready | False-ready fields stay false in candidate evidence and manifests | No active-shell adoption, release readiness, production readiness, domain readiness, live evidence, owner receipt, runtime authority transfer, or domain truth ownership |
-
-## Commands
+<details>
+  <summary><strong>Developer checks</strong></summary>
 
 ```bash
 npm ci
-npm run typecheck
-npm run test:coordination
-npm run validate:candidate
-npm run validate:state-model
-npm run smoke:webui
-npm run package
+npm test
 ```
 
-These commands are structural candidate evidence. They do not claim active-shell
-adoption, release readiness, production readiness, or live user-path evidence.
+`npm test` covers typecheck, focused regressions, candidate/state validators,
+WebUI and visual smoke, package construction, and packaged-runtime validation.
+Run `npm run smoke:native-live` separately for local packaged-window evidence.
+See [verification](docs/verification.md) before interpreting either result.
 
-```bash
-npm run smoke:native-live
-```
-
-`npm run smoke:native-live` is narrower: after `npm run package`, it opens a
-fresh local `out/One Person Lab Native.app`, requires a new
-PID and real window, captures that PID's exact window, verifies renderer markers
-(`Codex` and `5.6 Sol`), and verifies process cleanup before writing
-`out/native-live-smoke.json` and `out/native-live-smoke.png`. Missing window,
-renderer, screenshot, or cleanup evidence fails closed. This is only local
-candidate packaged-app live evidence. It does not claim active-shell adoption,
-release readiness, clean-VM readiness, or App/domain authority transfer.
+</details>

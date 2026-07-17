@@ -18,6 +18,12 @@ import { resolveAppRepoRoot } from "./resolve-app-repo-root.mjs";
 const requiredFiles = [
   "AGENTS.md",
   "README.md",
+  "docs/README.md",
+  "docs/architecture.md",
+  "docs/active/current-state-vs-ideal-gap.md",
+  "docs/verification.md",
+  "docs/history/README.md",
+  "docs/history/2026-07-candidate-baseline.md",
   "package.json",
   "src/bridge/oplBridge.ts",
   "src/bridge/webTransport.ts",
@@ -128,11 +134,15 @@ function assertSourceMarkerRequirements(evidence) {
   }
 }
 
-function assertCodexJuly2026Alignment(evidence, app, readme) {
+function assertCodexJuly2026Alignment(evidence, app) {
   const alignment = evidence.default_home_layout?.primary_visual_reference;
   const visualStyle = evidence.default_home_layout?.visual_style_reference;
   const styles = read("src/workbench/codexWorkbenchStyles.ts");
-  const normalizedReadme = readme.replace(/\s+/g, " ");
+  const history = read("docs/history/2026-07-candidate-baseline.md");
+  const architecture = read("docs/architecture.md");
+  const activePlan = read("docs/active/current-state-vs-ideal-gap.md");
+  const publicEntry = read("README.md");
+  const normalizedHistory = history.replace(/\s+/g, " ");
   assert(alignment, "missing ChatGPT Codex July 2026 alignment evidence");
   assert(alignment.reference_product === "ChatGPT Codex macOS", "Codex reference product must be recorded");
   assert(alignment.reference_version === "26.707.41301", "Codex reference version must be recorded");
@@ -144,7 +154,7 @@ function assertCodexJuly2026Alignment(evidence, app, readme) {
   assert(evidence.default_home_layout?.workspace_rail_default_open === true, "project rail must be visible by default");
   assert(evidence.default_home_layout?.environment_details_default_open === false, "environment details must be closed by default");
   assert(evidence.webui_parity?.desktop_and_webui_default_home === "chat_first_default_collapsed", "desktop and WebUI must share the chat-first default-collapsed home");
-  assert(normalizedReadme.includes("ChatGPT Codex macOS") && normalizedReadme.includes("26.707.41301"), "README must record the Codex reference build");
+  assert(normalizedHistory.includes("ChatGPT Codex macOS 26.707.41301") && normalizedHistory.includes("2026-07-11"), "history must record the Codex reference build and date");
   assert(visualStyle?.reference_version === "26.707.61608", "current Codex visual style version must be recorded");
   assert(visualStyle?.reference_date === "2026-07-13", "current Codex visual style date must be recorded");
   assert(visualStyle?.palette?.canvas === "#fff" && visualStyle.palette.sidebar === "#f9f9f9", "current Codex light surfaces must be recorded");
@@ -152,14 +162,16 @@ function assertCodexJuly2026Alignment(evidence, app, readme) {
   assert(visualStyle?.typography?.base_size === "14px" && visualStyle.typography.ordinary_weight === 430, "current Codex typography must be recorded");
   assert(visualStyle?.desktop_sidebar_width === "336px", "current Codex desktop rail width must be recorded");
   assert(visualStyle?.font_asset_policy === "match_system_workbench_stack_without_copying_or_redistributing_openai_sans_font_binaries", "OpenAI Sans binaries must remain outside the candidate package");
-  assert(normalizedReadme.includes("26.707.61608") && normalizedReadme.includes("OpenAI Sans font binary"), "README must record the current visual style and font boundary");
+  assert(normalizedHistory.includes("26.707.61608") && normalizedHistory.includes("2026-07-13") && normalizedHistory.includes("OpenAI Sans font binary"), "history must record the visual reference and font boundary");
   for (const marker of ["--opl-sidebar-width: 336px", "--opl-sidebar: #f9f9f9", "--opl-text: #1a1c1f", "font-size: 14px", "font-weight: 430"]) {
     assert(styles.includes(marker), `missing current Codex visual style marker ${marker}`);
   }
-  assert(normalizedReadme.includes("model and reasoning controls in the composer"), "README must record composer model control placement");
-  assert(normalizedReadme.includes("The rail is visible by default"), "README must record the default-visible project rail");
-  assert(normalizedReadme.includes("environment details are closed by default and open as a floating"), "README must record the default-closed floating environment details");
-  const legacyClaims = `${readme}\n${JSON.stringify(evidence)}`.toLowerCase();
+  assert(architecture.includes("Model And Settings Boundary") && architecture.includes("App product profile"), "architecture must route model and settings authority to App");
+  assert(architecture.includes("Codex App Server owns canonical thread identity"), "architecture must route thread truth to Codex App Server");
+  assert(architecture.includes("AionUI is the active release shell"), "architecture must preserve the active-shell boundary");
+  assert(activePlan.includes("Purpose: `single_active_truth_plan`") && activePlan.includes("deferred_pending_explicit_reentry"), "Active Truth must preserve the deferred re-entry gate");
+  assert(publicEntry.includes("foreground alternative shell candidate") && publicEntry.includes("AionUI remains the active release shell"), "public entry must preserve candidate and adoption roles");
+  const legacyClaims = `${publicEntry}\n${architecture}\n${history}\n${JSON.stringify(evidence)}`.toLowerCase();
   for (const claim of ["imagegen", "image-generated", "three-column", "chat_first_with_preview_inspector", "preview inspector default-open"]) {
     assert(!legacyClaims.includes(claim), `legacy visual baseline claim must be removed: ${claim}`);
   }
@@ -271,7 +283,7 @@ assertFallbackBoundaryDowngrades({
 });
 assertFunctionalMvpCloseout(evidence);
 assertSourceMarkerRequirements(evidence);
-assertCodexJuly2026Alignment(evidence, app, read("README.md"));
+assertCodexJuly2026Alignment(evidence, app);
 assertCodexModelControls(evidence, app);
 assertRendererTestIds(rendererSource, requiredTestIds);
 assertRendererTestIds(rendererSource, deliverySurfaceTestIds(evidence));
