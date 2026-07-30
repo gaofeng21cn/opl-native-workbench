@@ -58,40 +58,55 @@ function selectedFields(value, fields) {
 
 const packageFields = [
   "package_id", "packageId", "agent_id", "module_id", "id",
-  "display_name", "displayName", "package_short_name", "label", "name",
+  "display_name", "displayName", "package_short_name", "label", "name", "publisher", "description", "tags", "package_role",
   "lifecycle_status", "status", "install_state", "install_status", "health_status",
   "update_state", "update_status", "source_state", "trust_state", "trust_tier",
   "codex_surface_state", "codex_visible_entry", "codex_surface_ref", "shortcut_id", "display_policy",
   "conditions", "failure_conditions", "blocked_conditions", "issues", "diagnostics",
   "status_reason", "failure_reason", "reason", "recommended_action", "recommendedAction", "next_action", "repair_action",
-  "source_kind", "install_origin", "manifest_url", "manifestUrl", "manifest_ref", "package_ref",
-  "repo_url", "registry_url", "checkout_path", "managed_checkout_path", "ghcr_ref", "oci_ref", "container_ref", "image_ref",
-  "required_skill", "requiredSkill", "skill_id", "skill_ref", "required_skills", "available_actions",
-  "package_lock_ref", "lock_ref", "action_receipt_ref", "receipt_ref", "action_receipt_id", "receipt_refs", "rollback_ref",
-  "source_surface"
-];
-
-const receiptFields = [
-  "action", "action_status", "receipt_status", "receipt_ref", "package_lock_ref", "rollback_ref",
-  "manifest_url", "source_kind", "source_surface", "trust_tier"
+  "source_kind", "install_origin",
+  "required_skill", "requiredSkill", "skill_id", "skill_ref", "required_skills",
+  "source_surface", "installed_version", "installed", "activated", "codex_visible"
 ];
 
 function compactPackageRecord(value) {
   const record = selectedFields(value, packageFields) ?? {};
   const sourcePolicy = selectedFields(value?.source_policy, ["effective_install_update_source"]);
-  const distributionPayload = selectedFields(value?.distribution_payload, ["source_kind", "ref"]);
-  const physicalSurface = selectedFields(value?.physical_surface ?? value?.distribution_payload?.physical_surface, ["status", "state", "ref", "path", "root"]);
-  const files = selectedFields(value?.files, ["registry_cache_file", "package_lock_file", "lifecycle_ledger_file", "home_shortcut_preferences_file"]);
-  const receipts = Array.isArray(value?.lifecycle_receipts)
-    ? value.lifecycle_receipts.slice(0, 3).map((receipt) => selectedFields(receipt, receiptFields) ?? {})
+  const sourceExplanation = selectedFields(value?.source_explanation, [
+    "kind", "source", "summary", "source_policy_status"
+  ]);
+  const capabilityMetadata = selectedFields(value?.capability_metadata, [
+    "source", "required_skill_ids", "optional_skill_refs"
+  ]);
+  const installedCarrierReadback = selectedFields(value?.installed_carrier_readback, [
+    "kind", "identity", "version", "enabled", "lifecycle_authority"
+  ]);
+  const installedReadiness = selectedFields(value?.installed_readiness, [
+    "installed", "physical_status", "callability", "legacy_lifecycle_state_present"
+  ]);
+  const presence = selectedFields(value?.presence, [
+    "registered", "installed", "present", "callable", "status", "reason"
+  ]);
+  const capabilityExposure = selectedFields(value?.capability_exposure, ["status", "codex_visible"]);
+  const actions = selectedFields(value?.actions, ["available", "recommended", "execute_surface"]);
+  const availableActions = Array.isArray(value?.available_actions)
+    ? value.available_actions.slice(0, 8).map((action) => selectedFields(action, [
+      "action_id", "action_ref", "required_payload_fields", "confirmation_required", "semantic", "surface"
+    ]) ?? {})
     : undefined;
+  const files = selectedFields(value?.files, ["home_shortcut_preferences_file"]);
   return {
     ...record,
     ...(sourcePolicy ? { source_policy: sourcePolicy } : {}),
-    ...(distributionPayload ? { distribution_payload: { ...distributionPayload, ...(physicalSurface ? { physical_surface: physicalSurface } : {}) } } : {}),
-    ...(!distributionPayload && physicalSurface ? { physical_surface: physicalSurface } : {}),
+    ...(sourceExplanation ? { source_explanation: sourceExplanation } : {}),
+    ...(capabilityMetadata ? { capability_metadata: capabilityMetadata } : {}),
+    ...(installedCarrierReadback ? { installed_carrier_readback: installedCarrierReadback } : {}),
+    ...(installedReadiness ? { installed_readiness: installedReadiness } : {}),
+    ...(presence ? { presence } : {}),
+    ...(capabilityExposure ? { capability_exposure: capabilityExposure } : {}),
+    ...(actions ? { actions } : {}),
+    ...(availableActions ? { available_actions: availableActions } : {}),
     ...(files ? { files } : {}),
-    ...(receipts ? { lifecycle_receipts: receipts } : {})
   };
 }
 
@@ -151,14 +166,15 @@ function compactFastState(value) {
         surface_kind: agentPackages.surface_kind,
         source: agentPackages.source,
         directory: directory ? {
+          status: directory.status,
+          entry_count: directory.entry_count,
           installed_package_count: directory.installed_package_count,
-          lifecycle_receipt_count: directory.lifecycle_receipt_count,
-          files: directory.files,
+          installable_package_count: directory.installable_package_count,
+          migration_required_count: directory.migration_required_count,
+          source_catalog_kind: directory.source_catalog_kind,
+          files: selectedFields(directory.files, ["home_shortcut_preferences_file"]),
           home_shortcut_preferences: firstRecords(directory.home_shortcut_preferences, 16),
-          installed_packages: compactPackageRows(directory.installed_packages, 8) ?? [],
-          lifecycle_receipts: Array.isArray(directory.lifecycle_receipts)
-            ? directory.lifecycle_receipts.slice(0, 8).map((receipt) => selectedFields(receipt, receiptFields) ?? {})
-            : []
+          entries: compactPackageRows(directory.entries, 8) ?? []
         } : undefined,
         status_index: statusIndex ? {
           installed_package_count: statusIndex.installed_package_count,

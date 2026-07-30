@@ -151,7 +151,6 @@ for (const marker of [
   "missing_codex_surface",
   "required_skill",
   "packageLifecycleActionIds",
-  "refresh_registry",
   "install_from_manifest_url",
   "agent_package_update",
   "agent_package_repair",

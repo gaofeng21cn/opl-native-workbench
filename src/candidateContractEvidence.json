@@ -989,7 +989,6 @@
     "action_authority": "opl app state --profile fast --json#app_state.actions",
     "display_policy": "canonical agent_packages projection first; legacy modules fallback is preview-only and cannot infer installed, ready, synced, release, or package truth",
     "action_kinds": [
-      "discover",
       "install",
       "update",
       "repair",
@@ -997,7 +996,6 @@
       "exposure"
     ],
     "required_action_refs": [
-      "refresh_registry",
       "install_from_manifest_url",
       "agent_package_update",
       "agent_package_repair",
