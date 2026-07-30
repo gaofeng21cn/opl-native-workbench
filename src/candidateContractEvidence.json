@@ -462,9 +462,8 @@
     "workspace_rail_default_open": true,
     "inspector_default_open": false,
     "environment_details_default_open": false,
-    "codex_2026_07_11_alignment": {
+    "codex_design_reference_alignment": {
       "reference_product": "ChatGPT Codex macOS",
-      "reference_version": "26.707.41301",
       "project_rail": "persistent",
       "timeline": "single_conversation_timeline",
       "model_controls": "composer_bottom_row",

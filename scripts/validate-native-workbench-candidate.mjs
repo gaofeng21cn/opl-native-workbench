@@ -333,7 +333,18 @@ function assertCodexModelControls(evidence, app) {
   assert(rendererBuilder.includes("__OPL_CODEX_MODEL_POLICY__"), "renderer build must inject the App-owned model policy");
   assert(rendererBuilder.includes("resolveAppRepoRoot"), "renderer build must resolve the App repo through the shared helper");
   assert(appRepoResolver.includes('"contracts", "app-product-profile.json"'), "App repo resolver must require the App product profile");
-  const alignment = evidence.default_home_layout?.codex_2026_07_11_alignment ?? {};
+  const alignment = evidence.default_home_layout?.codex_design_reference_alignment;
+  assert(alignment && typeof alignment === "object", "candidate evidence must define the rolling Codex design-reference alignment");
+  assert(
+    !("codex_2026_07_11_alignment" in (evidence.default_home_layout ?? {})),
+    "candidate evidence must use the rolling Codex design-reference key instead of a dated authority key"
+  );
+  assert(
+    !("reference_version" in alignment)
+      && !("reference_date" in alignment)
+      && !("reference_observed_at" in alignment),
+    "candidate design-reference alignment must not pin a historical Codex build or observation"
+  );
   assert(!("default_model" in alignment) && !("default_reasoning_effort" in alignment), "candidate evidence must not copy App model defaults");
 
   assert(app.includes('effectiveSelection === "__auto" && reasoningLevel !== codexModelPolicy.defaultReasoningEffort') && app.includes("writeSettings({ modelAccess, reasoningLevel })"), "changing Auto reasoning must pin the resolved model before applying the override");
