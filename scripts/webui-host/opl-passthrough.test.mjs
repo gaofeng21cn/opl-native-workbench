@@ -76,6 +76,7 @@ test("fast state keeps GUI package fields without copying deep runtime payloads"
   assert.equal(entry.installed_carrier_readback.lifecycle_authority, "carrier_owned");
   assert.equal("version_source_ref" in entry.source_explanation, false);
   assert.equal(entry.installed_carrier_readback.identity, "future-agent@example");
+  assert.equal("legacy_lifecycle_state_present" in entry.installed_readiness, false);
   assert.equal(entry.available_actions[0].action_id, "agent_package_update");
   assert.equal("payload" in entry.available_actions[0], false);
   assert.equal("source_ref" in entry.installed_carrier_readback, false);
