@@ -42,8 +42,7 @@ test("current Package directory entries replace retired private lifecycle fields
               installed_readiness: {
                 installed: true,
                 physical_status: "available",
-                callability: "callable",
-                legacy_lifecycle_state_present: false
+                callability: "callable"
               },
               source_explanation: {
                 kind: "installed_codex_plugin_descriptor",

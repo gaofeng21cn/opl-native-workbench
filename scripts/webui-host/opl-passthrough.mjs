@@ -82,7 +82,7 @@ function compactPackageRecord(value) {
     "kind", "identity", "version", "enabled", "lifecycle_authority"
   ]);
   const installedReadiness = selectedFields(value?.installed_readiness, [
-    "installed", "physical_status", "callability", "legacy_lifecycle_state_present"
+    "installed", "physical_status", "callability"
   ]);
   const presence = selectedFields(value?.presence, [
     "registered", "installed", "present", "callable", "status", "reason"
