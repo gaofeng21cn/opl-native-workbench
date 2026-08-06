@@ -63,7 +63,6 @@
     "contracts/**",
     "src/**",
     "tests/**",
-    "docs/status.md",
     "docs/active/current-state-vs-ideal-gap.md"
   ],
   "plugin_native_status": "profile_declared",
