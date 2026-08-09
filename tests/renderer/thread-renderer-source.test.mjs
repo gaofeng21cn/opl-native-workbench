@@ -100,11 +100,21 @@ test("native window chrome follows the compact Codex composition", () => {
   assert.match(nativeWindow, /window\.titlebarAppearsTransparent = true/);
   assert.match(nativeWindow, /window\.titlebarSeparatorStyle = \.none/);
   assert.match(nativeWindow, /window\.isMovableByWindowBackground = true/);
+  assert.match(app, /className="brand-row" onPointerDown=\{beginWindowDrag\}/);
+  assert.match(app, /className="topbar" onPointerDown=\{beginWindowDrag\}/);
+  assert.match(bridge, /beginWindowDrag\(\)/);
+  assert.match(main, /beginWindowDrag: \(\) => \{\s*void post\("beginWindowDrag"\)/s);
+  assert.match(webTransport, /beginWindowDrag: \(\) => undefined/);
+  assert.match(nativeWindow, /if method == "beginWindowDrag"/);
+  assert.match(nativeWindow, /let currentEvent = NSApp\.currentEvent/);
+  assert.match(nativeWindow, /NSEvent\.mouseEvent\(/);
+  assert.match(nativeWindow, /NSEvent\.mouseLocation/);
+  assert.match(nativeWindow, /dragWindow\.performDrag\(with: event\)/);
   assert.match(nativeWindow, /final class WindowDragView: NSView/);
-  assert.match(nativeWindow, /window\?\.performDrag\(with: event\)/);
   assert.match(nativeWindow, /dragView\.leadingAnchor\.constraint\(equalTo: contentView\.leadingAnchor, constant: 96\)/);
-  assert.match(nativeWindow, /dragView\.widthAnchor\.constraint\(equalToConstant: 164\)/);
+  assert.match(nativeWindow, /dragView\.trailingAnchor\.constraint\(equalTo: contentView\.trailingAnchor, constant: -64\)/);
   assert.match(nativeWindow, /dragView\.heightAnchor\.constraint\(equalToConstant: 18\)/);
+  assert.doesNotMatch(nativeWindow, /dragView\.widthAnchor|equalToConstant: 164/);
   assert.match(nativeSmoke, /output\.includes\("brand=1"\)/);
   assert.doesNotMatch(nativeSmoke, /output\.includes\("codex=0"\)/);
   assert.match(nativeSmoke, /global Codex project names are allowed/);
@@ -144,6 +154,21 @@ test("primary canvas hides its scrollbar without disabling scrolling", () => {
   assert.match(styles, /\.history-list li \.thread-directory-open \.thread-directory-copy \{[^}]*max-width: 100%;[^}]*overflow: hidden;/s);
   assert.match(styles, /\.thread-directory-copy strong \{[^}]*max-width: 100%;[^}]*display: block;/s);
   assert.match(styles, /\.context-scroll \{[^}]*overflow-y: auto;/s);
+});
+
+test("desktop sidebar width is adjustable, bounded, and persisted as UI metadata", () => {
+  assert.match(app, /sidebarWidth: number/);
+  assert.match(app, /const minimumSidebarWidth = 200/);
+  assert.match(app, /const maximumSidebarWidth = 420/);
+  assert.match(app, /sidebarWidth: clampSidebarWidth\(metadata\?\.sidebarWidth\)/);
+  assert.match(app, /data-testid="opl-sidebar-resizer"/);
+  assert.match(app, /role="separator"/);
+  assert.match(app, /onPointerDown=\{beginSidebarResize\}/);
+  assert.match(app, /onDoubleClick=\{\(\) => persistSidebarWidth\(defaultSidebarWidth\)\}/);
+  assert.match(app, /style=\{\{ "--opl-sidebar-width": `\$\{sidebarWidth\}px` \} as CSSProperties\}/);
+  assert.match(styles, /\.sidebar-resizer \{[^}]*left: calc\(var\(--opl-sidebar-width\) - 3px\);[^}]*width: 6px;/s);
+  assert.match(styles, /:root\[data-opl-sidebar-resizing="true"\]/);
+  assert.doesNotMatch(styles, /grid-template-columns: 224px minmax\(0, 1fr\)/);
 });
 
 test("sidebar account identity consumes only the canonical Gateway display name", () => {

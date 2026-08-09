@@ -63,6 +63,9 @@ function installNativeTransport(): boolean {
 
   window.oplNativeWorkbench = {
     eventSourceUrl: "native://oplNativeWorkbench",
+    beginWindowDrag: () => {
+      void post("beginWindowDrag").catch(() => undefined);
+    },
     readState: (profile) => post("readState", { profile }),
     readFullDrilldown: () => post("readFullDrilldown"),
     executeAction: (request) => post("executeAction", request as Record<string, unknown>),

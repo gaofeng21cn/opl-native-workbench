@@ -214,7 +214,7 @@ export type OplBridgeEvent = OplBridgeTypeEvent | OplBridgeMethodEvent;
 
 export type OplNativeWorkbenchSurface = Pick<
   OplBridge,
-  "readState" | "readFullDrilldown" | "executeAction" | "readCodexModels" | "sendMessage" | "subscribeEvents"
+  "beginWindowDrag" | "readState" | "readFullDrilldown" | "executeAction" | "readCodexModels" | "sendMessage" | "subscribeEvents"
 > & Partial<CodexThreadAdapterBridge> & {
   eventSourceUrl?: string;
   connectEvents?: (onEvent: (event: OplBridgeEvent) => void) => () => void;
@@ -250,6 +250,7 @@ export const CODEX_APP_SERVER = {
 } as const;
 
 export type OplBridge = CodexThreadAdapterBridge & {
+  beginWindowDrag(): void;
   readState(profile?: OplStateProfile): Promise<OplStateReadback>;
   readFullDrilldown(): Promise<OplFullDrilldownReadback>;
   executeAction(request: OplActionRequest): Promise<OplActionReceipt>;
@@ -861,6 +862,9 @@ export function createBrowserBridge(): OplBridge {
   const candidate = ((globalThis as Record<string, unknown>).window as { oplNativeWorkbench?: OplNativeWorkbenchSurface } | undefined)
     ?.oplNativeWorkbench;
   return {
+    beginWindowDrag() {
+      candidate?.beginWindowDrag?.();
+    },
     readState(profile = readRuntimeProfile()) {
       const normalizedProfile = normalizeProfile(profile);
       const promise = candidate?.readState?.(normalizedProfile) ?? Promise.resolve(defaultStateReadback(normalizedProfile));

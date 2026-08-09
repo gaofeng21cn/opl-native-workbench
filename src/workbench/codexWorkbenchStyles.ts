@@ -29,6 +29,12 @@ export const codexWorkbenchStyles = `
     --opl-native-titlebar-inset: 34px;
   }
 
+  :root[data-opl-sidebar-resizing="true"],
+  :root[data-opl-sidebar-resizing="true"] * {
+    cursor: col-resize !important;
+    user-select: none !important;
+  }
+
   * {
     box-sizing: border-box;
   }
@@ -85,6 +91,41 @@ export const codexWorkbenchStyles = `
   }
 
   .sidebar-closed .sidebar {
+    display: none;
+  }
+
+  .sidebar-resizer {
+    position: absolute;
+    z-index: 45;
+    top: 0;
+    bottom: 0;
+    left: calc(var(--opl-sidebar-width) - 3px);
+    width: 6px;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    cursor: col-resize;
+    touch-action: none;
+  }
+
+  .sidebar-resizer::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 2px;
+    width: 1px;
+    background: transparent;
+  }
+
+  .sidebar-resizer:hover::after,
+  .sidebar-resizer:focus-visible::after,
+  :root[data-opl-sidebar-resizing="true"] .sidebar-resizer::after {
+    background: color-mix(in oklab, var(--opl-text) 18%, transparent);
+  }
+
+  .sidebar-closed .sidebar-resizer {
     display: none;
   }
 
@@ -1684,10 +1725,6 @@ export const codexWorkbenchStyles = `
   }
 
   @media (max-width: 980px) {
-    .opl-native-workbench {
-      grid-template-columns: 224px minmax(0, 1fr);
-    }
-
     .conversation-inner {
       padding-inline: 18px;
     }
@@ -1713,6 +1750,10 @@ export const codexWorkbenchStyles = `
     }
 
     .sidebar-closed .sidebar {
+      display: none;
+    }
+
+    .sidebar-resizer {
       display: none;
     }
 

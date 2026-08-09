@@ -906,6 +906,34 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
       let method = body["method"] as? String
     else { return }
 
+    if method == "beginWindowDrag" {
+      guard let dragWindow = webView?.window else {
+        resolve(id: id, ok: false, payload: ["error": "window unavailable for drag"])
+        return
+      }
+      let currentEvent = NSApp.currentEvent
+      let event = currentEvent?.type == .leftMouseDown
+        ? currentEvent
+        : NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: dragWindow.convertPoint(fromScreen: NSEvent.mouseLocation),
+            modifierFlags: currentEvent?.modifierFlags ?? [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: dragWindow.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+          )
+      guard let event else {
+        resolve(id: id, ok: false, payload: ["error": "unable to create window drag event"])
+        return
+      }
+      dragWindow.performDrag(with: event)
+      resolve(id: id, ok: true, payload: [:])
+      return
+    }
+
     DispatchQueue.global(qos: .userInitiated).async {
       do {
         let payload = try self.handle(method: method, payload: body["payload"] as? [String: Any] ?? [:])
@@ -1239,8 +1267,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
       webView.topAnchor.constraint(equalTo: contentView.topAnchor),
       webView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
       dragView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 96),
+      dragView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -64),
       dragView.topAnchor.constraint(equalTo: contentView.topAnchor),
-      dragView.widthAnchor.constraint(equalToConstant: 164),
       dragView.heightAnchor.constraint(equalToConstant: 18)
     ])
     window.contentView = contentView

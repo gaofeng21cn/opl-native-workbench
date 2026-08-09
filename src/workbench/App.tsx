@@ -21,7 +21,16 @@ import {
   Sparkles,
   X
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent
+} from "react";
 import { createBrowserBridge, type CodexModelCatalogEntry } from "../bridge/oplBridge";
 import type { CodexThread } from "../threads/types";
 import {
@@ -357,6 +366,10 @@ const legacyChatSessionsStorageKey = "opl.nativeWorkbench.chatSessions.v1";
 const legacyChatSessionsBackupKey = "opl.nativeWorkbench.chatSessions.legacyReadOnlyBackup.v1";
 const uiMetadataStorageKey = "opl.nativeWorkbench.uiMetadata.v2";
 const draftStorageKey = "opl.nativeWorkbench.drafts.v2";
+const defaultSidebarWidth = 236;
+const minimumSidebarWidth = 200;
+const maximumSidebarWidth = 420;
+const windowDragInteractiveSelector = "button, input, textarea, select, a, [role='button'], [contenteditable='true']";
 
 type ThreadScope = "current" | "all" | "archived";
 
@@ -364,6 +377,7 @@ type WorkbenchUiMetadata = {
   selectedProjectId?: string;
   selectedThreadId?: string;
   threadScope: ThreadScope;
+  sidebarWidth: number;
 };
 
 type WorkbenchDrafts = {
@@ -438,10 +452,15 @@ function sessionStorage() {
   return globalThis.localStorage;
 }
 
+function clampSidebarWidth(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return defaultSidebarWidth;
+  return Math.min(maximumSidebarWidth, Math.max(minimumSidebarWidth, Math.round(value)));
+}
+
 function readPersistedWorkbenchUi(): { metadata: WorkbenchUiMetadata; drafts: WorkbenchDrafts } {
   const storage = sessionStorage();
   const fallback = {
-    metadata: { threadScope: "all" as const },
+    metadata: { threadScope: "all" as const, sidebarWidth: defaultSidebarWidth },
     drafts: { prompts: {} }
   };
   if (!storage) return fallback;
@@ -465,7 +484,8 @@ function readPersistedWorkbenchUi(): { metadata: WorkbenchUiMetadata; drafts: Wo
       metadata: {
         selectedProjectId: typeof metadata?.selectedProjectId === "string" ? metadata.selectedProjectId : undefined,
         selectedThreadId,
-        threadScope: metadata?.threadScope === "archived" ? "archived" : "all"
+        threadScope: metadata?.threadScope === "archived" ? "archived" : "all",
+        sidebarWidth: clampSidebarWidth(metadata?.sidebarWidth)
       },
       drafts: {
         prompts: drafts?.prompts && typeof drafts.prompts === "object" ? drafts.prompts : {}
@@ -517,6 +537,12 @@ export function App() {
   const conversationRef = useRef<HTMLElement | null>(null);
   const pendingAssistantIdRef = useRef<string | null>(null);
   const messagesRef = useRef<ChatMessage[]>(createIntroMessages());
+  const sidebarResizeRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startWidth: number;
+    currentWidth: number;
+  } | null>(null);
   const [model, setModel] = useState(initialWorkbenchModel);
   const [stateStatus, setStateStatus] = useState<"loading" | "ready" | "error">("loading");
   const [stateError, setStateError] = useState("");
@@ -526,6 +552,7 @@ export function App() {
   const [lastDryRun, setLastDryRun] = useState("No action preview yet.");
   const [pendingAction, setPendingAction] = useState<{ actionId: string; payload: Record<string, unknown> } | null>(null);
   const [uiMetadata, setUiMetadata] = useState<WorkbenchUiMetadata>(persistedUi.metadata);
+  const [sidebarWidth, setSidebarWidth] = useState(persistedUi.metadata.sidebarWidth);
   const [drafts, setDrafts] = useState<WorkbenchDrafts>(persistedUi.drafts);
   const [prompt, setPrompt] = useState(persistedUi.drafts.prompts[persistedUi.metadata.selectedThreadId ?? "new"] ?? "");
   const [sendState, setSendState] = useState<"idle" | "running" | "error">("idle");
@@ -648,6 +675,59 @@ export function App() {
       writeUiMetadata(merged);
       return merged;
     });
+  }
+
+  function persistSidebarWidth(value: number) {
+    const nextWidth = clampSidebarWidth(value);
+    setSidebarWidth(nextWidth);
+    updateUiMetadata({ sidebarWidth: nextWidth });
+  }
+
+  function beginSidebarResize(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0 || !event.isPrimary) return;
+    sidebarResizeRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: sidebarWidth,
+      currentWidth: sidebarWidth
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    document.documentElement.dataset.oplSidebarResizing = "true";
+    event.preventDefault();
+  }
+
+  function resizeSidebar(event: ReactPointerEvent<HTMLDivElement>) {
+    const resize = sidebarResizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    const nextWidth = clampSidebarWidth(resize.startWidth + event.clientX - resize.startX);
+    resize.currentWidth = nextWidth;
+    setSidebarWidth(nextWidth);
+  }
+
+  function endSidebarResize(event: ReactPointerEvent<HTMLDivElement>) {
+    const resize = sidebarResizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    sidebarResizeRef.current = null;
+    delete document.documentElement.dataset.oplSidebarResizing;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    persistSidebarWidth(resize.currentWidth);
+  }
+
+  function resizeSidebarWithKeyboard(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const direction = event.key === "ArrowLeft" ? -1 : 1;
+    persistSidebarWidth(sidebarWidth + direction * (event.shiftKey ? 32 : 8));
+  }
+
+  function beginWindowDrag(event: ReactPointerEvent<HTMLElement>) {
+    if (event.button !== 0 || !event.isPrimary) return;
+    const target = event.target;
+    if (target instanceof Element && target.closest(windowDragInteractiveSelector)) return;
+    event.preventDefault();
+    bridge.beginWindowDrag();
   }
 
   function updateDrafts(next: (current: WorkbenchDrafts) => WorkbenchDrafts) {
@@ -1069,11 +1149,12 @@ export function App() {
       data-testid="opl-native-workbench-root"
       data-layout="codex-sidebar-chat"
       className={`opl-native-workbench codex-sidebar-chat ${sidebarOpen ? "sidebar-open" : "sidebar-closed"} ${inspectorOpen ? "inspector-open" : "inspector-closed"}`}
+      style={{ "--opl-sidebar-width": `${sidebarWidth}px` } as CSSProperties}
     >
       <style>{codexWorkbenchStyles}</style>
 
       <aside data-testid="opl-workspace-rail" className="sidebar" aria-label="Workspaces">
-        <header className="brand-row">
+        <header className="brand-row" onPointerDown={beginWindowDrag}>
           <img src="branding/opl-app-logo.png" alt="One Person Lab App" />
           <span className="brand-lockup">
             <strong className="brand-mark">One Person Lab</strong>
@@ -1237,8 +1318,27 @@ export function App() {
         </footer>
       </aside>
 
+      <div
+        className="sidebar-resizer"
+        data-testid="opl-sidebar-resizer"
+        role="separator"
+        aria-label={settings.locale === "zh" ? "调整侧栏宽度" : "Resize sidebar"}
+        aria-orientation="vertical"
+        aria-valuemin={minimumSidebarWidth}
+        aria-valuemax={maximumSidebarWidth}
+        aria-valuenow={sidebarWidth}
+        tabIndex={sidebarOpen ? 0 : -1}
+        onDoubleClick={() => persistSidebarWidth(defaultSidebarWidth)}
+        onKeyDown={resizeSidebarWithKeyboard}
+        onPointerDown={beginSidebarResize}
+        onPointerMove={resizeSidebar}
+        onPointerUp={endSidebarResize}
+        onPointerCancel={endSidebarResize}
+        onLostPointerCapture={endSidebarResize}
+      />
+
       <section className="chat-shell" aria-label="Single conversation canvas">
-        <header className="topbar">
+        <header className="topbar" onPointerDown={beginWindowDrag}>
           <div className="topbar-copy">
             <button className="icon-button" type="button" aria-label={sidebarOpen ? t.hideSidebar : t.showSidebar} onClick={() => setSidebarOpen((open) => !open)}>
               <PanelLeft aria-hidden="true" size={16} />

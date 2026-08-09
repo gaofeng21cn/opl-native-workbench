@@ -65,6 +65,7 @@ export function installWebTransport(): void {
   const subscribeEvents = (onEvent: (event: OplBridgeEvent) => void) => connectServerEvents(eventSourceUrl, onEvent);
   const surface: WebSurface = {
     eventSourceUrl,
+    beginWindowDrag: () => undefined,
     readState: (profile = "fast") => requestJson(`/api/opl/state?profile=${encodeURIComponent(profile)}`),
     readFullDrilldown: () => requestJson("/api/opl/drilldown"),
     executeAction: (request) => postJson("/api/opl/action", request),
