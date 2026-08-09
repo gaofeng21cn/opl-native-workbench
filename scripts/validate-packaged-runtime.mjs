@@ -28,6 +28,15 @@ assert(fs.existsSync(workbenchPath), "missing packaged native workbench HTML");
 assert(fs.existsSync(rendererPath), "missing packaged shared renderer script");
 assert(!fs.existsSync(path.join(resourcesDir, "preview.html")), "preview-only browser page must not be packaged");
 
+const signatureCheck = spawnSync("codesign", ["--verify", "--deep", "--strict", "--verbose=2", appRoot], {
+  cwd: root,
+  encoding: "utf8"
+});
+assert(
+  signatureCheck.status === 0,
+  `packaged app bundle signature is invalid\n${signatureCheck.stdout}\n${signatureCheck.stderr}`
+);
+
 const executable = fs.readFileSync(executablePath);
 const magic = executable.subarray(0, 4).toString("hex");
 assert(executable.subarray(0, 2).toString() !== "#!", "packaged executable must not be a shell script");

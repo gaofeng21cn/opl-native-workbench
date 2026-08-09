@@ -261,4 +261,5 @@ const manifest = {
 const manifestJson = JSON.stringify(manifest, null, 2);
 fs.writeFileSync(path.join(root, "out", "opl-native-workbench-candidate-manifest.json"), manifestJson);
 fs.writeFileSync(path.join(resourcesDir, "package-manifest.json"), manifestJson);
+runCommand("codesign", ["--force", "--sign", "-", appRoot], "ad-hoc sign candidate app bundle");
 console.log(JSON.stringify({ status: "candidate_app_bundle_built", app_bundle_path: manifest.app_bundle_path }, null, 2));
