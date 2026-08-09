@@ -131,10 +131,11 @@ const manifest = {
   app_bundle_manifest: "Contents/Resources/package-manifest.json",
   native_runtime: "AppKit/WKWebView",
   opens_default_browser: false,
+  carrier_policy: evidence.carrier_policy,
   primary_visual_reference: {
-    product: "ChatGPT Codex macOS",
-    version: "26.707.41301",
-    reference_date: "2026-07-11",
+    product: evidence.default_home_layout.primary_visual_reference.reference_product,
+    version: evidence.default_home_layout.primary_visual_reference.reference_version,
+    reference_date: evidence.default_home_layout.primary_visual_reference.reference_date,
     source_usage: "visual_and_interaction_reference_only_no_code_or_brand_copy",
     aligned_regions: [
       "persistent project and conversation rail",
@@ -144,6 +145,7 @@ const manifest = {
       "account-row Settings entry"
     ]
   },
+  visual_style_reference: evidence.default_home_layout.visual_style_reference,
   default_home_layout: {
     project_rail_visible: true,
     environment_details_default_open: false,
@@ -198,6 +200,7 @@ const manifest = {
     native_bridge: "WKScriptMessageHandler window.webkit.messageHandlers.oplNativeWorkbench",
     default_sandbox: "read-only",
     conversation_persistence: "codex_app_server_thread_id_resume_capable",
+    shared_thread_directory: evidence.functional_mvp.shared_thread_directory,
     acp_app_server_reuse_status: "implemented_with_codex_app_server_thread_turn_stream"
   },
   shared_renderer_entry: rendererBuild.entry,
@@ -228,7 +231,6 @@ const manifest = {
     "opl-project-attachments",
     "opl-project-chats",
     "opl-topbar-model-config",
-    "opl-assistant-artifact-card",
     "opl-selected-artifact-preview",
     "opl-session-list",
     "opl-real-thread-directory",

@@ -74,6 +74,12 @@ test("thread rail, lifecycle, and Codex subagent projection stay explicit", () =
   assert.match(app, /action === "fork"/);
   assert.match(app, /confirmed: true/);
   assert.match(app, /deriveThreadMessages/);
+  assert.match(app, /<Streamdown mode="static">/);
+  assert.doesNotMatch(app, /opl-assistant-artifact-card/);
+  assert.match(app, /bridge\.readThread\(\{ threadId: thread\.id, includeTurns: true \}\)/);
+  assert.doesNotMatch(app, /const resumed = thread\.status === "unloaded"/);
+  assert.match(app, /async function resumeThreadAndOpen/);
+  assert.match(app, /thread-read-error/);
   assert.match(app, /message\.subagent \? " subagent"/);
   assert.match(model, /"collabAgentToolCall" \| "subAgentActivity"/);
   assert.match(model, /type === "collabagenttoolcall"/);
@@ -100,26 +106,27 @@ test("native window chrome follows the compact Codex composition", () => {
   assert.match(nativeWindow, /dragView\.widthAnchor\.constraint\(equalToConstant: 164\)/);
   assert.match(nativeWindow, /dragView\.heightAnchor\.constraint\(equalToConstant: 18\)/);
   assert.match(nativeSmoke, /output\.includes\("brand=1"\)/);
-  assert.match(nativeSmoke, /output\.includes\("codex=0"\)/);
-  assert.match(nativeSmoke, /screenshot_absent_markers: \["Codex"\]/);
+  assert.doesNotMatch(nativeSmoke, /output\.includes\("codex=0"\)/);
+  assert.match(nativeSmoke, /global Codex project names are allowed/);
 });
 
 test("native visual tokens track the current ChatGPT Codex light workbench", () => {
   for (const marker of [
     "ChatGPT Codex macOS 26.707.61608 visual token baseline",
-    "--opl-sidebar-width: 336px",
+    "--opl-sidebar-width: 236px",
     '--opl-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     "--opl-canvas: #fff",
-    "--opl-sidebar: #f9f9f9",
-    "--opl-surface-secondary: #f3f3f3",
-    "--opl-text: #1a1c1f",
+    "--opl-sidebar: #f7f7f8",
+    "--opl-surface-secondary: #f4f4f4",
+    "--opl-text: #202123",
     "--opl-muted: color-mix(in oklab, var(--opl-text) 70%, transparent)",
     "--opl-faint: color-mix(in oklab, var(--opl-text) 50%, transparent)",
     "--opl-border: color-mix(in oklab, var(--opl-text) 8%, transparent)"
   ]) assert.ok(styles.includes(marker), `missing ChatGPT Codex visual token: ${marker}`);
-  assert.match(styles, /font-family: var\(--opl-font-sans\);\s*font-size: 14px;\s*font-weight: 430;\s*line-height: 1\.5;/s);
-  assert.match(styles, /\.composer-frame \{[^}]*border-radius: 20px;/s);
-  for (const legacyColor of ["#0d9488", "#e7f5f3", "#202123", "#f7f7f7", "#eeeeec", "#e9e9e7"]) {
+  assert.match(styles, /font-family: var\(--opl-font-sans\);\s*font-size: 13px;\s*font-weight: 400;\s*line-height: 1\.5;/s);
+  assert.match(styles, /\.composer-frame \{[^}]*border-radius: 17px;/s);
+  assert.match(styles, /\[hidden\] \{\s*display: none !important;/s);
+  for (const legacyColor of ["#0d9488", "#e7f5f3", "#f7f7f7", "#eeeeec", "#e9e9e7"]) {
     assert.ok(!styles.toLowerCase().includes(legacyColor), `legacy native palette color must stay removed: ${legacyColor}`);
   }
   assert.doesNotMatch(styles, /OpenAISans|OpenAI Sans|SF Pro Text|Helvetica Neue/);
@@ -146,6 +153,10 @@ test("desktop remains two-column and mobile thread dialogs are full-height", () 
   assert.match(styles, /grid-template-columns: var\(--opl-sidebar-width\) minmax\(0, 1fr\)/);
   assert.doesNotMatch(styles, /grid-template-columns:\s*var\(--opl-sidebar-width\)\s+minmax\(0, 1fr\)\s+\d/);
   assert.match(styles, /@media \(max-width: 760px\)/);
+  assert.match(rail, /project\.threads\.slice\(0, 2\)/);
+  assert.match(app, /conversation\.scrollTop = conversation\.scrollHeight/);
+  assert.match(app, /mobile\.addEventListener\?\.\("change", syncSidebar\)/);
+  assert.match(app, /aria-label=\{t\.capabilities\}/);
   assert.match(styles, /\.thread-detail-popover,\s*\.thread-confirmation-dialog \{\s*inset: 0;/s);
   assert.match(styles, /height: 100dvh/);
   assert.match(styles, /border-radius: 0/);

@@ -1,5 +1,7 @@
 import * as Tabs from "@radix-ui/react-tabs";
+import { Streamdown } from "streamdown";
 import {
+  Archive,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -8,7 +10,6 @@ import {
   Download,
   FileText,
   Folder,
-  MoreVertical,
   PanelLeft,
   PanelRightOpen,
   Plug,
@@ -440,7 +441,7 @@ function sessionStorage() {
 function readPersistedWorkbenchUi(): { metadata: WorkbenchUiMetadata; drafts: WorkbenchDrafts } {
   const storage = sessionStorage();
   const fallback = {
-    metadata: { threadScope: "current" as const },
+    metadata: { threadScope: "all" as const },
     drafts: { prompts: {} }
   };
   if (!storage) return fallback;
@@ -464,7 +465,7 @@ function readPersistedWorkbenchUi(): { metadata: WorkbenchUiMetadata; drafts: Wo
       metadata: {
         selectedProjectId: typeof metadata?.selectedProjectId === "string" ? metadata.selectedProjectId : undefined,
         selectedThreadId,
-        threadScope: metadata?.threadScope === "all" || metadata?.threadScope === "archived" ? metadata.threadScope : "current"
+        threadScope: metadata?.threadScope === "archived" ? "archived" : "all"
       },
       drafts: {
         prompts: drafts?.prompts && typeof drafts.prompts === "object" ? drafts.prompts : {}
@@ -513,6 +514,7 @@ function eventCompletedText(event: unknown): string {
 export function App() {
   const bridge = useMemo(() => createBrowserBridge(), []);
   const persistedUi = useMemo(() => readPersistedWorkbenchUi(), []);
+  const conversationRef = useRef<HTMLElement | null>(null);
   const pendingAssistantIdRef = useRef<string | null>(null);
   const messagesRef = useRef<ChatMessage[]>(createIntroMessages());
   const [model, setModel] = useState(initialWorkbenchModel);
@@ -561,9 +563,7 @@ export function App() {
     ?? threadProjects[0];
   const visibleThreadProjects = uiMetadata.threadScope === "archived"
     ? archivedThreadProjects
-    : uiMetadata.threadScope === "all"
-      ? threadProjects
-      : selectedProject ? [selectedProject] : [];
+    : threadProjects;
   const chatSessions = selectedProject?.threads ?? [];
   const contextStatusText = stateStatus === "loading"
     ? "Loading OPL App state..."
@@ -623,6 +623,25 @@ export function App() {
     messagesRef.current = messages;
   }, [messages]);
 
+  useEffect(() => {
+    const mobile = globalThis.matchMedia?.("(max-width: 760px)");
+    if (!mobile) return;
+    const syncSidebar = (event: MediaQueryListEvent | MediaQueryList) => {
+      if (event.matches) setSidebarOpen(false);
+    };
+    syncSidebar(mobile);
+    mobile.addEventListener?.("change", syncSidebar);
+    return () => mobile.removeEventListener?.("change", syncSidebar);
+  }, []);
+
+  useEffect(() => {
+    if (!codexThreadId || !messages.length) return;
+    globalThis.requestAnimationFrame?.(() => {
+      const conversation = conversationRef.current;
+      if (conversation) conversation.scrollTop = conversation.scrollHeight;
+    });
+  }, [codexThreadId, messages.length]);
+
   function updateUiMetadata(next: Partial<WorkbenchUiMetadata>) {
     setUiMetadata((current) => {
       const merged = { ...current, ...next };
@@ -673,16 +692,27 @@ export function App() {
     setSendState("idle");
     setSendError("");
     try {
-      const resumed = thread.status === "unloaded";
-      if (resumed) await bridge.resumeThread({ threadId: thread.id });
       const readback = await bridge.readThread({ threadId: thread.id, includeTurns: true });
       const nextMessages = deriveThreadMessages(readback);
       setMessages(nextMessages);
       messagesRef.current = nextMessages;
       setActiveView("chat");
       setThreadDetail(null);
-      if (resumed) await loadThreadDirectory(false);
       if (globalThis.matchMedia?.("(max-width: 760px)").matches) setSidebarOpen(false);
+    } catch (error) {
+      setThreadActionError(String(error));
+    } finally {
+      setThreadActionBusy(false);
+    }
+  }
+
+  async function resumeThreadAndOpen(thread: WorkbenchThreadItem) {
+    setThreadActionBusy(true);
+    setThreadActionError("");
+    try {
+      await bridge.resumeThread({ threadId: thread.id });
+      await openThread(thread);
+      await loadThreadDirectory(false);
     } catch (error) {
       setThreadActionError(String(error));
     } finally {
@@ -917,11 +947,15 @@ export function App() {
   }
 
   function startNewChat() {
+    const currentWorkspaceProject = threadProjects.find((project) => project.threads.some((thread) => thread.currentWorkspace));
     const nextMessages = createIntroMessages();
     messagesRef.current = nextMessages;
     setMessages(nextMessages);
     setCodexThreadId(undefined);
-    updateUiMetadata({ selectedThreadId: undefined });
+    updateUiMetadata({
+      selectedThreadId: undefined,
+      selectedProjectId: currentWorkspaceProject?.id ?? uiMetadata.selectedProjectId
+    });
     setPrompt(drafts.prompts.new ?? "");
     setPendingAction(null);
     setLastDryRun("No action preview yet.");
@@ -1043,6 +1077,7 @@ export function App() {
           <img src="branding/opl-app-logo.png" alt="One Person Lab App" />
           <span className="brand-lockup">
             <strong className="brand-mark">One Person Lab</strong>
+            <ChevronDown aria-hidden="true" size={13} />
           </span>
           <button className="icon-button sidebar-search" type="button" aria-label={settings.locale === "zh" ? "搜索对话" : "Search conversations"}>
             <Search aria-hidden="true" size={15} />
@@ -1063,11 +1098,40 @@ export function App() {
 
           <nav className="sidebar-primary" aria-label="Primary navigation">
             <button type="button" onClick={() => {
+              setActiveView("chat");
+              updateUiMetadata({ threadScope: "all" });
+            }}>
+              <Sparkles aria-hidden="true" size={15} />
+              {t.chat}
+            </button>
+            <button type="button" onClick={() => {
+              setInspectorOpen(true);
+              setActiveContextTab("opl-runtime-summary");
+            }}>
+              <RefreshCw aria-hidden="true" size={15} />
+              {t.runtimeMenu}
+            </button>
+            <button type="button" onClick={() => {
               setInspectorOpen(true);
               setActiveContextTab("opl-automations-panel");
             }}>
               <Clock3 aria-hidden="true" size={15} />
               {t.scheduled}
+            </button>
+            <button
+              type="button"
+              aria-current={uiMetadata.threadScope === "archived" ? "page" : undefined}
+              onClick={() => {
+                const threadScope = uiMetadata.threadScope === "archived" ? "all" : "archived";
+                updateUiMetadata({
+                  threadScope,
+                  selectedProjectId: threadScope === "archived" ? archivedThreadProjects[0]?.id : threadProjects[0]?.id
+                });
+                if (threadScope === "archived" && !archivedThreadProjects.length) void loadThreadDirectory(false, "archived");
+              }}
+            >
+              <Archive aria-hidden="true" size={15} />
+              {settings.locale === "zh" ? "已归档" : "Archived"}
             </button>
             <button type="button" onClick={() => {
               setInspectorOpen(true);
@@ -1076,15 +1140,14 @@ export function App() {
               <Plug aria-hidden="true" size={15} />
               {t.agents}
             </button>
-            <button type="button" onClick={() => setActiveView("chat")}>
-              <Sparkles aria-hidden="true" size={15} />
-              {t.chat}
-            </button>
           </nav>
 
-          <section className="sidebar-panel" aria-label="Current project">
+          <section className="sidebar-panel" aria-label="Codex projects and conversations">
             <div className="sidebar-section-head">
-              <strong>{t.projects}</strong>
+              <strong>{uiMetadata.threadScope === "archived" ? (settings.locale === "zh" ? "归档对话" : "Archived conversations") : t.projects}</strong>
+              <button className="sidebar-section-search" type="button" aria-label={settings.locale === "zh" ? "搜索对话" : "Search conversations"}>
+                <Search aria-hidden="true" size={14} />
+              </button>
             </div>
             <div data-testid="opl-project-chats">
               <div data-testid="opl-session-list">
@@ -1112,7 +1175,7 @@ export function App() {
                   }}
                   onSelectProject={(selectedProjectId) => updateUiMetadata({
                     selectedProjectId,
-                    threadScope: uiMetadata.threadScope === "all" ? "current" : uiMetadata.threadScope
+                    threadScope: uiMetadata.threadScope
                   })}
                   onSelectThread={(thread) => void openThread(thread)}
                   onOpenDetail={setThreadDetail}
@@ -1120,7 +1183,7 @@ export function App() {
               </div>
             </div>
 
-            {uiMetadata.threadScope !== "archived" ? (
+            {uiMetadata.threadScope !== "archived" && selectedProject ? (
               <div className="current-project-context">
                 <div className="project-root" aria-label={currentProject}>
                   <Folder aria-hidden="true" size={15} />
@@ -1193,6 +1256,7 @@ export function App() {
             <button
               className="icon-button"
               data-testid="opl-export-action"
+              hidden
               type="button"
               aria-label={t.previewExport}
               disabled={!exportAction}
@@ -1202,7 +1266,7 @@ export function App() {
             >
               <Download aria-hidden="true" size={15} />
             </button>
-            <button className="icon-button" type="button" aria-label={t.refreshContext} onClick={() => void loadState(settings.runtimeProfile)}>
+            <button className="icon-button" hidden type="button" aria-label={t.refreshContext} onClick={() => void loadState(settings.runtimeProfile)}>
               <RefreshCw aria-hidden="true" size={15} />
             </button>
             {activeView === "settings" ? (
@@ -1226,7 +1290,7 @@ export function App() {
         </header>
 
         {activeView === "chat" ? (
-          <section className="conversation">
+          <section className="conversation" ref={conversationRef}>
             <div className="conversation-inner">
               <section
                 data-testid="opl-workbench-delivery-mode"
@@ -1256,6 +1320,9 @@ export function App() {
               </section>
 
               <div className="thread">
+                {threadActionError ? (
+                  <p className="thread-read-error" role="alert">{threadActionError}</p>
+                ) : null}
                 <section className="thread-intro" aria-label="Conversation guidance">
                   <span className="thread-note">{sidebarSources.length} project materials loaded</span>
                   <span className="thread-note">Preview and export actions require confirmation</span>
@@ -1289,11 +1356,13 @@ export function App() {
                     data-testid={message.role === "assistant" ? "opl-conversation-event" : undefined}
                     className={`message ${message.role}${message.subagent ? " subagent" : ""}`}
                   >
-                    {message.role === "user" ? <span className="message-label">{t.you}</span> : null}
-                    {message.role === "assistant" ? <span className="message-label">{t.assistant}</span> : null}
                     {message.role === "system" ? <span className="message-label">{message.subagent ? (settings.locale === "zh" ? "子智能体" : "Subagent") : t.runtime}</span> : null}
                     <div className="message-frame">
-                      <p>{message.text || (sendState === "running" ? t.codexWorking : t.waitingReply)}</p>
+                      {message.role === "assistant" ? (
+                        <Streamdown mode="static">{message.text || (sendState === "running" ? t.codexWorking : t.waitingReply)}</Streamdown>
+                      ) : (
+                        <p>{message.text || (sendState === "running" ? t.codexWorking : t.waitingReply)}</p>
+                      )}
                     </div>
                     {message.role === "assistant" && index === messages.length - 1 && sendState === "running" ? (
                       <div className="run-events" aria-label="Current run events">
@@ -1301,28 +1370,6 @@ export function App() {
                           <span className="run-event" key={`${item}-${eventIndex}`}>{item}</span>
                         ))}
                       </div>
-                    ) : null}
-                    {message.role === "assistant" && index === messages.length - 1 && Boolean(message.text) ? (
-                      <section data-testid="opl-assistant-artifact-card" className="assistant-artifact-card" aria-label="Draft artifact">
-                        <header>
-                          <FileText aria-hidden="true" size={16} />
-                          <strong>{selectedPreview?.label ?? t.currentPreview}</strong>
-                          <button type="button" onClick={() => {
-                            setInspectorOpen(true);
-                            setActiveContextTab("opl-artifact-preview-tabs");
-                            setSelectedPreviewId(selectedPreview?.id);
-                          }}>
-                            {t.openPreview}
-                          </button>
-                          <MoreVertical aria-hidden="true" size={16} />
-                        </header>
-                        <footer>
-                          <span>{t.workflowRun}</span>
-                          {t.workflowSteps.map((step) => (
-                            <span key={step} className="progress-chip">✓ {step}</span>
-                          ))}
-                        </footer>
-                      </section>
                     ) : null}
                     <span className="message-meta">
                       {message.role === "user"
@@ -1358,6 +1405,7 @@ export function App() {
                         className="composer-control"
                         data-accent="true"
                         type="button"
+                        aria-label={t.capabilities}
                         onClick={() => {
                           setInspectorOpen(true);
                           setActiveContextTab("opl-package-lifecycle-panel");
@@ -1874,7 +1922,7 @@ export function App() {
         locale={settings.locale}
         busy={threadActionBusy}
         onClose={() => setThreadDetail(null)}
-        onResume={(thread) => void openThread(thread)}
+        onResume={(thread) => void resumeThreadAndOpen(thread)}
         onFork={(thread) => void forkThread(thread)}
         onRequestArchive={(thread, archived) => {
           setLifecycleConfirmation({ thread, action: archived ? "archive" : "unarchive" });

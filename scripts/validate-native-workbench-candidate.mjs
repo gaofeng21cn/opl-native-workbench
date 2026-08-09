@@ -83,7 +83,6 @@ const requiredTestIds = [
   "opl-project-attachments",
   "opl-project-chats",
   "opl-topbar-model-config",
-  "opl-assistant-artifact-card",
   "opl-selected-artifact-preview",
   "opl-session-list",
   "opl-context-tabs",
@@ -144,6 +143,15 @@ assert(
   "candidate profile must keep Native independent from AionCore"
 );
 assert(
+  JSON.stringify(nativeProfile.carrier_policy?.enabled) === JSON.stringify(["codex_app_server_stdio"])
+    && JSON.stringify(nativeProfile.carrier_policy?.reserved_disabled) === JSON.stringify(["pi", "hermes"])
+    && nativeProfile.carrier_policy.disabled_carriers_add_runtime_dependencies === false
+    && nativeProfile.carrier_policy.thread_store_owner === "codex_core_app_server"
+    && nativeProfile.carrier_policy.thread_overview.includes("useStateDbOnly=true")
+    && nativeProfile.carrier_policy.thread_history.includes("includeTurns=true"),
+  "candidate profile must keep Codex as the only enabled carrier and reserve Pi/Hermes without dependencies"
+);
+assert(
   !Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).some((name) => name.toLowerCase().includes("aioncore")),
   "candidate package must not declare an AionCore dependency"
 );
@@ -151,6 +159,13 @@ assert(
 const app = read("src/workbench/App.tsx");
 const rendererSource = readRendererSource();
 const evidence = readJson("src/candidateContractEvidence.json");
+assert(
+  JSON.stringify(evidence.carrier_policy?.enabled) === JSON.stringify(["codex_app_server_stdio"])
+    && JSON.stringify(evidence.carrier_policy?.reserved_disabled) === JSON.stringify(["pi", "hermes"])
+    && evidence.carrier_policy.aioncore_required === false
+    && evidence.carrier_policy.disabled_carriers_add_runtime_dependencies === false,
+  "candidate evidence must record the single enabled Codex carrier boundary"
+);
 
 function assertFunctionalMvpCloseout(evidence) {
   const closeout = evidence.functional_mvp_closeout;
@@ -236,10 +251,10 @@ function assertCodexJuly2026Alignment(evidence, app) {
   const activePlan = read("docs/active/current-state-vs-ideal-gap.md");
   const publicEntry = read("README.md");
   const normalizedHistory = history.replace(/\s+/g, " ");
-  assert(alignment, "missing ChatGPT Codex July 2026 alignment evidence");
+  assert(alignment, "missing current ChatGPT Codex alignment evidence");
   assert(alignment.reference_product === "ChatGPT Codex macOS", "Codex reference product must be recorded");
-  assert(alignment.reference_version === "26.707.41301", "Codex reference version must be recorded");
-  assert(alignment.reference_date === "2026-07-11", "Codex reference date must be recorded");
+  assert(alignment.reference_version === "26.707.61608", "Codex reference version must be recorded");
+  assert(alignment.reference_date === "2026-08-09", "Codex reference date must be recorded");
   assert(alignment.left_side === "persistent project and conversation rail", "Codex project rail placement must be recorded");
   assert(alignment.center === "single dominant conversation timeline with bottom composer", "Codex conversation placement must be recorded");
   assert(alignment.model_controls === "composer_bottom_row", "model controls must stay in the composer");
@@ -249,14 +264,14 @@ function assertCodexJuly2026Alignment(evidence, app) {
   assert(evidence.webui_parity?.desktop_and_webui_default_home === "chat_first_default_collapsed", "desktop and WebUI must share the chat-first default-collapsed home");
   assert(normalizedHistory.includes("ChatGPT Codex macOS 26.707.41301") && normalizedHistory.includes("2026-07-11"), "history must record the Codex reference build and date");
   assert(visualStyle?.reference_version === "26.707.61608", "current Codex visual style version must be recorded");
-  assert(visualStyle?.reference_date === "2026-07-13", "current Codex visual style date must be recorded");
-  assert(visualStyle?.palette?.canvas === "#fff" && visualStyle.palette.sidebar === "#f9f9f9", "current Codex light surfaces must be recorded");
-  assert(visualStyle?.palette?.text === "#1a1c1f" && visualStyle.palette.border_mix === "8%", "current Codex text and border tokens must be recorded");
-  assert(visualStyle?.typography?.base_size === "14px" && visualStyle.typography.ordinary_weight === 430, "current Codex typography must be recorded");
-  assert(visualStyle?.desktop_sidebar_width === "336px", "current Codex desktop rail width must be recorded");
+  assert(visualStyle?.reference_date === "2026-08-09", "current Codex visual style date must be recorded");
+  assert(visualStyle?.palette?.canvas === "#fff" && visualStyle.palette.sidebar === "#f7f7f8", "current Codex light surfaces must be recorded");
+  assert(visualStyle?.palette?.text === "#202123" && visualStyle.palette.border_mix === "8%", "current Codex text and border tokens must be recorded");
+  assert(visualStyle?.typography?.base_size === "13px" && visualStyle.typography.ordinary_weight === 400, "current Codex typography must be recorded");
+  assert(visualStyle?.desktop_sidebar_width === "236px", "current Codex desktop rail width must be recorded");
   assert(visualStyle?.font_asset_policy === "match_system_workbench_stack_without_copying_or_redistributing_openai_sans_font_binaries", "OpenAI Sans binaries must remain outside the candidate package");
   assert(normalizedHistory.includes("26.707.61608") && normalizedHistory.includes("2026-07-13") && normalizedHistory.includes("OpenAI Sans font binary"), "history must record the visual reference and font boundary");
-  for (const marker of ["--opl-sidebar-width: 336px", "--opl-sidebar: #f9f9f9", "--opl-text: #1a1c1f", "font-size: 14px", "font-weight: 430"]) {
+  for (const marker of ["--opl-sidebar-width: 236px", "--opl-sidebar: #f7f7f8", "--opl-text: #202123", "font-size: 13px", "font-weight: 400"]) {
     assert(styles.includes(marker), `missing current Codex visual style marker ${marker}`);
   }
   assert(architecture.includes("Model And Settings Boundary") && architecture.includes("App product profile"), "architecture must route model and settings authority to App");

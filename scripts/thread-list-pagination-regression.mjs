@@ -12,6 +12,9 @@ assert(bootstrapIndex >= 0, "native bootstrap marker");
 
 for (const marker of [
   'method: "thread/list"',
+  '"useStateDbOnly": true',
+  '"sortKey": "updated_at"',
+  '"sortDirection": "desc"',
   'method: "thread/read"',
   'method: "thread/resume"',
   'method: "thread/fork"',

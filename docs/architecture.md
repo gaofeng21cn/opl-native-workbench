@@ -46,6 +46,12 @@ This independence is a carrier property, not a second product or runtime
 authority. Codex still owns thread/turn truth, Framework still owns OPL
 state/actions, and App contracts still own product behavior.
 
+Codex App Server over stdio is the only enabled carrier. `pi` and `hermes` are
+reserved disabled identifiers only: they add no source implementation, package
+dependency, runtime process, fallback route, or visible setting. A later carrier
+must implement the existing bridge shape and receive a separate App owner
+decision; it must not weaken the current Codex path.
+
 ## App And Framework Boundary
 
 Ordinary state reads use:
@@ -78,6 +84,13 @@ Desktop and WebUI use one standard adapter for `thread/list`, `thread/read`,
 `parentThreadId`, `agentRole`, `agentNickname`, subagent source kinds,
 `collabAgentToolCall`, and `subAgentActivity` are read-only Codex projections;
 the candidate does not infer or own subagent scheduling.
+
+The default directory reads the Codex state DB overview through
+`thread/list { useStateDbOnly: true, sortKey: "updated_at", sortDirection:
+"desc" }`. Opening a conversation performs a read-only
+`thread/read { threadId, includeTurns: true }` against the same canonical thread
+ID. It does not import, copy, synchronize, or rewrite Codex history. Resume is
+an explicit lifecycle action and is not required merely to view history.
 
 The retired private cross-thread layer is not an adapter or product capability.
 Native has no separate proposal/dispatch/wait protocol, host queue, delivery

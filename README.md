@@ -25,6 +25,13 @@ Native has no AionCore runtime dependency. The packaged macOS host starts Codex
 App Server directly from `OPL_CODEX_BIN` or an exact external Codex executable,
 while OPL state and mutations remain behind Framework `opl app state/action`
 contracts. It does not package or read AionCore manifests, sessions, or data.
+Codex App Server stdio is the only enabled carrier; `pi` and `hermes` are
+reserved disabled interface names and add no current code path or dependency.
+
+The conversation directory is not a Native copy. It reads the canonical Codex
+state DB overview with `thread/list useStateDbOnly=true`, then opens the same
+thread ID with `thread/read includeTurns=true`. Native stores only UI selection,
+settings, and unsent drafts locally.
 
 ## What You Can Evaluate
 

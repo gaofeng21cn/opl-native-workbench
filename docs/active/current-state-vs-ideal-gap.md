@@ -31,7 +31,10 @@ owner decision and corresponding App contract delta.
 | Mainline obligation | `false` | Native gaps do not enter required App backlog or release gates |
 | Renderer/hosts | `source_implemented_candidate_evidence` | Native and WebUI target one renderer/bridge shape; live equivalence is not proven |
 | AionCore dependency | `false` | Native starts Codex App Server directly and consumes only Framework App state/action contracts |
+| Enabled carrier | `codex_app_server_stdio` | The candidate has one runtime carrier and one App Server child per window |
+| Reserved carriers | `pi`, `hermes` disabled | Interface names only; no dependency, process, fallback, or UI path is enabled |
 | Thread/history | `codex_app_server_owned` | Candidate consumes thread/turn APIs and keeps only UI metadata/drafts locally |
+| Shared directory | `codex_state_db_overview` | Uses `thread/list useStateDbOnly=true` and opens history by the same canonical thread ID |
 | Codex subagents | `read_only_app_server_projection` | Lineage, role, nickname, source kind, tool-call, and activity items are displayed without owning scheduling |
 | Private cross-thread layer | `removed_non_goal` | No proposal/dispatch/wait protocol, host queue, ledger, bilateral receipt, or dynamic-tool bridge remains |
 | OPL state/actions | `app_framework_consumer` | Reads App state and dispatches owner action refs; no internal-state or package-truth ownership |

@@ -82,7 +82,6 @@ for (const marker of [
   'opl-thread-detail-popover',
   'opl-thread-lifecycle-confirmation',
   'opl-topbar-model-config',
-  'opl-assistant-artifact-card',
   'opl-selected-artifact-preview',
   'opl-artifact-preview-tabs',
   'opl-provenance-drawer',
@@ -195,10 +194,17 @@ assert(manifest.launcher_runtime_resolution?.direct_launch_fallback === "host_pa
 assert(manifest.candidate_mutation_policy?.launcher_default === "dry_run_only", "Candidate launcher must default actions to dry-run only");
 assert(manifest.candidate_mutation_policy?.blocked_receipt_kind === "blocked_read_only", "Candidate package must record the typed read-only blocker");
 assert(manifest.native_runtime === "AppKit/WKWebView", "native runtime must be AppKit/WKWebView");
+assert(JSON.stringify(manifest.carrier_policy?.enabled) === JSON.stringify(["codex_app_server_stdio"]), "package must enable only the Codex stdio carrier");
+assert(JSON.stringify(manifest.carrier_policy?.reserved_disabled) === JSON.stringify(["pi", "hermes"]), "package must reserve Pi/Hermes as disabled carriers only");
+assert(manifest.carrier_policy?.aioncore_required === false, "package must not require AionCore");
+assert(manifest.carrier_policy?.disabled_carriers_add_runtime_dependencies === false, "disabled carriers must add no package dependency");
+assert(manifest.carrier_policy?.thread_overview?.includes("useStateDbOnly=true"), "package must record the canonical Codex state DB overview");
 assert(manifest.opens_default_browser === false, "candidate app must not open the default browser");
 assert(manifest.app_bundle_workbench === "Contents/Resources/workbench.html", "manifest must point at workbench.html");
 assert(manifest.primary_visual_reference?.product === "ChatGPT Codex macOS", "manifest must record ChatGPT Codex as the primary visual reference");
-assert(manifest.primary_visual_reference?.version === "26.707.41301", "manifest must record the current Codex reference version");
+assert(manifest.primary_visual_reference?.version === "26.707.61608", "manifest must record the current Codex reference version");
+assert(manifest.primary_visual_reference?.reference_date === "2026-08-09", "manifest must record the current Codex visual inspection date");
+assert(manifest.visual_style_reference?.desktop_sidebar_width === "236px", "manifest must record the current Codex sidebar density");
 assert(manifest.primary_visual_reference?.source_usage === "visual_and_interaction_reference_only_no_code_or_brand_copy", "manifest must keep Codex reference use visual-only");
 assert(manifest.default_home_layout?.project_rail_visible === true, "manifest must keep the project rail visible by default");
 assert(manifest.default_home_layout?.environment_details_default_open === false, "manifest must keep environment details closed by default");

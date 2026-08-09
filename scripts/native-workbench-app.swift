@@ -8,6 +8,50 @@ struct CommandResult {
   let timedOut: Bool
 }
 
+func externalExecutableCandidates(
+  name: String,
+  explicitEnvironmentKeys: [String],
+  environment: [String: String] = ProcessInfo.processInfo.environment,
+  homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+) -> [String] {
+  let explicit = explicitEnvironmentKeys.compactMap { key -> String? in
+    guard let value = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+      return nil
+    }
+    return value
+  }
+  let configuredCodexHome = environment["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+  let codexHome = (configuredCodexHome?.isEmpty == false ? configuredCodexHome : nil)
+    ?? homeDirectory.appendingPathComponent(".codex").path
+  let managed = name == "codex" ? [
+    URL(fileURLWithPath: codexHome).appendingPathComponent("packages/standalone/current/codex").path,
+    homeDirectory.appendingPathComponent("Library/Application Support/OPL/runtime/current/bin/codex").path,
+    homeDirectory.appendingPathComponent(".local/bin/codex").path
+  ] : [
+    homeDirectory.appendingPathComponent(".local/bin/\(name)").path
+  ]
+  let standard = ["/opt/homebrew/bin/\(name)", "/usr/local/bin/\(name)"]
+  let pathCandidates = (environment["PATH"] ?? "")
+    .split(separator: ":")
+    .map { URL(fileURLWithPath: String($0)).appendingPathComponent(name).path }
+  return Array(NSOrderedSet(array: explicit + managed + standard + pathCandidates)) as? [String] ?? []
+}
+
+func resolveExternalExecutable(
+  name: String,
+  explicitEnvironmentKeys: [String],
+  environment: [String: String] = ProcessInfo.processInfo.environment,
+  homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+  isExecutable: (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }
+) -> String? {
+  externalExecutableCandidates(
+    name: name,
+    explicitEnvironmentKeys: explicitEnvironmentKeys,
+    environment: environment,
+    homeDirectory: homeDirectory
+  ).first(where: isExecutable)
+}
+
 final class CommandOutputBuffer: @unchecked Sendable {
   private let lock = NSLock()
   private var data = Data()
@@ -33,8 +77,12 @@ func runNativeCommand(
   environment: [String: String] = ProcessInfo.processInfo.environment
 ) -> CommandResult {
   let process = Process()
-  if args.first == "opl", let configured = environment["OPL_APP_OPL_BIN"], !configured.isEmpty {
-    process.executableURL = URL(fileURLWithPath: configured)
+  if args.first == "opl", let executable = resolveExternalExecutable(
+    name: "opl",
+    explicitEnvironmentKeys: ["OPL_APP_OPL_BIN"],
+    environment: environment
+  ) {
+    process.executableURL = URL(fileURLWithPath: executable)
     process.arguments = Array(args.dropFirst())
   } else {
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -183,6 +231,7 @@ final class CodexAppServerClient {
   private let lock = NSLock()
   private let writeLock = NSLock()
   private let turnLock = NSLock()
+  private let initializationLock = NSLock()
   var onEvent: (([String: Any]) -> Void)?
 
   init(workspaceRoot: URL) {
@@ -398,6 +447,8 @@ final class CodexAppServerClient {
   }
 
   private func ensureInitialized() throws {
+    initializationLock.lock()
+    defer { initializationLock.unlock() }
     if initialized, process?.isRunning == true { return }
     initialized = false
     try startProcess()
@@ -465,8 +516,11 @@ final class CodexAppServerClient {
   private func startProcess() throws {
     if process?.isRunning == true { return }
     let process = Process()
-    if let configured = ProcessInfo.processInfo.environment["OPL_CODEX_BIN"], !configured.isEmpty {
-      process.executableURL = URL(fileURLWithPath: configured)
+    if let executable = resolveExternalExecutable(
+      name: "codex",
+      explicitEnvironmentKeys: ["OPL_CODEX_BIN", "CODEX_CLI_PATH", "CODEX_BIN"]
+    ) {
+      process.executableURL = URL(fileURLWithPath: executable)
       process.arguments = ["app-server", "--stdio"]
     } else {
       process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -717,7 +771,11 @@ final class CodexThreadAdapter {
   }
 
   private func listThreads(_ payload: [String: Any]) throws -> [String: Any] {
-    var params: [String: Any] = [:]
+    var params: [String: Any] = [
+      "useStateDbOnly": true,
+      "sortKey": "updated_at",
+      "sortDirection": "desc"
+    ]
     if let archived = payload["archived"] as? Bool { params["archived"] = archived }
     let workspaceFilter: [String]
     if let workspace = payload["workspace"] as? String, !workspace.isEmpty {
@@ -827,13 +885,16 @@ final class CodexThreadAdapter {
 final class NativeBridge: NSObject, WKScriptMessageHandler {
   weak var webView: WKWebView?
   private let workspaceRoot: URL
-  private lazy var appServer = CodexAppServerClient(workspaceRoot: workspaceRoot)
-  private lazy var threadAdapter = CodexThreadAdapter(appServer: appServer, workspaceRoot: workspaceRoot)
+  private let appServer: CodexAppServerClient
+  private let threadAdapter: CodexThreadAdapter
 
   init(workspaceRoot: URL) {
     self.workspaceRoot = workspaceRoot
+    let appServer = CodexAppServerClient(workspaceRoot: workspaceRoot)
+    self.appServer = appServer
+    self.threadAdapter = CodexThreadAdapter(appServer: appServer, workspaceRoot: workspaceRoot)
     super.init()
-    self.appServer.onEvent = { [weak self] event in
+    appServer.onEvent = { [weak self] event in
       self?.emit(event: event)
     }
   }
@@ -1124,7 +1185,7 @@ final class WindowDragView: NSView {
   }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
   private var window: NSWindow?
   private var webView: WKWebView?
   private var bridge: NativeBridge?
@@ -1149,6 +1210,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     let webView = WKWebView(frame: .zero, configuration: configuration)
+    webView.navigationDelegate = self
     bridge.webView = webView
     webView.loadFileURL(workbenchURL, allowingReadAccessTo: resourcesURL)
 
@@ -1189,6 +1251,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     self.webView = webView
     self.window = window
     NSApp.activate(ignoringOtherApps: true)
+  }
+
+  func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    guard ProcessInfo.processInfo.environment["OPL_NATIVE_WORKBENCH_SMOKE"] == "1" else { return }
+    let smokePath = ProcessInfo.processInfo.environment["OPL_NATIVE_WORKBENCH_SMOKE_RESULT"] ?? ""
+    guard !smokePath.isEmpty else { return }
+    let script = """
+    return await (async () => {
+      const surface = window.oplNativeWorkbench;
+      if (!surface) throw new Error("native bridge unavailable");
+      const listed = await surface.listThreads({ archived: false, limit: 100 });
+      const first = Array.isArray(listed?.data) ? listed.data.find((thread) => thread?.id) : null;
+      if (!first) throw new Error("canonical thread directory is empty");
+      const read = await surface.readThread({ threadId: first.id, includeTurns: true });
+      return JSON.stringify({
+        status: "passed",
+        threadListCount: listed.data.length,
+        threadId: read.id,
+        threadTitle: read.summary || read.name || read.preview || "",
+        turnCount: Array.isArray(read.turns) ? read.turns.length : 0,
+        historyRead: Array.isArray(read.turns),
+        bridgeTransport: surface.eventSourceUrl
+      });
+    })()
+    """
+    webView.callAsyncJavaScript(script, arguments: [:], in: nil, in: .page) { result in
+      let payload: [String: Any]
+      switch result {
+      case .success(let value):
+        if let raw = value as? String,
+           let data = raw.data(using: .utf8),
+           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+          payload = parsed
+        } else {
+          payload = ["status": "failed", "error": "invalid smoke payload"]
+        }
+      case .failure(let error):
+        payload = ["status": "failed", "error": String(describing: error)]
+      }
+      guard JSONSerialization.isValidJSONObject(payload),
+            let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]) else { return }
+      try? data.write(to: URL(fileURLWithPath: smokePath), options: .atomic)
+    }
   }
 
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

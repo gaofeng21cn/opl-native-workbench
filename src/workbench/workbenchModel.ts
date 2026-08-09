@@ -543,7 +543,7 @@ export function deriveThreadDirectory(value: unknown): WorkbenchProjectGroup[] {
   const groups = new Map<string, WorkbenchProjectGroup>();
 
   for (const thread of uniqueThreads) {
-    const hasProject = Boolean(thread.projectKey || thread.projectId || thread.projectLabel);
+    const hasProject = Boolean(thread.projectKey || thread.projectId || thread.projectLabel || thread.workspace);
     const projectKey = thread.projectKey
       ? `project:${thread.projectKey}`
       : thread.projectId
@@ -555,7 +555,7 @@ export function deriveThreadDirectory(value: unknown): WorkbenchProjectGroup[] {
     const group = groups.get(projectKey) ?? {
       id: projectKey,
       label: projectless
-        ? thread.workspace ? `No project / ${pathLabel(thread.workspace)}` : "No project"
+        ? "No project"
         : thread.projectLabel ?? thread.projectKey ?? (thread.workspace ? pathLabel(thread.workspace) : thread.projectId ?? "Project"),
       workspace: thread.workspace,
       projectless,
@@ -570,7 +570,13 @@ export function deriveThreadDirectory(value: unknown): WorkbenchProjectGroup[] {
       ...group,
       threads: group.threads.sort((left, right) => (right.updatedAt ?? "").localeCompare(left.updatedAt ?? ""))
     }))
-    .sort((left, right) => Number(left.projectless) - Number(right.projectless) || left.label.localeCompare(right.label));
+    .sort((left, right) => {
+      const leftUpdated = left.threads[0]?.updatedAt ?? "";
+      const rightUpdated = right.threads[0]?.updatedAt ?? "";
+      return Number(left.projectless) - Number(right.projectless)
+        || rightUpdated.localeCompare(leftUpdated)
+        || left.label.localeCompare(right.label);
+    });
 }
 
 function textFromContent(value: unknown): string {

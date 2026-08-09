@@ -1,4 +1,4 @@
-import { Folder, FolderOpen, Inbox, MessageSquare, MoreHorizontal } from "lucide-react";
+import { Folder, FolderOpen, Inbox, MoreHorizontal } from "lucide-react";
 import type { WorkbenchProjectGroup, WorkbenchThreadItem } from "../workbenchModel";
 
 type ThreadRailProps = {
@@ -14,18 +14,6 @@ type ThreadRailProps = {
   onSelectThread: (thread: WorkbenchThreadItem) => void;
   onOpenDetail: (thread: WorkbenchThreadItem) => void;
 };
-
-function threadTimestamp(value: string | undefined, locale: "zh" | "en"): string {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString(locale === "zh" ? "zh-CN" : "en-US", {
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
 
 export function ThreadRail({
   projects,
@@ -46,16 +34,16 @@ export function ThreadRail({
 
   return (
     <div data-testid="opl-real-thread-directory" className="project-directory">
-      <div data-testid="opl-thread-scope-filter" className="thread-scope-filter" role="group" aria-label="Thread scope">
-        {(["current", "all", "archived"] as const).map((item) => (
-          <button key={item} type="button" data-active={scope === item} onClick={() => onScopeChange(item)}>{copy[item]}</button>
-        ))}
+      <div data-testid="opl-thread-scope-filter" className="thread-scope-filter" role="group" aria-label="Thread scope" hidden>
+        <button type="button" data-active={scope === "all"} onClick={() => onScopeChange("all")}>{copy.all}</button>
+        <button type="button" data-active={scope === "archived"} onClick={() => onScopeChange("archived")}>{copy.archived}</button>
       </div>
       {loading ? <p className="thread-directory-state">{copy.loading}</p> : null}
       {error ? <p className="thread-directory-state error" title={error}>{copy.unavailable}</p> : null}
       {!loading && !error && !projects.length ? <p className="thread-directory-state">{copy.empty}</p> : null}
       {projects.map((project) => {
         const selected = project.id === selectedProjectId;
+        const visibleThreads = selected ? project.threads : project.threads.slice(0, 2);
         const ProjectIcon = project.projectless ? Inbox : selected ? FolderOpen : Folder;
         return (
           <section className="project-directory-group" key={project.id} data-projectless={project.projectless || undefined}>
@@ -64,23 +52,24 @@ export function ThreadRail({
               <strong>{project.projectless
                 ? `${copy.noProject}${project.workspace ? ` / ${project.workspace.split("/").filter(Boolean).at(-1) ?? project.workspace}` : ""}`
                 : project.label}</strong>
-              <span className="project-device">{project.threads.length}</span>
             </button>
 
-            {selected ? (
+            {visibleThreads.length ? (
               <div className="project-children">
                 <section className="history-list" aria-label="Current project threads">
                   <ol>
-                    {project.threads.map((thread) => (
+                    {visibleThreads.map((thread) => (
                       <li key={thread.id} className={thread.id === selectedThreadId ? "active" : undefined}>
                         <div className="thread-directory-row">
-                          <button type="button" className="thread-directory-open" onClick={() => onSelectThread(thread)}>
-                            <MessageSquare aria-hidden="true" size={13} />
+                          <button
+                            type="button"
+                            className="thread-directory-open"
+                            title={(thread.agentNickname ?? thread.agentRole ?? thread.preview) || thread.status}
+                            onClick={() => onSelectThread(thread)}
+                          >
                             <span className="thread-directory-copy">
                               <strong>{thread.title}</strong>
-                              <small>{(thread.agentNickname ?? thread.agentRole ?? thread.preview) || thread.status}</small>
                             </span>
-                            <time>{threadTimestamp(thread.updatedAt, locale)}</time>
                           </button>
                           <button
                             data-testid="opl-thread-detail-trigger"

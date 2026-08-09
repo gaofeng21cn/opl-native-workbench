@@ -17,7 +17,15 @@ struct ThreadListPaginationRegression {
     ]
     var cursors: [String?] = []
     var index = 0
-    let result = try collectCodexThreadListPages(initialParams: ["archived": false]) { params in
+    let result = try collectCodexThreadListPages(initialParams: [
+      "archived": false,
+      "useStateDbOnly": true,
+      "sortKey": "updated_at",
+      "sortDirection": "desc"
+    ]) { params in
+      try threadListRequire(params["useStateDbOnly"] as? Bool == true, "thread/list must use the canonical state database overview")
+      try threadListRequire(params["sortKey"] as? String == "updated_at", "thread/list must sort by canonical updated_at")
+      try threadListRequire(params["sortDirection"] as? String == "desc", "thread/list must show newest threads first")
       cursors.append(params["cursor"] as? String)
       defer { index += 1 }
       return pages[index]

@@ -47,6 +47,19 @@
     "codex_app_server_source": "OPL_CODEX_BIN_or_exact_external_codex",
     "opl_integration": "framework_app_state_action_contracts_only"
   },
+  "carrier_policy": {
+    "enabled": [
+      "codex_app_server_stdio"
+    ],
+    "reserved_disabled": [
+      "pi",
+      "hermes"
+    ],
+    "disabled_carriers_add_runtime_dependencies": false,
+    "thread_overview": "thread/list useStateDbOnly=true sortKey=updated_at sortDirection=desc",
+    "thread_history": "thread/read includeTurns=true by canonical Codex thread id",
+    "thread_store_owner": "codex_core_app_server"
+  },
   "schema": "opl_native_profile.v1",
   "taxonomy_dirs": [
     "docs/active",

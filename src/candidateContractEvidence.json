@@ -5,6 +5,9 @@
     "codex_cli_fixed_executor_home",
     "native_wkwebview_command_bridge",
     "codex_app_server_thread_turn_backend",
+    "codex_state_db_shared_thread_overview",
+    "single_enabled_codex_carrier",
+    "reserved_disabled_pi_hermes_carriers",
     "native_react_workbench_renderer",
     "opl_app_event_contract_map",
     "purpose_first_home_entries",
@@ -69,6 +72,20 @@
     "full_drilldown": "opl runtime app-operator-drilldown --detail full --json",
     "action": "opl app action execute --action <action_id> [--payload json] [--dry-run] --json"
   },
+  "carrier_policy": {
+    "enabled": [
+      "codex_app_server_stdio"
+    ],
+    "reserved_disabled": [
+      "pi",
+      "hermes"
+    ],
+    "aioncore_required": false,
+    "disabled_carriers_add_runtime_dependencies": false,
+    "thread_overview": "thread/list useStateDbOnly=true sortKey=updated_at sortDirection=desc",
+    "thread_history": "thread/read includeTurns=true by canonical Codex thread id",
+    "thread_store_owner": "codex_core_app_server"
+  },
   "functional_mvp": {
     "codex_app_server_thread_turn": true,
     "codex_command": "codex app-server --stdio",
@@ -79,6 +96,7 @@
     "native_bridge": "WKScriptMessageHandler window.webkit.messageHandlers.oplNativeWorkbench",
     "default_sandbox": "read-only",
     "conversation_persistence": "codex_app_server_thread_history_authority_with_local_ui_metadata_and_drafts_only",
+    "shared_thread_directory": "canonical Codex state DB overview via thread/list useStateDbOnly=true sorted by updated_at desc; history opens read-only by the same thread id with includeTurns=true",
     "settings_persistence": "localStorage model with SETTINGS_STORAGE_KEY, settingsDefaults, readSettings, writeSettings, readRuntimeProfile, and no system write permission",
     "execute_confirmation": "dry_run_first_then_explicit_confirm_before_execute",
     "typed_runtime_readback_surface": "normalized readState/readFullDrilldown envelopes with runtime profile, app_state/drilldown payload, and command readback metadata",
@@ -480,10 +498,10 @@
         "settings_locale_surface"
       ]
     },
-    "primary_visual_reference": {
+  "primary_visual_reference": {
       "reference_product": "ChatGPT Codex macOS",
-      "reference_version": "26.707.41301",
-      "reference_date": "2026-07-11",
+      "reference_version": "26.707.61608",
+      "reference_date": "2026-08-09",
       "source_usage": "visual_and_interaction_reference_only_no_code_or_brand_copy",
       "left_side": "persistent project and conversation rail",
       "center": "single dominant conversation timeline with bottom composer",
@@ -522,25 +540,25 @@
     "visual_style_reference": {
       "reference_product": "ChatGPT Codex macOS",
       "reference_version": "26.707.61608",
-      "reference_date": "2026-07-13",
+      "reference_date": "2026-08-09",
       "scope": "light_workbench_palette_system_font_stack_type_scale_weight_line_height_sidebar_density_and_composer_surface",
       "token_source": "installed_app_css_and_fresh_window_screenshot",
       "palette": {
         "canvas": "#fff",
-        "sidebar": "#f9f9f9",
-        "secondary_surface": "#f3f3f3",
-        "text": "#1a1c1f",
+        "sidebar": "#f7f7f8",
+        "secondary_surface": "#f4f4f4",
+        "text": "#202123",
         "muted_mix": "70%",
         "faint_mix": "50%",
         "border_mix": "8%"
       },
       "typography": {
         "font_stack": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
-        "base_size": "14px",
+        "base_size": "13px",
         "line_height": "1.5",
-        "ordinary_weight": 430
+        "ordinary_weight": 400
       },
-      "desktop_sidebar_width": "336px",
+      "desktop_sidebar_width": "236px",
       "font_asset_policy": "match_system_workbench_stack_without_copying_or_redistributing_openai_sans_font_binaries"
     }
   },
@@ -1041,6 +1059,8 @@
     ],
     "coverage": [
       "Desktop and WebUI thread/list follow every cursor and reject a repeated cursor",
+      "Desktop and WebUI request the canonical Codex state DB overview with useStateDbOnly=true and updated_at descending order",
+      "opening history uses thread/read includeTurns=true without implicitly resuming an unloaded thread",
       "standard list, read, resume, fork, archive, and unarchive lifecycle routes remain available",
       "parentThreadId, agentRole, agentNickname, source kinds, collabAgentToolCall, and subAgentActivity survive projection",
       "private coordination queue, ledger, dynamic-tools, and bilateral receipt markers are rejected"

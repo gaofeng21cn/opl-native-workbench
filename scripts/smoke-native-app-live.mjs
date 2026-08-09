@@ -4,11 +4,12 @@ import { spawnSync } from "node:child_process";
 
 const root = path.resolve(new URL("..", import.meta.url).pathname);
 const appName = "One Person Lab Native";
-const appPath = path.join(root, "out", `${appName}.app`);
+const appPath = path.resolve(process.env.OPL_NATIVE_WORKBENCH_APP_PATH ?? path.join(root, "out", `${appName}.app`));
 const executablePath = path.join(appPath, "Contents", "MacOS", appName);
 const plistPath = path.join(appPath, "Contents", "Info.plist");
 const evidencePath = path.join(root, "out", "native-live-smoke.json");
 const screenshotPath = path.join(root, "out", "native-live-smoke.png");
+const bridgeEvidencePath = path.join(root, "out", "native-live-bridge-smoke.json");
 
 function run(command, args) {
   return spawnSync(command, args, { encoding: "utf8" });
@@ -55,6 +56,41 @@ function listAppProcesses() {
     .filter(Boolean)
     .filter((processInfo) => processInfo.command.includes(executablePath));
   return { processes };
+}
+
+function descendantProcesses(rootPid) {
+  const result = run("/bin/ps", ["-axo", "pid=,ppid=,rss=,%cpu=,args="]);
+  if (result.status !== 0) return { error: result.stderr.trim() || result.stdout.trim() || "ps failed", processes: [] };
+  const all = result.stdout.split("\n").map((line) => {
+    const match = line.trim().match(/^(\d+)\s+(\d+)\s+(\d+)\s+([\d.]+)\s+(.+)$/);
+    return match ? { pid: Number(match[1]), ppid: Number(match[2]), rss_kib: Number(match[3]), cpu_percent: Number(match[4]), command: match[5] } : null;
+  }).filter(Boolean);
+  const descendants = [];
+  const parents = new Set([rootPid]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const processInfo of all) {
+      if (!parents.has(processInfo.ppid) || parents.has(processInfo.pid)) continue;
+      parents.add(processInfo.pid);
+      descendants.push(processInfo);
+      changed = true;
+    }
+  }
+  return { processes: descendants };
+}
+
+function waitForBridgeEvidence() {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    try {
+      const value = JSON.parse(fs.readFileSync(bridgeEvidencePath, "utf8"));
+      if (value.status === "passed") return value;
+      return { ...value, status: "failed" };
+    } catch {}
+    run("/bin/sleep", ["0.25"]);
+  }
+  return { status: "failed", error: "packaged bridge smoke timed out" };
 }
 
 function waitForProcess(beforePids) {
@@ -142,14 +178,13 @@ function readScreenshotMarkers() {
     "try VNImageRequestHandler(cgImage: cgImage).perform([request])",
     "let text = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: \" \" )",
     "let hasBrand = text.localizedCaseInsensitiveContains(\"One Person Lab\")",
-    "let hasCodex = text.localizedCaseInsensitiveContains(\"Codex\")",
     "let hasModel = text.localizedCaseInsensitiveContains(\"5.6 Sol\")",
-    "print(\"brand=\\(hasBrand ? 1 : 0);codex=\\(hasCodex ? 1 : 0);model=\\(hasModel ? 1 : 0)\")"
+    "print(\"brand=\\(hasBrand ? 1 : 0);model=\\(hasModel ? 1 : 0)\")"
   ].join("\n");
   const result = run("/usr/bin/swift", ["-e", source, screenshotPath]);
   const output = result.stdout.trim();
   return {
-    ready: result.status === 0 && output.includes("brand=1") && output.includes("codex=0") && output.includes("model=1"),
+    ready: result.status === 0 && output.includes("brand=1") && output.includes("model=1"),
     output,
     error: result.status === 0 ? "" : (result.stderr || result.stdout).trim()
   };
@@ -184,7 +219,7 @@ function captureScreenshot(pid) {
           screenshot_bytes: fs.statSync(screenshotPath).size,
           screenshot_window_id: windowId,
           screenshot_markers: ["One Person Lab", "5.6 Sol"],
-          screenshot_absent_markers: ["Codex"]
+          screenshot_semantics: "global Codex project names are allowed because the directory shares the canonical state DB overview"
         };
       }
     }
@@ -259,7 +294,13 @@ if (!bundleId) fail("missing CFBundleIdentifier in packaged app Info.plist");
 const before = listAppProcesses();
 if (before.error) fail("could not enumerate existing packaged app processes", { process_evidence: before });
 const beforePids = new Set(before.processes.map((processInfo) => processInfo.pid));
-const openResult = run("/usr/bin/open", ["-n", "-F", "--env", "OPL_NATIVE_WORKBENCH_SMOKE=1", appPath]);
+fs.rmSync(bridgeEvidencePath, { force: true });
+const openResult = run("/usr/bin/open", [
+  "-n", "-F",
+  "--env", "OPL_NATIVE_WORKBENCH_SMOKE=1",
+  "--env", `OPL_NATIVE_WORKBENCH_SMOKE_RESULT=${bridgeEvidencePath}`,
+  appPath
+]);
 if (openResult.status !== 0) {
   fail("open -n failed", { open_stdout: openResult.stdout.trim(), open_stderr: openResult.stderr.trim() });
 }
@@ -289,6 +330,31 @@ if (screenshot.screenshot_status !== "target_window_renderer_ready") {
     cleanup_status
   });
 }
+const bridge_evidence = waitForBridgeEvidence();
+if (bridge_evidence.status !== "passed" || bridge_evidence.threadListCount < 1 || bridge_evidence.historyRead !== true || !bridge_evidence.threadId) {
+  const cleanup_status = terminateNewProcesses(processEvidence.processes, beforePids);
+  fail("packaged native bridge could not read canonical Codex thread history", {
+    process_evidence: processEvidence,
+    window_evidence: windows,
+    bridge_evidence,
+    cleanup_status
+  });
+}
+const descendants = descendantProcesses(launchedPid);
+if (descendants.error) {
+  const cleanup_status = terminateNewProcesses(processEvidence.processes, beforePids);
+  fail("could not inspect packaged app descendants", { process_evidence: processEvidence, descendants, cleanup_status });
+}
+const codexChildren = descendants.processes.filter((processInfo) => processInfo.command.includes("app-server --stdio"));
+if (codexChildren.length !== 1) {
+  const cleanup_status = terminateNewProcesses(processEvidence.processes, beforePids);
+  fail("packaged app must own exactly one Codex app-server child", {
+    process_evidence: processEvidence,
+    descendants,
+    codex_child_count: codexChildren.length,
+    cleanup_status
+  });
+}
 const cleanup_status = terminateNewProcesses(processEvidence.processes, beforePids);
 if (cleanup_status.status === "failed") {
   fail("packaged app process cleanup could not be verified", {
@@ -309,6 +375,10 @@ const evidence = {
   window_evidence: windows,
   timestamp: new Date().toISOString(),
   local_candidate_live_smoke: true,
+  bridge_evidence,
+  descendants,
+  codex_child_count: codexChildren.length,
+  codex_children: codexChildren,
   active_shell_adopted: false,
   release_ready: false,
   clean_vm_ready: false,

@@ -8,6 +8,8 @@ export function resolveAppRepoRoot(candidateRoot) {
     path.join(candidateRoot, "..", ".."),
     // Standalone worktree: <workspace>/opl-native-workbench/.worktrees/<name>.
     path.join(candidateRoot, "..", "..", "..", "one-person-lab-app"),
+    // Namespaced standalone worktree: <workspace>/opl-native-workbench/.worktrees/<namespace>/<name>.
+    path.join(candidateRoot, "..", "..", "..", "..", "one-person-lab-app"),
     path.join(candidateRoot, "..", "one-person-lab-app"),
     path.join(candidateRoot, "..", "..", "one-person-lab-app")
   ].filter(Boolean).map((value) => path.resolve(value));

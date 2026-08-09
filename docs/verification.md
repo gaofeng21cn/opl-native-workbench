@@ -46,8 +46,9 @@ npm run smoke:native-live
 ```
 
 This command launches a fresh local candidate bundle, requires a new process and
-real window, captures that window, checks renderer markers, and verifies process
-cleanup. Its output is local candidate evidence only. It does not establish
+real window, executes packaged-bridge `thread/list` and `thread/read`, requires
+exactly one descendant `codex app-server --stdio`, captures the window, checks
+renderer markers, and verifies process cleanup. Its output is local candidate evidence only. It does not establish
 clean-VM behavior, shared Runtime parity, active-shell adoption, or release
 readiness.
 
