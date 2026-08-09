@@ -90,3 +90,86 @@ test("fast state keeps GUI package fields without copying deep runtime payloads"
   assert.equal("owner_route_readback" in state.agent_packages.status_index.packages["future.agent"], false);
   assert.ok(Buffer.byteLength(JSON.stringify(compact)) < 5_000);
 });
+
+test("fast state exposes only the Settings read model fields needed by the shared renderer", () => {
+  const compact = compactFastState({
+    app_state: {
+      core: {
+        codex: {
+          installed: true,
+          parsed_version: "0.147.0",
+          version_status: "compatible",
+          binary_path: "/usr/local/bin/codex",
+          private_runtime_payload: "private"
+        }
+      },
+      settings_control_center: {
+        status_summary: {
+          model_access: "ready",
+          agent_package_functional_health: "18/25",
+          issue_count: 1,
+          internal_issue_payload: "private"
+        },
+        app_settings_read_model: {
+          surface_kind: "opl_app_settings_read_model.v1",
+          opl_gateway_account: {
+            surface_kind: "opl_gateway_account_read_model.v1",
+            connection_mode: "account",
+            status: "connected",
+            account_card_visible: true,
+            account: {
+              display_name: "OPL User",
+              email: "opl@example.com",
+              status: "active",
+              balance: { amount: 128.4, currency: "CNY", internal_ledger: "private" },
+              credential: "private"
+            },
+            usage: { today_tokens: 32000, currency: "CNY", raw_events: ["private"] },
+            managed_key: { name: "OPL App · Test", status: "active", secret: "private" },
+            installation: { device_label: "Test Mac", short_id: "ABC123", host_token: "private" },
+            freshness: { observed_at: "2026-08-09T03:39:22.845Z", stale: false, raw_error: "private" },
+            actions: { disconnect: "gateway_account_disconnect" }
+          },
+          codex_model_policy: {
+            model: "gpt-5.6-sol",
+            reasoning_effort: "max",
+            provider_name: "OPL Gateway",
+            api_key_present: true,
+            api_key: "private"
+          },
+          local_environment: {
+            state_dir: "/state",
+            logs_dir: "/logs",
+            private_environment: "private"
+          },
+          connections: {
+            connections: [{
+              connection_id: "external",
+              name: "External",
+              endpoint: "https://example.com",
+              status: "ready",
+              credential_handle: "credential-store:private"
+            }]
+          }
+        }
+      }
+    }
+  });
+
+  const state = compact.app_state;
+  const readModel = state.settings_control_center.app_settings_read_model;
+  assert.equal(readModel.opl_gateway_account.account.display_name, "OPL User");
+  assert.equal(readModel.opl_gateway_account.account.email, "opl@example.com");
+  assert.equal(readModel.opl_gateway_account.account.balance.amount, 128.4);
+  assert.equal(readModel.opl_gateway_account.usage.today_tokens, 32000);
+  assert.equal(readModel.opl_gateway_account.managed_key.name, "OPL App · Test");
+  assert.equal(state.core.codex.parsed_version, "0.147.0");
+  assert.equal(readModel.codex_model_policy.model, "gpt-5.6-sol");
+  assert.equal(readModel.local_environment.logs_dir, "/logs");
+  assert.equal(readModel.connections.connections[0].name, "External");
+  const projected = JSON.stringify(compact);
+  for (const privateMarker of ["credential_handle", "api_key\"", "internal_ledger", "raw_events", "host_token", "raw_error", "private_runtime_payload", "internal_issue_payload"]) {
+    assert.equal(projected.includes(privateMarker), false, `must omit ${privateMarker}`);
+  }
+  assert.equal("actions" in readModel.opl_gateway_account, false);
+});

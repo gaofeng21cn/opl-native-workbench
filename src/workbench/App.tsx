@@ -55,24 +55,20 @@ import {
 } from "./workbenchModel";
 import {
   readSettings,
-  settingsDefaults,
-  settingsSections,
   writeSetting,
   writeSettings,
-  type SettingKey,
   type WorkbenchSettings
 } from "./settingsModel";
 import { codexWorkbenchStyles } from "./codexWorkbenchStyles";
 import {
-  autoModelLabel,
   codexModelPolicy,
   conversationModelLabel,
   modelLabel,
   reasoningLabel,
   resolveCodexModelOptions,
-  resolveCodexSelection,
-  type CodexModelId
+  resolveCodexSelection
 } from "./modelPolicy";
+import { SettingsPanel } from "./SettingsPanel";
 import { ThreadDetailPopover } from "./threads/ThreadDetailPopover";
 import { ThreadLifecycleConfirmationDialog } from "./threads/ThreadLifecycleConfirmationDialog";
 import type { ThreadLifecycleAction } from "./threads/ThreadLifecycleConfirmationDialog";
@@ -327,46 +323,6 @@ const localizedPurposeLabels = {
   en: { research: "Review results", grant: "Draft grant", presentation: "Build deck", review: "Prepare handoff" }
 } as const;
 
-const localizedSettingLabels = {
-  zh: {
-    locale: "界面语言",
-    modelAccess: "模型接入",
-    reasoningLevel: "推理强度",
-    defaultWorkspace: "默认工作区",
-    runtimeProfile: "状态读取配置",
-    confirmBeforeExecute: "执行前确认",
-    artifactPreviewMode: "预览模式",
-    professionalStarterDefaults: "默认专业能力",
-    theme: "外观",
-    developerDetails: "开发者详情"
-  },
-  en: {
-    locale: "Language",
-    modelAccess: "Model access",
-    reasoningLevel: "Reasoning",
-    defaultWorkspace: "Default workspace",
-    runtimeProfile: "State profile",
-    confirmBeforeExecute: "Confirm before execute",
-    artifactPreviewMode: "Preview mode",
-    professionalStarterDefaults: "Starter defaults",
-    theme: "Theme",
-    developerDetails: "Developer details"
-  }
-} as const;
-
-const localizedSettingsSections = {
-  zh: {
-    general: "通用",
-    access: "模型与推理",
-    capabilities: "智能体与能力",
-    environment: "本地环境",
-    storage: "执行安全",
-    appearance: "外观与预览",
-    advanced: "高级"
-  },
-  en: Object.fromEntries(settingsSections.map((section) => [section.id, section.title]))
-} as Record<"zh" | "en", Record<(typeof settingsSections)[number]["id"], string>>;
-
 const previewActionRefId = "task_action_receipt_preview";
 const exportActionRefId = "task_export_bundle_preview";
 const runtimeActionRefId = "provider_scheduler_status";
@@ -582,8 +538,6 @@ export function App() {
   const [activeContextTab, setActiveContextTab] = useState<ActiveContextTab>(contextHomeId);
   const t = uiCopy[settings.locale];
   const purposeCopy = localizedPurposeLabels[settings.locale];
-  const settingCopy = localizedSettingLabels[settings.locale];
-  const sectionCopy = localizedSettingsSections[settings.locale];
   const localizedStateStatus = stateStatus === "loading" ? t.stateLoading : stateStatus === "ready" ? t.stateReady : t.stateError;
   const previewAction = firstPreviewAction(model.contextActions);
   const exportAction = model.contextActions.find((action) => action.id === exportActionRefId && action.dryRunSupported) ?? previewAction;
@@ -1073,85 +1027,6 @@ export function App() {
     setSettings(writeSettings({ modelAccess, reasoningLevel }));
   }
 
-  function settingValueLabel(key: SettingKey, value: WorkbenchSettings[SettingKey]): string {
-    if (key === "modelAccess") return value === "__auto" ? autoModelLabel(settings.locale) : modelLabel(value as CodexModelId, settings.locale);
-    if (key === "reasoningLevel") return reasoningLabel(value as WorkbenchSettings["reasoningLevel"], settings.locale);
-    if (key === "defaultWorkspace") return settings.locale === "zh" ? "OPL App 工作区" : "OPL App workspace";
-    if (key === "runtimeProfile") return value === "fast" ? (settings.locale === "zh" ? "快速" : "Fast") : (settings.locale === "zh" ? "完整" : "Full");
-    if (key === "professionalStarterDefaults") return settings.locale === "zh" ? "科研、基金与演示" : "Research, grant, and presentation";
-    if (key === "theme") return value === "system" ? (settings.locale === "zh" ? "跟随系统" : "System") : (settings.locale === "zh" ? "浅色" : "Light");
-    if (key === "artifactPreviewMode") return settings.locale === "zh" ? "丰富预览（仅引用）" : "Rich preview (refs only)";
-    if (typeof value === "boolean") return value ? t.on : t.off;
-    return String(value);
-  }
-
-  function renderSettingControl(key: SettingKey) {
-    const value = settings[key];
-    if (typeof value === "boolean") {
-      return (
-        <button className="setting-switch" role="switch" aria-checked={value} type="button" onClick={() => updateSetting(key, !value)}>
-          <span className="setting-switch-track" aria-hidden="true"><span /></span>
-          <span>{value ? t.on : t.off}</span>
-        </button>
-      );
-    }
-    if (key === "locale") {
-      return (
-        <div className="segmented-control" data-testid="opl-locale-toggle" aria-label="Language">
-          <button type="button" data-active={value === "zh"} onClick={() => updateSetting("locale", "zh")}>
-            中文
-          </button>
-          <button type="button" data-active={value === "en"} onClick={() => updateSetting("locale", "en")}>
-            English
-          </button>
-        </div>
-      );
-    }
-    if (key === "reasoningLevel") {
-      return (
-        <select className="setting-select" data-testid="opl-settings-reasoning" value={resolvedReasoning} disabled={!resolvedModel} onChange={(event) => updateReasoning(event.currentTarget.value as WorkbenchSettings["reasoningLevel"])}>
-          {codexModelPolicy.reasoningOptions.map((effort) => (
-            <option key={effort} value={effort} disabled={!resolvedReasoningOptions.includes(effort)}>{reasoningLabel(effort, settings.locale)}</option>
-          ))}
-        </select>
-      );
-    }
-    if (key === "modelAccess") {
-      return (
-        <select className="setting-select" data-testid="opl-model-access-entry" value={value} onChange={(event) => updateSetting("modelAccess", event.currentTarget.value as WorkbenchSettings["modelAccess"])}>
-          <option value="__auto">{autoModelLabel(settings.locale)}</option>
-          {value !== "__auto" && !modelOptions.some((option) => option.id === value) ? (
-            <option value={value} disabled>{modelLabel(value, settings.locale)} ({t.unavailable})</option>
-          ) : null}
-          {modelOptions.map((option) => (
-            <option key={option.id} value={option.id} disabled={!option.available}>
-              {modelLabel(option.id, settings.locale)}{option.available ? "" : ` (${t.unavailable})`}
-            </option>
-          ))}
-        </select>
-      );
-    }
-    if (key === "runtimeProfile") {
-      return (
-        <button className="setting-toggle" type="button" onClick={() => updateSetting("runtimeProfile", value === "fast" ? "full" : "fast")}>
-          {settingValueLabel(key, value)}
-        </button>
-      );
-    }
-    if (key === "theme") {
-      return (
-        <button className="setting-toggle" type="button" onClick={() => updateSetting("theme", value === "system" ? "light" : "system")}>
-          {settingValueLabel(key, value)}
-        </button>
-      );
-    }
-    return (
-      <code>
-        {settingValueLabel(key, value)}
-      </code>
-    );
-  }
-
   return (
     <main
       data-testid="opl-native-workbench-root"
@@ -1314,7 +1189,15 @@ export function App() {
         </div>
 
         <footer className="sidebar-footer" aria-label="Sidebar controls">
-          <button type="button" aria-current={activeView === "settings" ? "page" : undefined} aria-label={t.openSettings} onClick={() => setActiveView("settings")}>
+          <button
+            type="button"
+            aria-current={activeView === "settings" ? "page" : undefined}
+            aria-label={t.openSettings}
+            onClick={() => {
+              setActiveView("settings");
+              if (window.matchMedia("(max-width: 760px)").matches) setSidebarOpen(false);
+            }}
+          >
             <span className="account-avatar">OPL</span>
             <span className="account-copy">
               <strong>{accountDisplayName}</strong>
@@ -1569,40 +1452,19 @@ export function App() {
             </div>
           </section>
         ) : (
-          <section data-testid="opl-settings-panel" className="settings-page" aria-label="Settings">
-            <div className="settings-content">
-              <section data-testid="opl-settings-section" data-section="runtime-readback">
-                <h2>{t.settingsRuntime}</h2>
-                <dl>
-                  <div>
-                    <dt>{t.stateProfile}</dt>
-                    <dd>{settings.runtimeProfile}<small>{t.stateProfileHelp}</small></dd>
-                  </div>
-                  <div>
-                    <dt>{t.contextState}</dt>
-                    <dd>{localizedStateStatus}<small>{stateError || model.stateGeneratedAt || t.noReadbackTimestamp}</small></dd>
-                  </div>
-                </dl>
-                <button type="button" onClick={() => void loadState(settings.runtimeProfile)}>{t.refreshState}</button>
-              </section>
-              {settingsSections.map((section) => (
-                <section key={section.id} data-testid="opl-settings-section" data-section={section.id}>
-                  <h2>{sectionCopy[section.id]}</h2>
-                  <dl>
-                    {section.keys.map((key) => (
-                      <div key={key}>
-                        <dt>{settingCopy[key]}</dt>
-                        <dd>
-                          {renderSettingControl(key)}
-                          <small>{t.defaultLabel}: {settingValueLabel(key, settingsDefaults[key])}</small>
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                </section>
-              ))}
-            </div>
-          </section>
+          <SettingsPanel
+            model={model}
+            settings={settings}
+            modelOptions={modelOptions}
+            resolvedModel={resolvedModel}
+            resolvedReasoning={resolvedReasoning}
+            resolvedReasoningOptions={resolvedReasoningOptions}
+            stateStatus={stateStatus}
+            stateError={stateError}
+            onRefresh={() => void loadState(settings.runtimeProfile)}
+            onSettingChange={updateSetting}
+            onReasoningChange={updateReasoning}
+          />
         )}
       </section>
 

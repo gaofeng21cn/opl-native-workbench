@@ -12,6 +12,7 @@ const main = read("src/main.tsx");
 const bridge = read("src/bridge/oplBridge.ts");
 const webTransport = read("src/bridge/webTransport.ts");
 const model = read("src/workbench/workbenchModel.ts");
+const settingsPanel = read("src/workbench/SettingsPanel.tsx");
 const styles = read("src/workbench/codexWorkbenchStyles.ts");
 const nativeWindow = read("scripts/native-workbench-app.swift");
 const nativeSmoke = read("scripts/smoke-native-app-live.mjs");
@@ -177,8 +178,8 @@ test("native visual tokens track the current ChatGPT Codex light workbench", () 
 });
 
 test("primary canvas hides its scrollbar without disabling scrolling", () => {
-  assert.match(styles, /\.conversation,\s*\.settings-page \{[^}]*overflow-y: auto;[^}]*scrollbar-width: none;/s);
-  assert.match(styles, /\.conversation::\-webkit-scrollbar,\s*\.settings-page::\-webkit-scrollbar \{[^}]*display: none;/s);
+  assert.match(styles, /\.conversation \{[^}]*overflow-y: auto;[^}]*scrollbar-width: none;/s);
+  assert.match(styles, /\.settings-detail \{[^}]*overflow-y: auto;[^}]*scrollbar-width: none;/s);
   assert.match(styles, /\.sidebar-scroll \{[^}]*overflow-x: hidden;[^}]*overflow-y: auto;/s);
   assert.match(styles, /\.sidebar-scroll::\-webkit-scrollbar \{[^}]*width: 5px;[^}]*height: 0;/s);
   assert.match(styles, /\.sidebar-scroll::\-webkit-scrollbar-track \{[^}]*background: transparent;/s);
@@ -206,20 +207,41 @@ test("desktop sidebar width is adjustable, bounded, and persisted as UI metadata
   assert.doesNotMatch(styles, /grid-template-columns: 224px minmax\(0, 1fr\)/);
 });
 
-test("sidebar account identity consumes only the canonical Gateway display name", () => {
+test("sidebar and Settings consume the canonical Gateway account read model", () => {
   assert.match(model, /app_settings_read_model/);
   assert.match(model, /opl_gateway_account_read_model\.v1/);
   assert.match(model, /gatewayAccountRecord\?\.display_name/);
   assert.match(model, /gatewayAccountProjection\.connection_mode === "account"/);
   assert.match(app, /model\.gatewayAccount\?\.displayName \?\? "One Person Lab"/);
   assert.match(app, /model\.gatewayAccount \? "OPL Gateway" : t\.settings/);
-  assert.doesNotMatch(app, /masked_email/);
+  assert.match(settingsPanel, /opl-settings-gateway-username/);
+  assert.match(settingsPanel, /gateway\?\.displayName/);
+  assert.match(settingsPanel, /gateway\?\.email/);
+  assert.match(settingsPanel, /gateway\?\.usage\?\.todayTokens/);
+  assert.match(settingsPanel, /Not required \(not included\)/);
+  assert.doesNotMatch(`${app}\n${settingsPanel}\n${model}`, /masked_email/);
+});
+
+test("Settings uses the App-owned navigation groups and one shared read model", () => {
+  for (const id of ["overview", "account_models", "connections_deployment", "workspace", "agents_capabilities", "runtime_maintenance", "preferences"]) {
+    assert.match(settingsPanel, new RegExp(`id: "${id}"`));
+  }
+  for (const destination of ["account", "models", "resources", "storage", "instructions", "services", "updates", "diagnostics", "about"]) {
+    assert.match(settingsPanel, new RegExp(`id: "${destination}"`));
+  }
+  assert.match(model, /settingsProjection/);
+  assert.match(model, /codex_model_policy/);
+  assert.match(model, /workspace_services/);
+  assert.match(model, /storage_lifecycle/);
+  assert.match(styles, /grid-template-columns: 220px minmax\(0, 1fr\)/);
+  assert.match(styles, /\.settings-mobile-navigation/);
 });
 
 test("desktop remains two-column and mobile thread dialogs are full-height", () => {
   assert.match(styles, /grid-template-columns: var\(--opl-sidebar-width\) minmax\(0, 1fr\)/);
   assert.doesNotMatch(styles, /grid-template-columns:\s*var\(--opl-sidebar-width\)\s+minmax\(0, 1fr\)\s+\d/);
   assert.match(styles, /@media \(max-width: 760px\)/);
+  assert.match(app, /window\.matchMedia\("\(max-width: 760px\)"\)\.matches\) setSidebarOpen\(false\)/);
   assert.match(rail, /project\.threads\.slice\(0, 2\)/);
   assert.match(app, /conversation\.scrollTop = conversation\.scrollHeight/);
   assert.match(app, /mobile\.addEventListener\?\.\("change", syncSidebar\)/);

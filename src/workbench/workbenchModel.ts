@@ -249,7 +249,100 @@ export type AgentPackageLifecycleRef = {
 export type WorkbenchGatewayAccount = {
   displayName: string;
   status: string;
+  email?: string;
+  accountStatus?: string;
+  balance?: {
+    amount: number;
+    currency: string;
+  };
+  usage?: {
+    todayTokens?: number;
+    totalTokens?: number;
+    todayCost?: number;
+    totalCost?: number;
+    currency?: string;
+    timezone?: string;
+  };
+  managedKey?: {
+    name?: string;
+    status?: string;
+  };
+  installation?: {
+    deviceLabel?: string;
+    shortId?: string;
+  };
+  freshness?: {
+    observedAt?: string;
+    stale: boolean;
+    lastErrorCode?: string;
+  };
   sourceRef: string;
+};
+
+export type WorkbenchSettingsProjection = {
+  sourceRef: string;
+  codex: {
+    installed: boolean | null;
+    version?: string;
+    versionStatus?: string;
+    binaryPath?: string;
+    model?: string;
+    reasoningEffort?: string;
+    providerName?: string;
+    providerBaseUrl?: string;
+    accessStatus?: string;
+    configPath?: string;
+    apiKeyPresent: boolean | null;
+    updateAvailable: boolean | null;
+  };
+  statusSummary: {
+    runtimeSourceHealth?: string;
+    agentPackageHealth?: string;
+    temporalProvider?: string;
+    releaseChannel?: string;
+    issueCount?: number;
+  };
+  localEnvironment: {
+    stateDir?: string;
+    runtimeSourcesRoot?: string;
+    logsDir?: string;
+    releaseChannel?: string;
+    temporalProvider?: string;
+  };
+  workspace: {
+    selectedPath?: string;
+    exists: boolean | null;
+    writable: boolean | null;
+    healthStatus?: string;
+    personalizationSourceCount: number;
+  };
+  externalConnections: {
+    id: string;
+    name: string;
+    type?: string;
+    endpoint?: string;
+    status?: string;
+    lastTestedAt?: string;
+  }[];
+  dockerWebui: {
+    status?: string;
+    runtimeStatus?: string;
+    recoveryStatus?: string;
+  };
+  storage: {
+    agentPackageStore: {
+      status?: string;
+      bytes?: number;
+      reclaimableBytes?: number;
+      reasonCode?: string;
+    };
+    webuiDataVolume: {
+      status?: string;
+      bytes?: number;
+      reclaimableBytes?: number;
+      reasonCode?: string;
+    };
+  };
 };
 
 export type WorkbenchModel = {
@@ -270,6 +363,7 @@ export type WorkbenchModel = {
   contextActions: WorkbenchActionRef[];
   contextTrace: WorkbenchTraceRef[];
   gatewayAccount?: WorkbenchGatewayAccount;
+  settingsProjection?: WorkbenchSettingsProjection;
   stateGeneratedAt?: string;
 };
 
@@ -427,6 +521,19 @@ function asStringArray(value: unknown): string[] {
 
 function asBoolean(value: unknown): boolean {
   return value === true || asString(value) === "true";
+}
+
+function asOptionalBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
+}
+
+function asFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
 }
 
 function asRecordArray(value: unknown): Record<string, unknown>[] {
@@ -1467,6 +1574,8 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
   const appState = pickAppState(state);
   if (!appState) return fallback;
 
+  const core = asRecord(appState.core);
+  const coreCodex = asRecord(core?.codex);
   const runtimeSource = asRecord(appState.runtime_source);
   const operator = asRecord(appState.operator);
   const workbench = asRecord(operator?.workbench);
@@ -1475,8 +1584,27 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
   const appSettingsReadModel = asRecord(settingsControlCenter?.app_settings_read_model);
   const gatewayAccountProjection = asRecord(appSettingsReadModel?.opl_gateway_account);
   const gatewayAccountRecord = asRecord(gatewayAccountProjection?.account);
+  const gatewayAccountBalance = asRecord(gatewayAccountRecord?.balance);
+  const gatewayUsage = asRecord(gatewayAccountProjection?.usage);
+  const gatewayManagedKey = asRecord(gatewayAccountProjection?.managed_key);
+  const gatewayInstallation = asRecord(gatewayAccountProjection?.installation);
+  const gatewayFreshness = asRecord(gatewayAccountProjection?.freshness);
   const gatewayAccountStatus = asString(gatewayAccountProjection?.status);
   const gatewayAccountDisplayName = asString(gatewayAccountRecord?.display_name);
+  const gatewayBalanceAmount = asFiniteNumber(gatewayAccountBalance?.amount);
+  const gatewayBalanceCurrency = asString(gatewayAccountBalance?.currency);
+  const gatewayTodayTokens = asFiniteNumber(gatewayUsage?.today_tokens);
+  const gatewayTotalTokens = asFiniteNumber(gatewayUsage?.total_tokens);
+  const gatewayTodayCost = asFiniteNumber(gatewayUsage?.today_actual_cost);
+  const gatewayTotalCost = asFiniteNumber(gatewayUsage?.total_actual_cost);
+  const gatewayUsageCurrency = asString(gatewayUsage?.currency);
+  const gatewayUsageTimezone = asString(gatewayUsage?.day_timezone);
+  const gatewayManagedKeyName = asString(gatewayManagedKey?.name);
+  const gatewayManagedKeyStatus = asString(gatewayManagedKey?.status);
+  const gatewayDeviceLabel = asString(gatewayInstallation?.device_label);
+  const gatewayDeviceShortId = asString(gatewayInstallation?.short_id);
+  const gatewayObservedAt = asString(gatewayFreshness?.observed_at);
+  const gatewayLastErrorCode = asString(gatewayFreshness?.last_error_code);
   const gatewayAccount = gatewayAccountProjection?.surface_kind === "opl_gateway_account_read_model.v1"
     && gatewayAccountProjection.connection_mode === "account"
     && asBoolean(gatewayAccountProjection.account_card_visible)
@@ -1486,7 +1614,148 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     ? {
         displayName: gatewayAccountDisplayName,
         status: gatewayAccountStatus,
+        ...(asString(gatewayAccountRecord?.email) ? { email: asString(gatewayAccountRecord?.email) as string } : {}),
+        ...(asString(gatewayAccountRecord?.status) ? { accountStatus: asString(gatewayAccountRecord?.status) as string } : {}),
+        ...(gatewayBalanceAmount !== null && gatewayBalanceCurrency
+          ? { balance: { amount: gatewayBalanceAmount, currency: gatewayBalanceCurrency } }
+          : {}),
+        ...(gatewayTodayTokens !== null || gatewayTotalTokens !== null || gatewayTodayCost !== null || gatewayTotalCost !== null
+          ? {
+              usage: {
+                ...(gatewayTodayTokens !== null ? { todayTokens: gatewayTodayTokens } : {}),
+                ...(gatewayTotalTokens !== null ? { totalTokens: gatewayTotalTokens } : {}),
+                ...(gatewayTodayCost !== null ? { todayCost: gatewayTodayCost } : {}),
+                ...(gatewayTotalCost !== null ? { totalCost: gatewayTotalCost } : {}),
+                ...(gatewayUsageCurrency ? { currency: gatewayUsageCurrency } : {}),
+                ...(gatewayUsageTimezone ? { timezone: gatewayUsageTimezone } : {})
+              }
+            }
+          : {}),
+        ...(gatewayManagedKeyName || gatewayManagedKeyStatus
+          ? {
+              managedKey: {
+                ...(gatewayManagedKeyName ? { name: gatewayManagedKeyName } : {}),
+                ...(gatewayManagedKeyStatus ? { status: gatewayManagedKeyStatus } : {})
+              }
+            }
+          : {}),
+        ...(gatewayDeviceLabel || gatewayDeviceShortId
+          ? {
+              installation: {
+                ...(gatewayDeviceLabel ? { deviceLabel: gatewayDeviceLabel } : {}),
+                ...(gatewayDeviceShortId ? { shortId: gatewayDeviceShortId } : {})
+              }
+            }
+          : {}),
+        ...(gatewayObservedAt || gatewayFreshness
+          ? {
+              freshness: {
+                ...(gatewayObservedAt ? { observedAt: gatewayObservedAt } : {}),
+                stale: asBoolean(gatewayFreshness?.stale),
+                ...(gatewayLastErrorCode ? { lastErrorCode: gatewayLastErrorCode } : {})
+              }
+            }
+          : {}),
         sourceRef: "app_state.settings_control_center.app_settings_read_model.opl_gateway_account.account.display_name"
+      }
+    : undefined;
+  const codexModelPolicy = asRecord(appSettingsReadModel?.codex_model_policy);
+  const localEnvironment = asRecord(appSettingsReadModel?.local_environment);
+  const workspaceServices = asRecord(appSettingsReadModel?.workspace_services);
+  const workspaceRoot = asRecord(workspaceServices?.workspace_root);
+  const personalizationRefs = asRecord(workspaceServices?.personalization_refs);
+  const connectionsReadModel = asRecord(appSettingsReadModel?.connections);
+  const dockerWebui = asRecord(appSettingsReadModel?.docker_webui);
+  const dockerRuntimeProxy = asRecord(dockerWebui?.runtime_proxy);
+  const dockerFailureRecovery = asRecord(dockerWebui?.failure_recovery);
+  const storageLifecycle = asRecord(appSettingsReadModel?.storage_lifecycle);
+  const agentPackageStore = asRecord(storageLifecycle?.agent_package_store);
+  const webuiDataVolume = asRecord(storageLifecycle?.webui_data_volume);
+  const statusSummary = asRecord(settingsControlCenter?.status_summary);
+  const externalConnections = asRecordArray(connectionsReadModel?.connections)
+    .filter((connection) => {
+      const type = asString(connection.connection_type);
+      const id = asString(connection.connection_id);
+      return type !== "opl_gateway_account" && id !== "opl-gateway-account";
+    })
+    .map((connection, index) => ({
+      id: asString(connection.connection_id) ?? `external-connection-${index}`,
+      name: asString(connection.name) ?? asString(connection.connection_id) ?? `Connection ${index + 1}`,
+      ...(asString(connection.connection_type) ? { type: asString(connection.connection_type) as string } : {}),
+      ...(asString(connection.endpoint) ? { endpoint: asString(connection.endpoint) as string } : {}),
+      ...(asString(connection.status) ? { status: asString(connection.status) as string } : {}),
+      ...(asString(connection.last_tested_at) ? { lastTestedAt: asString(connection.last_tested_at) as string } : {})
+    }));
+  const settingsProjection: WorkbenchSettingsProjection | undefined = appSettingsReadModel || coreCodex
+    ? {
+        sourceRef: "app_state.settings_control_center.app_settings_read_model",
+        codex: {
+          installed: asOptionalBoolean(coreCodex?.installed),
+          ...(firstString(coreCodex, ["parsed_version", "version"]) ? { version: firstString(coreCodex, ["parsed_version", "version"]) as string } : {}),
+          ...(asString(coreCodex?.version_status) ? { versionStatus: asString(coreCodex?.version_status) as string } : {}),
+          ...(asString(coreCodex?.binary_path) ? { binaryPath: asString(coreCodex?.binary_path) as string } : {}),
+          ...(firstString(codexModelPolicy, ["model"]) ?? firstString(coreCodex, ["default_model", "model"])
+            ? { model: (firstString(codexModelPolicy, ["model"]) ?? firstString(coreCodex, ["default_model", "model"])) as string }
+            : {}),
+          ...(firstString(codexModelPolicy, ["reasoning_effort"]) ?? firstString(coreCodex, ["default_reasoning_effort"])
+            ? { reasoningEffort: (firstString(codexModelPolicy, ["reasoning_effort"]) ?? firstString(coreCodex, ["default_reasoning_effort"])) as string }
+            : {}),
+          ...(asString(codexModelPolicy?.provider_name) ? { providerName: asString(codexModelPolicy?.provider_name) as string } : {}),
+          ...(asString(codexModelPolicy?.provider_base_url) ? { providerBaseUrl: asString(codexModelPolicy?.provider_base_url) as string } : {}),
+          ...(firstString(codexModelPolicy, ["access_status", "model_access_status"]) ?? firstString(coreCodex, ["model_access_status"])
+            ? { accessStatus: (firstString(codexModelPolicy, ["access_status", "model_access_status"]) ?? firstString(coreCodex, ["model_access_status"])) as string }
+            : {}),
+          ...(firstString(codexModelPolicy, ["config_path"]) ?? firstString(coreCodex, ["config_path"])
+            ? { configPath: (firstString(codexModelPolicy, ["config_path"]) ?? firstString(coreCodex, ["config_path"])) as string }
+            : {}),
+          apiKeyPresent: asOptionalBoolean(codexModelPolicy?.api_key_present ?? coreCodex?.api_key_present),
+          updateAvailable: asOptionalBoolean(coreCodex?.update_available)
+        },
+        statusSummary: {
+          ...(asString(statusSummary?.runtime_source_carrier_health) ? { runtimeSourceHealth: asString(statusSummary?.runtime_source_carrier_health) as string } : {}),
+          ...(asString(statusSummary?.agent_package_functional_health) ? { agentPackageHealth: asString(statusSummary?.agent_package_functional_health) as string } : {}),
+          ...(firstString(statusSummary, ["temporal_provider"]) ?? firstString(localEnvironment, ["temporal_provider"])
+            ? { temporalProvider: (firstString(statusSummary, ["temporal_provider"]) ?? firstString(localEnvironment, ["temporal_provider"])) as string }
+            : {}),
+          ...(firstString(statusSummary, ["release_channel"]) ?? firstString(localEnvironment, ["release_channel"])
+            ? { releaseChannel: (firstString(statusSummary, ["release_channel"]) ?? firstString(localEnvironment, ["release_channel"])) as string }
+            : {}),
+          ...(asFiniteNumber(statusSummary?.issue_count) !== null ? { issueCount: asFiniteNumber(statusSummary?.issue_count) as number } : {})
+        },
+        localEnvironment: {
+          ...(asString(localEnvironment?.state_dir) ? { stateDir: asString(localEnvironment?.state_dir) as string } : {}),
+          ...(asString(localEnvironment?.runtime_sources_root) ? { runtimeSourcesRoot: asString(localEnvironment?.runtime_sources_root) as string } : {}),
+          ...(asString(localEnvironment?.logs_dir) ? { logsDir: asString(localEnvironment?.logs_dir) as string } : {}),
+          ...(asString(localEnvironment?.release_channel) ? { releaseChannel: asString(localEnvironment?.release_channel) as string } : {}),
+          ...(asString(localEnvironment?.temporal_provider) ? { temporalProvider: asString(localEnvironment?.temporal_provider) as string } : {})
+        },
+        workspace: {
+          ...(asString(workspaceRoot?.selected_path) ? { selectedPath: asString(workspaceRoot?.selected_path) as string } : {}),
+          exists: asOptionalBoolean(workspaceRoot?.exists),
+          writable: asOptionalBoolean(workspaceRoot?.writable),
+          ...(asString(workspaceRoot?.health_status) ? { healthStatus: asString(workspaceRoot?.health_status) as string } : {}),
+          personalizationSourceCount: asStringArray(personalizationRefs?.source_refs).length
+        },
+        externalConnections,
+        dockerWebui: {
+          ...(asString(dockerWebui?.ordinary_status) ? { status: asString(dockerWebui?.ordinary_status) as string } : {}),
+          ...(asString(dockerRuntimeProxy?.status) ? { runtimeStatus: asString(dockerRuntimeProxy?.status) as string } : {}),
+          ...(asString(dockerFailureRecovery?.status) ? { recoveryStatus: asString(dockerFailureRecovery?.status) as string } : {})
+        },
+        storage: {
+          agentPackageStore: {
+            ...(asString(agentPackageStore?.status) ? { status: asString(agentPackageStore?.status) as string } : {}),
+            ...(asFiniteNumber(agentPackageStore?.bytes) !== null ? { bytes: asFiniteNumber(agentPackageStore?.bytes) as number } : {}),
+            ...(asFiniteNumber(agentPackageStore?.reclaimable_bytes) !== null ? { reclaimableBytes: asFiniteNumber(agentPackageStore?.reclaimable_bytes) as number } : {}),
+            ...(asString(agentPackageStore?.reason_code) ? { reasonCode: asString(agentPackageStore?.reason_code) as string } : {})
+          },
+          webuiDataVolume: {
+            ...(asString(webuiDataVolume?.status) ? { status: asString(webuiDataVolume?.status) as string } : {}),
+            ...(asFiniteNumber(webuiDataVolume?.bytes) !== null ? { bytes: asFiniteNumber(webuiDataVolume?.bytes) as number } : {}),
+            ...(asFiniteNumber(webuiDataVolume?.reclaimable_bytes) !== null ? { reclaimableBytes: asFiniteNumber(webuiDataVolume?.reclaimable_bytes) as number } : {}),
+            ...(asString(webuiDataVolume?.reason_code) ? { reasonCode: asString(webuiDataVolume?.reason_code) as string } : {})
+          }
+        }
       }
     : undefined;
   const moduleItems = asRecordArray(modules?.items);
@@ -2175,6 +2444,7 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     contextActions: contextActions.length ? contextActions : fallback.contextActions,
     contextTrace: contextTrace.length ? contextTrace : fallback.contextTrace,
     gatewayAccount,
+    settingsProjection,
     stateGeneratedAt: asString(meta?.generated_at) ?? fallback.stateGeneratedAt
   };
 }

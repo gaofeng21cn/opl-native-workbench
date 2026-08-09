@@ -16,6 +16,7 @@ export const requiredDeliverySurfaceKeys = [
 
 export const rendererSourcePaths = [
   "src/workbench/App.tsx",
+  "src/workbench/SettingsPanel.tsx",
   "src/workbench/codexWorkbenchStyles.ts",
   "src/workbench/threads/ThreadRail.tsx",
   "src/workbench/threads/ThreadDetailPopover.tsx",

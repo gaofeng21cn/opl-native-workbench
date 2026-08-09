@@ -242,7 +242,7 @@ function assertPrivateThreadLayerRemoved(evidence) {
   }
 }
 
-function assertCodexJuly2026Alignment(evidence, app) {
+function assertCodexJuly2026Alignment(evidence, rendererSource) {
   const alignment = evidence.default_home_layout?.primary_visual_reference;
   const visualStyle = evidence.default_home_layout?.visual_style_reference;
   const styles = read("src/workbench/codexWorkbenchStyles.ts");
@@ -290,12 +290,12 @@ function assertCodexJuly2026Alignment(evidence, app) {
   }
   for (const markers of Object.values(alignment.implementation_markers ?? {})) {
     for (const marker of markers) {
-      assert(app.includes(marker), `missing Codex alignment implementation marker ${marker}`);
+      assert(rendererSource.includes(marker), `missing Codex alignment implementation marker ${marker}`);
     }
   }
 }
 
-function assertCodexModelControls(evidence, app) {
+function assertCodexModelControls(evidence, app, rendererSource) {
   const settings = read("src/workbench/settingsModel.ts");
   const policySource = read("src/workbench/modelPolicy.ts");
   const rendererBuilder = read("scripts/build-renderer.mjs");
@@ -346,7 +346,7 @@ function assertCodexModelControls(evidence, app) {
   assert(settings.includes('modelAccess: "__auto"'), "settings must default to App-owned Auto model resolution");
   assert(settings.includes("codexModelPolicy.defaultReasoningEffort"), "settings default reasoning must consume the App-derived policy");
   assert(policySource.includes("codexModelPolicy.modelOptions.map") && app.includes("modelOptions.map"), "composer and Settings must render the App-derived model list");
-  assert(app.includes("codexModelPolicy.reasoningOptions.map"), "composer and Settings must render the App-derived reasoning list");
+  assert(rendererSource.includes("codexModelPolicy.reasoningOptions.map"), "composer and Settings must render the App-derived reasoning list");
   assert(policySource.includes('invalidPolicy("policy is missing")'), "missing App model policy injection must fail explicitly");
   assert(!policySource.includes("fallbackModelOptions") && !policySource.includes("fallbackReasoningOptions"), "source model policy must not keep versioned fallback lists");
   assert(app.includes("bridge.readCodexModels()"), "renderer must read app-server model availability");
@@ -408,8 +408,8 @@ assertFallbackBoundaryDowngrades({
 assertFunctionalMvpCloseout(evidence);
 assertSourceMarkerRequirements(evidence);
 assertPrivateThreadLayerRemoved(evidence);
-assertCodexJuly2026Alignment(evidence, app);
-assertCodexModelControls(evidence, app);
+assertCodexJuly2026Alignment(evidence, rendererSource);
+assertCodexModelControls(evidence, app, rendererSource);
 assertRendererTestIds(rendererSource, requiredTestIds);
 assertRendererTestIds(rendererSource, deliverySurfaceTestIds(evidence));
 

@@ -512,19 +512,25 @@ export const codexWorkbenchStyles = `
     display: none;
   }
 
-  .conversation,
-  .settings-page {
+  .conversation {
     min-height: 0;
     flex: 1;
     overflow-y: auto;
     scrollbar-width: none;
   }
 
-  .conversation::-webkit-scrollbar,
-  .settings-page::-webkit-scrollbar {
+  .conversation::-webkit-scrollbar {
     width: 0;
     height: 0;
     display: none;
+  }
+
+  .settings-page {
+    min-height: 0;
+    flex: 1;
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    overflow: hidden;
   }
 
   .conversation-inner {
@@ -963,63 +969,187 @@ export const codexWorkbenchStyles = `
     display: none;
   }
 
-  .settings-content {
-    width: min(100%, 820px);
-    margin: 0 auto;
-    padding: 32px 28px 60px;
+  .settings-navigation {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    padding: 17px 10px 12px;
+    border-right: 1px solid var(--opl-border-light);
+    background: color-mix(in srgb, var(--opl-sidebar) 72%, var(--opl-canvas));
+    scrollbar-width: none;
   }
 
-  .settings-page section {
+  .settings-navigation::-webkit-scrollbar,
+  .settings-detail::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  .settings-navigation nav {
+    display: grid;
+    gap: 2px;
+  }
+
+  .settings-nav-group > button,
+  .settings-about-link {
+    width: 100%;
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 9px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--opl-muted);
+    font-size: 12.5px;
+    text-align: left;
+  }
+
+  .settings-nav-group > button:hover,
+  .settings-about-link:hover,
+  .settings-nav-group[data-active="true"] > button,
+  .settings-about-link[aria-current="page"] {
+    background: var(--opl-hover);
+    color: var(--opl-text);
+  }
+
+  .settings-subnav {
+    display: grid;
+    gap: 1px;
+    margin: 2px 0 5px;
+    padding-left: 33px;
+  }
+
+  .settings-subnav button {
+    min-height: 28px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--opl-muted);
+    font-size: 11.5px;
+    text-align: left;
+  }
+
+  .settings-subnav button:hover,
+  .settings-subnav button[aria-current="page"] {
+    background: var(--opl-hover);
+    color: var(--opl-text);
+  }
+
+  .settings-about-link {
+    margin-top: auto;
+    flex: 0 0 auto;
+  }
+
+  .settings-mobile-navigation {
+    display: none;
+  }
+
+  .settings-detail {
+    min-width: 0;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  .settings-detail-header,
+  .settings-content {
+    width: min(100%, 760px);
+    margin: 0 auto;
+    padding-right: 34px;
+    padding-left: 34px;
+  }
+
+  .settings-detail-header {
+    padding-top: 32px;
+    padding-bottom: 20px;
+  }
+
+  .settings-detail-header > span {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--opl-faint);
+    font-size: 11px;
+  }
+
+  .settings-detail-header h1 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 550;
+    line-height: 1.3;
+  }
+
+  .settings-content {
+    padding-bottom: 62px;
+  }
+
+  .settings-group {
     padding: 0;
     border: 0;
     background: transparent;
   }
 
-  .settings-page section + section {
-    margin-top: 30px;
+  .settings-group + .settings-group,
+  .gateway-identity + .settings-group,
+  .about-mark + .settings-group {
+    margin-top: 28px;
   }
 
-  .settings-page h2 {
-    margin: 0 0 10px;
-    font-size: 14px;
-    font-weight: 500;
+  .settings-group h2 {
+    margin: 0 0 9px;
+    color: var(--opl-text);
+    font-size: 13px;
+    font-weight: 550;
   }
 
-  .settings-page dl {
-    margin: 0;
+  .settings-rows {
     border-top: 1px solid var(--opl-border);
   }
 
-  .settings-page dl > div {
-    min-height: 58px;
+  .settings-row {
+    min-height: 60px;
     display: grid;
-    grid-template-columns: minmax(160px, 1fr) minmax(220px, 1.4fr);
+    grid-template-columns: minmax(150px, 0.9fr) minmax(230px, 1.35fr);
     align-items: center;
-    gap: 18px;
+    gap: 20px;
     padding: 10px 0;
     border-bottom: 1px solid var(--opl-border);
   }
 
-  .settings-page dt,
-  .settings-page dd {
-    margin: 0;
-  }
-
-  .settings-page dt {
-    font-weight: 500;
-  }
-
-  .settings-page dd {
+  .settings-row-label,
+  .settings-inline-identity > span:last-child,
+  .gateway-identity > span:nth-child(2) {
+    min-width: 0;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    color: var(--opl-muted);
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .settings-row-label > span {
+    font-weight: 500;
   }
 
   .settings-page small {
     color: var(--opl-faint);
     font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .settings-row-value {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    color: var(--opl-muted);
+    text-align: right;
+  }
+
+  .settings-row-value > :where(span, strong, code) {
+    max-width: 100%;
   }
 
   .settings-page code {
@@ -1027,11 +1157,107 @@ export const codexWorkbenchStyles = `
     color: var(--opl-muted);
     font-family: var(--opl-font-mono);
     font-size: 11px;
+    white-space: normal;
+  }
+
+  .settings-inline-identity {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    text-align: left;
+  }
+
+  .settings-inline-identity strong,
+  .gateway-identity strong {
+    overflow: hidden;
+    color: var(--opl-text);
+    font-weight: 550;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .settings-avatar {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    display: inline-grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--opl-text);
+    color: var(--opl-canvas);
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  .settings-avatar.large {
+    width: 42px;
+    height: 42px;
+    flex-basis: 42px;
+    font-size: 13px;
+  }
+
+  .gateway-identity {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 2px 0 18px;
+    border-bottom: 1px solid var(--opl-border);
+  }
+
+  .settings-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--opl-muted);
+    white-space: nowrap;
+  }
+
+  .settings-status > span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--opl-faint);
+  }
+
+  .settings-status[data-tone="ready"] > span {
+    background: var(--opl-success);
+  }
+
+  .settings-status[data-tone="attention"] > span {
+    background: var(--opl-warning);
+  }
+
+  .settings-muted {
+    color: var(--opl-faint);
+  }
+
+  .settings-command {
+    min-height: 31px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 18px;
+    padding: 0 10px;
+    border: 1px solid var(--opl-border);
+    border-radius: 7px;
+    background: var(--opl-canvas);
+    color: var(--opl-text);
+  }
+
+  .about-mark {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--opl-border);
+    border-radius: 8px;
+    color: var(--opl-muted);
   }
 
   .setting-toggle,
-  .setting-select,
-  .settings-page section > button {
+  .setting-select {
     min-height: 30px;
     padding: 0 10px;
     border: 1px solid var(--opl-border);
@@ -1850,9 +2076,72 @@ export const codexWorkbenchStyles = `
       display: inline-grid;
     }
 
-    .settings-page dl > div {
+    .settings-page {
+      display: block;
+      overflow-y: auto;
+      scrollbar-width: none;
+    }
+
+    .settings-page::-webkit-scrollbar {
+      display: none;
+    }
+
+    .settings-navigation {
+      display: none;
+    }
+
+    .settings-mobile-navigation {
+      position: sticky;
+      top: 0;
+      z-index: 4;
+      display: block;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--opl-border-light);
+      background: color-mix(in srgb, var(--opl-canvas) 94%, transparent);
+      backdrop-filter: blur(12px);
+    }
+
+    .settings-mobile-navigation select {
+      width: 100%;
+      min-height: 34px;
+      padding: 0 10px;
+      border: 1px solid var(--opl-border);
+      border-radius: 7px;
+      background: var(--opl-canvas);
+      color: var(--opl-text);
+    }
+
+    .settings-detail {
+      overflow: visible;
+    }
+
+    .settings-detail-header,
+    .settings-content {
+      padding-right: 18px;
+      padding-left: 18px;
+    }
+
+    .settings-detail-header {
+      padding-top: 22px;
+      padding-bottom: 16px;
+    }
+
+    .settings-row {
       grid-template-columns: 1fr;
       gap: 7px;
+    }
+
+    .settings-row-value {
+      justify-content: flex-start;
+      text-align: left;
+    }
+
+    .gateway-identity {
+      grid-template-columns: 42px minmax(0, 1fr);
+    }
+
+    .gateway-identity > .settings-status {
+      grid-column: 2;
     }
 
     .composer-select select {

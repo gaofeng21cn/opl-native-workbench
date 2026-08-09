@@ -125,6 +125,90 @@ function compactAction(value) {
   ]) ?? {};
 }
 
+function compactGatewayAccount(value) {
+  if (!value || typeof value !== "object") return undefined;
+  const account = value.account && typeof value.account === "object" ? value.account : undefined;
+  return {
+    ...selectedFields(value, ["surface_kind", "connection_mode", "status", "account_card_visible"]),
+    account: account ? {
+      ...selectedFields(account, ["display_name", "email", "status"]),
+      balance: selectedFields(account.balance, ["amount", "currency"])
+    } : undefined,
+    usage: selectedFields(value.usage, [
+      "today_tokens", "total_tokens", "today_actual_cost", "total_actual_cost", "currency", "day_timezone"
+    ]),
+    managed_key: selectedFields(value.managed_key, ["name", "status", "ownership"]),
+    installation: selectedFields(value.installation, ["device_label", "short_id"]),
+    freshness: selectedFields(value.freshness, ["observed_at", "stale_after", "stale", "last_error_code"]),
+    capabilities: selectedFields(value.capabilities, ["account_login_supported", "manual_key_supported"])
+  };
+}
+
+function compactSettingsReadModel(value) {
+  if (!value || typeof value !== "object") return undefined;
+  const connections = value.connections && typeof value.connections === "object" ? value.connections : undefined;
+  const workspaceServices = value.workspace_services && typeof value.workspace_services === "object"
+    ? value.workspace_services
+    : undefined;
+  const dockerWebui = value.docker_webui && typeof value.docker_webui === "object" ? value.docker_webui : undefined;
+  const storageLifecycle = value.storage_lifecycle && typeof value.storage_lifecycle === "object"
+    ? value.storage_lifecycle
+    : undefined;
+  return {
+    ...selectedFields(value, ["surface_kind", "schema_version", "owner", "source_surface"]),
+    opl_gateway_account: compactGatewayAccount(value.opl_gateway_account),
+    codex_model_policy: selectedFields(value.codex_model_policy, [
+      "model", "reasoning_effort", "model_provider", "provider_name", "provider_base_url", "config_path",
+      "profile_source", "api_key_present", "opl_gateway_configured", "model_access_ready", "model_access_source", "access_status"
+    ]),
+    local_environment: selectedFields(value.local_environment, [
+      "source_ref", "state_dir", "runtime_sources_root", "logs_dir", "release_channel", "temporal_provider"
+    ]),
+    workspace_services: workspaceServices ? {
+      workspace_root: selectedFields(workspaceServices.workspace_root, [
+        "source_ref", "selected_path", "source", "exists", "writable", "health_status"
+      ]),
+      personalization_refs: selectedFields(workspaceServices.personalization_refs, [
+        "source_refs", "user_agents_owner", "opl_app_context_owner", "framework_role"
+      ])
+    } : undefined,
+    connections: connections ? {
+      ...selectedFields(connections, ["surface_kind", "source_ref", "allowed_statuses", "default_connection_id"]),
+      connections: Array.isArray(connections.connections)
+        ? connections.connections.slice(0, 16).map((connection) => selectedFields(connection, [
+            "connection_id", "name", "connection_type", "endpoint", "status", "status_code", "last_tested_at"
+          ]) ?? {})
+        : []
+    } : undefined,
+    docker_webui: dockerWebui ? {
+      ...selectedFields(dockerWebui, ["surface_kind", "ordinary_status"]),
+      runtime_proxy: selectedFields(dockerWebui.runtime_proxy, ["status"]),
+      failure_recovery: selectedFields(dockerWebui.failure_recovery, ["status"])
+    } : undefined,
+    storage_lifecycle: storageLifecycle ? {
+      ...selectedFields(storageLifecycle, ["surface_kind", "snapshot_updated_at"]),
+      agent_package_store: selectedFields(storageLifecycle.agent_package_store, [
+        "status", "observed_at", "stale", "bytes", "reclaimable_bytes", "reason_code"
+      ]),
+      webui_data_volume: selectedFields(storageLifecycle.webui_data_volume, [
+        "status", "observed_at", "stale", "bytes", "reclaimable_bytes", "reason_code"
+      ])
+    } : undefined
+  };
+}
+
+function compactCore(value) {
+  if (!value || typeof value !== "object") return undefined;
+  return {
+    codex: selectedFields(value.codex, [
+      "installed", "version", "parsed_version", "minimum_version", "version_status", "latest_version",
+      "latest_version_status", "update_available", "binary_path", "default_model", "default_reasoning_effort",
+      "config_path", "api_key_present", "opl_gateway_configured", "model_access_ready", "model_access_status",
+      "model_access_source"
+    ])
+  };
+}
+
 function compactFastState(value) {
   const root = value && typeof value === "object" ? value : {};
   const appState = root.app_state && typeof root.app_state === "object" ? root.app_state : root;
@@ -143,6 +227,7 @@ function compactFastState(value) {
       surface_kind: appState.surface_kind,
       runtime_source: appState.runtime_source,
       meta: appState.meta,
+      core: compactCore(appState.core),
       provider: { status: appState.provider?.status },
       active_project_lines: firstRecords(appState.active_project_lines, 12),
       home_agent_shortcuts: firstRecords(appState.home_agent_shortcuts, 16),
@@ -159,6 +244,14 @@ function compactFastState(value) {
         } : undefined
       } : undefined,
       settings_control_center: settings ? {
+        surface_kind: settings.surface_kind,
+        schema_version: settings.schema_version,
+        profile: settings.profile,
+        status_summary: selectedFields(settings.status_summary, [
+          "model_access", "codex_version", "runtime_source_carrier_health", "agent_package_functional_health",
+          "temporal_provider", "release_channel", "issue_count"
+        ]),
+        app_settings_read_model: compactSettingsReadModel(settings.app_settings_read_model),
         task_entries: firstRecords(settings.task_entries, 64) ?? [],
         action_sections: firstRecords(settings.action_sections, 32) ?? []
       } : undefined,

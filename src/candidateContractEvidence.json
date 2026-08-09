@@ -278,10 +278,17 @@
         "contains": [
           "activeView",
           "settings",
+          "SettingsPanel",
+          "Back to chat"
+        ]
+      },
+      {
+        "file": "src/workbench/SettingsPanel.tsx",
+        "contains": [
           "opl-settings-panel",
           "opl-model-access-entry",
           "opl-locale-toggle",
-          "Back to chat"
+          "opl-settings-gateway-username"
         ]
       }
     ],
@@ -804,25 +811,24 @@
   },
   "settings_information_architecture": {
     "visible_tabs": [
-      "general",
-      "access",
-      "capabilities",
-      "environment",
-      "storage",
-      "appearance",
-      "advanced"
+      "overview",
+      "account_models",
+      "connections_deployment",
+      "workspace",
+      "agents_capabilities",
+      "runtime_maintenance",
+      "preferences"
     ],
     "labels_en": [
-      "General",
-      "Access",
+      "Overview",
+      "Account & Models",
+      "Connections & Deployment",
+      "Workspace",
       "Agents & Capabilities",
-      "Local Environment",
-      "Storage",
-      "Appearance",
-      "Advanced"
+      "Runtime & Maintenance",
+      "Preferences"
     ],
     "legacy_tabs_hidden": [
-      "overview",
       "runtime",
       "system",
       "model",

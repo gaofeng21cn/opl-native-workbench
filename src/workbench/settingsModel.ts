@@ -7,13 +7,13 @@ import {
 export const SETTINGS_STORAGE_KEY = "opl.nativeWorkbench.settings.v1";
 
 export type SettingsSectionId =
-  | "general"
-  | "access"
-  | "capabilities"
-  | "environment"
-  | "storage"
-  | "appearance"
-  | "advanced";
+  | "overview"
+  | "account_models"
+  | "connections_deployment"
+  | "workspace"
+  | "agents_capabilities"
+  | "runtime_maintenance"
+  | "preferences";
 
 export type SettingKey =
   | "locale"
@@ -49,13 +49,13 @@ export type SettingsSection = {
 };
 
 export const settingsSections: SettingsSection[] = [
-  { id: "general", title: "General", keys: ["locale", "defaultWorkspace"] },
-  { id: "access", title: "Access", keys: ["modelAccess", "reasoningLevel"] },
-  { id: "capabilities", title: "Agents & Capabilities", keys: ["professionalStarterDefaults"] },
-  { id: "environment", title: "Local Environment", keys: ["runtimeProfile"] },
-  { id: "storage", title: "Storage", keys: ["confirmBeforeExecute"] },
-  { id: "appearance", title: "Appearance", keys: ["theme", "artifactPreviewMode"] },
-  { id: "advanced", title: "Advanced", keys: ["developerDetails"] }
+  { id: "overview", title: "Overview", keys: [] },
+  { id: "account_models", title: "Account & Models", keys: ["modelAccess", "reasoningLevel"] },
+  { id: "connections_deployment", title: "Connections & Deployment", keys: [] },
+  { id: "workspace", title: "Workspace", keys: ["defaultWorkspace"] },
+  { id: "agents_capabilities", title: "Agents & Capabilities", keys: ["professionalStarterDefaults"] },
+  { id: "runtime_maintenance", title: "Runtime & Maintenance", keys: ["runtimeProfile", "developerDetails"] },
+  { id: "preferences", title: "Preferences", keys: ["locale", "theme", "artifactPreviewMode", "confirmBeforeExecute"] }
 ];
 
 export const settingsDefaults: WorkbenchSettings = {
