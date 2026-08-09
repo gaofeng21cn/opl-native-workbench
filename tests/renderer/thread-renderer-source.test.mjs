@@ -135,7 +135,14 @@ test("native visual tokens track the current ChatGPT Codex light workbench", () 
 test("primary canvas hides its scrollbar without disabling scrolling", () => {
   assert.match(styles, /\.conversation,\s*\.settings-page \{[^}]*overflow-y: auto;[^}]*scrollbar-width: none;/s);
   assert.match(styles, /\.conversation::\-webkit-scrollbar,\s*\.settings-page::\-webkit-scrollbar \{[^}]*display: none;/s);
-  assert.match(styles, /\.sidebar-scroll \{[^}]*overflow-y: auto;/s);
+  assert.match(styles, /\.sidebar-scroll \{[^}]*overflow-x: hidden;[^}]*overflow-y: auto;/s);
+  assert.match(styles, /\.sidebar-scroll::\-webkit-scrollbar \{[^}]*width: 5px;[^}]*height: 0;/s);
+  assert.match(styles, /\.sidebar-scroll::\-webkit-scrollbar-track \{[^}]*background: transparent;/s);
+  assert.match(styles, /\.sidebar-scroll::\-webkit-scrollbar-thumb \{[^}]*background: color-mix\(in oklab, var\(--opl-text\) 12%, transparent\);/s);
+  assert.match(styles, /\.sidebar-scroll > \*,[\s\S]*\.thread-directory-row \{[^}]*min-width: 0;[^}]*max-width: 100%;/s);
+  assert.match(styles, /\.history-list li \.thread-directory-open \{[^}]*max-width: 100%;[^}]*overflow: hidden;/s);
+  assert.match(styles, /\.history-list li \.thread-directory-open \.thread-directory-copy \{[^}]*max-width: 100%;[^}]*overflow: hidden;/s);
+  assert.match(styles, /\.thread-directory-copy strong \{[^}]*max-width: 100%;[^}]*display: block;/s);
   assert.match(styles, /\.context-scroll \{[^}]*overflow-y: auto;/s);
 });
 

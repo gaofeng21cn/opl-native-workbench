@@ -146,10 +146,44 @@ export const codexWorkbenchStyles = `
   }
 
   .sidebar-scroll {
+    min-width: 0;
     min-height: 0;
     flex: 1;
+    overflow-x: hidden;
     overflow-y: auto;
     padding: 1px 8px 14px;
+    scrollbar-color: color-mix(in oklab, var(--opl-text) 12%, transparent) transparent;
+    scrollbar-width: thin;
+  }
+
+  .sidebar-scroll::-webkit-scrollbar {
+    width: 5px;
+    height: 0;
+  }
+
+  .sidebar-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .sidebar-scroll::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--opl-text) 12%, transparent);
+  }
+
+  .sidebar-scroll::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--opl-text) 20%, transparent);
+  }
+
+  .sidebar-scroll > *,
+  .project-directory,
+  .project-directory-group,
+  .project-children,
+  .history-list,
+  .history-list ol,
+  .history-list li,
+  .thread-directory-row {
+    min-width: 0;
+    max-width: 100%;
   }
 
   .quick-actions {
@@ -1442,13 +1476,17 @@ export const codexWorkbenchStyles = `
 
   .history-list li .thread-directory-open {
     min-width: 0;
+    max-width: 100%;
     display: block;
+    overflow: hidden;
     padding: 4px 4px 4px 28px;
   }
 
   .history-list li .thread-directory-open .thread-directory-copy {
     min-width: 0;
+    max-width: 100%;
     display: block;
+    overflow: hidden;
   }
 
   .thread-directory-copy strong,
@@ -1459,6 +1497,8 @@ export const codexWorkbenchStyles = `
   }
 
   .thread-directory-copy strong {
+    max-width: 100%;
+    display: block;
     font-size: 12.5px;
     font-weight: 400;
   }
