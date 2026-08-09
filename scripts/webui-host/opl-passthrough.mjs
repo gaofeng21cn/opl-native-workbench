@@ -66,8 +66,16 @@ const packageFields = [
   "status_reason", "failure_reason", "reason", "recommended_action", "recommendedAction", "next_action", "repair_action",
   "source_kind", "install_origin",
   "required_skill", "requiredSkill", "skill_id", "skill_ref", "required_skills",
-  "source_surface", "installed_version", "installed", "activated", "codex_visible"
+  "source_surface", "installed_version", "selected_version", "stable_version", "projected_version",
+  "installed", "activated", "codex_visible"
 ];
+
+function compactPackageActionPayload(value) {
+  return selectedFields(value, [
+    "package_id", "manifest_url", "registry_url", "trust_tier", "source_kind",
+    "exposure_action", "shortcut_id", "visible", "sort_order"
+  ]);
+}
 
 function compactPackageRecord(value) {
   const record = selectedFields(value, packageFields) ?? {};
@@ -89,10 +97,18 @@ function compactPackageRecord(value) {
   ]);
   const capabilityExposure = selectedFields(value?.capability_exposure, ["status", "codex_visible"]);
   const actions = selectedFields(value?.actions, ["available", "recommended", "execute_surface"]);
+  const readiness = selectedFields(value?.readiness, ["status", "operational_ready", "launch_allowed", "reason"]);
+  const packageCurrentness = selectedFields(value?.package_currentness, ["status", "reasons"]);
   const availableActions = Array.isArray(value?.available_actions)
-    ? value.available_actions.slice(0, 8).map((action) => selectedFields(action, [
-      "action_id", "action_ref", "required_payload_fields", "confirmation_required", "semantic", "surface"
-    ]) ?? {})
+    ? value.available_actions.map((action) => {
+      const payload = compactPackageActionPayload(action?.payload);
+      return {
+        ...(selectedFields(action, [
+        "action_id", "action_ref", "required_payload_fields", "confirmation_required", "semantic", "surface"
+        ]) ?? {}),
+        ...(payload && Object.keys(payload).length ? { payload } : {})
+      };
+    })
     : undefined;
   const files = selectedFields(value?.files, ["home_shortcut_preferences_file"]);
   return {
@@ -105,12 +121,14 @@ function compactPackageRecord(value) {
     ...(presence ? { presence } : {}),
     ...(capabilityExposure ? { capability_exposure: capabilityExposure } : {}),
     ...(actions ? { actions } : {}),
+    ...(readiness ? { readiness } : {}),
+    ...(packageCurrentness ? { package_currentness: packageCurrentness } : {}),
     ...(availableActions ? { available_actions: availableActions } : {}),
     ...(files ? { files } : {}),
   };
 }
 
-function compactPackageRows(value, limit = 8) {
+function compactPackageRows(value, limit = 64) {
   if (Array.isArray(value)) return value.slice(0, limit).map(compactPackageRecord);
   if (value && typeof value === "object") {
     return Object.fromEntries(Object.entries(value).slice(0, limit).map(([key, row]) => [key, compactPackageRecord(row)]));
@@ -121,7 +139,8 @@ function compactPackageRows(value, limit = 8) {
 function compactAction(value) {
   return selectedFields(value, [
     "action_id", "label", "route", "payload_fields", "mutates", "dry_run_supported", "owner",
-    "delegated_surface", "can_submit_to_safe_action_shell", "route_requires_domain_or_app_payload"
+    "delegated_surface", "can_submit_to_safe_action_shell", "route_requires_domain_or_app_payload",
+    "confirmation_required", "danger_level"
   ]) ?? {};
 }
 
@@ -162,7 +181,8 @@ function compactSettingsReadModel(value) {
       "profile_source", "api_key_present", "opl_gateway_configured", "model_access_ready", "model_access_source", "access_status"
     ]),
     local_environment: selectedFields(value.local_environment, [
-      "source_ref", "state_dir", "runtime_sources_root", "logs_dir", "release_channel", "temporal_provider"
+      "source_ref", "state_dir", "runtime_sources_root", "logs_dir", "release_channel", "temporal_provider",
+      "app_update_action_id", "runtime_roots_cleanup_action_id", "runtime_substrate_rollback_action_id"
     ]),
     workspace_services: workspaceServices ? {
       workspace_root: selectedFields(workspaceServices.workspace_root, [
@@ -209,6 +229,58 @@ function compactCore(value) {
   };
 }
 
+function compactProvider(value) {
+  if (!value || typeof value !== "object") return undefined;
+  const temporal = value.temporal && typeof value.temporal === "object" ? value.temporal : undefined;
+  const details = temporal?.details && typeof temporal.details === "object" ? temporal.details : undefined;
+  const workerReadiness = details?.worker_readiness && typeof details.worker_readiness === "object"
+    ? details.worker_readiness
+    : undefined;
+  const serviceLifecycle = workerReadiness?.temporal_service_lifecycle && typeof workerReadiness.temporal_service_lifecycle === "object"
+    ? workerReadiness.temporal_service_lifecycle
+    : undefined;
+  return {
+    ...selectedFields(value, ["status"]),
+    temporal: temporal ? {
+      ...selectedFields(temporal, ["status", "health_status", "ready"]),
+      management: selectedFields(temporal.management, ["owner_surface", "actions"]),
+      details: details ? {
+        ...selectedFields(details, ["address", "address_source", "namespace", "task_queue"]),
+        worker_readiness: workerReadiness ? {
+          ...selectedFields(workerReadiness, ["readiness_status", "service_ready", "worker_ready", "server_reachable", "blockers"]),
+          temporal_service_lifecycle: serviceLifecycle ? {
+            ...selectedFields(serviceLifecycle, ["service_status", "address_source", "server_reachable", "service_kind", "blockers"]),
+            supervisor: selectedFields(serviceLifecycle.supervisor, [
+              "status", "installed", "loaded", "ready", "observed_at", "error", "supported", "applicable",
+              "required", "configuration_current", "process_state"
+            ])
+          } : undefined
+        } : undefined,
+        scheduler: selectedFields(details.scheduler, [
+          "status", "ready", "observed_at", "schedule_status", "health_status", "degraded_reason", "inspection_error"
+        ])
+      } : undefined
+    } : undefined
+  };
+}
+
+function compactRuntimeSourceCarriers(value) {
+  if (!value || typeof value !== "object") return undefined;
+  return {
+    ...selectedFields(value, ["surface_kind"]),
+    summary: selectedFields(value.summary, [
+      "default_carriers_count", "present_default_carriers_count", "healthy_default_carriers_count"
+    ]),
+    items: Array.isArray(value.items) ? value.items.map((item) => ({
+      ...selectedFields(item, [
+        "package_id", "carrier_id", "label", "scope", "description", "default_carrier", "source_present",
+        "source_origin", "source_health_status"
+      ]),
+      git: selectedFields(item?.git, ["sync_status", "dirty"])
+    })) : []
+  };
+}
+
 function compactFastState(value) {
   const root = value && typeof value === "object" ? value : {};
   const appState = root.app_state && typeof root.app_state === "object" ? root.app_state : root;
@@ -228,7 +300,8 @@ function compactFastState(value) {
       runtime_source: appState.runtime_source,
       meta: appState.meta,
       core: compactCore(appState.core),
-      provider: { status: appState.provider?.status },
+      provider: compactProvider(appState.provider),
+      runtime_source_carriers: compactRuntimeSourceCarriers(appState.runtime_source_carriers),
       active_project_lines: firstRecords(appState.active_project_lines, 12),
       home_agent_shortcuts: firstRecords(appState.home_agent_shortcuts, 16),
       modules: { items: firstRecords(appState.modules?.items, 8) ?? [] },
@@ -267,13 +340,13 @@ function compactFastState(value) {
           source_catalog_kind: directory.source_catalog_kind,
           files: selectedFields(directory.files, ["home_shortcut_preferences_file"]),
           home_shortcut_preferences: firstRecords(directory.home_shortcut_preferences, 16),
-          entries: compactPackageRows(directory.entries, 8) ?? []
+          entries: compactPackageRows(directory.entries, 64) ?? []
         } : undefined,
         status_index: statusIndex ? {
           installed_package_count: statusIndex.installed_package_count,
           files: statusIndex.files,
           home_shortcut_preferences: firstRecords(statusIndex.home_shortcut_preferences, 16),
-          packages: compactPackageRows(statusIndex.packages, 8)
+          packages: compactPackageRows(statusIndex.packages, 64)
         } : undefined
       } : undefined
     }

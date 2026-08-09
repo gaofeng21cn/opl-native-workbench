@@ -150,12 +150,11 @@ for (const marker of [
   "managed_source",
   "missing_codex_surface",
   "required_skill",
-  "packageLifecycleActionIds",
-  "install_from_manifest_url",
-  "agent_package_update",
-  "agent_package_repair",
-  "agent_package_uninstall",
-  "agent_package_preferences_set"
+  "projectedAction.action_id",
+  "projectedAction.action_ref",
+  "projectedAction.payload",
+  "projectedAction.required_payload_fields",
+  "projectedAction.confirmation_required"
 ]) {
   assert(workbenchModelSource.includes(marker), `workbench model missing package lifecycle marker ${marker}`);
 }

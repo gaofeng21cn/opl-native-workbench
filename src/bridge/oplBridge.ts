@@ -107,7 +107,7 @@ export type OplAppState = Record<string, unknown> & {
     profile: OplStateProfile;
     generated_at: string;
   };
-  provider: {
+  provider: Record<string, unknown> & {
     status: string;
   };
   active_project_lines: OplActiveProjectLine[];
@@ -704,6 +704,7 @@ function normalizeStateObject(value: unknown, fallback: OplStateReadback): OplAp
       generated_at: asString(asRecord(appState.meta)?.generated_at) ?? fallback.app_state.meta.generated_at
     },
     provider: {
+      ...asRecord(appState.provider),
       status: asString(asRecord(appState.provider)?.status) ?? fallback.app_state.provider.status
     },
     active_project_lines: Array.isArray(appState.active_project_lines)

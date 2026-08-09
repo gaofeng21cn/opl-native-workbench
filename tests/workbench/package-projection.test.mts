@@ -60,7 +60,11 @@ test("current Package directory entries replace retired private lifecycle fields
               available_actions: [
                 {
                   action_id: "agent_package_update",
-                  semantic: "update"
+                  action_ref: "app_state.actions#agent_package_update",
+                  semantic: "update",
+                  payload: { package_id: "future.agent" },
+                  required_payload_fields: ["package_id"],
+                  confirmation_required: true
                 }
               ],
               lifecycle_receipts: [{ receipt_ref: "private://receipt" }],
@@ -104,11 +108,17 @@ test("current Package directory entries replace retired private lifecycle fields
   const item = model.packageLifecycle[0];
   assert.equal(item.packageId, "future.agent");
   assert.equal(item.label, "Future Agent");
+  assert.equal(item.publisher, "Owner");
+  assert.equal(item.packageRole, "standard_agent");
   assert.equal(item.searchMetadata.tags.includes("required_skill:future-agent"), true);
   assert.equal(item.statusAxes.find((axis) => axis.label === "Codex surface")?.value, "visible");
   assert.equal(item.details.find((detail) => detail.label === "Physical surface")?.value, "available");
-  assert.equal(item.actions.find((action) => action.kind === "update")?.status, "available");
-  assert.equal(item.actions.find((action) => action.kind === "install")?.status, "unavailable");
+  assert.equal(item.actions.length, 1);
+  assert.equal(item.actions[0]?.kind, "update");
+  assert.equal(item.actions[0]?.status, "available");
+  assert.deepEqual(item.actions[0]?.payload, { package_id: "future.agent" });
+  assert.deepEqual(item.actions[0]?.requiredPayloadFields, ["package_id"]);
+  assert.equal(item.actions[0]?.confirmationRequired, true);
   assert.equal(item.refs.find((ref) => ref.label === "Source")?.ref, "future-agent@example");
   assert.equal(item.refs.some((ref) => ref.label === "Manifest"), false);
 
@@ -126,4 +136,32 @@ test("current Package directory entries replace retired private lifecycle fields
   ]) {
     assert.equal(serialized.includes(retired), false, `retired private field leaked: ${retired}`);
   }
+});
+
+test("package projection keeps the complete dynamic catalog and separates OPL roles", () => {
+  const entries = Array.from({ length: 12 }, (_, index) => ({
+    package_id: `package-${index}`,
+    display_name: `Package ${index}`,
+    publisher: index < 9 ? "one-person-lab" : "OpenAI",
+    package_role: index < 5 ? "standard_agent" : index < 7 ? "capability_package" : index === 7 ? "workflow_profile" : "standard_agent",
+    installed: true,
+    activated: true,
+    readiness: { status: "ready" },
+    package_currentness: { status: "unknown" },
+    available_actions: []
+  }));
+  const model = deriveWorkbenchModelFromState({
+    app_state: {
+      agent_packages: {
+        directory: { status: "available", entry_count: entries.length, entries },
+        status_index: { packages: {} }
+      }
+    }
+  });
+
+  assert.equal(model.packageLifecycle.length, 12);
+  assert.equal(model.packageLifecycle.filter((item) => item.official && item.roleGroup === "agent").length, 6);
+  assert.equal(model.packageLifecycle.filter((item) => item.roleGroup === "supporting").length, 2);
+  assert.equal(model.packageLifecycle.filter((item) => item.roleGroup === "workflow").length, 1);
+  assert.equal(model.packageLifecycle.filter((item) => item.roleGroup === "other").length, 3);
 });

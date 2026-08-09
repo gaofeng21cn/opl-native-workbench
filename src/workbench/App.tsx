@@ -32,7 +32,7 @@ import {
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent
 } from "react";
-import { createBrowserBridge, type CodexModelCatalogEntry } from "../bridge/oplBridge";
+import { createBrowserBridge, type CodexModelCatalogEntry, type OplActionReceipt } from "../bridge/oplBridge";
 import type { CodexThread } from "../threads/types";
 import {
   ActionReceiptSummary,
@@ -73,6 +73,9 @@ import {
   SettingsPanel,
   SettingsSidebar,
   gatewayAccountInitials,
+  type SettingsActionConfirmation,
+  type SettingsActionFeedback,
+  type SettingsActionRequest,
   type SettingsDestinationId
 } from "./SettingsPanel";
 import { ThreadDetailPopover } from "./threads/ThreadDetailPopover";
@@ -522,6 +525,9 @@ export function App() {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [lastDryRun, setLastDryRun] = useState("No action preview yet.");
   const [pendingAction, setPendingAction] = useState<{ actionId: string; payload: Record<string, unknown> } | null>(null);
+  const [settingsActionBusyKey, setSettingsActionBusyKey] = useState<string | null>(null);
+  const [settingsActionFeedback, setSettingsActionFeedback] = useState<SettingsActionFeedback | null>(null);
+  const [settingsActionConfirmation, setSettingsActionConfirmation] = useState<SettingsActionConfirmation | null>(null);
   const [uiMetadata, setUiMetadata] = useState<WorkbenchUiMetadata>(persistedUi.metadata);
   const [sidebarWidth, setSidebarWidth] = useState(persistedUi.metadata.sidebarWidth);
   const [drafts, setDrafts] = useState<WorkbenchDrafts>(persistedUi.drafts);
@@ -740,6 +746,73 @@ export function App() {
         setStateStatus("error");
         setStateError(String(error));
       });
+  }
+
+  function settingsReceiptFeedback(receipt: OplActionReceipt, label: string): SettingsActionFeedback {
+    if (receipt.status === "executed") {
+      return {
+        tone: "success",
+        message: settings.locale === "zh" ? `${label}已完成，状态已刷新。` : `${label} completed and state was refreshed.`
+      };
+    }
+    if (receipt.status === "blocked_read_only") {
+      return {
+        tone: "attention",
+        message: settings.locale === "zh" ? "当前以只读评估模式运行，预检查可用，但执行已被阻止。" : "The app is running in read-only evaluation mode. Preview is available, but execution is blocked."
+      };
+    }
+    return {
+      tone: "attention",
+      message: receipt.blockedReason || receipt.stderr || (settings.locale === "zh" ? `${label}未完成。` : `${label} did not complete.`)
+    };
+  }
+
+  async function runSettingsAction(request: SettingsActionRequest) {
+    setSettingsActionBusyKey(request.key);
+    setSettingsActionFeedback(null);
+    try {
+      if (request.confirmationRequired) {
+        const preview = await bridge.executeAction({ actionId: request.actionId, payload: request.payload, dryRun: true });
+        if (preview.status === "error" || preview.status === "timed_out") {
+          setSettingsActionFeedback(settingsReceiptFeedback(preview, request.label));
+          return;
+        }
+        setSettingsActionConfirmation({ request, previewStatus: preview.status });
+        return;
+      }
+      const receipt = await bridge.executeAction({
+        actionId: request.actionId,
+        payload: { ...request.payload, confirmed: true },
+        dryRun: false
+      });
+      if (receipt.status === "executed") await loadState(settings.runtimeProfile);
+      setSettingsActionFeedback(settingsReceiptFeedback(receipt, request.label));
+    } catch (error) {
+      setSettingsActionFeedback({ tone: "attention", message: String(error) });
+    } finally {
+      setSettingsActionBusyKey(null);
+    }
+  }
+
+  async function confirmSettingsAction() {
+    const confirmation = settingsActionConfirmation;
+    if (!confirmation) return;
+    setSettingsActionBusyKey(confirmation.request.key);
+    setSettingsActionFeedback(null);
+    try {
+      const receipt = await bridge.executeAction({
+        actionId: confirmation.request.actionId,
+        payload: { ...confirmation.request.payload, confirmed: true },
+        dryRun: false
+      });
+      if (receipt.status === "executed") await loadState(settings.runtimeProfile);
+      setSettingsActionFeedback(settingsReceiptFeedback(receipt, confirmation.request.label));
+      setSettingsActionConfirmation(null);
+    } catch (error) {
+      setSettingsActionFeedback({ tone: "attention", message: String(error) });
+    } finally {
+      setSettingsActionBusyKey(null);
+    }
   }
 
   async function openThread(thread: WorkbenchThreadItem) {
@@ -1514,6 +1587,12 @@ export function App() {
             onRefresh={() => void loadState(settings.runtimeProfile)}
             onSettingChange={updateSetting}
             onReasoningChange={updateReasoning}
+            onAction={(request) => void runSettingsAction(request)}
+            actionBusyKey={settingsActionBusyKey}
+            actionFeedback={settingsActionFeedback}
+            pendingConfirmation={settingsActionConfirmation}
+            onConfirmAction={() => void confirmSettingsAction()}
+            onCancelAction={() => setSettingsActionConfirmation(null)}
           />
         )}
       </section>
@@ -1854,18 +1933,13 @@ export function App() {
                           type="button"
                           disabled={action.status !== "available" || !action.actionId}
                           onClick={() => {
-                            if (!action.actionId) return;
-                            runDryRun(action.actionId, {
-                              package_id: item.packageId,
-                              lifecycle_action: action.kind,
-                              source_ref: item.sourceRef
-                            });
+                            runDryRun(action.actionId, action.payload);
                           }}
                         >
                           {action.label}: {action.status}
                         </button>
                         <small>{action.reason}</small>
-                        <code className="context-code">{action.actionId ?? action.sourceRef}</code>
+                        <code className="context-code">{action.actionId}</code>
                       </div>
                     ))}
                   </div>

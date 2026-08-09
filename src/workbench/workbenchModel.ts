@@ -97,6 +97,8 @@ export type WorkbenchActionRef = {
   payloadFields: string[];
   mutates: string;
   dryRunSupported: boolean;
+  confirmationRequired: boolean;
+  dangerLevel?: string;
   owner?: string;
   delegatedSurface?: string;
   canSubmitToSafeActionShell?: boolean;
@@ -190,15 +192,19 @@ export type ActionReceiptSummary = {
   checks: string[];
 };
 
-export type PackageLifecycleActionKind = "install" | "update" | "repair" | "uninstall" | "exposure";
+export type PackageLifecycleActionKind = "install" | "update" | "repair" | "uninstall" | "preferences" | "other";
 
 export type PackageLifecycleActionRef = {
   kind: PackageLifecycleActionKind;
+  semantic: string;
   label: string;
   status: "available" | "unavailable";
-  actionId?: string;
+  actionId: string;
+  actionRef: string;
   route?: string;
-  payloadFields: string[];
+  payload: Record<string, unknown>;
+  requiredPayloadFields: string[];
+  confirmationRequired: boolean;
   dryRunSupported: boolean;
   owner?: string;
   delegatedSurface?: string;
@@ -236,6 +242,16 @@ export type AgentPackageLifecycleRef = {
   id: string;
   packageId: string;
   label: string;
+  description: string;
+  publisher: string;
+  packageRole: string;
+  roleGroup: "agent" | "workflow" | "supporting" | "other";
+  official: boolean;
+  installed: boolean | null;
+  activated: boolean | null;
+  version?: string;
+  currentness: string;
+  recommendedActionId?: string;
   status: string;
   summary: string;
   sourceRef: string;
@@ -246,6 +262,50 @@ export type AgentPackageLifecycleRef = {
   statusAxes: PackageLifecycleStatusAxis[];
   actions: PackageLifecycleActionRef[];
   authorityBoundary: string;
+};
+
+export type RuntimeMaintenanceActionRef = {
+  actionId: string;
+  label: string;
+  payload: Record<string, unknown>;
+  requiredPayloadFields: string[];
+  confirmationRequired: boolean;
+  dryRunSupported: boolean;
+  mutates: string;
+  dangerLevel?: string;
+};
+
+export type RuntimeOverviewRef = {
+  temporal: {
+    status: string;
+    ready: boolean | null;
+    serviceStatus: string;
+    serviceReady: boolean | null;
+    workerStatus: string;
+    workerReady: boolean | null;
+    schedulerStatus: string;
+    schedulerReady: boolean | null;
+    address?: string;
+    namespace?: string;
+    taskQueue?: string;
+    observedAt?: string;
+  };
+  carriers: {
+    total: number;
+    present: number;
+    healthy: number;
+    items: {
+      packageId: string;
+      label: string;
+      description?: string;
+      status: string;
+      sourceOrigin?: string;
+      syncStatus?: string;
+      dirty: boolean | null;
+    }[];
+  };
+  maintenanceActions: RuntimeMaintenanceActionRef[];
+  recommendedActionId?: string;
 };
 
 export type WorkbenchGatewayAccount = {
@@ -367,6 +427,7 @@ export type WorkbenchModel = {
   contextTrace: WorkbenchTraceRef[];
   gatewayAccount?: WorkbenchGatewayAccount;
   settingsProjection?: WorkbenchSettingsProjection;
+  runtimeOverview?: RuntimeOverviewRef;
   stateGeneratedAt?: string;
 };
 
@@ -389,6 +450,14 @@ export const initialWorkbenchModel: WorkbenchModel = {
       id: "package-lifecycle-missing-bridge",
       packageId: "missing_bridge",
       label: "Agent package lifecycle",
+      description: "No canonical App package lifecycle projection is available.",
+      publisher: "unknown",
+      packageRole: "unknown",
+      roleGroup: "other",
+      official: false,
+      installed: null,
+      activated: null,
+      currentness: "unknown",
       status: "missing_bridge",
       summary: "No canonical App package lifecycle projection is available; fallback stays preview-only and unavailable.",
       sourceRef: "opl app state --profile fast --json#app_state.agent_packages.directory + app_state.agent_packages.status_index",
@@ -424,13 +493,7 @@ export const initialWorkbenchModel: WorkbenchModel = {
         { label: "Trust", value: "missing_bridge", source: "missing_bridge" },
         { label: "Codex surface", value: "missing_bridge", source: "missing_bridge" }
       ],
-      actions: [
-        { kind: "install", label: "Install", status: "unavailable", payloadFields: [], dryRunSupported: false, sourceRef: "missing_bridge", reason: "Missing App action bridge." },
-        { kind: "update", label: "Update", status: "unavailable", payloadFields: [], dryRunSupported: false, sourceRef: "missing_bridge", reason: "Missing App action bridge." },
-        { kind: "repair", label: "Repair", status: "unavailable", payloadFields: [], dryRunSupported: false, sourceRef: "missing_bridge", reason: "Missing App action bridge." },
-        { kind: "uninstall", label: "Uninstall", status: "unavailable", payloadFields: [], dryRunSupported: false, sourceRef: "missing_bridge", reason: "Missing App action bridge." },
-        { kind: "exposure", label: "Exposure", status: "unavailable", payloadFields: [], dryRunSupported: false, sourceRef: "missing_bridge", reason: "Missing App action bridge." }
-      ],
+      actions: [],
       authorityBoundary: "Native Workbench displays App/root package refs only; it cannot infer installed, ready, synced, or release state."
     }
   ],
@@ -833,30 +896,6 @@ const starterPreviewRouteIds: Record<WorkbenchStarter["id"], string[]> = {
   mag: ["task_export_bundle_preview", "task_action_receipt_preview", "settings_sync_capabilities"],
   rca: ["task_export_bundle_preview", "task_action_receipt_preview", "settings_sync_capabilities"],
   bookforge: ["workspace_ensure", "task_export_bundle_preview", "settings_sync_capabilities"]
-};
-
-const packageLifecycleActionIds: Record<PackageLifecycleActionKind, string[]> = {
-  install: ["install_from_manifest_url"],
-  update: ["agent_package_update"],
-  repair: ["agent_package_repair"],
-  uninstall: ["agent_package_uninstall"],
-  exposure: ["agent_package_preferences_set"]
-};
-
-const packageLifecycleActionAliases: Record<PackageLifecycleActionKind, string[]> = {
-  install: ["install"],
-  update: ["update", "apply"],
-  repair: ["repair", "reinstall"],
-  uninstall: ["uninstall", "remove"],
-  exposure: ["exposure", "home_shortcut", "preferences", "hide", "unhide", "enable", "disable"]
-};
-
-const packageLifecycleActionLabels: Record<PackageLifecycleActionKind, string> = {
-  install: "Install",
-  update: "Update",
-  repair: "Repair",
-  uninstall: "Uninstall",
-  exposure: "Exposure"
 };
 
 function firstPreviewAction(actions: WorkbenchActionRef[]): WorkbenchActionRef | undefined {
@@ -1370,23 +1409,20 @@ function packageLifecycleDetails(
   ];
 }
 
-function actionForPackageKind(
-  kind: PackageLifecycleActionKind,
-  actionMap: Map<string, WorkbenchActionRef>
-): WorkbenchActionRef | undefined {
-  return packageLifecycleActionIds[kind].map((id) => actionMap.get(id)).find(Boolean);
+function packageActionKind(value: string): PackageLifecycleActionKind {
+  const semantic = value.trim().toLowerCase();
+  if (semantic === "install" || semantic === "update" || semantic === "repair" || semantic === "uninstall") return semantic;
+  if (semantic === "preferences") return "preferences";
+  return "other";
 }
 
-function packageAllowsAction(kind: PackageLifecycleActionKind, record: Record<string, unknown>): boolean {
-  const availableActions = uniqueStrings([
-    ...asStringArray(record.available_actions),
-    ...asRecordArray(record.available_actions).flatMap((action) => [
-      asString(action.action_id),
-      asString(action.semantic)
-    ]),
-    ...asStringArray(asRecord(record.actions)?.available)
-  ]).map((item) => item.toLowerCase());
-  return packageLifecycleActionAliases[kind].some((alias) => availableActions.some((item) => item.includes(alias)));
+function packageActionLabel(kind: PackageLifecycleActionKind, fallback: string): string {
+  if (kind === "install") return "Install";
+  if (kind === "update") return "Update";
+  if (kind === "repair") return "Repair";
+  if (kind === "uninstall") return "Uninstall";
+  if (kind === "preferences") return "Preferences";
+  return fallback;
 }
 
 function packageLifecycleActions(
@@ -1394,31 +1430,39 @@ function packageLifecycleActions(
   actionMap: Map<string, WorkbenchActionRef>,
   source: PackageLifecycleStatusAxis["source"]
 ): PackageLifecycleActionRef[] {
-  return (Object.keys(packageLifecycleActionLabels) as PackageLifecycleActionKind[]).map((kind) => {
-    const action = actionForPackageKind(kind, actionMap);
-    const allowedByPackage = packageAllowsAction(kind, record);
-    const status = source === "canonical_agent_packages" && action?.dryRunSupported && allowedByPackage ? "available" : "unavailable";
-    return {
+  if (source !== "canonical_agent_packages") return [];
+  return asRecordArray(record.available_actions).flatMap((projectedAction) => {
+    const actionId = asString(projectedAction.action_id);
+    const actionRef = asString(projectedAction.action_ref);
+    if (!actionId || !actionRef) return [];
+    const semantic = asString(projectedAction.semantic) ?? actionId;
+    const kind = packageActionKind(semantic);
+    const action = actionMap.get(actionId);
+    const payload = asRecord(projectedAction.payload) ?? {};
+    const requiredPayloadFields = asStringArray(projectedAction.required_payload_fields);
+    const confirmationRequired = typeof projectedAction.confirmation_required === "boolean"
+      ? projectedAction.confirmation_required
+      : action?.confirmationRequired ?? false;
+    const status = action ? "available" : "unavailable";
+    return [{
       kind,
-      label: packageLifecycleActionLabels[kind],
+      semantic,
+      label: packageActionLabel(kind, action?.label ?? actionId),
       status,
-      actionId: action?.id,
+      actionId,
+      actionRef,
       route: action?.route,
-      payloadFields: action?.payloadFields ?? [],
+      payload,
+      requiredPayloadFields,
+      confirmationRequired,
       dryRunSupported: action?.dryRunSupported ?? false,
       owner: action?.owner,
       delegatedSurface: action?.delegatedSurface,
-      sourceRef: action?.route ?? (source === "missing_bridge" ? "missing_bridge" : "opl app state --profile fast --json#app_state.actions"),
-      reason: source !== "canonical_agent_packages"
-        ? "Preview fallback row: package lifecycle actions are unavailable without canonical app_state.agent_packages."
-        : !action
-        ? "Missing App/root action ref."
-        : !action.dryRunSupported
-          ? "App/root action ref exists, but dry-run preview is unavailable."
-          : !allowedByPackage
-            ? "Package row does not expose this lifecycle action."
-            : "Available through App/root action contract."
-    };
+      sourceRef: action?.route ?? actionRef,
+      reason: action
+        ? "Available through this package row's App-projected action contract."
+        : "The package row exposes this action, but the matching App action definition is unavailable."
+    } satisfies PackageLifecycleActionRef];
   });
 }
 
@@ -1428,6 +1472,20 @@ function packageLifecycleItem(
   source: PackageLifecycleStatusAxis["source"]
 ): AgentPackageLifecycleRef {
   const packageId = packageIdentity(record, 0);
+  const publisher = firstStringField(record, ["publisher"]) ?? "unknown";
+  const packageRole = firstStringField(record, ["package_role"]) ?? "unknown";
+  const sourceExplanation = asRecord(record.source_explanation);
+  const official = publisher.toLowerCase() === "one-person-lab"
+    || asString(sourceExplanation?.kind) === "first_party_framework_projection";
+  const roleGroup: AgentPackageLifecycleRef["roleGroup"] = packageRole === "standard_agent"
+    ? (official ? "agent" : "other")
+    : packageRole === "workflow_profile"
+      ? "workflow"
+      : official
+        ? "supporting"
+        : "other";
+  const readiness = asRecord(record.readiness);
+  const packageCurrentness = asRecord(record.package_currentness);
   const sourceRef = source === "canonical_agent_packages"
     ? "opl app state --profile fast --json#app_state.agent_packages.directory + app_state.agent_packages.status_index"
     : source === "legacy_modules_fallback"
@@ -1443,9 +1501,25 @@ function packageLifecycleItem(
     id: `package-lifecycle-${packageId}`,
     packageId,
     label: packageLabel(record),
+    description: firstStringField(record, ["description"]) ?? "",
+    publisher,
+    packageRole,
+    roleGroup,
+    official,
+    installed: asOptionalBoolean(record.installed ?? asRecord(record.installed_readiness)?.installed),
+    activated: asOptionalBoolean(record.activated),
+    ...(firstStringField(record, ["selected_version", "installed_version", "stable_version"])
+      ? { version: firstStringField(record, ["selected_version", "installed_version", "stable_version"]) as string }
+      : {}),
+    currentness: asString(packageCurrentness?.status) ?? "unknown",
+    ...(firstStringField(record, ["recommended_action", "recommendedAction"])
+      ? { recommendedActionId: firstStringField(record, ["recommended_action", "recommendedAction"]) as string }
+      : {}),
     status: source === "legacy_modules_fallback"
       ? "preview_legacy_modules_fallback"
-      : firstStringField(record, ["lifecycle_status", "status", "install_state", "health_status"]) ?? "app_state_projection",
+      : asString(readiness?.status)
+        ?? firstStringField(record, ["lifecycle_status", "status", "install_state", "health_status"])
+        ?? "app_state_projection",
     summary: source === "canonical_agent_packages"
       ? "Canonical package lifecycle projection from App/root; Workbench only renders refs and action availability."
       : source === "legacy_modules_fallback"
@@ -1604,6 +1678,16 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
   const operator = asRecord(appState.operator);
   const workbench = asRecord(operator?.workbench);
   const modules = asRecord(appState.modules);
+  const provider = asRecord(appState.provider);
+  const temporal = asRecord(provider?.temporal);
+  const temporalDetails = asRecord(temporal?.details);
+  const temporalWorkerReadiness = asRecord(temporalDetails?.worker_readiness);
+  const temporalServiceLifecycle = asRecord(temporalWorkerReadiness?.temporal_service_lifecycle);
+  const temporalSupervisor = asRecord(temporalServiceLifecycle?.supervisor);
+  const temporalScheduler = asRecord(temporalDetails?.scheduler);
+  const temporalManagement = asRecord(temporal?.management);
+  const runtimeSourceCarriers = asRecord(appState.runtime_source_carriers);
+  const runtimeCarrierSummary = asRecord(runtimeSourceCarriers?.summary);
   const settingsControlCenter = asRecord(appState.settings_control_center);
   const appSettingsReadModel = asRecord(settingsControlCenter?.app_settings_read_model);
   const gatewayAccountProjection = asRecord(appSettingsReadModel?.opl_gateway_account);
@@ -1832,6 +1916,8 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
       payloadFields: asStringArray(item?.payload_fields),
       mutates: asString(item?.mutates) ?? "unknown",
       dryRunSupported: asBoolean(item?.dry_run_supported),
+      confirmationRequired: asBoolean(item?.confirmation_required),
+      dangerLevel: asString(item?.danger_level) ?? undefined,
       owner: asString(item?.owner) ?? undefined,
       delegatedSurface: asString(item?.delegated_surface) ?? undefined,
       canSubmitToSafeActionShell: asBoolean(item?.can_submit_to_safe_action_shell),
@@ -1849,6 +1935,8 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
       payloadFields: asStringArray(entry.payload_fields),
       mutates: asString(entry.mutates) ?? "unknown",
       dryRunSupported: asBoolean(entry.dry_run_supported),
+      confirmationRequired: asBoolean(entry.confirmation_required),
+      dangerLevel: asString(entry.danger_level) ?? undefined,
       delegatedSurface: asString(entry.delegated_surface) ?? asString(entry.dry_run_route) ?? undefined,
       routeRequiresPayload: asBoolean(entry.payload_required)
     });
@@ -1883,12 +1971,78 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
       payloadFields: override.payloadFields ?? [],
       mutates: override.mutates ?? "unknown",
       dryRunSupported: override.dryRunSupported ?? true,
+      confirmationRequired: override.confirmationRequired ?? false,
+      dangerLevel: override.dangerLevel,
       owner: override.owner,
       delegatedSurface: override.delegatedSurface,
       canSubmitToSafeActionShell: override.canSubmitToSafeActionShell,
       routeRequiresPayload: override.routeRequiresPayload
     });
   }
+
+  const runtimeMaintenanceActionIds = uniqueStrings([
+    asString(localEnvironment?.app_update_action_id),
+    asString(localEnvironment?.runtime_roots_cleanup_action_id),
+    asString(localEnvironment?.runtime_substrate_rollback_action_id),
+    ...asStringArray(temporalManagement?.actions)
+  ]);
+  const runtimeMaintenanceActions = runtimeMaintenanceActionIds.flatMap((actionId): RuntimeMaintenanceActionRef[] => {
+    const action = actionMap.get(actionId);
+    if (!action) return [];
+    return [{
+      actionId,
+      label: action.label,
+      payload: {},
+      requiredPayloadFields: action.payloadFields,
+      confirmationRequired: action.confirmationRequired,
+      dryRunSupported: action.dryRunSupported,
+      mutates: action.mutates,
+      ...(action.dangerLevel ? { dangerLevel: action.dangerLevel } : {})
+    }];
+  });
+  const temporalSchedulerStatus = firstString(temporalScheduler, ["status", "health_status"]) ?? "unknown";
+  const temporalSchedulerReady = asOptionalBoolean(temporalScheduler?.ready);
+  const recommendedRuntimeAction = (
+    temporalSchedulerReady === false || /attention|error|failed|stale/.test(temporalSchedulerStatus.toLowerCase())
+      ? runtimeMaintenanceActions.find((action) => action.actionId === "provider_scheduler_status")
+      : null
+  ) ?? runtimeMaintenanceActions.find((action) => action.actionId === asString(localEnvironment?.app_update_action_id));
+  const runtimeOverview: RuntimeOverviewRef = {
+    temporal: {
+      status: firstString(temporal, ["health_status", "status"]) ?? firstString(provider, ["status"]) ?? "unknown",
+      ready: asOptionalBoolean(temporal?.ready),
+      serviceStatus: firstString(temporalSupervisor, ["status", "process_state"])
+        ?? firstString(temporalServiceLifecycle, ["service_status"])
+        ?? "unknown",
+      serviceReady: asOptionalBoolean(temporalSupervisor?.ready ?? temporalWorkerReadiness?.service_ready),
+      workerStatus: firstString(temporalWorkerReadiness, ["readiness_status", "lifecycle_status"]) ?? "unknown",
+      workerReady: asOptionalBoolean(temporalWorkerReadiness?.worker_ready),
+      schedulerStatus: temporalSchedulerStatus,
+      schedulerReady: temporalSchedulerReady,
+      ...(asString(temporalDetails?.address) ? { address: asString(temporalDetails?.address) as string } : {}),
+      ...(asString(temporalDetails?.namespace) ? { namespace: asString(temporalDetails?.namespace) as string } : {}),
+      ...(asString(temporalDetails?.task_queue) ? { taskQueue: asString(temporalDetails?.task_queue) as string } : {}),
+      ...(firstString(temporalScheduler, ["observed_at"]) ?? firstString(temporalSupervisor, ["observed_at"])
+        ? { observedAt: (firstString(temporalScheduler, ["observed_at"]) ?? firstString(temporalSupervisor, ["observed_at"])) as string }
+        : {})
+    },
+    carriers: {
+      total: asFiniteNumber(runtimeCarrierSummary?.default_carriers_count) ?? 0,
+      present: asFiniteNumber(runtimeCarrierSummary?.present_default_carriers_count) ?? 0,
+      healthy: asFiniteNumber(runtimeCarrierSummary?.healthy_default_carriers_count) ?? 0,
+      items: asRecordArray(runtimeSourceCarriers?.items).map((carrier, index) => ({
+        packageId: asString(carrier.package_id) ?? `runtime-carrier-${index}`,
+        label: asString(carrier.label) ?? asString(carrier.package_id) ?? `Runtime source ${index + 1}`,
+        ...(asString(carrier.description) ? { description: asString(carrier.description) as string } : {}),
+        status: asString(carrier.source_health_status) ?? (asBoolean(carrier.source_present) ? "ready" : "unavailable"),
+        ...(asString(carrier.source_origin) ? { sourceOrigin: asString(carrier.source_origin) as string } : {}),
+        ...(asString(asRecord(carrier.git)?.sync_status) ? { syncStatus: asString(asRecord(carrier.git)?.sync_status) as string } : {}),
+        dirty: asOptionalBoolean(asRecord(carrier.git)?.dirty)
+      })),
+    },
+    maintenanceActions: runtimeMaintenanceActions,
+    ...(recommendedRuntimeAction ? { recommendedActionId: recommendedRuntimeAction.actionId } : {})
+  };
 
   const canonicalPackageProjection = asRecord(appState.agent_packages);
   const canonicalPackageRows = packageRowsFromCanonicalProjection(canonicalPackageProjection, appState);
@@ -1898,9 +2052,9 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
       ? [canonicalSummaryRow(canonicalPackageProjection)]
       : [];
   const packageLifecycle = canonicalPackageItems.length
-    ? canonicalPackageItems.slice(0, 8).map((item) => packageLifecycleItem(item, actionMap, "canonical_agent_packages"))
+    ? canonicalPackageItems.map((item) => packageLifecycleItem(item, actionMap, "canonical_agent_packages"))
     : moduleItems.length
-      ? legacyPackageRowsFromModules(moduleItems).slice(0, 8).map((item) => packageLifecycleItem(item, actionMap, "legacy_modules_fallback"))
+      ? legacyPackageRowsFromModules(moduleItems).map((item) => packageLifecycleItem(item, actionMap, "legacy_modules_fallback"))
       : fallback.packageLifecycle;
 
   const priorityActionIds = uniqueByRef(taskDrilldowns.flatMap((task) => {
@@ -2474,6 +2628,7 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     contextTrace: contextTrace.length ? contextTrace : fallback.contextTrace,
     gatewayAccount,
     settingsProjection,
+    runtimeOverview,
     stateGeneratedAt: asString(meta?.generated_at) ?? fallback.stateGeneratedAt
   };
 }

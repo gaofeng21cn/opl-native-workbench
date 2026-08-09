@@ -44,7 +44,14 @@ test("fast state keeps GUI package fields without copying deep runtime payloads"
               source: "installed_descriptor",
               version_source_ref: "owner://future-agent/1.0.0"
             },
-            available_actions: [{ action_id: "agent_package_update", semantic: "update", payload: { private: "x".repeat(20_000) } }],
+            available_actions: [{
+              action_id: "agent_package_update",
+              action_ref: "app_state.actions#agent_package_update",
+              semantic: "update",
+              payload: { package_id: "future.agent", private: "x".repeat(20_000) },
+              required_payload_fields: ["package_id"],
+              confirmation_required: true
+            }],
             managed_runtime_source: { bootstrap_command: ["x".repeat(20_000)] },
             lifecycle_receipts: [{ receipt_ref: "private://receipt", physical_surface: { payload: "x".repeat(20_000) } }],
             package_lock_ref: "private://lock",
@@ -78,7 +85,7 @@ test("fast state keeps GUI package fields without copying deep runtime payloads"
   assert.equal(entry.installed_carrier_readback.identity, "future-agent@example");
   assert.equal("legacy_lifecycle_state_present" in entry.installed_readiness, false);
   assert.equal(entry.available_actions[0].action_id, "agent_package_update");
-  assert.equal("payload" in entry.available_actions[0], false);
+  assert.deepEqual(entry.available_actions[0].payload, { package_id: "future.agent" });
   assert.equal("source_ref" in entry.installed_carrier_readback, false);
   assert.equal("managed_runtime_source" in entry, false);
   assert.equal("lifecycle_receipts" in entry, false);
@@ -172,4 +179,65 @@ test("fast state exposes only the Settings read model fields needed by the share
     assert.equal(projected.includes(privateMarker), false, `must omit ${privateMarker}`);
   }
   assert.equal("actions" in readModel.opl_gateway_account, false);
+});
+
+test("fast state keeps the complete package catalog and bounded runtime control projection", () => {
+  const entries = Array.from({ length: 12 }, (_, index) => ({
+    package_id: `package-${index}`,
+    display_name: `Package ${index}`,
+    publisher: index < 9 ? "one-person-lab" : "OpenAI",
+    package_role: "standard_agent",
+    installed: true,
+    activated: true,
+    readiness: { status: "ready", private: "private" },
+    package_currentness: { status: "unknown", internal: "private" },
+    available_actions: []
+  }));
+  const compact = compactFastState({
+    app_state: {
+      actions: [{
+        action_id: "provider_scheduler_status",
+        label: "Read scheduler status",
+        route: "opl app action execute --action provider_scheduler_status",
+        payload_fields: [],
+        dry_run_supported: true,
+        confirmation_required: false,
+        danger_level: "none"
+      }],
+      agent_packages: {
+        directory: { status: "available", entry_count: entries.length, entries },
+        status_index: { packages: {} }
+      },
+      provider: {
+        status: "ready",
+        temporal: {
+          status: "ready",
+          ready: true,
+          management: { owner_surface: "opl app action execute", actions: ["provider_scheduler_status"] },
+          details: {
+            address: "127.0.0.1:7233",
+            worker_readiness: {
+              readiness_status: "ready",
+              worker_ready: true,
+              temporal_service_lifecycle: { supervisor: { status: "loaded_running", ready: true, database_path: "/private" } }
+            },
+            scheduler: { status: "attention_needed", ready: false, internal_history: "private" }
+          }
+        }
+      },
+      runtime_source_carriers: {
+        summary: { default_carriers_count: 1, present_default_carriers_count: 1, healthy_default_carriers_count: 1 },
+        items: [{ package_id: "mas", label: "Med Auto Science", source_health_status: "ready", source_path: "/private", git: { sync_status: "synced", dirty: false, head_sha: "private" } }]
+      }
+    }
+  });
+
+  assert.equal(compact.app_state.agent_packages.directory.entries.length, 12);
+  assert.equal(compact.app_state.actions[0].confirmation_required, false);
+  assert.equal(compact.app_state.provider.temporal.details.scheduler.status, "attention_needed");
+  assert.equal(compact.app_state.runtime_source_carriers.items[0].git.sync_status, "synced");
+  const serialized = JSON.stringify(compact);
+  for (const marker of ["database_path", "internal_history", "source_path", "head_sha"]) {
+    assert.equal(serialized.includes(marker), false, `must omit ${marker}`);
+  }
 });

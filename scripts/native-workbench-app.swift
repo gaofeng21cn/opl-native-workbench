@@ -8,6 +8,49 @@ struct CommandResult {
   let timedOut: Bool
 }
 
+func buildStateCommandPayload(
+  profile: String,
+  command: [String],
+  result: CommandResult
+) throws -> [String: Any] {
+  if result.timedOut {
+    throw BridgeError.invalidPayload("OPL App state read timed out")
+  }
+  if result.exitCode != 0 {
+    let detail = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+    let suffix = detail.isEmpty ? "" : ": \(detail)"
+    throw BridgeError.invalidPayload("OPL App state read failed (exit \(result.exitCode))\(suffix)")
+  }
+
+  guard let data = result.stdout.data(using: .utf8) else {
+    throw BridgeError.invalidPayload("OPL App state read returned non-UTF-8 output")
+  }
+  let value: Any
+  do {
+    value = try JSONSerialization.jsonObject(with: data)
+  } catch {
+    throw BridgeError.invalidPayload("OPL App state read returned invalid JSON (\(result.stdout.utf8.count) bytes): \(error.localizedDescription)")
+  }
+  guard let appState = value as? [String: Any] else {
+    throw BridgeError.invalidPayload("OPL App state read returned a non-object JSON value")
+  }
+
+  return [
+    "profile": profile,
+    "app_state": appState,
+    "readback": [
+      "command": command.joined(separator: " "),
+      "commandArgs": command,
+      "exitCode": result.exitCode,
+      "stdout": "",
+      "stdoutBytes": result.stdout.utf8.count,
+      "stdoutOmittedFromGuiProjection": true,
+      "stderr": result.stderr,
+      "timedOut": result.timedOut
+    ]
+  ]
+}
+
 func externalExecutableCandidates(
   name: String,
   explicitEnvironmentKeys: [String],
@@ -950,7 +993,7 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
       return runtimeIdentityPayload()
     case "readState":
       let profile = (payload["profile"] as? String) == "full" ? "full" : "fast"
-      return stateCommandPayload(profile: profile)
+      return try stateCommandPayload(profile: profile)
     case "readFullDrilldown":
       return commandPayload(command: ["opl", "runtime", "app-operator-drilldown", "--detail", "full", "--json"], input: nil, timeout: 45)
     case "executeAction":
@@ -1043,30 +1086,10 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
     ]
   }
 
-  private func stateCommandPayload(profile: String) -> [String: Any] {
+  private func stateCommandPayload(profile: String) throws -> [String: Any] {
     let command = ["opl", "app", "state", "--profile", profile, "--json"]
     let result = runCommand(command, input: nil, cwd: workspaceRoot, timeout: 30)
-    let parsed: Any
-    if let data = result.stdout.data(using: .utf8),
-       let value = try? JSONSerialization.jsonObject(with: data) {
-      parsed = value
-    } else {
-      parsed = [:]
-    }
-    return [
-      "profile": profile,
-      "app_state": parsed,
-      "readback": [
-        "command": command.joined(separator: " "),
-        "commandArgs": command,
-        "exitCode": result.exitCode,
-        "stdout": "",
-        "stdoutBytes": result.stdout.utf8.count,
-        "stdoutOmittedFromGuiProjection": true,
-        "stderr": result.stderr,
-        "timedOut": result.timedOut
-      ]
-    ]
+    return try buildStateCommandPayload(profile: profile, command: command, result: result)
   }
 
   private func runtimeIdentityPayload() -> [String: Any] {
@@ -1141,8 +1164,14 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
   }
 }
 
-enum BridgeError: Error {
+enum BridgeError: Error, CustomStringConvertible {
   case invalidPayload(String)
+
+  var description: String {
+    switch self {
+    case .invalidPayload(let message): return message
+    }
+  }
 }
 
 func candidateActionBlocked(

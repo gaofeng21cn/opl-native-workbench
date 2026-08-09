@@ -375,10 +375,12 @@
           "canonical_agent_packages",
           "legacy_modules_fallback",
           "missing_bridge",
-          "agent_package_update",
-          "agent_package_repair",
-          "agent_package_uninstall",
-          "agent_package_preferences_set"
+          "record.available_actions",
+          "projectedAction.action_id",
+          "projectedAction.action_ref",
+          "projectedAction.payload",
+          "projectedAction.required_payload_fields",
+          "projectedAction.confirmation_required"
         ]
       },
       {
