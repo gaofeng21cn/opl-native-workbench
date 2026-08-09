@@ -227,6 +227,9 @@ test("sidebar and Settings consume the canonical Gateway account read model", ()
   assert.match(settingsPanel, /gateway\?\.displayName/);
   assert.match(settingsPanel, /gateway\?\.email/);
   assert.match(settingsPanel, /gateway\?\.usage\?\.todayTokens/);
+  assert.match(settingsPanel, /stateLoading \? "loading" : stateFailed \? "attention_needed"/);
+  assert.match(settingsPanel, /正在读取账户/);
+  assert.match(settingsPanel, /账户状态不可用/);
   assert.match(settingsPanel, /Not required \(not included\)/);
   assert.doesNotMatch(`${app}\n${settingsPanel}\n${model}`, /masked_email/);
 });

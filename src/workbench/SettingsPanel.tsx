@@ -250,6 +250,7 @@ function formatStatus(status: string | undefined, locale: WorkbenchSettings["loc
   if (!status) return locale === "zh" ? "未知" : "Unknown";
   const labels: Record<string, [string, string]> = {
     connected: ["已连接", "Connected"],
+    loading: ["正在读取", "Loading"],
     active: ["正常", "Active"],
     ready: ["正常", "Ready"],
     compatible: ["兼容", "Compatible"],
@@ -646,6 +647,22 @@ export function SettingsPanel({
   const gateway = model.gatewayAccount;
   const availableStarters = model.starters.filter((starter) => starter.available).length;
   const unavailableFixedModel = settings.modelAccess !== "__auto" && !resolvedModel;
+  const stateLoading = stateStatus === "loading";
+  const stateFailed = stateStatus === "error";
+  const statePlaceholder = stateLoading
+    ? (settings.locale === "zh" ? "正在读取" : "Loading")
+    : "--";
+  const missingGatewayLabel = stateLoading
+    ? (settings.locale === "zh" ? "正在读取账户" : "Loading account")
+    : stateFailed
+      ? (settings.locale === "zh" ? "账户状态不可用" : "Account status unavailable")
+      : (settings.locale === "zh" ? "未连接" : "Not connected");
+  const missingGatewayDetail = stateLoading
+    ? (settings.locale === "zh" ? "正在读取 OPL App 状态" : "Reading OPL App state")
+    : stateFailed
+      ? (settings.locale === "zh" ? "请刷新状态后重试" : "Refresh state to retry")
+      : "OPL Gateway";
+  const readbackStatus = stateLoading ? "loading" : stateFailed ? "attention_needed" : "ready";
 
   function settingValueLabel(key: SettingKey, value: WorkbenchSettings[SettingKey]): string {
     if (key === "modelAccess") return value === "__auto" ? (settings.locale === "zh" ? "自动" : "Auto") : modelLabel(value as string, settings.locale);
@@ -718,17 +735,17 @@ export function SettingsPanel({
             <SettingRow label={settings.locale === "zh" ? "OPL Gateway" : "OPL Gateway"}>
               <span className="settings-inline-identity">
                 <span className="settings-avatar" aria-hidden="true">{gatewayAccountInitials(gateway?.displayName)}</span>
-                <span><strong data-testid="opl-settings-gateway-username">{gateway?.displayName ?? (settings.locale === "zh" ? "未连接" : "Not connected")}</strong><small>{gateway?.email ?? "OPL Gateway"}</small></span>
+                <span><strong data-testid="opl-settings-gateway-username">{gateway?.displayName ?? missingGatewayLabel}</strong><small>{gateway?.email ?? missingGatewayDetail}</small></span>
               </span>
             </SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "连接状态" : "Connection status"}><StatusValue status={gateway?.status} locale={settings.locale} /></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "连接状态" : "Connection status"}><StatusValue status={gateway?.status ?? (stateLoading ? "loading" : stateFailed ? "attention_needed" : undefined)} locale={settings.locale} /></SettingRow>
           </SettingsGroup>
           <SettingsGroup title={settings.locale === "zh" ? "当前运行状态" : "Current status"}>
-            <SettingRow label="Codex CLI"><span>{projection?.codex.version ?? "--"}</span></SettingRow>
+            <SettingRow label="Codex CLI"><span>{projection?.codex.version ?? statePlaceholder}</span></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "模型" : "Model"}><span>{projection?.codex.model ?? resolvedModel?.id ?? "--"}</span></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "工作目录" : "Working directory"}><code>{projection?.workspace.selectedPath ?? "--"}</code></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "工作目录" : "Working directory"}><code>{projection?.workspace.selectedPath ?? statePlaceholder}</code></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "状态读取" : "State readback"}>
-              <StatusValue status={stateStatus === "ready" ? "ready" : stateStatus === "error" ? "attention_needed" : undefined} locale={settings.locale} />
+              <StatusValue status={readbackStatus} locale={settings.locale} />
             </SettingRow>
           </SettingsGroup>
         </>
@@ -741,10 +758,10 @@ export function SettingsPanel({
           <div className="gateway-identity">
             <span className="settings-avatar large" aria-hidden="true">{gatewayAccountInitials(gateway?.displayName)}</span>
             <span>
-              <strong data-testid="opl-settings-gateway-username">{gateway?.displayName ?? (settings.locale === "zh" ? "未连接 OPL Gateway" : "OPL Gateway not connected")}</strong>
-              <small>{gateway?.email ?? (settings.locale === "zh" ? "未提供账户邮箱" : "No account email available")}</small>
+              <strong data-testid="opl-settings-gateway-username">{gateway?.displayName ?? missingGatewayLabel}</strong>
+              <small>{gateway?.email ?? missingGatewayDetail}</small>
             </span>
-            <StatusValue status={gateway?.status} locale={settings.locale} />
+            <StatusValue status={gateway?.status ?? (stateLoading ? "loading" : stateFailed ? "attention_needed" : undefined)} locale={settings.locale} />
           </div>
           <SettingsGroup title={settings.locale === "zh" ? "账户" : "Account"}>
             <SettingRow label={settings.locale === "zh" ? "账户状态" : "Account status"}><StatusValue status={gateway?.accountStatus ?? gateway?.status} locale={settings.locale} /></SettingRow>
@@ -920,7 +937,7 @@ export function SettingsPanel({
       return (
         <>
           <SettingsGroup title={settings.locale === "zh" ? "诊断" : "Diagnostics"}>
-            <SettingRow label={settings.locale === "zh" ? "状态" : "Status"} detail={stateError || undefined}><StatusValue status={stateStatus === "ready" ? "ready" : stateStatus === "error" ? "attention_needed" : undefined} locale={settings.locale} /></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "状态" : "Status"} detail={stateError || undefined}><StatusValue status={readbackStatus} locale={settings.locale} /></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "待处理问题" : "Issues"}><span>{projection?.statusSummary.issueCount ?? "--"}</span></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "开发者详情" : "Developer details"}>{renderSettingControl("developerDetails")}</SettingRow>
           </SettingsGroup>
