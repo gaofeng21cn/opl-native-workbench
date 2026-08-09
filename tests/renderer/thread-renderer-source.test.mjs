@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { assistantDisplayMarkdown } from "../../src/workbench/messageDisplay.ts";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), "utf8");
@@ -74,7 +75,9 @@ test("thread rail, lifecycle, and Codex subagent projection stay explicit", () =
   assert.match(app, /action === "fork"/);
   assert.match(app, /confirmed: true/);
   assert.match(app, /deriveThreadMessages/);
-  assert.match(app, /<Streamdown mode="static">/);
+  assert.match(app, /<Streamdown/);
+  assert.match(app, /linkSafety=\{assistantMarkdownLinkSafety\}/);
+  assert.match(app, /assistantDisplayMarkdown\(/);
   assert.doesNotMatch(app, /opl-assistant-artifact-card/);
   assert.match(app, /bridge\.readThread\(\{ threadId: thread\.id, includeTurns: true \}\)/);
   assert.doesNotMatch(app, /const resumed = thread\.status === "unloaded"/);
@@ -86,6 +89,34 @@ test("thread rail, lifecycle, and Codex subagent projection stay explicit", () =
   assert.match(model, /type === "subagentactivity"/);
   assert.match(model, /parentThreadId/);
   assert.match(model, /sourceKind/);
+});
+
+test("assistant display consumes Codex UI directives without rewriting Markdown examples", () => {
+  const visible = assistantDisplayMarkdown([
+    "发布完成。",
+    "",
+    '::git-stage{cwd="/tmp/example"}',
+    '::git-commit{cwd="/tmp/example"}',
+    '::git-push{cwd="/tmp/example" branch="main"}',
+    '::git-create-branch{cwd="/tmp/example" branch="codex/example"}',
+    '::git-create-pr{cwd="/tmp/example" branch="codex/example" url="https://example.test" isDraft=false}',
+    '::created-thread{threadId="thread-1"}',
+    '::code-comment{title="Review" body="Keep this hidden" file="/tmp/example.ts" start=1}',
+    "",
+    "普通正文中的 `::git-commit{...}` 示例应保留。",
+    "",
+    "```text",
+    '::git-commit{cwd="/tmp/fenced-example"}',
+    "```",
+    "::unknown-directive{value=\"visible\"}"
+  ].join("\n"));
+
+  for (const hidden of ["::git-stage{", "::git-push{", "::git-create-pr{", "::created-thread{", "::code-comment{"]) {
+    assert.equal(visible.includes(hidden), false, `display text leaked ${hidden}`);
+  }
+  assert.match(visible, /普通正文中的 `::git-commit\{\.\.\.\}` 示例应保留。/);
+  assert.match(visible, /```text\n::git-commit\{cwd="\/tmp\/fenced-example"\}\n```/);
+  assert.match(visible, /::unknown-directive\{value="visible"\}/);
 });
 
 test("native window chrome follows the compact Codex composition", () => {
@@ -140,6 +171,9 @@ test("native visual tokens track the current ChatGPT Codex light workbench", () 
     assert.ok(!styles.toLowerCase().includes(legacyColor), `legacy native palette color must stay removed: ${legacyColor}`);
   }
   assert.doesNotMatch(styles, /OpenAISans|OpenAI Sans|SF Pro Text|Helvetica Neue/);
+  assert.match(styles, /\[data-streamdown="link"\]/);
+  assert.match(styles, /\[data-streamdown="inline-code"\]/);
+  assert.match(styles, /\[data-streamdown="code-block"\]/);
 });
 
 test("primary canvas hides its scrollbar without disabling scrolling", () => {
@@ -168,6 +202,7 @@ test("desktop sidebar width is adjustable, bounded, and persisted as UI metadata
   assert.match(app, /style=\{\{ "--opl-sidebar-width": `\$\{sidebarWidth\}px` \} as CSSProperties\}/);
   assert.match(styles, /\.sidebar-resizer \{[^}]*left: calc\(var\(--opl-sidebar-width\) - 3px\);[^}]*width: 6px;/s);
   assert.match(styles, /:root\[data-opl-sidebar-resizing="true"\]/);
+  assert.match(styles, /\.sidebar-closed \.chat-shell \{\s*grid-column: 1 \/ -1;/s);
   assert.doesNotMatch(styles, /grid-template-columns: 224px minmax\(0, 1fr\)/);
 });
 

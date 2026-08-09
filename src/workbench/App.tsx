@@ -77,6 +77,7 @@ import { ThreadDetailPopover } from "./threads/ThreadDetailPopover";
 import { ThreadLifecycleConfirmationDialog } from "./threads/ThreadLifecycleConfirmationDialog";
 import type { ThreadLifecycleAction } from "./threads/ThreadLifecycleConfirmationDialog";
 import { ThreadRail } from "./threads/ThreadRail";
+import { assistantDisplayMarkdown } from "./messageDisplay";
 
 const contextTabs = [
   ["opl-files-panel", "sources"],
@@ -92,6 +93,13 @@ const contextTabs = [
 const contextHomeId = "opl-environment-home" as const;
 type ContextTabId = (typeof contextTabs)[number][0];
 type ActiveContextTab = ContextTabId | typeof contextHomeId;
+
+const assistantMarkdownLinkSafety = { enabled: false } as const;
+const assistantMarkdownControls = {
+  code: { copy: true, download: false },
+  table: true,
+  mermaid: true
+} as const;
 
 const uiCopy = {
   zh: {
@@ -1459,7 +1467,14 @@ export function App() {
                     {message.role === "system" ? <span className="message-label">{message.subagent ? (settings.locale === "zh" ? "子智能体" : "Subagent") : t.runtime}</span> : null}
                     <div className="message-frame">
                       {message.role === "assistant" ? (
-                        <Streamdown mode="static">{message.text || (sendState === "running" ? t.codexWorking : t.waitingReply)}</Streamdown>
+                        <Streamdown
+                          controls={assistantMarkdownControls}
+                          lineNumbers={false}
+                          linkSafety={assistantMarkdownLinkSafety}
+                          mode="static"
+                        >
+                          {assistantDisplayMarkdown(message.text || (sendState === "running" ? t.codexWorking : t.waitingReply))}
+                        </Streamdown>
                       ) : (
                         <p>{message.text || (sendState === "running" ? t.codexWorking : t.waitingReply)}</p>
                       )}
