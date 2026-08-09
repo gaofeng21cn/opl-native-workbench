@@ -323,11 +323,22 @@ export function normalizeCodexThread(value: unknown): CodexThread {
   const id = asString(source.id) ?? "";
   const status = normalizeThreadStatus(source.status);
   const turns = Array.isArray(source.turns) ? source.turns.flatMap((turn) => normalizeTurn(turn) ?? []) : [];
+  const extra = asRecord(source.extra);
   return {
     ...source,
     id,
     sessionId: asString(source.sessionId) ?? id,
     projectKey: asString(source.projectKey) ?? asString(asRecord(source.extra)?.projectKey) ?? null,
+    canonicalProjectId: asString(source.canonicalProjectId)
+      ?? asString(source.canonical_project_id)
+      ?? asString(extra?.canonicalProjectId)
+      ?? asString(extra?.canonical_project_id)
+      ?? asString(source.projectId),
+    isTemporaryWorkspace: asBoolean(source.isTemporaryWorkspace)
+      ?? asBoolean(source.is_temporary_workspace)
+      ?? asBoolean(extra?.isTemporaryWorkspace)
+      ?? asBoolean(extra?.is_temporary_workspace)
+      ?? false,
     status,
     state: normalizeThreadState(status),
     summary: asString(source.summary) ?? asString(source.preview) ?? "",
@@ -921,6 +932,7 @@ export function createBrowserBridge(): OplBridge {
         status: { type: "notLoaded" },
         sessionId: request.threadId,
         projectKey: null,
+        isTemporaryWorkspace: false,
         summary: "",
         workspace: "",
         archived: false,
@@ -937,6 +949,7 @@ export function createBrowserBridge(): OplBridge {
         status: { type: "notLoaded" },
         sessionId: request.threadId,
         projectKey: null,
+        isTemporaryWorkspace: false,
         summary: "",
         workspace: "",
         archived: false,
@@ -953,6 +966,7 @@ export function createBrowserBridge(): OplBridge {
         status: { type: "notLoaded" },
         sessionId: "",
         projectKey: null,
+        isTemporaryWorkspace: false,
         summary: "",
         workspace: "",
         archived: false,

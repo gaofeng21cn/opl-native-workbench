@@ -84,6 +84,7 @@ test("projects canonical thread and Codex subagent metadata without private auth
     agentRole: "reviewer",
     agentNickname: "Scout",
     source: { kind: "subAgentReview" },
+    extra: { canonical_project_id: "/workspace/canonical", is_temporary_workspace: true },
     status: { type: "active", activeFlags: ["waiting"] },
     turns: [{ id: "turn-active", status: "inProgress", items: [] }]
   }), { currentWorkspace: "/workspace/current" });
@@ -95,6 +96,8 @@ test("projects canonical thread and Codex subagent metadata without private auth
   assert.equal(projected.state, "running");
   assert.equal(projected.activeTurnId, "turn-active");
   assert.equal(projected.currentWorkspace, true);
+  assert.equal(projected.canonicalProjectId, "/workspace/canonical");
+  assert.equal(projected.isTemporaryWorkspace, true);
 });
 
 test("adapter paginates standard thread/list and exposes only Codex-owned lifecycle", async () => {

@@ -67,6 +67,8 @@ test("local storage keeps only UI metadata and drafts after one-way legacy backu
 test("thread rail, lifecycle, and Codex subagent projection stay explicit", () => {
   for (const scope of ["current", "all", "archived"]) assert.match(rail, new RegExp(`"${scope}"`));
   assert.match(rail, /data-projectless/);
+  assert.match(rail, /project\.projectless \? project\.threads/);
+  assert.doesNotMatch(rail, /\bInbox\b/);
   assert.match(rail, /agentNickname \?\? thread\.agentRole/);
   assert.match(detail, /opl-thread-resume/);
   assert.match(detail, /onRequestArchive/);
@@ -90,6 +92,11 @@ test("thread rail, lifecycle, and Codex subagent projection stay explicit", () =
   assert.match(model, /type === "subagentactivity"/);
   assert.match(model, /parentThreadId/);
   assert.match(model, /sourceKind/);
+});
+
+test("starting a new task clears errors from the previous thread", () => {
+  const startNewChat = app.match(/function startNewChat\(\) \{([\s\S]*?)\n  \}/)?.[1] ?? "";
+  assert.match(startNewChat, /setThreadActionError\(""\)/);
 });
 
 test("assistant display consumes Codex UI directives without rewriting Markdown examples", () => {
@@ -212,8 +219,10 @@ test("sidebar and Settings consume the canonical Gateway account read model", ()
   assert.match(model, /opl_gateway_account_read_model\.v1/);
   assert.match(model, /gatewayAccountRecord\?\.display_name/);
   assert.match(model, /gatewayAccountProjection\.connection_mode === "account"/);
-  assert.match(app, /model\.gatewayAccount\?\.displayName \?\? "One Person Lab"/);
-  assert.match(app, /model\.gatewayAccount \? "OPL Gateway" : t\.settings/);
+  assert.match(model, /gatewayConnectionMode/);
+  assert.match(app, /data-account-mode=\{sidebarAccountMode\}/);
+  assert.match(app, /sidebarAccountMode === "manual_key" \? <KeyRound/);
+  assert.match(app, /gatewayAccountInitials\(model\.gatewayAccount\?\.displayName\)/);
   assert.match(settingsPanel, /opl-settings-gateway-username/);
   assert.match(settingsPanel, /gateway\?\.displayName/);
   assert.match(settingsPanel, /gateway\?\.email/);
@@ -233,7 +242,11 @@ test("Settings uses the App-owned navigation groups and one shared read model", 
   assert.match(model, /codex_model_policy/);
   assert.match(model, /workspace_services/);
   assert.match(model, /storage_lifecycle/);
-  assert.match(styles, /grid-template-columns: 220px minmax\(0, 1fr\)/);
+  assert.match(app, /<SettingsSidebar/);
+  assert.match(settingsPanel, /opl-settings-back-to-app/);
+  assert.match(settingsPanel, /onDestinationChange/);
+  assert.doesNotMatch(settingsPanel, /useState<SettingsDestinationId>/);
+  assert.doesNotMatch(styles, /grid-template-columns: 220px minmax\(0, 1fr\)/);
   assert.match(styles, /\.settings-mobile-navigation/);
 });
 

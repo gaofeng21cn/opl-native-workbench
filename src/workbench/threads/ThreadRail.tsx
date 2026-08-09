@@ -1,4 +1,4 @@
-import { Folder, FolderOpen, Inbox, MoreHorizontal } from "lucide-react";
+import { Folder, FolderOpen, MoreHorizontal } from "lucide-react";
 import type { WorkbenchProjectGroup, WorkbenchThreadItem } from "../workbenchModel";
 
 type ThreadRailProps = {
@@ -29,8 +29,8 @@ export function ThreadRail({
   onOpenDetail
 }: ThreadRailProps) {
   const copy = locale === "zh"
-    ? { noProject: "未归属项目", current: "当前", all: "全部", archived: "归档", empty: "暂无对话", loading: "正在读取对话", unavailable: "对话目录不可用", detail: "对话详情" }
-    : { noProject: "No project", current: "Current", all: "All", archived: "Archived", empty: "No threads", loading: "Loading threads", unavailable: "Thread directory unavailable", detail: "Thread details" };
+    ? { current: "当前", all: "全部", archived: "归档", empty: "暂无对话", loading: "正在读取对话", unavailable: "对话目录不可用", detail: "对话详情" }
+    : { current: "Current", all: "All", archived: "Archived", empty: "No threads", loading: "Loading threads", unavailable: "Thread directory unavailable", detail: "Thread details" };
 
   return (
     <div data-testid="opl-real-thread-directory" className="project-directory">
@@ -43,19 +43,19 @@ export function ThreadRail({
       {!loading && !error && !projects.length ? <p className="thread-directory-state">{copy.empty}</p> : null}
       {projects.map((project) => {
         const selected = project.id === selectedProjectId;
-        const visibleThreads = selected ? project.threads : project.threads.slice(0, 2);
-        const ProjectIcon = project.projectless ? Inbox : selected ? FolderOpen : Folder;
+        const visibleThreads = project.projectless ? project.threads : selected ? project.threads : project.threads.slice(0, 2);
+        const ProjectIcon = selected ? FolderOpen : Folder;
         return (
           <section className="project-directory-group" key={project.id} data-projectless={project.projectless || undefined}>
-            <button className="project-root" type="button" aria-expanded={selected} onClick={() => onSelectProject(project.id)}>
-              <ProjectIcon aria-hidden="true" size={15} />
-              <strong>{project.projectless
-                ? `${copy.noProject}${project.workspace ? ` / ${project.workspace.split("/").filter(Boolean).at(-1) ?? project.workspace}` : ""}`
-                : project.label}</strong>
-            </button>
+            {!project.projectless ? (
+              <button className="project-root" type="button" aria-expanded={selected} onClick={() => onSelectProject(project.id)}>
+                <ProjectIcon aria-hidden="true" size={15} />
+                <strong>{project.label}</strong>
+              </button>
+            ) : null}
 
             {visibleThreads.length ? (
-              <div className="project-children">
+              <div className={project.projectless ? "projectless-threads" : "project-children"}>
                 <section className="history-list" aria-label="Current project threads">
                   <ol>
                     {visibleThreads.map((thread) => (

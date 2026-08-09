@@ -51,11 +51,26 @@ export function projectCodexThread(thread, scope = {}) {
   const turns = Array.isArray(thread?.turns) ? thread.turns : [];
   const activeTurn = [...turns].reverse().find((turn) => turn?.status === "inProgress") ?? null;
   const extra = thread?.extra && typeof thread.extra === "object" ? thread.extra : {};
+  const canonicalProjectId = [
+    thread?.canonicalProjectId,
+    thread?.canonical_project_id,
+    extra.canonicalProjectId,
+    extra.canonical_project_id,
+    thread?.projectId
+  ].find((value) => typeof value === "string" && value.trim());
+  const isTemporaryWorkspace = [
+    thread?.isTemporaryWorkspace,
+    thread?.is_temporary_workspace,
+    extra.isTemporaryWorkspace,
+    extra.is_temporary_workspace
+  ].some((value) => value === true);
   return {
     ...thread,
     id,
     sessionId: typeof thread?.sessionId === "string" ? thread.sessionId : id,
     projectKey: thread?.projectKey ?? extra.projectKey ?? null,
+    canonicalProjectId: typeof canonicalProjectId === "string" ? canonicalProjectId.trim() : undefined,
+    isTemporaryWorkspace,
     status,
     state: stateFromStatus(status),
     summary: thread?.name ?? thread?.preview ?? "",

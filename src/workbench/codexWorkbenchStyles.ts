@@ -186,6 +186,38 @@ export const codexWorkbenchStyles = `
     margin-left: 0;
   }
 
+  .settings-back-row {
+    gap: 4px;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .settings-back-to-app {
+    min-width: 0;
+    min-height: 32px;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 8px;
+    overflow: hidden;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--opl-text);
+    text-align: left;
+  }
+
+  .settings-back-to-app:hover {
+    background: var(--opl-hover);
+  }
+
+  .settings-back-to-app span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .sidebar-close-mobile {
     display: none;
   }
@@ -428,6 +460,15 @@ export const codexWorkbenchStyles = `
     font-weight: 600;
   }
 
+  .account-auth-icon {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+    display: inline-grid;
+    place-items: center;
+    color: var(--opl-muted);
+  }
+
   .account-copy {
     min-width: 0;
     display: grid;
@@ -528,8 +569,7 @@ export const codexWorkbenchStyles = `
   .settings-page {
     min-height: 0;
     flex: 1;
-    display: grid;
-    grid-template-columns: 220px minmax(0, 1fr);
+    display: block;
     overflow: hidden;
   }
 
@@ -971,13 +1011,14 @@ export const codexWorkbenchStyles = `
 
   .settings-navigation {
     min-width: 0;
+    min-height: 0;
+    flex: 1;
     display: flex;
     flex-direction: column;
     gap: 12px;
     overflow-y: auto;
     padding: 17px 10px 12px;
-    border-right: 1px solid var(--opl-border-light);
-    background: color-mix(in srgb, var(--opl-sidebar) 72%, var(--opl-canvas));
+    background: transparent;
     scrollbar-width: none;
   }
 
@@ -1052,6 +1093,7 @@ export const codexWorkbenchStyles = `
 
   .settings-detail {
     min-width: 0;
+    height: 100%;
     overflow-y: auto;
     scrollbar-width: none;
   }
@@ -1807,6 +1849,10 @@ export const codexWorkbenchStyles = `
     color: var(--opl-muted);
   }
 
+  .project-directory-group[data-projectless="true"] .thread-directory-open {
+    padding-left: 7px;
+  }
+
   .thread-directory-state {
     margin: 6px 9px 10px;
     color: var(--opl-muted);
@@ -2083,10 +2129,6 @@ export const codexWorkbenchStyles = `
     }
 
     .settings-page::-webkit-scrollbar {
-      display: none;
-    }
-
-    .settings-navigation {
       display: none;
     }
 

@@ -46,8 +46,10 @@ export type WorkbenchThreadItem = {
   agentNickname?: string;
   title: string;
   projectId?: string;
+  canonicalProjectId?: string;
   projectLabel?: string;
   workspace?: string;
+  isTemporaryWorkspace: boolean;
   currentWorkspace: boolean;
   parentThreadId?: string;
   activeTurnId?: string;
@@ -281,6 +283,7 @@ export type WorkbenchGatewayAccount = {
 
 export type WorkbenchSettingsProjection = {
   sourceRef: string;
+  gatewayConnectionMode: "none" | "manual_key" | "account";
   codex: {
     installed: boolean | null;
     version?: string;
@@ -590,6 +593,19 @@ function pathLabel(value: string): string {
   return normalized.split("/").filter(Boolean).at(-1) ?? value;
 }
 
+const managedCodexScratchPatterns = [
+  /^\/Users\/[^/]+\/Documents\/Codex(?:\/|$)/i,
+  /^\/home\/[^/]+\/Documents\/Codex(?:\/|$)/i,
+  /^[a-z]:\/Users\/[^/]+\/Documents\/Codex(?:\/|$)/i,
+  /^\/mnt\/[a-z]\/Users\/[^/]+\/Documents\/Codex(?:\/|$)/i,
+  /\/(?:Library\/Application Support\/One Person Lab\/opl-data|\.opl-app-data)\/conversations(?:\/[^/]+)*\/codex-temp-[^/]+$/i
+];
+
+export function isManagedCodexScratchWorkspace(workspace: string): boolean {
+  const normalized = workspace.trim().replaceAll("\\", "/").replace(/\/{2,}/g, "/");
+  return managedCodexScratchPatterns.some((pattern) => pattern.test(normalized));
+}
+
 function threadFromRecord(
   record: Record<string, unknown>,
   inheritedProject?: Record<string, unknown>
@@ -621,8 +637,13 @@ function threadFromRecord(
     title: firstString(record, ["title", "name", "displayName", "display_name", "summary", "preview", "subject"])
       ?? `Thread ${id.slice(0, 8)}`,
     projectId,
+    canonicalProjectId: firstString(record, ["canonicalProjectId", "canonical_project_id"])
+      ?? firstString(asRecord(record.extra), ["canonicalProjectId", "canonical_project_id"])
+      ?? undefined,
     projectLabel,
     workspace,
+    isTemporaryWorkspace: firstBoolean(record, ["isTemporaryWorkspace", "is_temporary_workspace"])
+      || firstBoolean(asRecord(record.extra), ["isTemporaryWorkspace", "is_temporary_workspace"]),
     currentWorkspace: firstBoolean(record, ["currentWorkspace", "current_workspace"]),
     parentThreadId: firstString(record, ["parentThreadId", "parent_thread_id", "parentId", "parent_id"]) ?? undefined,
     activeTurnId: firstString(record, ["activeTurnId", "active_turn_id"])
@@ -650,21 +671,24 @@ export function deriveThreadDirectory(value: unknown): WorkbenchProjectGroup[] {
   const groups = new Map<string, WorkbenchProjectGroup>();
 
   for (const thread of uniqueThreads) {
-    const hasProject = Boolean(thread.projectKey || thread.projectId || thread.projectLabel || thread.workspace);
-    const projectKey = thread.projectKey
-      ? `project:${thread.projectKey}`
-      : thread.projectId
-      ? `project:${thread.projectId}`
-      : thread.projectLabel
-        ? `project-label:${thread.projectLabel}`
-        : `projectless:${thread.workspace ?? "none"}`;
-    const projectless = !hasProject;
+    const canonicalProjectId = thread.canonicalProjectId?.trim();
+    const workspace = thread.workspace?.trim();
+    const projectless = !canonicalProjectId && (
+      thread.isTemporaryWorkspace
+      || !workspace
+      || isManagedCodexScratchWorkspace(workspace)
+    );
+    const projectKey = canonicalProjectId
+      ? `project:${canonicalProjectId}`
+      : projectless
+        ? "projectless"
+        : `workspace:${workspace}`;
     const group = groups.get(projectKey) ?? {
       id: projectKey,
       label: projectless
         ? "No project"
-        : thread.projectLabel ?? thread.projectKey ?? (thread.workspace ? pathLabel(thread.workspace) : thread.projectId ?? "Project"),
-      workspace: thread.workspace,
+        : thread.projectLabel ?? pathLabel(canonicalProjectId ?? workspace ?? "Project"),
+      workspace: projectless ? undefined : workspace,
       projectless,
       threads: []
     };
@@ -1590,6 +1614,10 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
   const gatewayInstallation = asRecord(gatewayAccountProjection?.installation);
   const gatewayFreshness = asRecord(gatewayAccountProjection?.freshness);
   const gatewayAccountStatus = asString(gatewayAccountProjection?.status);
+  const gatewayConnectionMode = gatewayAccountProjection?.surface_kind === "opl_gateway_account_read_model.v1"
+    && ["none", "manual_key", "account"].includes(asString(gatewayAccountProjection.connection_mode) ?? "")
+    ? asString(gatewayAccountProjection.connection_mode) as WorkbenchSettingsProjection["gatewayConnectionMode"]
+    : "none";
   const gatewayAccountDisplayName = asString(gatewayAccountRecord?.display_name);
   const gatewayBalanceAmount = asFiniteNumber(gatewayAccountBalance?.amount);
   const gatewayBalanceCurrency = asString(gatewayAccountBalance?.currency);
@@ -1689,6 +1717,7 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
   const settingsProjection: WorkbenchSettingsProjection | undefined = appSettingsReadModel || coreCodex
     ? {
         sourceRef: "app_state.settings_control_center.app_settings_read_model",
+        gatewayConnectionMode,
         codex: {
           installed: asOptionalBoolean(coreCodex?.installed),
           ...(firstString(coreCodex, ["parsed_version", "version"]) ? { version: firstString(coreCodex, ["parsed_version", "version"]) as string } : {}),

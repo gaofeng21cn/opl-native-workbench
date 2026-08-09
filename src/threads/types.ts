@@ -15,6 +15,8 @@ export type CodexThread = Record<string, unknown> & {
   id: string;
   sessionId: string;
   projectKey: string | null;
+  canonicalProjectId?: string;
+  isTemporaryWorkspace: boolean;
   status: CodexThreadRuntimeStatus;
   state: CodexThreadState;
   summary: string;

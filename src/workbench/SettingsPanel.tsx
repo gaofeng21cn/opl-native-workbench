@@ -1,4 +1,5 @@
 import {
+  ArrowLeft,
   Bot,
   Boxes,
   CircleUserRound,
@@ -8,9 +9,10 @@ import {
   Link2,
   RefreshCw,
   SlidersHorizontal,
-  Wrench
+  Wrench,
+  X
 } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, type PointerEventHandler, type ReactNode } from "react";
 import type { WorkbenchModel } from "./workbenchModel";
 import {
   codexModelPolicy,
@@ -24,7 +26,7 @@ import {
   type WorkbenchSettings
 } from "./settingsModel";
 
-type SettingsDestinationId =
+export type SettingsDestinationId =
   | "overview"
   | "account"
   | "models"
@@ -58,9 +60,20 @@ type SettingsPanelProps = {
   resolvedReasoningOptions: string[];
   stateStatus: "loading" | "ready" | "error";
   stateError: string;
+  activeDestination: SettingsDestinationId;
+  onDestinationChange: (destination: SettingsDestinationId) => void;
   onRefresh: () => void;
   onSettingChange: <Key extends keyof WorkbenchSettings>(key: Key, value: WorkbenchSettings[Key]) => void;
   onReasoningChange: (reasoning: WorkbenchSettings["reasoningLevel"]) => void;
+};
+
+type SettingsSidebarProps = {
+  locale: WorkbenchSettings["locale"];
+  activeDestination: SettingsDestinationId;
+  onDestinationChange: (destination: SettingsDestinationId) => void;
+  onBack: () => void;
+  onWindowDrag: PointerEventHandler<HTMLElement>;
+  onMobileClose: () => void;
 };
 
 type NavigationDestination = {
@@ -255,11 +268,62 @@ function formatDate(value: string | undefined, locale: string): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
-function accountInitials(name: string | undefined): string {
+export function gatewayAccountInitials(name: string | undefined): string {
   if (!name) return "OP";
   const characters = Array.from(name.trim());
   if (characters.some((character) => /\p{Script=Han}/u.test(character))) return characters.find((character) => /\p{Script=Han}/u.test(character)) ?? "OP";
   return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "OP";
+}
+
+export function SettingsSidebar({
+  locale,
+  activeDestination,
+  onDestinationChange,
+  onBack,
+  onWindowDrag,
+  onMobileClose
+}: SettingsSidebarProps) {
+  const groups = useMemo(() => navigationGroups(locale), [locale]);
+  const activeGroup = groups.find((group) => group.destinations.some((destination) => destination.id === activeDestination));
+  const copy = navigationCopy[locale].destinations;
+
+  return (
+    <>
+      <header className="brand-row settings-back-row" onPointerDown={onWindowDrag}>
+        <button data-testid="opl-settings-back-to-app" className="settings-back-to-app" type="button" onClick={onBack}>
+          <ArrowLeft aria-hidden="true" size={15} />
+          <span>{locale === "zh" ? "返回应用" : "Back to app"}</span>
+        </button>
+        <button className="icon-button sidebar-close-mobile" type="button" aria-label={locale === "zh" ? "隐藏侧边栏" : "Hide sidebar"} onClick={onMobileClose}>
+          <X aria-hidden="true" size={16} />
+        </button>
+      </header>
+      <div className="settings-navigation" aria-label={locale === "zh" ? "设置导航" : "Settings navigation"}>
+        <nav>
+          {groups.map((group) => {
+            const Icon = group.icon;
+            const active = activeGroup?.id === group.id;
+            return (
+              <div className="settings-nav-group" key={group.id} data-active={active}>
+                <button type="button" aria-expanded={group.destinations.length > 1 ? active : undefined} aria-current={group.destinations.some((item) => item.id === activeDestination) && group.destinations.length === 1 ? "page" : undefined} onClick={() => onDestinationChange(group.destinations[0].id)}>
+                  <Icon aria-hidden="true" size={15} />
+                  <span>{group.label}</span>
+                </button>
+                {active && group.destinations.length > 1 ? (
+                  <div className="settings-subnav">
+                    {group.destinations.map((destination) => (
+                      <button key={destination.id} type="button" aria-current={destination.id === activeDestination ? "page" : undefined} onClick={() => onDestinationChange(destination.id)}>{destination.label}</button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </nav>
+        <button className="settings-about-link" type="button" aria-current={activeDestination === "about" ? "page" : undefined} onClick={() => onDestinationChange("about")}><Info aria-hidden="true" size={15} /><span>{copy.about}</span></button>
+      </div>
+    </>
+  );
 }
 
 function SettingRow({ label, detail, children }: { label: string; detail?: string; children: ReactNode }) {
@@ -301,12 +365,13 @@ export function SettingsPanel({
   resolvedReasoningOptions,
   stateStatus,
   stateError,
+  activeDestination,
+  onDestinationChange,
   onRefresh,
   onSettingChange,
   onReasoningChange
 }: SettingsPanelProps) {
   const groups = useMemo(() => navigationGroups(settings.locale), [settings.locale]);
-  const [activeDestination, setActiveDestination] = useState<SettingsDestinationId>("overview");
   const locale = settings.locale === "zh" ? "zh-CN" : "en-US";
   const copy = navigationCopy[settings.locale].destinations;
   const activeGroup = groups.find((group) => group.destinations.some((destination) => destination.id === activeDestination));
@@ -386,7 +451,7 @@ export function SettingsPanel({
           <SettingsGroup title={settings.locale === "zh" ? "账户" : "Account"}>
             <SettingRow label={settings.locale === "zh" ? "OPL Gateway" : "OPL Gateway"}>
               <span className="settings-inline-identity">
-                <span className="settings-avatar" aria-hidden="true">{accountInitials(gateway?.displayName)}</span>
+                <span className="settings-avatar" aria-hidden="true">{gatewayAccountInitials(gateway?.displayName)}</span>
                 <span><strong data-testid="opl-settings-gateway-username">{gateway?.displayName ?? (settings.locale === "zh" ? "未连接" : "Not connected")}</strong><small>{gateway?.email ?? "OPL Gateway"}</small></span>
               </span>
             </SettingRow>
@@ -408,7 +473,7 @@ export function SettingsPanel({
       return (
         <>
           <div className="gateway-identity">
-            <span className="settings-avatar large" aria-hidden="true">{accountInitials(gateway?.displayName)}</span>
+            <span className="settings-avatar large" aria-hidden="true">{gatewayAccountInitials(gateway?.displayName)}</span>
             <span>
               <strong data-testid="opl-settings-gateway-username">{gateway?.displayName ?? (settings.locale === "zh" ? "未连接 OPL Gateway" : "OPL Gateway not connected")}</strong>
               <small>{gateway?.email ?? (settings.locale === "zh" ? "未提供账户邮箱" : "No account email available")}</small>
@@ -605,33 +670,8 @@ export function SettingsPanel({
 
   return (
     <section data-testid="opl-settings-panel" className="settings-page" aria-label="Settings">
-      <aside className="settings-navigation" aria-label={settings.locale === "zh" ? "设置导航" : "Settings navigation"}>
-        <nav>
-          {groups.map((group) => {
-            const Icon = group.icon;
-            const active = activeGroup?.id === group.id;
-            return (
-              <div className="settings-nav-group" key={group.id} data-active={active}>
-                <button type="button" aria-expanded={group.destinations.length > 1 ? active : undefined} aria-current={group.destinations.some((item) => item.id === activeDestination) && group.destinations.length === 1 ? "page" : undefined} onClick={() => setActiveDestination(group.destinations[0].id)}>
-                  <Icon aria-hidden="true" size={15} />
-                  <span>{group.label}</span>
-                </button>
-                {active && group.destinations.length > 1 ? (
-                  <div className="settings-subnav">
-                    {group.destinations.map((destination) => (
-                      <button key={destination.id} type="button" aria-current={destination.id === activeDestination ? "page" : undefined} onClick={() => setActiveDestination(destination.id)}>{destination.label}</button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </nav>
-        <button className="settings-about-link" type="button" aria-current={activeDestination === "about" ? "page" : undefined} onClick={() => setActiveDestination("about")}><Info aria-hidden="true" size={15} /><span>{copy.about}</span></button>
-      </aside>
-
       <div className="settings-mobile-navigation">
-        <select aria-label={settings.locale === "zh" ? "设置页面" : "Settings page"} value={activeDestination} onChange={(event) => setActiveDestination(event.currentTarget.value as SettingsDestinationId)}>
+        <select aria-label={settings.locale === "zh" ? "设置页面" : "Settings page"} value={activeDestination} onChange={(event) => onDestinationChange(event.currentTarget.value as SettingsDestinationId)}>
           {allDestinations.map((destination) => <option key={destination.id} value={destination.id}>{destination.label}</option>)}
         </select>
       </div>

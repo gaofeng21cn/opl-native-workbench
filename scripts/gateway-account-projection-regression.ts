@@ -110,15 +110,26 @@ assert.equal(connected.settingsProjection?.workspace.personalizationSourceCount,
 assert.deepEqual(connected.settingsProjection?.externalConnections.map((item) => item.id), ["lab-hpc"]);
 assert.equal(connected.settingsProjection?.storage.agentPackageStore.bytes, 2048);
 assert.equal(connected.settingsProjection?.statusSummary.issueCount, 1);
+assert.equal(connected.settingsProjection?.gatewayConnectionMode, "account");
+
+for (const [projection, expectedMode] of [
+  [{ connection_mode: "manual_key" }, "manual_key"],
+  [{ connection_mode: "none" }, "none"],
+  [{ status: "not_connected" }, "account"],
+  [{ account_card_visible: false }, "account"],
+  [{ account: { display_name: "" } }, "account"],
+  [{ surface_kind: "unknown" }, "none"]
+] as const) {
+  const projected = deriveWorkbenchModelFromState(stateWithGateway(projection));
+  assert.equal(projected.gatewayAccount, undefined);
+  assert.equal(projected.settingsProjection?.gatewayConnectionMode, expectedMode);
+}
 
 for (const projection of [
-  { connection_mode: "manual_key" },
-  { status: "not_connected" },
-  { account_card_visible: false },
-  { account: { display_name: "" } },
-  { surface_kind: "unknown" }
+  { connection_mode: "manual-key" },
+  { connection_mode: "api_key" }
 ]) {
-  assert.equal(deriveWorkbenchModelFromState(stateWithGateway(projection)).gatewayAccount, undefined);
+  assert.equal(deriveWorkbenchModelFromState(stateWithGateway(projection)).settingsProjection?.gatewayConnectionMode, "none");
 }
 
 for (const status of ["setup_required", "reauth_required", "attention_needed", "disconnect_pending"]) {

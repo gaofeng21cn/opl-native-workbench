@@ -10,6 +10,7 @@ import {
   Download,
   FileText,
   Folder,
+  KeyRound,
   PanelLeft,
   PanelRightOpen,
   Plug,
@@ -68,7 +69,12 @@ import {
   resolveCodexModelOptions,
   resolveCodexSelection
 } from "./modelPolicy";
-import { SettingsPanel } from "./SettingsPanel";
+import {
+  SettingsPanel,
+  SettingsSidebar,
+  gatewayAccountInitials,
+  type SettingsDestinationId
+} from "./SettingsPanel";
 import { ThreadDetailPopover } from "./threads/ThreadDetailPopover";
 import { ThreadLifecycleConfirmationDialog } from "./threads/ThreadLifecycleConfirmationDialog";
 import type { ThreadLifecycleAction } from "./threads/ThreadLifecycleConfirmationDialog";
@@ -511,6 +517,7 @@ export function App() {
   const [stateStatus, setStateStatus] = useState<"loading" | "ready" | "error">("loading");
   const [stateError, setStateError] = useState("");
   const [activeView, setActiveView] = useState<"chat" | "settings">("chat");
+  const [activeSettingsDestination, setActiveSettingsDestination] = useState<SettingsDestinationId>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [lastDryRun, setLastDryRun] = useState("No action preview yet.");
@@ -566,8 +573,22 @@ export function App() {
     : stateStatus === "ready"
       ? "App state loaded"
       : "Bridge unavailable";
-  const accountDisplayName = model.gatewayAccount?.displayName ?? "One Person Lab";
-  const accountSubtitle = model.gatewayAccount ? "OPL Gateway" : t.settings;
+  const gatewayConnectionMode = model.settingsProjection?.gatewayConnectionMode ?? "none";
+  const sidebarAccountMode = gatewayConnectionMode === "account" && model.gatewayAccount
+    ? "account"
+    : gatewayConnectionMode === "manual_key"
+      ? "manual_key"
+      : "none";
+  const accountDisplayName = sidebarAccountMode === "account"
+    ? model.gatewayAccount?.displayName ?? t.settings
+    : sidebarAccountMode === "manual_key"
+      ? "OPL Gateway"
+      : t.settings;
+  const accountSubtitle = sidebarAccountMode === "account"
+    ? model.gatewayAccount?.email
+    : sidebarAccountMode === "manual_key"
+      ? "API Key"
+      : undefined;
   const currentProject = selectedProject?.label ?? settings.defaultWorkspace ?? "Current project";
   const previewItems = useMemo(() => [...model.artifactPreviews].sort((left, right) => {
     if (left.previewKind === right.previewKind) return 0;
@@ -1001,6 +1022,7 @@ export function App() {
     setPrompt(drafts.prompts.new ?? "");
     setPendingAction(null);
     setLastDryRun("No action preview yet.");
+    setThreadActionError("");
     setSendState("idle");
     setSendError("");
   }
@@ -1027,6 +1049,18 @@ export function App() {
     setSettings(writeSettings({ modelAccess, reasoningLevel }));
   }
 
+  function openSettings() {
+    setActiveSettingsDestination(sidebarAccountMode === "none" ? "overview" : "account");
+    setActiveView("settings");
+    setInspectorOpen(false);
+    if (window.matchMedia("(max-width: 760px)").matches) setSidebarOpen(false);
+  }
+
+  function returnToApp() {
+    setActiveView("chat");
+    if (window.matchMedia("(max-width: 760px)").matches) setSidebarOpen(false);
+  }
+
   return (
     <main
       data-testid="opl-native-workbench-root"
@@ -1037,7 +1071,18 @@ export function App() {
       <style>{codexWorkbenchStyles}</style>
 
       <aside data-testid="opl-workspace-rail" className="sidebar" aria-label="Workspaces">
-        <header className="brand-row" onPointerDown={beginWindowDrag}>
+        {activeView === "settings" ? (
+          <SettingsSidebar
+            locale={settings.locale}
+            activeDestination={activeSettingsDestination}
+            onDestinationChange={setActiveSettingsDestination}
+            onBack={returnToApp}
+            onWindowDrag={beginWindowDrag}
+            onMobileClose={() => setSidebarOpen(false)}
+          />
+        ) : (
+          <>
+            <header className="brand-row" onPointerDown={beginWindowDrag}>
           <img src="branding/opl-app-logo.png" alt="One Person Lab App" />
           <span className="brand-lockup">
             <strong className="brand-mark">One Person Lab</strong>
@@ -1049,9 +1094,9 @@ export function App() {
           <button className="icon-button sidebar-close-mobile" type="button" aria-label={t.hideSidebar} onClick={() => setSidebarOpen(false)}>
             <X aria-hidden="true" size={16} />
           </button>
-        </header>
+            </header>
 
-        <div className="sidebar-scroll">
+            <div className="sidebar-scroll">
           <div className="quick-actions">
             <button type="button" onClick={startNewChat}>
               <Plus aria-hidden="true" size={15} />
@@ -1186,27 +1231,31 @@ export function App() {
               </div>
             ) : null}
           </section>
-        </div>
+            </div>
 
-        <footer className="sidebar-footer" aria-label="Sidebar controls">
-          <button
-            type="button"
-            aria-current={activeView === "settings" ? "page" : undefined}
-            aria-label={t.openSettings}
-            onClick={() => {
-              setActiveView("settings");
-              if (window.matchMedia("(max-width: 760px)").matches) setSidebarOpen(false);
-            }}
-          >
-            <span className="account-avatar">OPL</span>
-            <span className="account-copy">
-              <strong>{accountDisplayName}</strong>
-              <small>{accountSubtitle}</small>
-            </span>
-            <Settings className="settings-glyph" aria-hidden="true" size={14} />
-          </button>
-          <StatusPill status={shellBoundaryStatus} />
-        </footer>
+            <footer className="sidebar-footer" aria-label="Sidebar controls">
+              <button
+                type="button"
+                data-account-mode={sidebarAccountMode}
+                aria-label={accountSubtitle ? `${accountDisplayName}, ${accountSubtitle}` : accountDisplayName}
+                onClick={openSettings}
+              >
+                {sidebarAccountMode === "account" ? (
+                  <span className="account-avatar">{gatewayAccountInitials(model.gatewayAccount?.displayName)}</span>
+                ) : (
+                  <span className="account-auth-icon" aria-hidden="true">
+                    {sidebarAccountMode === "manual_key" ? <KeyRound size={15} /> : <Settings size={15} />}
+                  </span>
+                )}
+                <span className="account-copy">
+                  <strong>{accountDisplayName}</strong>
+                  {accountSubtitle ? <small>{accountSubtitle}</small> : null}
+                </span>
+              </button>
+              <StatusPill status={shellBoundaryStatus} />
+            </footer>
+          </>
+        )}
       </aside>
 
       <div
@@ -1235,12 +1284,14 @@ export function App() {
               <PanelLeft aria-hidden="true" size={16} />
             </button>
             <div className="topbar-title">
-              <Folder aria-hidden="true" size={15} />
+              {activeView === "chat" ? <Folder aria-hidden="true" size={15} /> : null}
               <h1>{activeView === "settings" ? t.settings : localizedSessionTitle(currentSession?.title || t.newTaskTitle, settings.locale)}</h1>
             </div>
-            <button className="icon-button" type="button" aria-label={t.conversationMenu} disabled={!currentSession} onClick={() => setThreadDetail(currentSession ?? null)}>
-              <CircleEllipsis aria-hidden="true" size={16} />
-            </button>
+            {activeView === "chat" ? (
+              <button className="icon-button" type="button" aria-label={t.conversationMenu} disabled={!currentSession} onClick={() => setThreadDetail(currentSession ?? null)}>
+                <CircleEllipsis aria-hidden="true" size={16} />
+              </button>
+            ) : null}
           </div>
 
           <div className="topbar-actions">
@@ -1260,23 +1311,20 @@ export function App() {
             <button className="icon-button" hidden type="button" aria-label={t.refreshContext} onClick={() => void loadState(settings.runtimeProfile)}>
               <RefreshCw aria-hidden="true" size={15} />
             </button>
-            {activeView === "settings" ? (
-              <button className="icon-button" data-testid="opl-skip-to-chat" type="button" aria-label={t.backToChat} onClick={() => setActiveView("chat")}>
-                <X aria-hidden="true" size={16} />
+            {activeView === "chat" ? (
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => {
+                  setInspectorOpen((open) => !open);
+                  setActiveContextTab(contextHomeId);
+                }}
+                aria-label={inspectorOpen ? t.closeEnvironment : t.openEnvironment}
+                aria-pressed={inspectorOpen}
+              >
+                <PanelRightOpen aria-hidden="true" size={16} />
               </button>
             ) : null}
-            <button
-              className="icon-button"
-              type="button"
-              onClick={() => {
-                setInspectorOpen((open) => !open);
-                setActiveContextTab(contextHomeId);
-              }}
-              aria-label={inspectorOpen ? t.closeEnvironment : t.openEnvironment}
-              aria-pressed={inspectorOpen}
-            >
-              <PanelRightOpen aria-hidden="true" size={16} />
-            </button>
           </div>
         </header>
 
@@ -1461,6 +1509,8 @@ export function App() {
             resolvedReasoningOptions={resolvedReasoningOptions}
             stateStatus={stateStatus}
             stateError={stateError}
+            activeDestination={activeSettingsDestination}
+            onDestinationChange={setActiveSettingsDestination}
             onRefresh={() => void loadState(settings.runtimeProfile)}
             onSettingChange={updateSetting}
             onReasoningChange={updateReasoning}
