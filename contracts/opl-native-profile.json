@@ -1,5 +1,12 @@
 {
-  "active_truth_owner": "docs/active/current-state-vs-ideal-gap.md",
+  "candidate_status_owner": "docs/active/current-state-vs-ideal-gap.md",
+  "candidate_operating_policy": {
+    "role": "manual_on_demand_non_periodic_technical_evaluation",
+    "automatic_or_scheduled_work_allowed": false,
+    "mainline_development_required": false,
+    "completion_or_parity_obligation": false,
+    "release_blocking": false
+  },
   "canonical_docs": [
     {
       "path": "README.md",
@@ -35,6 +42,11 @@
   "plugin_native_status": "profile_declared",
   "repo_id": "opl-native-workbench",
   "repo_profile": "tooling_repo",
+  "runtime_dependency_policy": {
+    "aioncore_required": false,
+    "codex_app_server_source": "OPL_CODEX_BIN_or_exact_external_codex",
+    "opl_integration": "framework_app_state_action_contracts_only"
+  },
   "schema": "opl_native_profile.v1",
   "taxonomy_dirs": [
     "docs/active",

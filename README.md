@@ -16,6 +16,16 @@ AionUI remains the active release shell. Selecting or launching Native is a
 local candidate choice only; it does not change the release adapter, updater
 channel, App product truth, or ownership boundaries.
 
+Native is maintained only as a manual, non-periodic technical evaluation
+option. Bounded improvements and focused tests may be run when useful, but the
+candidate is not a required mainline task, parity program, release blocker, or
+product-completion obligation.
+
+Native has no AionCore runtime dependency. The packaged macOS host starts Codex
+App Server directly from `OPL_CODEX_BIN` or an exact external Codex executable,
+while OPL state and mutations remain behind Framework `opl app state/action`
+contracts. It does not package or read AionCore manifests, sessions, or data.
+
 ## What You Can Evaluate
 
 - a persistent project and conversation rail around one dominant chat timeline;
@@ -60,10 +70,10 @@ App-managed launcher.
 | Professional truth, quality, artifacts, and delivery | Domain owners | Refs-only presentation |
 | Candidate source, bridge, renderer, packaging, and focused tests | This repository | Implementation evidence only |
 
-The App candidate registry keeps Native as the foreground alternative, but the
-App candidate boundary currently defers further product expansion until an
-explicit re-entry decision names scope, maintenance owner, App contract delta,
-and release relationship. Native does not maintain a private proposal,
+The App candidate registry keeps Native as the foreground alternative. Manual
+technical evaluation needs a bounded objective and focused acceptance surface,
+not a full parity or release plan. Product expansion or adoption still requires
+an explicit App owner decision and App contract delta. Native does not maintain a private proposal,
 dispatch, wait, queue, ledger, bilateral-receipt, or client-executed dynamic-tool
 layer. AionUI Team's multi-executor orchestration is a separate shell capability;
 it does not replace Codex-native subagents and is not implemented here.

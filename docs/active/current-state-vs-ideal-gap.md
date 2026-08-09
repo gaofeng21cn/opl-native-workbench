@@ -1,8 +1,8 @@
-# OPL Native Workbench Current State And Re-entry Gate
+# OPL Native Workbench Current State And Manual Evaluation Policy
 
 Owner: `one-person-lab-app`
 Purpose: `single_active_truth_plan`
-State: `active_planning`
+State: `active_technical_evaluation_reference`
 Machine boundary: This document owns the candidate's current human-readable
 status, remaining owner/evidence gaps, and next Agent prompt. It does not own App
 product truth, Framework runtime/package truth, Codex thread truth, domain
@@ -15,9 +15,11 @@ implement App-owned GUI contracts through the same Framework state/action and
 Codex App Server boundaries without becoming another product, runtime, package,
 thread, or domain authority.
 
-Product expansion is not an active target until an explicit App owner decision
-names the scope, maintenance owner, App contract delta, and release
-relationship. AionUI remains the active release shell.
+Native is available for bounded manual experiments, improvements, and focused
+tests when useful. It is not a required mainline task, parity program, scheduled
+workstream, release blocker, or product-completion obligation. AionUI remains
+the active release shell. Product expansion or adoption requires a separate App
+owner decision and corresponding App contract delta.
 
 ## Current State Summary
 
@@ -25,8 +27,10 @@ relationship. AionUI remains the active release shell.
 | --- | --- | --- |
 | App role | `foreground_alternative_candidate` | App candidate registry owns the role; local selection does not imply adoption |
 | Active release shell | `aionui` | Only the App shell adapter can change this |
-| Candidate product work | `deferred_pending_explicit_reentry` | Existing experiments are not current App requirements or release blockers |
+| Candidate work policy | `manual_on_demand_non_periodic_technical_evaluation` | Bounded evaluation may proceed manually; there is no parity, schedule, or completion obligation |
+| Mainline obligation | `false` | Native gaps do not enter required App backlog or release gates |
 | Renderer/hosts | `source_implemented_candidate_evidence` | Native and WebUI target one renderer/bridge shape; live equivalence is not proven |
+| AionCore dependency | `false` | Native starts Codex App Server directly and consumes only Framework App state/action contracts |
 | Thread/history | `codex_app_server_owned` | Candidate consumes thread/turn APIs and keeps only UI metadata/drafts locally |
 | Codex subagents | `read_only_app_server_projection` | Lineage, role, nickname, source kind, tool-call, and activity items are displayed without owning scheduling |
 | Private cross-thread layer | `removed_non_goal` | No proposal/dispatch/wait protocol, host queue, ledger, bilateral receipt, or dynamic-tool bridge remains |
@@ -39,9 +43,9 @@ relationship. AionUI remains the active release shell.
 
 | Gap | Class | Owner route | Stop condition |
 | --- | --- | --- | --- |
-| Candidate re-entry scope is not authorized | `owner_gate_not_implementation_gap` | Explicit user + App product owner decision | Do not add product capability, protocol, storage, or release requirements until scope, owner, contract delta, and release relationship are named |
 | App contract currentness must be re-read before any change | `structural_currentness_gate` | App contracts and GUI docs | Stop if the candidate write set conflicts with a newer App decision or active owner lane |
-| Adoption, clean-VM, same-cohort live parity, and release proof are absent | `postponed_evidence_gap` | App release owner and owning runtime/release surfaces | Do not promote docs/tests/package/local smoke to readiness |
+| Selected manual evaluation needs bounded acceptance | `evaluation_scope_gate` | Current manual task | Test only the selected hypothesis; do not turn all known conformance gaps into a required backlog |
+| Adoption, clean-VM, same-cohort live parity, and release proof are absent | `non_blocking_candidate_evidence_gap` | App release owner and owning runtime/release surfaces | Do not promote docs/tests/package/local smoke to readiness; absence does not block App mainline |
 
 Remote cross-machine coordination, model-driven permission/write-set decisions,
 private thread runtimes, and candidate-owned delivery ledgers are explicitly not
@@ -54,10 +58,10 @@ does not depend on Team mode.
 
 ### Goal
 
-After an explicit Native re-entry decision exists, reconcile the smallest
-authorized candidate scope to current App contracts while preserving the thin
-consumer boundary. Without that decision, perform only a read-only currentness
-audit and stop with the owner gate intact.
+For a manual Native evaluation or improvement, reconcile only the smallest
+selected hypothesis to current App contracts while preserving the thin consumer
+boundary. Do not create a general parity program or expand the task merely to
+close unrelated known gaps.
 
 ### Write Scope
 
@@ -95,8 +99,9 @@ audit and stop with the owner gate intact.
 
 ### Required Actions
 
-1. Confirm the explicit re-entry decision names product scope, maintenance
-   owner, App contract delta, and release relationship; otherwise stop read-only.
+1. Confirm the manual task names a bounded technical hypothesis and focused
+   acceptance surface; product expansion or adoption additionally requires an
+   App owner decision and App contract delta.
 2. Classify the requested delta as App product truth, Framework contract,
    candidate implementation, or evidence-only work.
 3. Update the owner surface first, then the smallest candidate implementation

@@ -7,7 +7,7 @@
 - Use OPL App state/action contracts as the only runtime interface.
 - Candidate evidence must not claim active-shell adoption, release readiness,
   production readiness, domain readiness, or artifact authority.
-- Keep Electron and WebUI on the same renderer and bridge shape.
+- Keep packaged macOS and WebUI on the same renderer and bridge shape.
 
 <!-- CODEGRAPH_START -->
 ## CodeGraph

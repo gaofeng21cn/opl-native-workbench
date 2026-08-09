@@ -33,6 +33,19 @@ The packaged candidate has an isolated name, path, bundle id, and default
 read-only action policy. Sharing a renderer is structural convergence evidence,
 not proof that both delivery surfaces have equivalent live behavior.
 
+## Runtime Independence
+
+Native does not require, start, package, or read AionCore. The packaged macOS
+host resolves `OPL_CODEX_BIN` or an exact external Codex executable and starts
+`codex app-server --stdio` directly. The Node WebUI host also talks directly to
+Codex App Server. Both hosts consume OPL only through Framework state/action
+contracts; AionCore managed-resource manifests, session/database state, backend,
+and authentication are not Native runtime inputs.
+
+This independence is a carrier property, not a second product or runtime
+authority. Codex still owns thread/turn truth, Framework still owns OPL
+state/actions, and App contracts still own product behavior.
+
 ## App And Framework Boundary
 
 Ordinary state reads use:
@@ -99,6 +112,8 @@ decision and a change to the App shell adapter after all App-owned gates pass.
 Candidate docs, tests, package artifacts, screenshots, or local live smoke
 cannot perform that transfer.
 
-Further product expansion is currently deferred. The re-entry gate and next
-safe work route are maintained only in
+Native may receive bounded, manual, non-periodic improvements and focused tests
+without becoming a mainline task or acquiring a parity/completion obligation.
+Further product expansion or adoption remains a separate App decision. The
+current evaluation policy and next safe work route are maintained only in
 [the Active Truth plan](./active/current-state-vs-ideal-gap.md).

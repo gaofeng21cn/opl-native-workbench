@@ -546,7 +546,8 @@
   },
   "webui_transport": {
     "renderer": "src/workbench/App.tsx",
-    "electron_transport": "src/bridge/electronPreload.ts",
+    "native_host": "scripts/native-workbench-app.swift",
+    "native_transport": "src/main.tsx#installNativeTransport",
     "web_transport": "src/bridge/webTransport.ts",
     "gateway": "scripts/dev-webui-server.mjs",
     "shared_surface": true,

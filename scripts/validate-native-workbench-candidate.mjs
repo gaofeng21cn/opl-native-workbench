@@ -24,10 +24,10 @@ const requiredFiles = [
   "docs/verification.md",
   "docs/history/README.md",
   "docs/history/2026-07-candidate-baseline.md",
+  "contracts/opl-native-profile.json",
   "package.json",
   "src/bridge/oplBridge.ts",
   "src/bridge/webTransport.ts",
-  "src/bridge/electronPreload.ts",
   "src/main.tsx",
   "src/renderer-shell.html",
   "src/workbench/App.tsx",
@@ -120,9 +120,33 @@ for (const file of retiredPrivateThreadFiles) {
 }
 
 const pkg = JSON.parse(read("package.json"));
+const nativeProfile = readJson("contracts/opl-native-profile.json");
 for (const script of requiredScripts) {
   assert(pkg.scripts?.[script], `missing package script ${script}`);
 }
+
+assert(
+  nativeProfile.candidate_status_owner === "docs/active/current-state-vs-ideal-gap.md",
+  "candidate profile must identify the single current status owner"
+);
+assert(
+  nativeProfile.candidate_operating_policy?.role === "manual_on_demand_non_periodic_technical_evaluation"
+    && nativeProfile.candidate_operating_policy.automatic_or_scheduled_work_allowed === false
+    && nativeProfile.candidate_operating_policy.mainline_development_required === false
+    && nativeProfile.candidate_operating_policy.completion_or_parity_obligation === false
+    && nativeProfile.candidate_operating_policy.release_blocking === false,
+  "candidate profile must keep Native manual, non-periodic, non-blocking, and without a completion obligation"
+);
+assert(
+  nativeProfile.runtime_dependency_policy?.aioncore_required === false
+    && nativeProfile.runtime_dependency_policy.codex_app_server_source === "OPL_CODEX_BIN_or_exact_external_codex"
+    && nativeProfile.runtime_dependency_policy.opl_integration === "framework_app_state_action_contracts_only",
+  "candidate profile must keep Native independent from AionCore"
+);
+assert(
+  !Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).some((name) => name.toLowerCase().includes("aioncore")),
+  "candidate package must not declare an AionCore dependency"
+);
 
 const app = read("src/workbench/App.tsx");
 const rendererSource = readRendererSource();
@@ -182,6 +206,11 @@ function assertPrivateThreadLayerRemoved(evidence) {
   }
   assert(evidence.functional_mvp?.private_coordination_layer === false, "functional MVP must reject a private coordination layer");
   assert(evidence.webui_transport?.private_coordination_layer === false, "WebUI must reject a private coordination layer");
+  assert(
+    evidence.webui_transport?.native_host === "scripts/native-workbench-app.swift"
+      && evidence.webui_transport.native_transport === "src/main.tsx#installNativeTransport",
+    "packaged macOS evidence must use the Swift WKScriptMessageHandler transport"
+  );
   assert(evidence.functional_mvp?.codex_subagent_projection?.includes("collabAgentToolCall"), "functional MVP must record Codex subagent item projection");
   assert(evidence.thread_list_pagination_regression?.validation_command === "npm run test:thread-list-pagination", "candidate evidence must record the thread/list regression command");
   assert(evidence.thread_list_pagination_regression?.fixtures?.includes("scripts/webui-host/thread-adapter.test.mjs"), "candidate evidence must record the WebUI thread adapter fixture");
@@ -233,7 +262,12 @@ function assertCodexJuly2026Alignment(evidence, app) {
   assert(architecture.includes("Model And Settings Boundary") && architecture.includes("App product profile"), "architecture must route model and settings authority to App");
   assert(architecture.includes("Codex App Server owns canonical thread identity"), "architecture must route thread truth to Codex App Server");
   assert(architecture.includes("AionUI is the active release shell"), "architecture must preserve the active-shell boundary");
-  assert(activePlan.includes("Purpose: `single_active_truth_plan`") && activePlan.includes("deferred_pending_explicit_reentry"), "Active Truth must preserve the deferred re-entry gate");
+  assert(
+    activePlan.includes("Purpose: `single_active_truth_plan`")
+      && activePlan.includes("State: `active_technical_evaluation_reference`")
+      && activePlan.includes("manual_on_demand_non_periodic_technical_evaluation"),
+    "Active Truth must preserve the manual, non-periodic evaluation policy"
+  );
   assert(publicEntry.includes("foreground alternative shell candidate") && publicEntry.includes("AionUI remains the active release shell"), "public entry must preserve candidate and adoption roles");
   const legacyClaims = `${publicEntry}\n${architecture}\n${history}\n${JSON.stringify(evidence)}`.toLowerCase();
   for (const claim of ["imagegen", "image-generated", "three-column", "chat_first_with_preview_inspector", "preview inspector default-open"]) {
