@@ -1,6 +1,9 @@
 import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
+import path from "node:path";
 import readline from "node:readline";
+
+export const DEFAULT_PERMISSION_PROFILE = ":danger-full-access";
 
 export class AppServerTransportError extends Error {
   constructor(code, message, details = {}) {
@@ -9,6 +12,32 @@ export class AppServerTransportError extends Error {
     this.code = code;
     this.details = details;
   }
+}
+
+function buildUserInputs(prompt, inputs = []) {
+  const normalized = [];
+  const text = typeof prompt === "string" ? prompt.trim() : "";
+  if (text) normalized.push({ type: "text", text, text_elements: [] });
+  for (const input of Array.isArray(inputs) ? inputs : []) {
+    if (!input || typeof input !== "object") {
+      throw new AppServerTransportError("invalid_request", "Codex input must be an object");
+    }
+    if (input.type === "localImage" && typeof input.path === "string" && path.isAbsolute(input.path)) {
+      normalized.push({ type: "localImage", path: input.path, detail: input.detail ?? null });
+      continue;
+    }
+    if ((input.type === "skill" || input.type === "mention")
+      && typeof input.name === "string" && input.name
+      && typeof input.path === "string" && path.isAbsolute(input.path)) {
+      normalized.push({ type: input.type, name: input.name, path: input.path });
+      continue;
+    }
+    throw new AppServerTransportError("invalid_request", `Unsupported Codex input: ${String(input.type ?? "missing")}`);
+  }
+  if (!normalized.length) {
+    throw new AppServerTransportError("invalid_request", "Message requires text, an attachment, or a Skill");
+  }
+  return normalized;
 }
 
 export class CodexAppServerTransport extends EventEmitter {
@@ -161,6 +190,61 @@ export class CodexAppServerTransport extends EventEmitter {
     return { data, nextCursor: null };
   }
 
+  async listCapabilities(threadId) {
+    const errors = [];
+    const skills = [];
+    const plugins = [];
+    let apps = [];
+    try {
+      const result = await this.request("skills/list", { cwds: [this.cwd], forceReload: false });
+      for (const entry of Array.isArray(result.data) ? result.data : []) {
+        skills.push(...(Array.isArray(entry.skills) ? entry.skills : []));
+      }
+    } catch (error) {
+      errors.push(`skills/list: ${error.message ?? String(error)}`);
+    }
+    try {
+      const result = await this.request("plugin/installed", { cwds: [this.cwd] });
+      for (const marketplace of Array.isArray(result.marketplaces) ? result.marketplaces : []) {
+        plugins.push(...(Array.isArray(marketplace.plugins) ? marketplace.plugins : []));
+      }
+    } catch (error) {
+      errors.push(`plugin/installed: ${error.message ?? String(error)}`);
+    }
+    try {
+      const result = await this.request("app/installed", {
+        forceRefresh: false,
+        ...(threadId ? { threadId } : {})
+      });
+      apps = Array.isArray(result.apps) ? result.apps : [];
+    } catch (error) {
+      errors.push(`app/installed: ${error.message ?? String(error)}`);
+    }
+    return { skills, plugins, apps, errors };
+  }
+
+  async listPermissionProfiles() {
+    const data = [];
+    const seenCursors = new Set();
+    let cursor;
+    do {
+      const page = await this.request("permissionProfile/list", {
+        cwd: this.cwd,
+        ...(cursor ? { cursor } : {})
+      });
+      if (!Array.isArray(page.data)) {
+        throw new AppServerTransportError("invalid_app_server_response", "permissionProfile/list returned invalid data");
+      }
+      data.push(...page.data);
+      cursor = page.nextCursor ?? undefined;
+      if (cursor && seenCursors.has(cursor)) {
+        throw new AppServerTransportError("invalid_app_server_response", "permissionProfile/list repeated its cursor", { cursor });
+      }
+      if (cursor) seenCursors.add(cursor);
+    } while (cursor);
+    return { data, nextCursor: null };
+  }
+
   async readThread(threadId, includeTurns = false) {
     return this.request("thread/read", { threadId, includeTurns });
   }
@@ -186,10 +270,10 @@ export class CodexAppServerTransport extends EventEmitter {
     return { threadId, archived: false, thread: response.thread };
   }
 
-  async startTurn(threadId, message, overrides = {}) {
+  async startTurn(threadId, prompt, inputs = [], overrides = {}) {
     return this.request("turn/start", {
       threadId,
-      input: [{ type: "text", text: message, text_elements: [] }],
+      input: buildUserInputs(prompt, inputs),
       ...overrides
     });
   }
@@ -206,32 +290,32 @@ export class CodexAppServerTransport extends EventEmitter {
     return this.request("thread/start", {
       cwd: this.cwd,
       approvalPolicy: "never",
-      sandbox: "read-only",
+      permissions: DEFAULT_PERMISSION_PROFILE,
       ephemeral: false,
       ...params
     });
   }
 
-  async sendMessage({ prompt, threadId, model, reasoningEffort }) {
+  async sendMessage({ prompt, inputs, threadId, model, reasoningEffort, permissions = DEFAULT_PERMISSION_PROFILE }) {
     let activeThreadId = threadId;
     if (activeThreadId) {
-      await this.resumeThread(activeThreadId, { cwd: this.cwd, approvalPolicy: "never", sandbox: "read-only" });
+      await this.resumeThread(activeThreadId, { cwd: this.cwd, approvalPolicy: "never", permissions });
     } else {
       const started = await this.startThread({
         model: model || undefined,
         cwd: this.cwd,
         approvalPolicy: "never",
-        sandbox: "read-only"
+        permissions
       });
       activeThreadId = started.thread?.id;
     }
     if (!activeThreadId) {
       throw new AppServerTransportError("invalid_app_server_response", "thread/start returned no thread id");
     }
-    const startedTurn = await this.startTurn(activeThreadId, prompt, {
+    const startedTurn = await this.startTurn(activeThreadId, prompt, inputs, {
       cwd: this.cwd,
       approvalPolicy: "never",
-      sandboxPolicy: { type: "readOnly", networkAccess: false },
+      permissions,
       ...(model ? { model } : {}),
       ...(reasoningEffort ? { effort: reasoningEffort } : {})
     });
@@ -248,7 +332,8 @@ export class CodexAppServerTransport extends EventEmitter {
       finalMessage: completed.finalMessage,
       eventCount: completed.events.length,
       completed: completed.notification,
-      cwd: this.cwd
+      cwd: this.cwd,
+      permissions
     };
   }
 

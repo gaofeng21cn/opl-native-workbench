@@ -138,6 +138,14 @@ export async function createWebUiHost({
         json(res, 200, await transport.listModels());
         return;
       }
+      if (req.method === "GET" && url.pathname === "/api/codex/capabilities") {
+        json(res, 200, await transport.listCapabilities(url.searchParams.get("threadId") ?? undefined));
+        return;
+      }
+      if (req.method === "GET" && url.pathname === "/api/codex/permission-profiles") {
+        json(res, 200, await transport.listPermissionProfiles());
+        return;
+      }
       if (req.method === "POST" && url.pathname === "/api/send-message") {
         const request = await body(req);
         const response = await transport.sendMessage(request);

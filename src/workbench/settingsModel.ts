@@ -19,6 +19,7 @@ export type SettingKey =
   | "locale"
   | "modelAccess"
   | "reasoningLevel"
+  | "agentPermissions"
   | "defaultWorkspace"
   | "runtimeProfile"
   | "confirmBeforeExecute"
@@ -31,6 +32,7 @@ export type WorkbenchSettings = {
   locale: "zh" | "en";
   modelAccess: CodexModelSelection;
   reasoningLevel: CodexReasoningEffort;
+  agentPermissions: ":danger-full-access" | ":workspace" | ":read-only";
   defaultWorkspace: "opl_app";
   runtimeProfile: "fast" | "full";
   confirmBeforeExecute: boolean;
@@ -53,7 +55,7 @@ export const settingsSections: SettingsSection[] = [
   { id: "account_models", title: "Account & Models", keys: ["modelAccess", "reasoningLevel"] },
   { id: "connections_deployment", title: "Connections & Deployment", keys: [] },
   { id: "workspace", title: "Workspace", keys: ["defaultWorkspace"] },
-  { id: "agents_capabilities", title: "Agents & Capabilities", keys: ["professionalStarterDefaults"] },
+  { id: "agents_capabilities", title: "Agents & Capabilities", keys: ["agentPermissions", "professionalStarterDefaults"] },
   { id: "runtime_maintenance", title: "Runtime & Maintenance", keys: ["runtimeProfile", "developerDetails"] },
   { id: "preferences", title: "Preferences", keys: ["locale", "theme", "artifactPreviewMode", "confirmBeforeExecute"] }
 ];
@@ -62,6 +64,7 @@ export const settingsDefaults: WorkbenchSettings = {
   locale: "zh",
   modelAccess: "__auto",
   reasoningLevel: codexModelPolicy.defaultReasoningEffort,
+  agentPermissions: ":danger-full-access",
   defaultWorkspace: "opl_app",
   runtimeProfile: "fast",
   confirmBeforeExecute: true,
@@ -75,6 +78,7 @@ const allowedSettingsValues = {
   locale: ["zh", "en"],
   modelAccess: ["__auto", ...codexModelPolicy.modelOptions.map((option) => option.id)],
   reasoningLevel: codexModelPolicy.reasoningOptions,
+  agentPermissions: [":danger-full-access", ":workspace", ":read-only"],
   defaultWorkspace: ["opl_app"],
   runtimeProfile: ["fast", "full"],
   confirmBeforeExecute: [true, false],

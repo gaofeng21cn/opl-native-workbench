@@ -190,7 +190,7 @@ const manifest = {
   functional_mvp: {
     codex_app_server_thread_turn: true,
     codex_command: "codex app-server --stdio",
-    codex_protocol: "JSON-RPC newline transport with initialize, model/list, paginated thread/list, thread/read, thread/resume, thread/fork, thread/archive, thread/unarchive, turn/start, turn/steer, thread/status/changed, item/agentMessage/delta, item/completed, and turn/completed",
+    codex_protocol: evidence.functional_mvp.codex_protocol,
     thread_lifecycle: "one Desktop/WebUI adapter projects Codex App Server thread truth and routes list, read, resume, fork, archive, and unarchive",
     codex_subagent_projection: "read-only parentThreadId, agentRole, agentNickname, source kind, collabAgentToolCall, and subAgentActivity",
     private_coordination_layer: false,
@@ -198,7 +198,8 @@ const manifest = {
     opl_state_bridge: "opl app state --profile fast --json",
     opl_action_bridge: "opl app action execute --action <action_id> --dry-run --json",
     native_bridge: "WKScriptMessageHandler window.webkit.messageHandlers.oplNativeWorkbench",
-    default_sandbox: "read-only",
+    default_agent_permissions_profile: evidence.functional_mvp.default_agent_permissions_profile,
+    agent_permissions_controls: evidence.functional_mvp.agent_permissions_controls,
     conversation_persistence: "codex_app_server_thread_id_resume_capable",
     shared_thread_directory: evidence.functional_mvp.shared_thread_directory,
     acp_app_server_reuse_status: "implemented_with_codex_app_server_thread_turn_stream"

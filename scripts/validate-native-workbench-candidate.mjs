@@ -310,6 +310,12 @@ function assertCodexModelControls(evidence, app, rendererSource) {
   const injectedPolicy = readCodexModelPolicy(appProductProfilePath);
   assert(evidence.functional_mvp?.codex_model_reasoning_controls?.includes("turn/start") && evidence.functional_mvp.codex_model_reasoning_controls.includes("model and effort overrides"), "functional MVP must record app-server model and effort overrides");
   assert(evidence.functional_mvp.codex_model_reasoning_controls.includes("App default route") && evidence.functional_mvp.codex_model_reasoning_controls.includes("fixed alternatives"), "functional MVP must record the App-default catalog exception and fixed-model filtering");
+  assert(evidence.functional_mvp?.default_agent_permissions_profile === ":danger-full-access", "functional MVP must record full access as the default Agent permission profile");
+  assert(evidence.functional_mvp?.agent_permissions_controls?.includes("permission profiles") && evidence.functional_mvp.agent_permissions_controls.includes("turn/start"), "functional MVP must record the Agent permission selector and transport");
+  assert(settings.includes('agentPermissions: ":danger-full-access"'), "renderer settings must default Agent permissions to full access");
+  assert(app.includes("permissions: settings.agentPermissions"), "composer must send the selected Agent permission profile");
+  assert(bridge.includes('defaultPermissions: ":danger-full-access"'), "browser bridge must default Agent permissions to full access");
+  assert(nativeApp.includes('private static let defaultPermissions = ":danger-full-access"'), "native bridge must default Agent permissions to full access");
   assert(injectedPolicy.defaultModel === appProductProfile.default_session_profile.model, "injected default model must match the App product profile");
   assert(injectedPolicy.defaultReasoningEffort === appProductProfile.default_session_profile.reasoning_effort, "injected default reasoning effort must match the App product profile");
   assert(injectedPolicy.visibleModels.length === profileModels.length, "injected model list length must match the App product profile");
@@ -354,7 +360,7 @@ function assertCodexModelControls(evidence, app, rendererSource) {
   assert(app.includes("setCodexCatalog(catalog.models)") && app.includes("setCodexCatalog([])"), "renderer must retain the App default route when model catalog discovery is empty or unavailable");
   assert(policySource.includes("available: isAppDefault"), "model/list must not veto the App default route");
   assert(app.includes("const unavailableFixedModel") && app.includes("const canSendCodexTurn = Boolean(resolvedModel)"), "only an unavailable fixed selection may block sending");
-  assert(app.includes('if (!text || sendState === "running" || !resolvedModel) return;'), "composer must block unavailable fixed selections before turn/start");
+  assert(app.includes('if ((!text && !pendingSelections.length) || sendState === "running" || !resolvedModel) return;'), "composer must require text or selected inputs and block unavailable fixed selections before turn/start");
   assert(app.includes("conversationModelLabel(") && app.includes("resolvedConversationModelLabel"), "composer model control must use the tested resolved-label policy");
   assert(app.includes('<option value="__auto">{resolvedConversationModelLabel}</option>'), "composer Auto must display the resolved model without an Auto prefix");
   assert(app.includes('value="__auto"'), "Settings must expose Auto model restoration");

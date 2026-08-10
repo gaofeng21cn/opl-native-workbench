@@ -19,6 +19,9 @@ const nativeSmoke = read("scripts/smoke-native-app-live.mjs");
 const rail = read("src/workbench/threads/ThreadRail.tsx");
 const detail = read("src/workbench/threads/ThreadDetailPopover.tsx");
 const lifecycle = read("src/workbench/threads/ThreadLifecycleConfirmationDialog.tsx");
+const threadSearch = read("src/workbench/ThreadSearchDialog.tsx");
+const composerPalette = read("src/workbench/ComposerCapabilityPalette.tsx");
+const settings = read("src/workbench/settingsModel.ts");
 
 test("renderer consumes one standard Codex thread adapter", () => {
   assert.match(app, /from "\.\.\/threads\/types"/);
@@ -130,6 +133,8 @@ test("assistant display consumes Codex UI directives without rewriting Markdown 
 test("native window chrome follows the compact Codex composition", () => {
   assert.doesNotMatch(app, /className="brand-name">Codex/);
   assert.match(app, /<strong className="brand-mark">One Person Lab<\/strong>/);
+  const brandRow = app.match(/<header className="brand-row"[\s\S]*?<\/header>/)?.[0] ?? "";
+  assert.doesNotMatch(brandRow, /ChevronDown/);
   assert.match(main, /document\.documentElement\.dataset\.oplHost = nativeTransportInstalled \? "native" : "web"/);
   assert.match(styles, /:root\[data-opl-host="native"\]/);
   assert.match(styles, /--opl-native-titlebar-inset: 34px/);
@@ -157,6 +162,37 @@ test("native window chrome follows the compact Codex composition", () => {
   assert.match(nativeSmoke, /output\.includes\("brand=1"\)/);
   assert.doesNotMatch(nativeSmoke, /output\.includes\("codex=0"\)/);
   assert.match(nativeSmoke, /global Codex project names are allowed/);
+});
+
+test("search, composer attachments, and Agent permissions route to real renderer and bridge behavior", () => {
+  assert.match(app, /className="icon-button sidebar-search"[^>]*onClick=\{\(\) => setThreadSearchOpen\(true\)\}/);
+  assert.match(app, /className="sidebar-section-search"[^>]*onClick=\{\(\) => setThreadSearchOpen\(true\)\}/);
+  assert.match(app, /<ThreadSearchDialog/);
+  assert.match(threadSearch, /!thread\.isTemporaryWorkspace && !project\.projectless/);
+  assert.match(app, /<ComposerCapabilityPalette/);
+  assert.match(app, /function openComposerPalette\(\)/);
+  assert.doesNotMatch(app, /openComposerPalette\("capabilities"\)|composerPaletteMode/);
+  assert.match(app, /inputs: pendingSelections\.map\(\(selection\) => selection\.input\)/);
+  assert.match(app, /permissions: settings\.agentPermissions/);
+  assert.match(app, /setComposerSelections\(pendingSelections\)/);
+  assert.match(app, /aria-label=\{t\.agentPermissions\}/);
+  assert.match(app, /<ShieldCheck className="composer-permission-icon"/);
+  assert.match(settings, /agentPermissions: ":danger-full-access"/);
+  for (const method of ["readCodexCapabilities", "readCodexPermissionProfiles", "pickFiles", "pickDirectory"]) {
+    assert.match(main, new RegExp(`${method}:`));
+    assert.match(bridge, new RegExp(`${method}\\(`));
+  }
+  assert.match(nativeWindow, /case "readCodexCapabilities"/);
+  assert.match(nativeWindow, /case "readCodexPermissionProfiles"/);
+  assert.match(nativeWindow, /method: "permissionProfile\/list"/);
+  assert.match(nativeWindow, /private static let defaultPermissions = ":danger-full-access"/);
+  assert.match(nativeWindow, /case "pickFiles"/);
+  assert.match(nativeWindow, /case "pickDirectory"/);
+  assert.match(composerPalette, /catalog\.skills/);
+  assert.match(composerPalette, /seenSkillNames/);
+  assert.match(composerPalette, /if \(!open\) \{\s*setQuery\(""\)/s);
+  assert.match(composerPalette, /catalog\.plugins/);
+  assert.match(composerPalette, /catalog\.apps/);
 });
 
 test("native visual tokens track the current ChatGPT Codex light workbench", () => {
@@ -261,12 +297,12 @@ test("desktop remains two-column and mobile thread dialogs are full-height", () 
   assert.match(rail, /project\.threads\.slice\(0, 2\)/);
   assert.match(app, /conversation\.scrollTop = conversation\.scrollHeight/);
   assert.match(app, /mobile\.addEventListener\?\.\("change", syncSidebar\)/);
-  assert.match(app, /aria-label=\{t\.capabilities\}/);
+  assert.match(app, /aria-label=\{t\.agentPermissions\}/);
   assert.match(styles, /\.thread-detail-popover,\s*\.thread-confirmation-dialog \{\s*inset: 0;/s);
   assert.match(styles, /height: 100dvh/);
   assert.match(styles, /border-radius: 0/);
   assert.match(styles, /\.history-list li \.thread-directory-open \.thread-directory-copy/);
   assert.match(styles, /\.message\.system\.subagent \.message-frame/);
   assert.doesNotMatch(styles, /\.coordination-/);
-  assert.match(styles, /\.composer-control-label \{\s*display: none;/s);
+  assert.match(styles, /\.composer-permissions select \{[^}]*max-width: 118px;/s);
 });

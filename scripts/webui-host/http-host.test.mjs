@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import test from "node:test";
 import { CodexAppServerTransport } from "./app-server-transport.mjs";
 import { createWebUiHost } from "./http-host.mjs";
@@ -19,10 +19,12 @@ async function post(baseUrl, route, value) {
 
 test("loopback HTTP host exposes standard thread lifecycle, subagent projection, SSE, and OPL passthrough", async (t) => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "opl-webui-http-test-"));
+  const appServerLog = path.join(directory, "app-server.jsonl");
   const transport = new CodexAppServerTransport({
     command: process.execPath,
     args: [fixture],
     cwd: directory,
+    env: { ...process.env, FAKE_APP_SERVER_LOG: appServerLog },
     requestTimeoutMs: 2_000,
     turnTimeoutMs: 2_000
   });
@@ -110,8 +112,29 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
   const models = await fetch(`${baseUrl}/api/codex/models`).then((response) => response.json());
   assert.equal(models.data[0].id, "gpt-test");
 
-  const chat = await post(baseUrl, "/api/send-message", { prompt: "Return a fake host response." });
+  const permissionProfiles = await fetch(`${baseUrl}/api/codex/permission-profiles`).then((response) => response.json());
+  assert.deepEqual(permissionProfiles.data.map((profile) => profile.id), [":read-only", ":workspace", ":danger-full-access"]);
+
+  const codexCapabilities = await fetch(`${baseUrl}/api/codex/capabilities?threadId=thread-idle`).then((response) => response.json());
+  assert.equal(codexCapabilities.skills[0].name, "opl-test-skill");
+  assert.equal(codexCapabilities.plugins[0].id, "test-plugin");
+  assert.equal(codexCapabilities.apps[0].id, "test-app");
+  assert.deepEqual(codexCapabilities.errors, []);
+
+  const chat = await post(baseUrl, "/api/send-message", {
+    prompt: "Return a fake host response.",
+    permissions: ":danger-full-access",
+    inputs: [
+      { type: "localImage", path: "/tmp/test-image.png", detail: "auto" },
+      { type: "mention", name: "notes", path: "/tmp/notes" },
+      { type: "skill", name: "opl-test-skill", path: "/skills/opl-test-skill/SKILL.md" }
+    ]
+  });
   assert.equal(chat.status, 200);
   assert.equal(chat.body.executor, "codex_app_server");
   assert.equal(chat.body.finalMessage.startsWith("completed turn-created-"), true);
+  const frames = (await readFile(appServerLog, "utf8")).trim().split("\n").map(JSON.parse);
+  const turnStart = frames.find((frame) => frame.method === "turn/start");
+  assert.deepEqual(turnStart.params.input.map((input) => input.type), ["text", "localImage", "mention", "skill"]);
+  assert.equal(turnStart.params.permissions, ":danger-full-access");
 });

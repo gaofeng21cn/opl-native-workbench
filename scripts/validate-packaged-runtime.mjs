@@ -123,10 +123,10 @@ for (const marker of [
   "turn/completed",
   "item/agentMessage/delta",
   "item/completed",
-  "sandboxPolicy",
+  "permissionProfile/list",
   'turnParams["model"] = model',
   'turnParams["effort"] = effort',
-  "\"type\": \"readOnly\"",
+  '"permissions": resolvedPermissions',
   "approvalPolicy\": \"never\"",
   "process.terminationHandler",
   "turn timed out after",
@@ -240,7 +240,8 @@ assert(manifest.functional_mvp?.codex_protocol?.includes("model/list"), "manifes
 assert(manifest.functional_mvp?.thread_lifecycle?.includes("archive"), "manifest must record standard thread lifecycle");
 assert(manifest.functional_mvp?.codex_subagent_projection?.includes("collabAgentToolCall"), "manifest must record Codex subagent projection");
 assert(manifest.functional_mvp?.private_coordination_layer === false, "manifest must reject a private coordination layer");
-assert(manifest.functional_mvp?.default_sandbox === "read-only", "manifest must record read-only Codex sandbox");
+assert(manifest.functional_mvp?.default_agent_permissions_profile === ":danger-full-access", "manifest must record full-access Codex permission profile as the candidate default");
+assert(manifest.functional_mvp?.agent_permissions_controls?.includes("thread/start") && manifest.functional_mvp.agent_permissions_controls.includes("turn/start"), "manifest must record the Agent permission profile transport");
 for (const field of evidence.functional_mvp_closeout?.not_ready ?? []) {
   assert(manifest[field] !== true, `candidate package must not claim ${field}`);
 }

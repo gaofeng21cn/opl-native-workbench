@@ -150,7 +150,7 @@ export const codexWorkbenchStyles = `
     min-width: 0;
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 0;
     font-size: 14px;
     font-weight: 560;
     white-space: nowrap;
@@ -879,6 +879,7 @@ export const codexWorkbenchStyles = `
   }
 
   .composer-frame {
+    position: relative;
     padding: 7px 9px 6px;
     border: 1px solid var(--opl-border-heavy);
     border-radius: 17px;
@@ -906,6 +907,335 @@ export const codexWorkbenchStyles = `
 
   .composer textarea::placeholder {
     color: var(--opl-faint);
+  }
+
+  .composer-selections {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 0 1px 6px;
+  }
+
+  .composer-selection {
+    min-width: 0;
+    max-width: min(260px, 100%);
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 4px 0 8px;
+    border: 1px solid var(--opl-border);
+    border-radius: 7px;
+    background: var(--opl-sidebar);
+    color: var(--opl-text);
+    font-size: 12px;
+  }
+
+  .composer-selection > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .composer-selection button,
+  .composer-palette header button {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--opl-muted);
+  }
+
+  .composer-selection button:hover,
+  .composer-palette header button:hover {
+    background: var(--opl-hover);
+    color: var(--opl-text);
+  }
+
+  .composer-palette {
+    position: absolute;
+    z-index: 80;
+    left: -1px;
+    bottom: calc(100% + 8px);
+    width: min(420px, calc(100vw - 48px));
+    max-height: min(520px, calc(100vh - 150px));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--opl-border-heavy);
+    border-radius: 10px;
+    background: var(--opl-canvas);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.13), 0 2px 8px rgba(0, 0, 0, 0.07);
+  }
+
+  .composer-palette > header {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0 10px 0 13px;
+  }
+
+  .composer-palette > header strong {
+    font-size: 13px;
+    font-weight: 560;
+  }
+
+  .composer-palette-search {
+    height: 34px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0 9px 7px;
+    padding: 0 9px;
+    border: 1px solid var(--opl-border);
+    border-radius: 7px;
+    color: var(--opl-muted);
+  }
+
+  .composer-palette-search:focus-within {
+    border-color: color-mix(in oklab, var(--opl-text) 28%, transparent);
+  }
+
+  .composer-palette-search input {
+    min-width: 0;
+    flex: 1;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--opl-text);
+    font-size: 12.5px;
+  }
+
+  .composer-palette-scroll {
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0 7px 8px;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--opl-text) 12%, transparent) transparent;
+  }
+
+  .composer-palette-scroll section + section {
+    margin-top: 7px;
+    padding-top: 7px;
+    border-top: 1px solid var(--opl-border-light);
+  }
+
+  .composer-palette-group {
+    display: block;
+    padding: 4px 7px;
+    color: var(--opl-faint);
+    font-size: 10.5px;
+    font-weight: 560;
+  }
+
+  .composer-palette-row {
+    width: 100%;
+    min-height: 42px;
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 7px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--opl-text);
+    text-align: left;
+  }
+
+  button.composer-palette-row:hover,
+  button.composer-palette-row[aria-pressed="true"] {
+    background: var(--opl-hover);
+  }
+
+  .composer-palette-icon {
+    width: 28px;
+    height: 28px;
+    display: inline-grid;
+    place-items: center;
+    border: 1px solid var(--opl-border);
+    border-radius: 7px;
+    color: var(--opl-muted);
+  }
+
+  .composer-palette-row > span:nth-child(2) {
+    min-width: 0;
+    display: grid;
+    gap: 1px;
+  }
+
+  .composer-palette-row strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12.5px;
+    font-weight: 520;
+  }
+
+  .composer-palette-row small {
+    overflow: hidden;
+    color: var(--opl-muted);
+    font-size: 11px;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .composer-palette-loaded {
+    padding-right: 3px;
+  }
+
+  .composer-palette-state {
+    margin: 8px;
+    color: var(--opl-muted);
+    font-size: 12px;
+  }
+
+  .composer-palette-state.error {
+    color: var(--opl-danger);
+  }
+
+  .thread-search-overlay {
+    position: fixed;
+    z-index: 110;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.18);
+  }
+
+  .thread-search-dialog {
+    position: fixed;
+    z-index: 111;
+    top: max(72px, 11vh);
+    left: 50%;
+    width: min(560px, calc(100vw - 36px));
+    max-height: min(620px, calc(100vh - 120px));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transform: translateX(-50%);
+    border: 1px solid var(--opl-border-heavy);
+    border-radius: 12px;
+    outline: 0;
+    background: var(--opl-canvas);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.17), 0 3px 10px rgba(0, 0, 0, 0.08);
+  }
+
+  .thread-search-input {
+    height: 48px;
+    flex: 0 0 48px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 10px 0 14px;
+    border-bottom: 1px solid var(--opl-border);
+    color: var(--opl-muted);
+  }
+
+  .thread-search-input input {
+    min-width: 0;
+    flex: 1;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--opl-text);
+    font-size: 14px;
+  }
+
+  .thread-search-input button {
+    width: 28px;
+    height: 28px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--opl-muted);
+  }
+
+  .thread-search-input button:hover {
+    background: var(--opl-hover);
+    color: var(--opl-text);
+  }
+
+  .thread-search-results {
+    min-height: 96px;
+    overflow-y: auto;
+    padding: 8px;
+  }
+
+  .thread-search-group-label {
+    display: block;
+    padding: 3px 7px 6px;
+    color: var(--opl-faint);
+    font-size: 10.5px;
+    font-weight: 560;
+  }
+
+  .thread-search-results > button {
+    width: 100%;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--opl-text);
+    text-align: left;
+  }
+
+  .thread-search-results > button:hover,
+  .thread-search-results > button:focus-visible {
+    outline: 0;
+    background: var(--opl-hover);
+  }
+
+  .thread-search-result-copy {
+    min-width: 0;
+    flex: 1;
+    display: grid;
+    gap: 1px;
+  }
+
+  .thread-search-result-copy strong,
+  .thread-search-result-copy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .thread-search-result-copy strong {
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .thread-search-result-copy small,
+  .thread-search-project,
+  .thread-search-empty {
+    color: var(--opl-muted);
+    font-size: 11px;
+  }
+
+  .thread-search-project {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .thread-search-empty {
+    margin: 22px 8px;
+    text-align: center;
   }
 
   .composer footer,
@@ -941,7 +1271,6 @@ export const codexWorkbenchStyles = `
   }
 
   .composer-action,
-  .composer-control,
   .composer-select,
   .composer-submit {
     height: 30px;
@@ -963,7 +1292,6 @@ export const codexWorkbenchStyles = `
   }
 
   .composer-action:hover,
-  .composer-control:hover,
   .composer-select:hover {
     background: var(--opl-hover);
     color: var(--opl-text);
@@ -987,14 +1315,25 @@ export const codexWorkbenchStyles = `
     cursor: pointer;
   }
 
-  .composer-select svg {
+  .composer-select > svg:last-child {
     position: absolute;
     right: 4px;
     pointer-events: none;
   }
 
-  .composer-control[data-accent="true"] {
-    color: var(--opl-accent);
+  .composer-permissions {
+    padding-left: 5px;
+  }
+
+  .composer-permissions select {
+    max-width: 118px;
+    padding-left: 21px;
+  }
+
+  .composer-permission-icon {
+    position: absolute;
+    left: 6px;
+    pointer-events: none;
   }
 
   .composer-submit {
@@ -2625,16 +2964,6 @@ export const codexWorkbenchStyles = `
 
     .composer-select select {
       max-width: 74px;
-    }
-
-    .composer-control {
-      width: 30px;
-      flex: 0 0 30px;
-      padding: 0;
-    }
-
-    .composer-control-label {
-      display: none;
     }
 
     .history-list li .thread-directory-detail {

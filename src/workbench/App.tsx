@@ -19,6 +19,7 @@ import {
   Search,
   Send,
   Settings,
+  ShieldCheck,
   Sparkles,
   X
 } from "lucide-react";
@@ -32,7 +33,15 @@ import {
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent
 } from "react";
-import { createBrowserBridge, type CodexModelCatalogEntry, type OplActionReceipt } from "../bridge/oplBridge";
+import {
+  createBrowserBridge,
+  type CodexCapabilityCatalog,
+  type CodexModelCatalogEntry,
+  type CodexPermissionProfile,
+  type CodexPickedInput,
+  type CodexSkillCapability,
+  type OplActionReceipt
+} from "../bridge/oplBridge";
 import type { CodexThread } from "../threads/types";
 import {
   ActionReceiptSummary,
@@ -83,6 +92,11 @@ import { ThreadLifecycleConfirmationDialog } from "./threads/ThreadLifecycleConf
 import type { ThreadLifecycleAction } from "./threads/ThreadLifecycleConfirmationDialog";
 import { ThreadRail } from "./threads/ThreadRail";
 import { assistantDisplayMarkdown } from "./messageDisplay";
+import {
+  ComposerCapabilityPalette,
+  type ComposerSelection
+} from "./ComposerCapabilityPalette";
+import { ThreadSearchDialog } from "./ThreadSearchDialog";
 
 const contextTabs = [
   ["opl-files-panel", "sources"],
@@ -131,7 +145,10 @@ const uiCopy = {
     emptyDescription: (project: string) => `已选择 ${project}。OPL 会在任务需要时使用该项目的上下文。`,
     prompt: "让 OPL 审阅、撰写、导出，或启动专业工作流",
     attachFiles: "添加文件",
-    capabilities: "能力",
+    agentPermissions: "Agent 权限",
+    fullAccess: "完全访问",
+    workspaceAccess: "工作区访问",
+    readOnlyAccess: "只读",
     working: "正在工作",
     running: "运行中",
     retry: "重试",
@@ -240,7 +257,10 @@ const uiCopy = {
     emptyDescription: (project: string) => `${project} is selected. OPL will use its project context only when the task needs it.`,
     prompt: "Ask OPL to review, draft, export, or start a workflow",
     attachFiles: "Attach files",
-    capabilities: "Capabilities",
+    agentPermissions: "Agent permissions",
+    fullAccess: "Full access",
+    workspaceAccess: "Workspace access",
+    readOnlyAccess: "Read only",
     working: "Working",
     running: "Running",
     retry: "Retry",
@@ -335,6 +355,14 @@ const localizedPurposeLabels = {
 const previewActionRefId = "task_action_receipt_preview";
 const exportActionRefId = "task_export_bundle_preview";
 const runtimeActionRefId = "provider_scheduler_status";
+const emptyCapabilityCatalog: CodexCapabilityCatalog = {
+  source: "bridge_unavailable",
+  skills: [],
+  plugins: [],
+  apps: [],
+  errors: []
+};
+const permissionProfileOrder = [":danger-full-access", ":workspace", ":read-only"] as const;
 const legacyChatSessionsStorageKey = "opl.nativeWorkbench.chatSessions.v1";
 const legacyChatSessionsBackupKey = "opl.nativeWorkbench.chatSessions.legacyReadOnlyBackup.v1";
 const uiMetadataStorageKey = "opl.nativeWorkbench.uiMetadata.v2";
@@ -547,6 +575,13 @@ export function App() {
   const [lifecycleConfirmation, setLifecycleConfirmation] = useState<{ thread: WorkbenchThreadItem; action: ThreadLifecycleAction } | null>(null);
   const [settings, setSettings] = useState<WorkbenchSettings>(() => readSettings());
   const [codexCatalog, setCodexCatalog] = useState<CodexModelCatalogEntry[]>([]);
+  const [capabilityCatalog, setCapabilityCatalog] = useState<CodexCapabilityCatalog>(emptyCapabilityCatalog);
+  const [capabilityStatus, setCapabilityStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [capabilityError, setCapabilityError] = useState("");
+  const [composerPaletteOpen, setComposerPaletteOpen] = useState(false);
+  const [composerSelections, setComposerSelections] = useState<ComposerSelection[]>([]);
+  const [permissionProfiles, setPermissionProfiles] = useState<CodexPermissionProfile[]>([]);
+  const [threadSearchOpen, setThreadSearchOpen] = useState(false);
   const [starterDrafts, setStarterDrafts] = useState<Record<string, Record<string, string>>>({});
   const [activeContextTab, setActiveContextTab] = useState<ActiveContextTab>(contextHomeId);
   const t = uiCopy[settings.locale];
@@ -610,6 +645,14 @@ export function App() {
   const projectAttachments = projectAttachmentItems([...model.deliverables, ...model.results, ...model.receipts], previewItems);
   const sidebarSources = projectInputs;
   const modelOptions = useMemo(() => resolveCodexModelOptions(codexCatalog), [codexCatalog]);
+  const permissionOptions = useMemo(() => permissionProfileOrder.map((id) => {
+    const discovered = permissionProfiles.find((profile) => profile.id === id);
+    return {
+      id,
+      description: discovered?.description ?? "",
+      allowed: permissionProfiles.length ? discovered?.allowed === true : true
+    };
+  }), [permissionProfiles]);
   const {
     model: resolvedModel,
     reasoningEffort: resolvedReasoning,
@@ -827,6 +870,8 @@ export function App() {
     setPrompt(drafts.prompts[thread.id] ?? "");
     setSendState("idle");
     setSendError("");
+    setComposerSelections([]);
+    setComposerPaletteOpen(false);
     try {
       const readback = await bridge.readThread({ threadId: thread.id, includeTurns: true });
       const nextMessages = deriveThreadMessages(readback);
@@ -909,6 +954,12 @@ export function App() {
     void bridge.readCodexModels()
       .then((catalog) => setCodexCatalog(catalog.models))
       .catch(() => setCodexCatalog([]));
+  }, [bridge]);
+
+  useEffect(() => {
+    void bridge.readCodexPermissionProfiles()
+      .then((catalog) => setPermissionProfiles(catalog.profiles))
+      .catch(() => setPermissionProfiles([]));
   }, [bridge]);
 
   useEffect(() => {
@@ -1030,8 +1081,13 @@ export function App() {
   function sendCodexMessage(event?: FormEvent) {
     event?.preventDefault();
     const text = prompt.trim();
-    if (!text || sendState === "running" || !resolvedModel) return;
-    const userMessage: ChatMessage = { id: `user-${Date.now()}`, role: "user", text };
+    const pendingSelections = composerSelections;
+    if ((!text && !pendingSelections.length) || sendState === "running" || !resolvedModel) return;
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      text: text || pendingSelections.map((selection) => selection.label).join("\n")
+    };
     const pendingId = `assistant-${Date.now()}`;
     const pendingMessage: ChatMessage = { id: pendingId, role: "assistant", text: "" };
     const pendingMessages = messagesRef.current.concat([userMessage, pendingMessage]);
@@ -1039,14 +1095,18 @@ export function App() {
     messagesRef.current = pendingMessages;
     setMessages(pendingMessages);
     updatePrompt("");
+    setComposerSelections([]);
+    setComposerPaletteOpen(false);
     setSendState("running");
     setSendError("");
     void bridge
       .sendMessage({
         prompt: text,
+        inputs: pendingSelections.map((selection) => selection.input),
         threadId: codexThreadId,
         model: resolvedModel.id,
-        reasoningEffort: resolvedReasoning
+        reasoningEffort: resolvedReasoning,
+        permissions: settings.agentPermissions
       })
       .then((reply) => {
         const nextThreadId = typeof reply === "object" && reply && "threadId" in reply
@@ -1072,6 +1132,8 @@ export function App() {
       })
       .catch(() => {
         const message = t.sendFailed;
+        updatePrompt(text);
+        setComposerSelections(pendingSelections);
         setSendError(message);
         setSendState("error");
         const errorMessage: ChatMessage = { id: pendingId, role: "system", text: message };
@@ -1098,6 +1160,81 @@ export function App() {
     setThreadActionError("");
     setSendState("idle");
     setSendError("");
+    setComposerSelections([]);
+    setComposerPaletteOpen(false);
+  }
+
+  async function loadCapabilities() {
+    if (capabilityStatus === "loading") return;
+    setCapabilityStatus("loading");
+    setCapabilityError("");
+    try {
+      const catalog = await bridge.readCodexCapabilities(codexThreadId);
+      setCapabilityCatalog(catalog);
+      if (catalog.errors.length && !catalog.skills.length && !catalog.plugins.length && !catalog.apps.length) {
+        setCapabilityStatus("error");
+        setCapabilityError(catalog.errors.join("\n"));
+      } else {
+        setCapabilityStatus("ready");
+      }
+    } catch (error) {
+      setCapabilityStatus("error");
+      setCapabilityError(String(error));
+    }
+  }
+
+  function openComposerPalette() {
+    setComposerPaletteOpen(true);
+    if (capabilityStatus === "idle" || capabilityStatus === "error") void loadCapabilities();
+  }
+
+  function addPickedInputs(items: CodexPickedInput[]) {
+    const selections = items.map((item): ComposerSelection => ({
+      id: `${item.kind}:${item.path}`,
+      kind: item.kind,
+      label: item.name,
+      detail: item.path,
+      input: item.kind === "image"
+        ? { type: "localImage", path: item.path, detail: "auto" }
+        : { type: "mention", name: item.name, path: item.path }
+    }));
+    setComposerSelections((current) => [
+      ...current,
+      ...selections.filter((selection) => !current.some((item) => item.id === selection.id))
+    ]);
+  }
+
+  async function pickComposerFiles() {
+    setComposerPaletteOpen(false);
+    try {
+      addPickedInputs(await bridge.pickFiles());
+    } catch (error) {
+      setCapabilityError(String(error));
+      setCapabilityStatus("error");
+    }
+  }
+
+  async function pickComposerDirectory() {
+    setComposerPaletteOpen(false);
+    try {
+      addPickedInputs(await bridge.pickDirectory());
+    } catch (error) {
+      setCapabilityError(String(error));
+      setCapabilityStatus("error");
+    }
+  }
+
+  function toggleComposerSkill(skill: CodexSkillCapability) {
+    const id = `skill:${skill.path}`;
+    setComposerSelections((current) => current.some((item) => item.id === id)
+      ? current.filter((item) => item.id !== id)
+      : current.concat({
+        id,
+        kind: "skill",
+        label: skill.name,
+        detail: skill.description,
+        input: { type: "skill", name: skill.name, path: skill.path }
+      }));
   }
 
   function updateStarterField(starterId: string, fieldName: string, value: string) {
@@ -1159,9 +1296,8 @@ export function App() {
           <img src="branding/opl-app-logo.png" alt="One Person Lab App" />
           <span className="brand-lockup">
             <strong className="brand-mark">One Person Lab</strong>
-            <ChevronDown aria-hidden="true" size={13} />
           </span>
-          <button className="icon-button sidebar-search" type="button" aria-label={settings.locale === "zh" ? "搜索对话" : "Search conversations"}>
+          <button className="icon-button sidebar-search" type="button" aria-label={settings.locale === "zh" ? "搜索对话" : "Search conversations"} onClick={() => setThreadSearchOpen(true)}>
             <Search aria-hidden="true" size={15} />
           </button>
           <button className="icon-button sidebar-close-mobile" type="button" aria-label={t.hideSidebar} onClick={() => setSidebarOpen(false)}>
@@ -1227,7 +1363,7 @@ export function App() {
           <section className="sidebar-panel" aria-label="Codex projects and conversations">
             <div className="sidebar-section-head">
               <strong>{uiMetadata.threadScope === "archived" ? (settings.locale === "zh" ? "归档对话" : "Archived conversations") : t.projects}</strong>
-              <button className="sidebar-section-search" type="button" aria-label={settings.locale === "zh" ? "搜索对话" : "Search conversations"}>
+              <button className="sidebar-section-search" type="button" aria-label={settings.locale === "zh" ? "搜索对话" : "Search conversations"} onClick={() => setThreadSearchOpen(true)}>
                 <Search aria-hidden="true" size={14} />
               </button>
             </div>
@@ -1508,6 +1644,38 @@ export function App() {
 
               <form className="composer" onSubmit={sendCodexMessage}>
                 <div className="composer-frame">
+                  <ComposerCapabilityPalette
+                    open={composerPaletteOpen}
+                    locale={settings.locale}
+                    catalog={capabilityCatalog}
+                    status={capabilityStatus}
+                    error={capabilityError}
+                    selections={composerSelections}
+                    onClose={() => setComposerPaletteOpen(false)}
+                    onPickFiles={() => void pickComposerFiles()}
+                    onPickDirectory={() => void pickComposerDirectory()}
+                    onToggleSkill={toggleComposerSkill}
+                  />
+                  {composerSelections.length ? (
+                    <div className="composer-selections" aria-label={settings.locale === "zh" ? "已添加的内容" : "Added content"}>
+                      {composerSelections.map((selection) => {
+                        const SelectionIcon = selection.kind === "folder" ? Folder : selection.kind === "skill" ? Sparkles : FileText;
+                        return (
+                          <span key={selection.id} className="composer-selection" title={selection.detail}>
+                            <SelectionIcon aria-hidden="true" size={13} />
+                            <span>{selection.label}</span>
+                            <button
+                              type="button"
+                              aria-label={`${settings.locale === "zh" ? "移除" : "Remove"} ${selection.label}`}
+                              onClick={() => setComposerSelections((current) => current.filter((item) => item.id !== selection.id))}
+                            >
+                              <X aria-hidden="true" size={12} />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ) : null}
                   <textarea
                     aria-label="Prompt"
                     placeholder={t.prompt}
@@ -1517,22 +1685,24 @@ export function App() {
                   />
                   <footer>
                     <div className="composer-meta">
-                      <button className="composer-action" type="button" aria-label={t.attachFiles}>
+                      <button className="composer-action" type="button" aria-label={t.attachFiles} aria-expanded={composerPaletteOpen} onClick={openComposerPalette}>
                         <Plus aria-hidden="true" size={15} />
                       </button>
-                      <button
-                        className="composer-control"
-                        data-accent="true"
-                        type="button"
-                        aria-label={t.capabilities}
-                        onClick={() => {
-                          setInspectorOpen(true);
-                          setActiveContextTab("opl-package-lifecycle-panel");
-                        }}
-                      >
-                        <Plug aria-hidden="true" size={14} />
-                        <span className="composer-control-label">{t.capabilities}</span>
-                      </button>
+                      <label className="composer-select composer-permissions">
+                        <ShieldCheck className="composer-permission-icon" aria-hidden="true" size={14} />
+                        <select
+                          aria-label={t.agentPermissions}
+                          value={settings.agentPermissions}
+                          onChange={(event) => updateSetting("agentPermissions", event.currentTarget.value as WorkbenchSettings["agentPermissions"])}
+                        >
+                          {permissionOptions.map((profile) => (
+                            <option key={profile.id} value={profile.id} disabled={!profile.allowed}>
+                              {profile.id === ":danger-full-access" ? t.fullAccess : profile.id === ":workspace" ? t.workspaceAccess : t.readOnlyAccess}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown aria-hidden="true" size={12} />
+                      </label>
                       <span className={`composer-status ${sendState === "error" || unavailableFixedModel ? "error" : sendState}`} data-testid="opl-composer-run-state" aria-live="polite">
                         {sendState === "running" ? t.working : sendState === "error" ? sendError : unavailableFixedModel ? t.modelSelectionUnavailable : ""}
                       </span>
@@ -1562,7 +1732,7 @@ export function App() {
                           <ChevronDown aria-hidden="true" size={12} />
                         </label>
                       </nav>
-                      <button className="composer-submit" type="submit" aria-label={sendState === "running" ? t.running : sendState === "error" ? t.retry : t.send} disabled={!prompt.trim() || sendState === "running" || !canSendCodexTurn}>
+                      <button className="composer-submit" type="submit" aria-label={sendState === "running" ? t.running : sendState === "error" ? t.retry : t.send} disabled={(!prompt.trim() && !composerSelections.length) || sendState === "running" || !canSendCodexTurn}>
                         <Send aria-hidden="true" size={15} />
                         <span>{sendState === "running" ? t.running : sendState === "error" ? t.retry : t.send}</span>
                       </button>
@@ -1596,6 +1766,14 @@ export function App() {
           />
         )}
       </section>
+
+      <ThreadSearchDialog
+        open={threadSearchOpen}
+        locale={settings.locale}
+        projects={uiMetadata.threadScope === "archived" ? archivedThreadProjects : threadProjects}
+        onOpenChange={setThreadSearchOpen}
+        onSelect={(thread) => void openThread(thread)}
+      />
 
       <aside
         className={`context-inspector ${inspectorOpen ? "open" : ""}`}

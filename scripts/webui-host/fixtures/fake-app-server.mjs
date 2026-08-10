@@ -142,6 +142,22 @@ async function handle(frame) {
   if (method === "model/list") {
     return send({ id, result: { data: [{ id: "gpt-test", model: "gpt-test", isDefault: true }], nextCursor: null } });
   }
+  if (method === "permissionProfile/list") {
+    return send({ id, result: { data: [
+      { id: ":read-only", description: null, allowed: true },
+      { id: ":workspace", description: null, allowed: true },
+      { id: ":danger-full-access", description: null, allowed: true }
+    ], nextCursor: null } });
+  }
+  if (method === "skills/list") {
+    return send({ id, result: { data: [{ cwd: workspace, skills: [{ name: "opl-test-skill", path: "/skills/opl-test-skill/SKILL.md", description: "Test Skill", enabled: true, scope: "user" }] }] } });
+  }
+  if (method === "plugin/installed") {
+    return send({ id, result: { marketplaces: [{ name: "test", plugins: [{ id: "test-plugin", name: "Test Plugin", description: "Test plugin", enabled: true, installed: true }] }] } });
+  }
+  if (method === "app/installed") {
+    return send({ id, result: { apps: [{ id: "test-app", name: "Test App", description: "Test app", enabled: true, installed: true }] } });
+  }
   send({ id, error: { code: -32601, message: `unsupported fake method ${method}` } });
 }
 

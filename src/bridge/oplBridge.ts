@@ -159,9 +159,59 @@ export type OplActionReceipt = {
 
 export type CodexMessageRequest = {
   prompt: string;
+  inputs?: CodexComposerInput[];
   threadId?: string;
   model?: string;
   reasoningEffort?: string;
+  permissions?: string;
+};
+
+export type CodexComposerInput =
+  | { type: "localImage"; path: string; detail?: "auto" | "low" | "high" | "original" | null }
+  | { type: "skill"; name: string; path: string }
+  | { type: "mention"; name: string; path: string };
+
+export type CodexPickedInput = {
+  kind: "file" | "folder" | "image";
+  name: string;
+  path: string;
+};
+
+export type CodexSkillCapability = {
+  name: string;
+  path: string;
+  description: string;
+  enabled: boolean;
+  scope: string;
+};
+
+export type CodexInstalledCapability = {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  callable: boolean;
+};
+
+export type CodexCapabilityCatalog = {
+  source: "codex_app_server" | "bridge_unavailable";
+  skills: CodexSkillCapability[];
+  plugins: CodexInstalledCapability[];
+  apps: CodexInstalledCapability[];
+  errors: string[];
+  simulated?: boolean;
+};
+
+export type CodexPermissionProfile = {
+  id: string;
+  description: string;
+  allowed: boolean;
+};
+
+export type CodexPermissionProfileCatalog = {
+  source: "codex_app_server" | "bridge_unavailable";
+  profiles: CodexPermissionProfile[];
+  simulated?: boolean;
 };
 
 export type CodexMessageResponse = {
@@ -214,7 +264,7 @@ export type OplBridgeEvent = OplBridgeTypeEvent | OplBridgeMethodEvent;
 
 export type OplNativeWorkbenchSurface = Pick<
   OplBridge,
-  "beginWindowDrag" | "readState" | "readFullDrilldown" | "executeAction" | "readCodexModels" | "sendMessage" | "subscribeEvents"
+  "beginWindowDrag" | "readState" | "readFullDrilldown" | "executeAction" | "readCodexModels" | "readCodexCapabilities" | "readCodexPermissionProfiles" | "pickFiles" | "pickDirectory" | "sendMessage" | "subscribeEvents"
 > & Partial<CodexThreadAdapterBridge> & {
   eventSourceUrl?: string;
   connectEvents?: (onEvent: (event: OplBridgeEvent) => void) => () => void;
@@ -243,7 +293,7 @@ export const CODEX_APP_SERVER = {
   streamEvent: "item/agentMessage/delta",
   itemCompleted: "item/completed",
   turnCompleted: "turn/completed",
-  defaultSandbox: "read-only",
+  defaultPermissions: ":danger-full-access",
   approvalPolicy: "never",
   requestTimeoutSeconds: 45,
   turnTimeoutSeconds: 180
@@ -255,6 +305,10 @@ export type OplBridge = CodexThreadAdapterBridge & {
   readFullDrilldown(): Promise<OplFullDrilldownReadback>;
   executeAction(request: OplActionRequest): Promise<OplActionReceipt>;
   readCodexModels(): Promise<CodexModelCatalog>;
+  readCodexCapabilities(threadId?: string): Promise<CodexCapabilityCatalog>;
+  readCodexPermissionProfiles(): Promise<CodexPermissionProfileCatalog>;
+  pickFiles(): Promise<CodexPickedInput[]>;
+  pickDirectory(): Promise<CodexPickedInput[]>;
   sendMessage(request: CodexMessageRequest): Promise<CodexMessageResponse>;
   subscribeEvents(onEvent: (event: OplBridgeEvent) => void): () => void;
 };
@@ -866,6 +920,87 @@ export function normalizeBridgeEvent(value: unknown, source = "bridge"): OplBrid
   };
 }
 
+function normalizeInstalledCapability(value: unknown): CodexInstalledCapability | null {
+  const record = asRecord(value);
+  const id = asString(record?.id);
+  if (!record || !id) return null;
+  const interfaceRecord = asRecord(record.interface);
+  return {
+    id,
+    name: asString(record.name) ?? asString(record.runtimeName) ?? asString(interfaceRecord?.displayName) ?? id,
+    description: asString(record.description) ?? asString(interfaceRecord?.shortDescription) ?? "",
+    enabled: asBoolean(record.enabled) ?? asBoolean(record.isEnabled) ?? false,
+    callable: asBoolean(record.callable) ?? (asBoolean(record.installed) === true && asBoolean(record.enabled) === true)
+  };
+}
+
+export function normalizeCodexCapabilityCatalog(value: unknown): CodexCapabilityCatalog {
+  const record = asRecord(value);
+  const skills = Array.isArray(record?.skills) ? record.skills.flatMap((value) => {
+    const skill = asRecord(value);
+    const name = asString(skill?.name);
+    const path = asString(skill?.path);
+    return name && path ? [{
+      name,
+      path,
+      description: asString(skill?.description) ?? asString(skill?.shortDescription) ?? "",
+      enabled: asBoolean(skill?.enabled) ?? true,
+      scope: asString(skill?.scope) ?? "unknown"
+    }] : [];
+  }) : [];
+  const plugins = Array.isArray(record?.plugins)
+    ? record.plugins.flatMap((value) => normalizeInstalledCapability(value) ?? [])
+    : [];
+  const apps = Array.isArray(record?.apps)
+    ? record.apps.flatMap((value) => normalizeInstalledCapability(value) ?? [])
+    : [];
+  return {
+    source: record ? "codex_app_server" : "bridge_unavailable",
+    skills,
+    plugins,
+    apps,
+    errors: Array.isArray(record?.errors) ? record.errors.map(String) : [],
+    simulated: asBoolean(record?.simulated) ?? !record
+  };
+}
+
+export function normalizeCodexPermissionProfileCatalog(value: unknown): CodexPermissionProfileCatalog {
+  const record = asRecord(value);
+  const values = Array.isArray(record?.data)
+    ? record.data
+    : Array.isArray(record?.profiles)
+      ? record.profiles
+      : [];
+  const profiles = values.flatMap((value) => {
+    const profile = asRecord(value);
+    const id = asString(profile?.id);
+    return id ? [{
+      id,
+      description: asString(profile?.description) ?? "",
+      allowed: asBoolean(profile?.allowed) ?? true
+    }] : [];
+  });
+  return {
+    source: record ? "codex_app_server" : "bridge_unavailable",
+    profiles,
+    simulated: asBoolean(record?.simulated) ?? !record
+  };
+}
+
+function normalizePickedInputs(value: unknown): CodexPickedInput[] {
+  const record = asRecord(value);
+  const items = Array.isArray(value) ? value : Array.isArray(record?.items) ? record.items : [];
+  return items.flatMap((value) => {
+    const item = asRecord(value);
+    const name = asString(item?.name);
+    const path = asString(item?.path);
+    const kind = asString(item?.kind);
+    return name && path && (kind === "file" || kind === "folder" || kind === "image")
+      ? [{ name, path, kind } as CodexPickedInput]
+      : [];
+  });
+}
+
 export function parseEventSourceMessage(data: string, source = "web_transport_sse"): OplBridgeEvent {
   return normalizeBridgeEvent(parseJsonValue(data) ?? { type: "bridge.event", data }, source);
 }
@@ -894,6 +1029,29 @@ export function createBrowserBridge(): OplBridge {
       const promise = candidate?.readCodexModels?.() ?? Promise.resolve({ models: [], simulated: true });
       return Promise.resolve(promise).then(normalizeCodexModelCatalog);
     },
+    readCodexCapabilities(threadId) {
+      const promise = candidate?.readCodexCapabilities?.(threadId) ?? Promise.resolve({ simulated: true });
+      return Promise.resolve(promise).then(normalizeCodexCapabilityCatalog);
+    },
+    readCodexPermissionProfiles() {
+      const promise = candidate?.readCodexPermissionProfiles?.() ?? Promise.resolve({
+        data: [
+          { id: ":danger-full-access", allowed: true },
+          { id: ":workspace", allowed: true },
+          { id: ":read-only", allowed: true }
+        ],
+        simulated: true
+      });
+      return Promise.resolve(promise).then(normalizeCodexPermissionProfileCatalog);
+    },
+    pickFiles() {
+      const promise = candidate?.pickFiles?.() ?? Promise.resolve([]);
+      return Promise.resolve(promise).then(normalizePickedInputs);
+    },
+    pickDirectory() {
+      const promise = candidate?.pickDirectory?.() ?? Promise.resolve([]);
+      return Promise.resolve(promise).then(normalizePickedInputs);
+    },
     sendMessage(request) {
       const promise = candidate?.sendMessage?.(request) ?? Promise.resolve({
         command: CODEX_APP_SERVER.transport,
@@ -915,7 +1073,7 @@ export function createBrowserBridge(): OplBridge {
             status: "preview_only"
           }
         },
-        defaultSandbox: CODEX_APP_SERVER.defaultSandbox,
+        permissions: request.permissions ?? CODEX_APP_SERVER.defaultPermissions,
         approvalPolicy: CODEX_APP_SERVER.approvalPolicy,
         prompt: request.prompt,
         executor: "codex_app_server",

@@ -260,6 +260,7 @@ final class CodexAppServerClient {
   private static let requestTimeout: TimeInterval = 45
   private static let turnTimeout: TimeInterval = 180
   private static let stderrLimit = 8000
+  private static let defaultPermissions = ":danger-full-access"
   private let workspaceRoot: URL
   private var process: Process?
   private var stdinHandle: FileHandle?
@@ -281,21 +282,29 @@ final class CodexAppServerClient {
     self.workspaceRoot = workspaceRoot
   }
 
-  func send(prompt: String, requestedThreadId: String?, model: String?, effort: String?) throws -> [String: Any] {
+  func send(
+    prompt: String,
+    inputs: [[String: Any]]?,
+    requestedThreadId: String?,
+    model: String?,
+    effort: String?,
+    permissions: String?
+  ) throws -> [String: Any] {
     turnLock.lock()
     defer { turnLock.unlock() }
 
     try ensureInitialized()
+    let resolvedPermissions = (permissions?.isEmpty == false ? permissions : nil) ?? Self.defaultPermissions
     if let requestedThreadId, !requestedThreadId.isEmpty, requestedThreadId != threadId {
-      try resumeThread(requestedThreadId)
+      try resumeThread(requestedThreadId, permissions: resolvedPermissions)
     }
-    let thread = try ensureThread()
+    let thread = try ensureThread(permissions: resolvedPermissions)
     var turnParams: [String: Any] = [
       "threadId": thread,
-      "input": [["type": "text", "text": prompt, "text_elements": []]],
+      "input": try buildUserInputs(prompt: prompt, inputs: inputs),
       "cwd": workspaceRoot.path,
       "approvalPolicy": "never",
-      "sandboxPolicy": ["type": "readOnly", "networkAccess": false]
+      "permissions": resolvedPermissions
     ]
     if let model, !model.isEmpty {
       turnParams["model"] = model
@@ -360,7 +369,8 @@ final class CodexAppServerClient {
       "completed": completed,
       "cwd": workspaceRoot.path,
       "model": model ?? "configured_default",
-      "effort": effort ?? "configured_default"
+      "effort": effort ?? "configured_default",
+      "permissions": resolvedPermissions
     ]
   }
 
@@ -381,6 +391,71 @@ final class CodexAppServerClient {
       }
       return result
     }
+  }
+
+  func listCapabilities(threadId: String?) throws -> [String: Any] {
+    turnLock.lock()
+    defer { turnLock.unlock() }
+    try ensureInitialized()
+    var skills: [[String: Any]] = []
+    var plugins: [[String: Any]] = []
+    var apps: [[String: Any]] = []
+    var errors: [String] = []
+
+    do {
+      let response = try request(
+        method: "skills/list",
+        params: ["cwds": [workspaceRoot.path], "forceReload": false],
+        timeout: Self.requestTimeout
+      )
+      let result = response["result"] as? [String: Any] ?? [:]
+      for entry in result["data"] as? [[String: Any]] ?? [] {
+        skills.append(contentsOf: entry["skills"] as? [[String: Any]] ?? [])
+      }
+    } catch {
+      errors.append("skills/list: \(error)")
+    }
+
+    do {
+      let response = try request(
+        method: "plugin/installed",
+        params: ["cwds": [workspaceRoot.path]],
+        timeout: Self.requestTimeout
+      )
+      let result = response["result"] as? [String: Any] ?? [:]
+      for marketplace in result["marketplaces"] as? [[String: Any]] ?? [] {
+        plugins.append(contentsOf: marketplace["plugins"] as? [[String: Any]] ?? [])
+      }
+    } catch {
+      errors.append("plugin/installed: \(error)")
+    }
+
+    do {
+      var params: [String: Any] = ["forceRefresh": false]
+      if let threadId, !threadId.isEmpty { params["threadId"] = threadId }
+      let response = try request(method: "app/installed", params: params, timeout: Self.requestTimeout)
+      let result = response["result"] as? [String: Any] ?? [:]
+      apps = result["apps"] as? [[String: Any]] ?? []
+    } catch {
+      errors.append("app/installed: \(error)")
+    }
+
+    return ["skills": skills, "plugins": plugins, "apps": apps, "errors": errors]
+  }
+
+  func listPermissionProfiles() throws -> [String: Any] {
+    turnLock.lock()
+    defer { turnLock.unlock() }
+    try ensureInitialized()
+    let response = try request(
+      method: "permissionProfile/list",
+      params: ["cwd": workspaceRoot.path],
+      timeout: Self.requestTimeout
+    )
+    guard let result = response["result"] as? [String: Any] else {
+      throw BridgeError.invalidPayload("app-server permissionProfile/list returned no result")
+    }
+    return result
   }
 
   func listThreads(params: [String: Any]) throws -> [String: Any] {
@@ -413,9 +488,7 @@ final class CodexAppServerClient {
       method: "thread/resume",
       params: [
         "threadId": id,
-        "cwd": workspaceRoot.path,
-        "sandbox": "read-only",
-        "approvalPolicy": "never"
+        "cwd": workspaceRoot.path
       ],
       timeout: Self.requestTimeout
     )
@@ -430,8 +503,6 @@ final class CodexAppServerClient {
     var params: [String: Any] = [
       "threadId": id,
       "cwd": workspaceRoot.path,
-      "sandbox": "read-only",
-      "approvalPolicy": "never",
       "threadSource": "opl-native-workbench"
     ]
     if let throughTurnId, !throughTurnId.isEmpty { params["lastTurnId"] = throughTurnId }
@@ -461,7 +532,7 @@ final class CodexAppServerClient {
       "input": [["type": "text", "text": message, "text_elements": []]],
       "cwd": workspaceRoot.path,
       "approvalPolicy": "never",
-      "sandboxPolicy": ["type": "readOnly", "networkAccess": false]
+      "permissions": Self.defaultPermissions
     ]
     if let model, !model.isEmpty { params["model"] = model }
     if let effort, !effort.isEmpty { params["effort"] = effort }
@@ -514,12 +585,49 @@ final class CodexAppServerClient {
     initialized = true
   }
 
-  private func ensureThread() throws -> String {
+  private func buildUserInputs(
+    prompt: String,
+    inputs: [[String: Any]]?
+  ) throws -> [[String: Any]] {
+    var normalized: [[String: Any]] = []
+    let text = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !text.isEmpty {
+      normalized.append(["type": "text", "text": text, "text_elements": []])
+    }
+    for input in inputs ?? [] {
+      guard let type = input["type"] as? String else {
+        throw BridgeError.invalidPayload("Codex input is missing type")
+      }
+      switch type {
+      case "localImage":
+        guard let path = input["path"] as? String, (path as NSString).isAbsolutePath else {
+          throw BridgeError.invalidPayload("localImage input requires an absolute path")
+        }
+        normalized.append(["type": type, "path": path, "detail": input["detail"] ?? NSNull()])
+      case "skill", "mention":
+        guard
+          let name = input["name"] as? String, !name.isEmpty,
+          let path = input["path"] as? String, (path as NSString).isAbsolutePath
+        else {
+          throw BridgeError.invalidPayload("\(type) input requires a name and absolute path")
+        }
+        normalized.append(["type": type, "name": name, "path": path])
+      default:
+        throw BridgeError.invalidPayload("unsupported Codex input type \(type)")
+      }
+    }
+    guard !normalized.isEmpty else {
+      throw BridgeError.invalidPayload("message requires text, an attachment, or a Skill")
+    }
+    return normalized
+  }
+
+  private func ensureThread(permissions: String) throws -> String {
     if let threadId { return threadId }
     let params: [String: Any] = [
       "cwd": workspaceRoot.path,
-      "sandbox": "read-only",
       "approvalPolicy": "never",
+      "permissions": permissions,
       "threadSource": "opl-native-workbench",
       "ephemeral": false
     ]
@@ -535,14 +643,14 @@ final class CodexAppServerClient {
     return id
   }
 
-  private func resumeThread(_ id: String) throws {
+  private func resumeThread(_ id: String, permissions: String) throws {
     let response = try request(
       method: "thread/resume",
       params: [
         "threadId": id,
         "cwd": workspaceRoot.path,
-        "sandbox": "read-only",
-        "approvalPolicy": "never"
+        "approvalPolicy": "never",
+        "permissions": permissions
       ],
       timeout: Self.requestTimeout
     )
@@ -1057,21 +1165,49 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
         rollbackRef: rollbackRef
       )
     case "sendMessage":
-      guard let prompt = payload["prompt"] as? String, !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-        throw BridgeError.invalidPayload("missing prompt")
-      }
+      let prompt = payload["prompt"] as? String ?? ""
+      let inputs = payload["inputs"] as? [[String: Any]]
       return try appServer.send(
         prompt: prompt,
+        inputs: inputs,
         requestedThreadId: payload["threadId"] as? String,
         model: payload["model"] as? String,
-        effort: payload["reasoningEffort"] as? String
+        effort: payload["reasoningEffort"] as? String,
+        permissions: payload["permissions"] as? String
       )
     case "readCodexModels":
       return try appServer.listModels()
+    case "readCodexCapabilities":
+      return try appServer.listCapabilities(threadId: payload["threadId"] as? String)
+    case "readCodexPermissionProfiles":
+      return try appServer.listPermissionProfiles()
+    case "pickFiles":
+      return ["items": try pickLocalInputs(directoriesOnly: false)]
+    case "pickDirectory":
+      return ["items": try pickLocalInputs(directoriesOnly: true)]
     case "listThreads", "readThread", "resumeThread", "forkThread", "setArchived":
       return try threadAdapter.handle(method: method, payload: payload)
     default:
       throw BridgeError.invalidPayload("unknown method \(method)")
+    }
+  }
+
+  private func pickLocalInputs(directoriesOnly: Bool) throws -> [[String: Any]] {
+    var selected: [URL] = []
+    DispatchQueue.main.sync {
+      let panel = NSOpenPanel()
+      panel.canChooseFiles = !directoriesOnly
+      panel.canChooseDirectories = directoriesOnly
+      panel.allowsMultipleSelection = !directoriesOnly
+      panel.resolvesAliases = true
+      panel.prompt = directoriesOnly ? "选择文件夹" : "添加"
+      if panel.runModal() == .OK { selected = panel.urls }
+    }
+    let imageExtensions = Set(["avif", "gif", "heic", "jpeg", "jpg", "png", "webp"])
+    return selected.map { url in
+      let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+      let kind = isDirectory ? "folder" : imageExtensions.contains(url.pathExtension.lowercased()) ? "image" : "file"
+      return ["kind": kind, "name": url.lastPathComponent, "path": url.path]
     }
   }
 
