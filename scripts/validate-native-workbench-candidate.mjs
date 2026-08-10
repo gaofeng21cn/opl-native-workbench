@@ -136,11 +136,33 @@ assert(
     && nativeProfile.candidate_operating_policy.release_blocking === false,
   "candidate profile must keep Native manual, non-periodic, non-blocking, and without a completion obligation"
 );
+const expectedDeliveryEvaluation = {
+  role: "lightweight_opl_gui_architecture_reference",
+  product_mainline_owner: false,
+  renderer_technology: "react",
+  macos_host: "swift_appkit_wkwebview",
+  workspace_host: "node_http_sse",
+  workspace_product_name: "OPL Workspace",
+  shared_renderer_and_bridge_shape_required: true,
+  runtime_backend_scope: "codex_cli_only",
+  aionui_runtime_dependency_allowed: false,
+  aioncore_runtime_dependency_allowed: false,
+  cross_platform_wrapper_selection: "deferred_electron_or_tauri",
+  windows_linux_support_claim_allowed: false,
+  adoption_requires_explicit_app_contract_change: true
+};
+assert(
+  JSON.stringify(nativeProfile.delivery_evaluation) === JSON.stringify(expectedDeliveryEvaluation),
+  "candidate profile must declare the bounded lightweight native macOS and OPL Workspace evaluation role"
+);
 assert(
   nativeProfile.runtime_dependency_policy?.aioncore_required === false
+    && nativeProfile.runtime_dependency_policy.aionui_required === false
     && nativeProfile.runtime_dependency_policy.codex_app_server_source === "OPL_CODEX_BIN_or_exact_external_codex"
-    && nativeProfile.runtime_dependency_policy.opl_integration === "framework_app_state_action_contracts_only",
-  "candidate profile must keep Native independent from AionCore"
+    && nativeProfile.runtime_dependency_policy.opl_integration === "framework_app_state_action_contracts_only"
+    && nativeProfile.runtime_dependency_policy.multi_backend_abstraction_required === false
+    && nativeProfile.runtime_dependency_policy.thread_store_owner === "codex_core_app_server",
+  "candidate profile must keep Native independent from AionUI/AionCore and scoped to Codex App Server"
 );
 assert(
   JSON.stringify(nativeProfile.carrier_policy?.enabled) === JSON.stringify(["codex_app_server_stdio"])
@@ -152,13 +174,19 @@ assert(
   "candidate profile must keep Codex as the only enabled carrier and reserve Pi/Hermes without dependencies"
 );
 assert(
-  !Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).some((name) => name.toLowerCase().includes("aioncore")),
-  "candidate package must not declare an AionCore dependency"
+  !Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).some((name) =>
+    ["aioncore", "aionui", "electron", "tauri"].some((forbidden) => name.toLowerCase().includes(forbidden))
+  ),
+  "candidate package must not declare AionUI, AionCore, Electron, or Tauri dependencies"
 );
 
 const app = read("src/workbench/App.tsx");
 const rendererSource = readRendererSource();
 const evidence = readJson("src/candidateContractEvidence.json");
+assert(
+  JSON.stringify(evidence.delivery_evaluation) === JSON.stringify(expectedDeliveryEvaluation),
+  "candidate evidence must record the bounded lightweight GUI delivery evaluation"
+);
 assert(
   JSON.stringify(evidence.carrier_policy?.enabled) === JSON.stringify(["codex_app_server_stdio"])
     && JSON.stringify(evidence.carrier_policy?.reserved_disabled) === JSON.stringify(["pi", "hermes"])
@@ -276,7 +304,7 @@ function assertCodexJuly2026Alignment(evidence, rendererSource) {
   }
   assert(architecture.includes("Model And Settings Boundary") && architecture.includes("App product profile"), "architecture must route model and settings authority to App");
   assert(architecture.includes("Codex App Server owns canonical thread identity"), "architecture must route thread truth to Codex App Server");
-  assert(architecture.includes("AionUI is the active release shell"), "architecture must preserve the active-shell boundary");
+  assert(architecture.includes("AionUI is the current active release shell"), "architecture must preserve the active-shell boundary");
   assert(
     activePlan.includes("Purpose: `single_active_truth_plan`")
       && activePlan.includes("State: `active_technical_evaluation_reference`")

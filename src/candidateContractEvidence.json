@@ -1,6 +1,21 @@
 {
   "owner": "one-person-lab-app",
   "shell": "opl-native-workbench",
+  "delivery_evaluation": {
+    "role": "lightweight_opl_gui_architecture_reference",
+    "product_mainline_owner": false,
+    "renderer_technology": "react",
+    "macos_host": "swift_appkit_wkwebview",
+    "workspace_host": "node_http_sse",
+    "workspace_product_name": "OPL Workspace",
+    "shared_renderer_and_bridge_shape_required": true,
+    "runtime_backend_scope": "codex_cli_only",
+    "aionui_runtime_dependency_allowed": false,
+    "aioncore_runtime_dependency_allowed": false,
+    "cross_platform_wrapper_selection": "deferred_electron_or_tauri",
+    "windows_linux_support_claim_allowed": false,
+    "adoption_requires_explicit_app_contract_change": true
+  },
   "capabilities": [
     "codex_cli_fixed_executor_home",
     "native_wkwebview_command_bridge",

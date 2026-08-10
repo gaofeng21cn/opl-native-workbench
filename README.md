@@ -8,25 +8,30 @@ Machine boundary: Human-readable candidate-shell entry. App product and adoption
 -->
 
 `opl-native-workbench` is the foreground alternative shell candidate for One
-Person Lab App. It offers a chat-first native macOS and WebUI implementation for
-local evaluation while consuming the same App-owned product contracts and
-Framework state/action surfaces as other shell implementations.
+Person Lab App. It evaluates a lightweight OPL-owned React renderer, native
+macOS Swift/AppKit + WKWebView host, lightweight OPL Workspace Node Web host,
+and their shared typed bridge.
 
 AionUI remains the active release shell. Selecting or launching Native is a
 local candidate choice only; it does not change the release adapter, updater
-channel, App product truth, or ownership boundaries.
+channel, App product truth, installed App, or current platform support. AionUI
+and AionCore are not candidate renderer/runtime dependencies.
 
-Native is maintained only as a manual, non-periodic technical evaluation
-option. Bounded improvements and focused tests may be run when useful, but the
-candidate is not a required mainline task, parity program, release blocker, or
-product-completion obligation.
-
-Native has no AionCore runtime dependency. The packaged macOS host starts Codex
-App Server directly from `OPL_CODEX_BIN` or an exact external Codex executable,
-while OPL state and mutations remain behind Framework `opl app state/action`
-contracts. It does not package or read AionCore manifests, sessions, or data.
+Native remains a manual, non-periodic technical evaluation. It is not a required
+mainline task, parity program, scheduled workstream, release blocker, or product
+completion obligation. The packaged macOS host starts Codex App Server directly
+from `OPL_CODEX_BIN` or an exact external Codex executable, while OPL state and
+mutations remain behind Framework `opl app state/action` contracts. It does not
+package or read AionUI/AionCore manifests, sessions, or data.
 Codex App Server stdio is the only enabled carrier; `pi` and `hermes` are
 reserved disabled interface names and add no current code path or dependency.
+
+OPL Workspace serves the same renderer through a lightweight Node HTTP/SSE
+host, starts Codex App Server directly, and keeps Codex state in its own volume.
+Docker runs neither Electron nor AionCore. The architecture direction requires
+future Windows/Linux work to reuse this renderer and Codex-only boundary, but
+Electron versus Tauri remains deferred. Native is not responsible for that
+cross-platform delivery and neither platform is currently claimed as supported.
 
 The conversation directory is not a Native copy. It reads the canonical Codex
 state DB overview with `thread/list useStateDbOnly=true`, then opens the same
@@ -42,7 +47,7 @@ settings, and unsent drafts locally.
 - App state readback and action preview through the typed OPL bridge;
 - Settings, artifact previews, professional starter forms, and package status
   projections that remain refs-only;
-- one renderer target across the packaged macOS candidate and WebUI transport.
+- one OPL-owned renderer across the packaged macOS host and OPL Workspace transport.
 
 The candidate may display only state and actions supplied by App/Framework
 contracts. Placeholder, fallback, or unavailable data remains visibly
@@ -77,10 +82,10 @@ App-managed launcher.
 | Professional truth, quality, artifacts, and delivery | Domain owners | Refs-only presentation |
 | Candidate source, bridge, renderer, packaging, and focused tests | This repository | Implementation evidence only |
 
-The App candidate registry keeps Native as the foreground alternative. Manual
-technical evaluation needs a bounded objective and focused acceptance surface,
-not a full parity or release plan. Product expansion or adoption still requires
-an explicit App owner decision and App contract delta. Native does not maintain a private proposal,
+The App candidate registry keeps Native as the foreground alternative under a
+manual, non-periodic evaluation policy. Product expansion, mainline ownership,
+adoption, and release participation require a separate App owner decision and
+contract delta. Native does not maintain a private proposal,
 dispatch, wait, queue, ledger, bilateral-receipt, or client-executed dynamic-tool
 layer. AionUI Team's multi-executor orchestration is a separate shell capability;
 it does not replace Codex-native subagents and is not implemented here.

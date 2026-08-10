@@ -13,7 +13,7 @@ readback, Codex App Server, and domain owners retain their respective truth.
 one-person-lab-app product and candidate contracts
 -> OPL Framework app state/action JSON
 -> Codex App Server thread/turn protocol
--> Native host and WebUI transport adapters
+-> native macOS and OPL Workspace transport adapters
 -> shared candidate renderer
 ```
 
@@ -24,29 +24,38 @@ thread truth, or domain authority.
 
 ## Renderer And Host Topology
 
-The source uses one React renderer target with two local transports:
+The source evaluates one OPL-owned React renderer with two candidate hosts:
 
-- packaged macOS uses a native `WKScriptMessageHandler` host;
-- WebUI uses a local Node HTTP/SSE host and the same bridge shape.
+- packaged macOS uses Swift/AppKit + WKWebView and a native
+  `WKScriptMessageHandler` bridge to local processes;
+- OPL Workspace uses a lightweight Node HTTP/SSE host and the same typed bridge
+  shape, with Codex state persisted in its container volume.
 
 The packaged candidate has an isolated name, path, bundle id, and default
 read-only action policy. Sharing a renderer is structural convergence evidence,
 not proof that both delivery surfaces have equivalent live behavior.
 
+Docker runs neither Electron nor AionCore and does not mount a Desktop-private
+database. The product direction requires future Windows/Linux carriers to reuse
+the renderer and bridge, but Native does not own that delivery. Electron and
+Tauri remain unselected until artifact size, signing, update, and installed
+acceptance are measured. No source marker here proves Windows/Linux support.
+
 ## Runtime Independence
 
-Native does not require, start, package, or read AionCore. The packaged macOS
+Native does not require, start, package, or read AionUI or AionCore. The packaged macOS
 host resolves `OPL_CODEX_BIN` or an exact external Codex executable and starts
 `codex app-server --stdio` directly. The Node WebUI host also talks directly to
 Codex App Server. Both hosts consume OPL only through Framework state/action
-contracts; AionCore managed-resource manifests, session/database state, backend,
-and authentication are not Native runtime inputs.
+contracts; AionUI/AionCore managed-resource manifests, provider abstractions,
+session/database state, backend, and authentication are not Native runtime inputs.
 
 This independence is a carrier property, not a second product or runtime
 authority. Codex still owns thread/turn truth, Framework still owns OPL
 state/actions, and App contracts still own product behavior.
 
-Codex App Server over stdio is the only enabled carrier. `pi` and `hermes` are
+Codex CLI/App Server is the candidate's complete backend scope. App Server over
+stdio is the only enabled carrier. `pi` and `hermes` are
 reserved disabled identifiers only: they add no source implementation, package
 dependency, runtime process, fallback route, or visible setting. A later carrier
 must implement the existing bridge shape and receive a separate App owner
@@ -119,14 +128,12 @@ authority, export acceptance, or delivery readiness.
 
 ## Adoption Boundary
 
-AionUI is the active release shell. Native is a foreground alternative that can
-be selected for one local launch. Adoption requires an explicit App owner
-decision and a change to the App shell adapter after all App-owned gates pass.
+AionUI is the current active release shell. Native remains a manual,
+non-periodic foreground alternative used to evaluate the approved lightweight
+architecture without acquiring mainline, parity, release, or cross-platform
+delivery obligations. Adoption requires an explicit App owner decision and a
+change to the App shell adapter after the relevant App-owned gates pass.
 Candidate docs, tests, package artifacts, screenshots, or local live smoke
-cannot perform that transfer.
-
-Native may receive bounded, manual, non-periodic improvements and focused tests
-without becoming a mainline task or acquiring a parity/completion obligation.
-Further product expansion or adoption remains a separate App decision. The
-current evaluation policy and next safe work route are maintained only in
+cannot perform that transfer or prove release readiness. The current evaluation
+policy and next safe work route are maintained only in
 [the Active Truth plan](./active/current-state-vs-ideal-gap.md).
