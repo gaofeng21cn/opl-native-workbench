@@ -125,7 +125,8 @@ multi-backend framework, or cross-platform delivery workstream.
 - `npm test` in the Native repository with the current App checkout available;
 - `npm run validate:candidate:native` in the App repository when its mounted
   candidate checkout points at the tested bytes;
-- OPL Doc doctor against each changed repository as a risk map;
+- OPL Flow-bundled `$opl-doc` semantic governance against each changed
+  repository as a risk map;
 - tracked Markdown relative-link scan;
 - `git diff --check`;
 - `npm run smoke:native-live` only when the authorized delta affects packaged
