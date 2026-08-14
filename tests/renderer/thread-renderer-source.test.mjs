@@ -436,6 +436,12 @@ test("OPL overlays and DSH resize handles expose complete keyboard accessibility
   assert.match(slotHost, /closeButtonRef\.current\?\.focus/);
   assert.match(slotHost, /previousFocus\.focus\(\)/);
 
+  assert.match(slotHost, /function useSettingsDialogFocus/);
+  assert.match(slotHost, /document\.addEventListener\("keydown", trapFocus, true\)/);
+  assert.match(slotHost, /button\[aria-haspopup="dialog"\]/);
+  assert.match(slotHost, /target\?\.isConnected/);
+  assert.match(adapterStyles, /\.opl-settings-slot-root\s*\{[^}]*display:\s*contents/s);
+
   assert.match(slotHost, /handle\.setAttribute\("role", "separator"\)/);
   assert.match(slotHost, /handle\.setAttribute\("aria-orientation", "vertical"\)/);
   assert.match(slotHost, /handle\.setAttribute\("aria-valuenow"/);

@@ -39,6 +39,22 @@ script is the command owner.
 | `npm run build:docker` | Local source-candidate OCI image construction only |
 | `npm run smoke:docker` | Local Docker build/run, health/readiness, non-root PID 1, persistent mounts, and guarded stop |
 
+## Rendered WebUI Acceptance
+
+```bash
+node scripts/acceptance/rendered-ui.mjs
+```
+
+This CLI-first browser gate starts the shared WebUI against the repository fake
+App Server, checks the wide and narrow layouts, the three on-demand context
+tabs, all App-owned settings destinations, and Settings modal focus
+containment/restoration. It writes screenshots and an exact source/renderer/DSH
+cohort receipt under ignored `out/acceptance/`.
+
+This is local rendered candidate evidence. It does not establish human Pixel
+approval, screen-reader qualification, a packaged or installed carrier, active
+shell adoption, or Release readiness.
+
 When the App checkout mounts this repository at the expected candidate path,
 the App owner can also run `npm run validate:candidate:native`. That is App
 candidate-conformance evidence, not release adoption.
