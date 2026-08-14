@@ -122,7 +122,17 @@ export type OplStateReadback = {
   profile: OplStateProfile;
   app_state: OplAppState;
   readback: OplCommandReadback;
+  carrierDiagnostics: CarrierDiagnosticsReadback;
   raw_state?: Record<string, unknown>;
+};
+
+export type CarrierDiagnosticsReadback = {
+  schema: "opl_app_carrier_diagnostics.v1";
+  owner: "one-person-lab-app_native_host" | "one-person-lab-app_desktop_host";
+  carrier: "electron_desktop" | "standalone_headless_webui" | "docker_webui" | "browser_placeholder";
+  status: "available" | "unavailable";
+  logsDirectory?: string;
+  reasonCode?: string;
 };
 
 export type OplFullDrilldownReadback = {
@@ -428,6 +438,45 @@ function asNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
+function unavailableCarrierDiagnostics(
+  carrier: CarrierDiagnosticsReadback["carrier"] = "browser_placeholder",
+  reasonCode = "carrier_log_directory_unavailable"
+): CarrierDiagnosticsReadback {
+  return {
+    schema: "opl_app_carrier_diagnostics.v1",
+    owner: "one-person-lab-app_native_host",
+    carrier,
+    status: "unavailable",
+    reasonCode
+  };
+}
+
+export function normalizeCarrierDiagnostics(value: unknown): CarrierDiagnosticsReadback {
+  const record = asRecord(value);
+  const ownerValue = asString(record?.owner);
+  const owner = (["one-person-lab-app_native_host", "one-person-lab-app_desktop_host"] as const)
+    .find((item) => item === ownerValue);
+  const carrierValue = asString(record?.carrier);
+  const carrier = (["electron_desktop", "standalone_headless_webui", "docker_webui", "browser_placeholder"] as const)
+    .find((item) => item === carrierValue) ?? "browser_placeholder";
+  const logsDirectory = asString(record?.logsDirectory);
+  if (
+    record?.schema === "opl_app_carrier_diagnostics.v1"
+    && owner
+    && record.status === "available"
+    && logsDirectory
+  ) {
+    return {
+      schema: "opl_app_carrier_diagnostics.v1",
+      owner,
+      carrier,
+      status: "available",
+      logsDirectory
+    };
+  }
+  return unavailableCarrierDiagnostics(carrier, asString(record?.reasonCode));
+}
+
 function normalizeThreadStatus(value: unknown): CodexThreadRuntimeStatus {
   const record = asRecord(value);
   const type = asString(record?.type);
@@ -722,7 +771,8 @@ function defaultStateReadback(profile: OplStateProfile): OplStateReadback {
     readback: createCommandReadback(
       stateCommand(profile),
       ["opl", "app", "state", "--profile", profile, "--json"]
-    )
+    ),
+    carrierDiagnostics: unavailableCarrierDiagnostics()
   };
 }
 
@@ -935,6 +985,7 @@ export function normalizeStateReadback(value: unknown, profile = readRuntimeProf
     readback: record?.readback
       ? normalizeCommandReadback(record.readback, commandReadback.command, commandReadback.commandArgs)
       : commandReadback,
+    carrierDiagnostics: normalizeCarrierDiagnostics(record?.carrierDiagnostics ?? record?.carrier_diagnostics)
   };
 }
 

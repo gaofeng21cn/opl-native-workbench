@@ -32,6 +32,15 @@ test("shared host core serves desktop and HTTP adapters through one typed method
       pickFiles: async () => ["/tmp/one.txt"],
       pickDirectory: async () => "/tmp/project"
     },
+    carrierDiagnostics: {
+      read: async () => ({
+        schema: "opl_app_carrier_diagnostics.v1",
+        owner: "one-person-lab-app_desktop_host",
+        carrier: "electron_desktop",
+        status: "available",
+        logsDirectory: "/tmp/one-person-lab/logs"
+      })
+    },
     nativeUpdater: {
       perform: async (operation) => {
         updateOperations.push(operation);
@@ -42,7 +51,16 @@ test("shared host core serves desktop and HTTP adapters through one typed method
   t.after(() => core.close());
 
   assert.equal(core.capabilities().threadAdapter.threadStoreOwner, "codex_core_app_server");
-  assert.deepEqual(await core.invoke("readState", { profile: "full" }), { profile: "full" });
+  assert.deepEqual(await core.invoke("readState", { profile: "full" }), {
+    profile: "full",
+    carrierDiagnostics: {
+      schema: "opl_app_carrier_diagnostics.v1",
+      owner: "one-person-lab-app_desktop_host",
+      carrier: "electron_desktop",
+      status: "available",
+      logsDirectory: "/tmp/one-person-lab/logs"
+    }
+  });
   assert.equal((await core.invoke("listThreads", {})).data.length, 5);
   assert.deepEqual(await core.invoke("pickFiles"), ["/tmp/one.txt"]);
   assert.equal(await core.invoke("pickDirectory"), "/tmp/project");
@@ -55,4 +73,41 @@ test("shared host core serves desktop and HTTP adapters through one typed method
     core.invoke("unregisteredMethod"),
     (error) => error.code === "host_method_not_found" && error.httpStatus === 404
   );
+});
+
+test("shared host core reports unavailable carrier logs instead of borrowing Framework logs", async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "opl-host-core-unavailable-test-"));
+  const transport = new CodexAppServerTransport({
+    command: process.execPath,
+    args: [fixture],
+    cwd: directory,
+    env: process.env,
+    requestTimeoutMs: 2_000,
+    turnTimeoutMs: 2_000
+  });
+  const core = await createOplHostCore({
+    transport,
+    opl: {
+      readState: async () => ({
+        app_state: {
+          settings_control_center: {
+            app_settings_read_model: {
+              local_environment: { logs_dir: "/framework/runtime/logs" }
+            }
+          }
+        }
+      })
+    }
+  });
+  t.after(() => core.close());
+
+  const readback = await core.invoke("readState", { profile: "fast" });
+  assert.deepEqual(readback.carrierDiagnostics, {
+    schema: "opl_app_carrier_diagnostics.v1",
+    owner: "one-person-lab-app_native_host",
+    carrier: "standalone_headless_webui",
+    status: "unavailable",
+    reasonCode: "carrier_log_directory_unavailable"
+  });
+  assert.notEqual(readback.carrierDiagnostics.logsDirectory, "/framework/runtime/logs");
 });

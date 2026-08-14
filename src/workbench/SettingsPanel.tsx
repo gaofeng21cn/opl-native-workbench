@@ -14,7 +14,11 @@ import {
   Workflow,
   Wrench
 } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createBrowserBridge,
+  type CarrierDiagnosticsReadback
+} from "../bridge/oplBridge";
 import type {
   ManagedUpdateComponentRef,
   ManagedUpdateProjection,
@@ -757,6 +761,8 @@ export function SettingsPanel({
   const [gatewayEmail, setGatewayEmail] = useState("");
   const [gatewayPassword, setGatewayPassword] = useState("");
   const [gatewayDeviceLabel, setGatewayDeviceLabel] = useState("");
+  const [carrierDiagnostics, setCarrierDiagnostics] = useState<CarrierDiagnosticsReadback | null>(null);
+  const diagnosticsBridge = useMemo(() => createBrowserBridge(), []);
   const derivedActionViewModel = useMemo(() => buildSettingsActionViewModel(model, managedUpdate), [managedUpdate, model]);
   const actionViewModel = projectedActionViewModel ?? derivedActionViewModel;
   const availableStarters = model.starters.filter((starter) => starter.available).length;
@@ -778,6 +784,27 @@ export function SettingsPanel({
       : "OPL Gateway";
   const readbackStatus = stateLoading ? "loading" : stateFailed ? "attention_needed" : "ready";
   const gatewayAction = (kind: GatewayActionViewModel["kind"]) => actionViewModel.gatewayActions.find((action) => action.kind === kind);
+
+  useEffect(() => {
+    if (activeDestination !== "diagnostics") return;
+    let cancelled = false;
+    void diagnosticsBridge.readState(settings.runtimeProfile)
+      .then((readback) => {
+        if (!cancelled) setCarrierDiagnostics(readback.carrierDiagnostics);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCarrierDiagnostics({
+            schema: "opl_app_carrier_diagnostics.v1",
+            owner: "one-person-lab-app_native_host",
+            carrier: "browser_placeholder",
+            status: "unavailable",
+            reasonCode: "carrier_diagnostics_read_failed"
+          });
+        }
+      });
+    return () => { cancelled = true; };
+  }, [activeDestination, diagnosticsBridge, model.stateGeneratedAt, settings.runtimeProfile]);
 
   function settingValueLabel(key: SettingKey, value: WorkbenchSettings[SettingKey]): string {
     if (key === "modelAccess") return value === "__auto" ? (settings.locale === "zh" ? "自动" : "Auto") : modelLabel(value as string, settings.locale);
@@ -1157,11 +1184,18 @@ export function SettingsPanel({
           <SettingsGroup title={settings.locale === "zh" ? "诊断" : "Diagnostics"}>
             <SettingRow label={settings.locale === "zh" ? "状态" : "Status"} detail={stateError || undefined}><StatusValue status={readbackStatus} locale={settings.locale} /></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "待处理问题" : "Issues"}><span>{projection?.statusSummary.issueCount ?? "--"}</span></SettingRow>
+            <SettingRow
+              label={settings.locale === "zh" ? "App 载体日志" : "App carrier logs"}
+              detail={carrierDiagnostics?.logsDirectory ?? carrierDiagnostics?.reasonCode}
+            >
+              <StatusValue status={carrierDiagnostics?.status === "available" ? "ready" : carrierDiagnostics?.status} locale={settings.locale} />
+            </SettingRow>
             <SettingRow label={settings.locale === "zh" ? "开发者详情" : "Developer details"}>{renderSettingControl("developerDetails")}</SettingRow>
           </SettingsGroup>
           {settings.developerDetails ? (
             <SettingsGroup title={settings.locale === "zh" ? "高级详情" : "Advanced details"}>
-              <SettingRow label={settings.locale === "zh" ? "日志" : "Logs"}><code>{projection?.localEnvironment.logsDir ?? "--"}</code></SettingRow>
+              <SettingRow label={settings.locale === "zh" ? "App 载体日志目录" : "App carrier log directory"}><code>{carrierDiagnostics?.logsDirectory ?? (settings.locale === "zh" ? "不可用" : "Unavailable")}</code></SettingRow>
+              <SettingRow label={settings.locale === "zh" ? "Framework 运行时日志" : "Framework runtime logs"}><code>{projection?.localEnvironment.logsDir ?? "--"}</code></SettingRow>
               <SettingRow label={settings.locale === "zh" ? "状态目录" : "State directory"}><code>{projection?.localEnvironment.stateDir ?? "--"}</code></SettingRow>
               <SettingRow label={settings.locale === "zh" ? "运行时来源" : "Runtime sources"}><code>{projection?.localEnvironment.runtimeSourcesRoot ?? "--"}</code></SettingRow>
               <SettingRow label="Codex CLI"><code>{projection?.codex.binaryPath ?? "--"}</code></SettingRow>
