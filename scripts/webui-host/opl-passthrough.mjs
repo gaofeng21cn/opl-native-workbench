@@ -56,6 +56,17 @@ function selectedFields(value, fields) {
   return Object.fromEntries(fields.flatMap((field) => value[field] === undefined ? [] : [[field, value[field]]]));
 }
 
+function compactLocalizedText(value, limit = 16) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  return Object.fromEntries(Object.entries(value)
+    .filter(([, text]) => typeof text === "string")
+    .slice(0, limit));
+}
+
+function compactStringArray(value, limit = 32) {
+  return Array.isArray(value) ? value.filter((entry) => typeof entry === "string").slice(0, limit) : [];
+}
+
 const packageFields = [
   "package_id", "packageId", "agent_id", "module_id", "id",
   "display_name", "displayName", "package_short_name", "label", "name", "publisher", "description", "tags", "package_role",
@@ -67,8 +78,98 @@ const packageFields = [
   "source_kind", "install_origin",
   "required_skill", "requiredSkill", "skill_id", "skill_ref", "required_skills",
   "source_surface", "installed_version", "selected_version", "stable_version", "projected_version",
-  "installed", "activated", "codex_visible"
+  "installed", "activated", "codex_visible", "official", "manifest_url", "physical_surface_status"
 ];
+
+function compactHomeShortcut(value) {
+  if (!value || typeof value !== "object") return {};
+  return {
+    ...selectedFields(value, ["shortcut_id", "default_visible", "user_configurable", "sort_order"]),
+    label_i18n: compactLocalizedText(value.label_i18n),
+    route: selectedFields(value.route, ["route_kind", "executor", "codex_visible_entry"])
+  };
+}
+
+function compactHomeShortcutPreferences(value, limit = 16) {
+  return Array.isArray(value)
+    ? value.slice(0, limit).map((entry) => selectedFields(entry, [
+      "package_id", "shortcut_id", "visible", "sort_order"
+    ]) ?? {})
+    : [];
+}
+
+function compactContributionNavigation(value) {
+  return {
+    ...selectedFields(value, ["navigation_id", "view_id", "icon_id", "sort_order"]),
+    label_i18n: compactLocalizedText(value?.label_i18n)
+  };
+}
+
+function compactContributionView(value) {
+  return {
+    ...selectedFields(value, ["view_id", "view_type", "data_ref"]),
+    title_i18n: compactLocalizedText(value?.title_i18n),
+    command_ids: compactStringArray(value?.command_ids),
+    badge_ids: compactStringArray(value?.badge_ids),
+    empty_state_i18n: compactLocalizedText(value?.empty_state_i18n)
+  };
+}
+
+function compactContributionCommand(value) {
+  return {
+    ...selectedFields(value, ["command_id", "action_ref", "confirmation_required"]),
+    label_i18n: compactLocalizedText(value?.label_i18n)
+  };
+}
+
+function compactContributionBadge(value) {
+  return {
+    ...selectedFields(value, ["badge_id", "data_ref", "tone"]),
+    label_i18n: compactLocalizedText(value?.label_i18n)
+  };
+}
+
+function compactContributionPlacement(value) {
+  return {
+    ...selectedFields(value, [
+      "contribution_id", "slot", "contribution_kind", "trust_tier", "scope", "sort_order", "view_id"
+    ]),
+    command_ids: compactStringArray(value?.command_ids)
+  };
+}
+
+function compactAppContributions(value) {
+  if (!value || typeof value !== "object") return undefined;
+  return {
+    ...selectedFields(value, ["schema_version"]),
+    navigation: Array.isArray(value.navigation) ? value.navigation.slice(0, 32).map(compactContributionNavigation) : [],
+    views: Array.isArray(value.views) ? value.views.slice(0, 32).map(compactContributionView) : [],
+    commands: Array.isArray(value.commands) ? value.commands.slice(0, 64).map(compactContributionCommand) : [],
+    badges: Array.isArray(value.badges) ? value.badges.slice(0, 64).map(compactContributionBadge) : [],
+    ui: Array.isArray(value.ui) ? value.ui.slice(0, 64).map(compactContributionPlacement) : []
+  };
+}
+
+function compactUiContributionEntry(value) {
+  if (!value || typeof value !== "object") return {};
+  return {
+    ...selectedFields(value, [
+      "contribution_key", "contribution_id", "package_id", "slot", "contribution_kind", "trust_tier", "scope",
+      "sort_order", "descriptor_schema_version"
+    ]),
+    view: value.view && typeof value.view === "object" ? compactContributionView(value.view) : undefined,
+    commands: Array.isArray(value.commands) ? value.commands.slice(0, 64).map(compactContributionCommand) : [],
+    badges: Array.isArray(value.badges) ? value.badges.slice(0, 64).map(compactContributionBadge) : []
+  };
+}
+
+function compactUiContributions(value) {
+  if (!value || typeof value !== "object") return undefined;
+  return {
+    ...selectedFields(value, ["surface_kind", "contribution_count", "source_ref"]),
+    entries: Array.isArray(value.entries) ? value.entries.slice(0, 64).map(compactUiContributionEntry) : []
+  };
+}
 
 function compactPackageActionPayload(value) {
   return selectedFields(value, [
@@ -79,10 +180,19 @@ function compactPackageActionPayload(value) {
 
 function compactPackageRecord(value) {
   const record = selectedFields(value, packageFields) ?? {};
-  const sourcePolicy = selectedFields(value?.source_policy, ["effective_install_update_source"]);
-  const sourceExplanation = selectedFields(value?.source_explanation, [
+  const sourcePolicy = selectedFields(value?.source_policy, [
+    "effective_install_update_source", "desired_source_kind", "package_channel_auto_update"
+  ]);
+  const sourceExplanationBase = selectedFields(value?.source_explanation, [
     "kind", "source", "summary", "source_policy_status"
   ]);
+  const effectiveSourcePolicy = selectedFields(value?.source_explanation?.effective_source_policy, [
+    "effective_install_update_source", "desired_source_kind", "package_channel_auto_update"
+  ]);
+  const sourceExplanation = sourceExplanationBase ? {
+    ...sourceExplanationBase,
+    ...(effectiveSourcePolicy ? { effective_source_policy: effectiveSourcePolicy } : {})
+  } : undefined;
   const capabilityMetadata = selectedFields(value?.capability_metadata, [
     "source", "required_skill_ids", "optional_skill_refs"
   ]);
@@ -97,7 +207,9 @@ function compactPackageRecord(value) {
   ]);
   const capabilityExposure = selectedFields(value?.capability_exposure, ["status", "codex_visible"]);
   const actions = selectedFields(value?.actions, ["available", "recommended", "execute_surface"]);
-  const readiness = selectedFields(value?.readiness, ["status", "operational_ready", "launch_allowed", "reason"]);
+  const readiness = selectedFields(value?.readiness, [
+    "status", "operational_ready", "launch_allowed", "verification_deferred", "reason", "detail_surface", "status_read_error"
+  ]);
   const packageCurrentness = selectedFields(value?.package_currentness, ["status", "reasons"]);
   const availableActions = Array.isArray(value?.available_actions)
     ? value.available_actions.map((action) => {
@@ -113,6 +225,11 @@ function compactPackageRecord(value) {
   const files = selectedFields(value?.files, ["home_shortcut_preferences_file"]);
   return {
     ...record,
+    display_name_i18n: compactLocalizedText(value?.display_name_i18n),
+    description_i18n: compactLocalizedText(value?.description_i18n),
+    session_routing_summary_i18n: compactLocalizedText(value?.session_routing_summary_i18n),
+    home_shortcuts: Array.isArray(value?.home_shortcuts) ? value.home_shortcuts.slice(0, 16).map(compactHomeShortcut) : [],
+    app_contributions: compactAppContributions(value?.app_contributions),
     ...(sourcePolicy ? { source_policy: sourcePolicy } : {}),
     ...(sourceExplanation ? { source_explanation: sourceExplanation } : {}),
     ...(capabilityMetadata ? { capability_metadata: capabilityMetadata } : {}),
@@ -159,7 +276,10 @@ function compactGatewayAccount(value) {
     managed_key: selectedFields(value.managed_key, ["name", "status", "ownership"]),
     installation: selectedFields(value.installation, ["device_label", "short_id"]),
     freshness: selectedFields(value.freshness, ["observed_at", "stale_after", "stale", "last_error_code"]),
-    capabilities: selectedFields(value.capabilities, ["account_login_supported", "manual_key_supported"])
+    capabilities: selectedFields(value.capabilities, ["account_login_supported", "manual_key_supported"]),
+    actions: selectedFields(value.actions, [
+      "complete_setup", "refresh", "repair", "use_for_model_access", "disconnect"
+    ])
   };
 }
 
@@ -302,8 +422,9 @@ function compactFastState(value) {
       core: compactCore(appState.core),
       provider: compactProvider(appState.provider),
       runtime_source_carriers: compactRuntimeSourceCarriers(appState.runtime_source_carriers),
+      ui_contributions: compactUiContributions(appState.ui_contributions),
       active_project_lines: firstRecords(appState.active_project_lines, 12),
-      home_agent_shortcuts: firstRecords(appState.home_agent_shortcuts, 16),
+      home_agent_shortcuts: compactHomeShortcutPreferences(appState.home_agent_shortcuts, 16),
       modules: { items: firstRecords(appState.modules?.items, 8) ?? [] },
       actions: Array.isArray(appState.actions) ? appState.actions.slice(0, 100).map(compactAction) : [],
       operator: operator ? {
@@ -339,13 +460,13 @@ function compactFastState(value) {
           migration_required_count: directory.migration_required_count,
           source_catalog_kind: directory.source_catalog_kind,
           files: selectedFields(directory.files, ["home_shortcut_preferences_file"]),
-          home_shortcut_preferences: firstRecords(directory.home_shortcut_preferences, 16),
+          home_shortcut_preferences: compactHomeShortcutPreferences(directory.home_shortcut_preferences, 16),
           entries: compactPackageRows(directory.entries, 64) ?? []
         } : undefined,
         status_index: statusIndex ? {
           installed_package_count: statusIndex.installed_package_count,
           files: statusIndex.files,
-          home_shortcut_preferences: firstRecords(statusIndex.home_shortcut_preferences, 16),
+          home_shortcut_preferences: compactHomeShortcutPreferences(statusIndex.home_shortcut_preferences, 16),
           packages: compactPackageRows(statusIndex.packages, 64)
         } : undefined
       } : undefined

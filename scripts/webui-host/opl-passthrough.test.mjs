@@ -40,8 +40,70 @@ test("fast state keeps GUI package fields without copying deep runtime payloads"
           entries: [{
             package_id: "future.agent",
             display_name: "Future Agent",
+            display_name_i18n: { "en-US": "Future Agent", "zh-CN": "未来智能体" },
+            description_i18n: { "en-US": "Research helper" },
+            session_routing_summary_i18n: { "en-US": "Routes research tasks" },
             publisher: "Owner",
             package_role: "standard_agent",
+            home_shortcuts: [{
+              shortcut_id: "future-agent",
+              label_i18n: { "en-US": "Future Agent" },
+              default_visible: true,
+              user_configurable: true,
+              sort_order: 7,
+              route: {
+                route_kind: "agent_package_shortcut",
+                executor: "codex_cli",
+                codex_visible_entry: "future-agent",
+                private_launch_payload: "private"
+              }
+            }],
+            app_contributions: {
+              schema_version: "opl-app-contributions.v1",
+              navigation: [{
+                navigation_id: "future.activity",
+                label_i18n: { "en-US": "Activity" },
+                view_id: "future.activity",
+                icon_id: "activity",
+                sort_order: 20,
+                private_navigation_payload: "private"
+              }],
+              views: [{
+                view_id: "future.activity",
+                view_type: "activity_log",
+                title_i18n: { "en-US": "Activity" },
+                data_ref: "future.activity.v1#current",
+                command_ids: ["future.refresh"],
+                badge_ids: ["future.health"],
+                empty_state_i18n: { "en-US": "No activity" },
+                executable_renderer_bytes: "x".repeat(20_000)
+              }],
+              commands: [{
+                command_id: "future.refresh",
+                label_i18n: { "en-US": "Refresh" },
+                action_ref: "future.refresh",
+                confirmation_required: false,
+                private_command_payload: "private"
+              }],
+              badges: [{
+                badge_id: "future.health",
+                label_i18n: { "en-US": "Healthy" },
+                data_ref: "future.health.v1#current",
+                tone: "success",
+                private_badge_payload: "private"
+              }],
+              ui: [{
+                contribution_id: "future.activity",
+                slot: "runtime.detail",
+                contribution_kind: "view",
+                trust_tier: "declarative",
+                scope: "work_item",
+                sort_order: 20,
+                view_id: "future.activity",
+                command_ids: ["future.refresh"],
+                executable_plugin_bytes: "x".repeat(20_000)
+              }]
+            },
             capability_metadata: { source: "normalized_owner_manifest", required_skill_ids: ["future-agent"] },
             installed_carrier_readback: {
               kind: "codex_plugin_manager",
@@ -59,7 +121,12 @@ test("fast state keeps GUI package fields without copying deep runtime payloads"
             source_explanation: {
               kind: "installed_codex_plugin_descriptor",
               source: "installed_descriptor",
-              version_source_ref: "owner://future-agent/1.0.0"
+              version_source_ref: "owner://future-agent/1.0.0",
+              effective_source_policy: {
+                effective_install_update_source: "managed_package_channel",
+                package_channel_auto_update: true,
+                developer_checkout_path: "/private/checkout"
+              }
             },
             available_actions: [{
               action_id: "agent_package_update",
@@ -76,6 +143,14 @@ test("fast state keeps GUI package fields without copying deep runtime payloads"
           }]
         },
         status_index: {
+          home_shortcut_preferences: [{
+            package_id: "future.agent",
+            shortcut_id: "future-agent",
+            visible: true,
+            sort_order: 7,
+            source: "user_preference",
+            private_receipt: { payload: "x".repeat(20_000) }
+          }],
           packages: {
             "future.agent": {
               package_id: "future.agent",
@@ -95,7 +170,23 @@ test("fast state keeps GUI package fields without copying deep runtime payloads"
   assert.equal("internal_trace" in state.actions[0], false);
   const entry = state.agent_packages.directory.entries[0];
   assert.equal(entry.display_name, "Future Agent");
+  assert.equal(entry.display_name_i18n["zh-CN"], "未来智能体");
+  assert.equal(entry.description_i18n["en-US"], "Research helper");
+  assert.equal(entry.session_routing_summary_i18n["en-US"], "Routes research tasks");
   assert.equal(entry.publisher, "Owner");
+  assert.equal(entry.home_shortcuts[0].default_visible, true);
+  assert.equal(entry.home_shortcuts[0].sort_order, 7);
+  assert.deepEqual(entry.home_shortcuts[0].route, {
+    route_kind: "agent_package_shortcut",
+    executor: "codex_cli",
+    codex_visible_entry: "future-agent"
+  });
+  assert.equal(entry.app_contributions.navigation[0].navigation_id, "future.activity");
+  assert.equal(entry.app_contributions.views[0].data_ref, "future.activity.v1#current");
+  assert.equal(entry.app_contributions.commands[0].action_ref, "future.refresh");
+  assert.equal(entry.app_contributions.badges[0].tone, "success");
+  assert.equal(entry.app_contributions.ui[0].slot, "runtime.detail");
+  assert.equal(entry.source_explanation.effective_source_policy.package_channel_auto_update, true);
   assert.equal(entry.capability_metadata.required_skill_ids[0], "future-agent");
   assert.equal(entry.installed_carrier_readback.lifecycle_authority, "carrier_owned");
   assert.equal("version_source_ref" in entry.source_explanation, false);
@@ -108,11 +199,79 @@ test("fast state keeps GUI package fields without copying deep runtime payloads"
   assert.equal("lifecycle_receipts" in entry, false);
   assert.equal("package_lock_ref" in entry, false);
   assert.equal("rollback_ref" in entry, false);
+  assert.equal("developer_checkout_path" in entry.source_explanation.effective_source_policy, false);
+  assert.equal("private_launch_payload" in entry.home_shortcuts[0].route, false);
+  assert.equal("executable_renderer_bytes" in entry.app_contributions.views[0], false);
+  assert.equal("executable_plugin_bytes" in entry.app_contributions.ui[0], false);
   assert.equal("package_lock_file" in state.agent_packages.directory.files, false);
   assert.equal("lifecycle_ledger_file" in state.agent_packages.directory.files, false);
   assert.equal(state.agent_packages.status_index.packages["future.agent"].status, "available");
   assert.equal("owner_route_readback" in state.agent_packages.status_index.packages["future.agent"], false);
-  assert.ok(Buffer.byteLength(JSON.stringify(compact)) < 5_000);
+  assert.deepEqual(state.agent_packages.status_index.home_shortcut_preferences[0], {
+    package_id: "future.agent",
+    shortcut_id: "future-agent",
+    visible: true,
+    sort_order: 7
+  });
+  assert.ok(Buffer.byteLength(JSON.stringify(compact)) < 10_000);
+});
+
+test("fast state keeps the bounded public UI contribution projection", () => {
+  const compact = compactFastState({
+    app_state: {
+      ui_contributions: {
+        surface_kind: "opl_app_ui_contributions_projection.v1",
+        contribution_count: 1,
+        source_ref: "app_state.agent_packages.status_index.packages[*].app_contributions.ui",
+        entries: [{
+          contribution_key: "future.agent:future.activity",
+          contribution_id: "future.activity",
+          package_id: "future.agent",
+          slot: "runtime.detail",
+          contribution_kind: "view",
+          trust_tier: "declarative",
+          scope: "work_item",
+          sort_order: 20,
+          descriptor_schema_version: "opl-app-contributions.v1",
+          view: {
+            view_id: "future.activity",
+            view_type: "activity_log",
+            title_i18n: { "en-US": "Activity" },
+            data_ref: "future.activity.v1#current",
+            empty_state_i18n: { "en-US": "No activity" },
+            private_view_payload: "private"
+          },
+          commands: [{
+            command_id: "future.refresh",
+            label_i18n: { "en-US": "Refresh" },
+            action_ref: "future.refresh",
+            confirmation_required: false,
+            private_command_payload: "private"
+          }],
+          badges: [{
+            badge_id: "future.health",
+            label_i18n: { "en-US": "Healthy" },
+            data_ref: "future.health.v1#current",
+            tone: "success",
+            private_badge_payload: "private"
+          }],
+          executable_plugin_bytes: "x".repeat(20_000)
+        }],
+        private_receipts: [{ payload: "x".repeat(20_000) }]
+      }
+    }
+  });
+
+  const projection = compact.app_state.ui_contributions;
+  assert.equal(projection.surface_kind, "opl_app_ui_contributions_projection.v1");
+  assert.equal(projection.entries[0].contribution_key, "future.agent:future.activity");
+  assert.equal(projection.entries[0].view.data_ref, "future.activity.v1#current");
+  assert.equal(projection.entries[0].commands[0].action_ref, "future.refresh");
+  assert.equal(projection.entries[0].badges[0].tone, "success");
+  const serialized = JSON.stringify(projection);
+  for (const marker of ["private_view_payload", "private_command_payload", "private_badge_payload", "executable_plugin_bytes", "private_receipts"]) {
+    assert.equal(serialized.includes(marker), false, `must omit ${marker}`);
+  }
 });
 
 test("fast state exposes only the Settings read model fields needed by the shared renderer", () => {
@@ -195,7 +354,7 @@ test("fast state exposes only the Settings read model fields needed by the share
   for (const privateMarker of ["credential_handle", "api_key\"", "internal_ledger", "raw_events", "host_token", "raw_error", "private_runtime_payload", "internal_issue_payload"]) {
     assert.equal(projected.includes(privateMarker), false, `must omit ${privateMarker}`);
   }
-  assert.equal("actions" in readModel.opl_gateway_account, false);
+  assert.deepEqual(readModel.opl_gateway_account.actions, { disconnect: "gateway_account_disconnect" });
 });
 
 test("fast state keeps the complete package catalog and bounded runtime control projection", () => {
