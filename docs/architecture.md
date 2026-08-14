@@ -33,13 +33,45 @@ Node host core. Transport adapters do not own product or runtime behavior:
   allowlisted IPC;
 - OPL Workspace exposes the same host core through loopback HTTP/SSE for
   standalone WebUI and headless operation;
-- the successor Docker carrier will run the Node host core and WebUI only. It
-  does not run Electron or AionCore.
+- the successor Docker candidate runs the Node host core and WebUI only. It
+  does not run Electron, AionUI, or AionCore.
 
 The packaged candidate has an isolated name, path, bundle id, and default
 read-only action policy. Source support and local package output are candidate
 evidence only. They do not prove a platform release, clean installation,
-updater cohort, Docker image, or cross-carrier runtime equivalence.
+updater cohort, released Docker image, or cross-carrier runtime equivalence.
+
+## Headless And OCI Process Boundary
+
+`scripts/headless/run.mjs` is the standalone process entrypoint. It validates
+bind, port, renderer-root, and shutdown-bound inputs, starts the same
+`createOplHostCore` plus HTTP/SSE adapter used by the desktop architecture, and
+owns SIGINT/SIGTERM shutdown. It does not introduce a second plugin runtime,
+thread store, action dispatcher, or renderer.
+
+The HTTP adapter publishes two carrier-level probes:
+
+- `/healthz` reports that the Node HTTP process is accepting requests;
+- `/readyz` reports that the Codex App Server child completed initialization.
+
+Readiness does not claim OPL package currentness, domain readiness, release
+readiness, or production readiness. Framework state remains an on-demand
+owner-authoritative `opl app state` read through the existing bridge.
+
+The OCI candidate is a multi-stage build. The build stages materialize an exact
+App product-profile commit, an exact OPL Framework commit, a pinned Codex npm
+package, and the shared renderer. App source is a build-only product-policy
+input and is absent from the runtime image. The final image contains only the
+Node headless host, renderer, OPL Framework, and Codex runtime inputs. It runs as
+the base image's `node` user, uses `/data` for `HOME`, `CODEX_HOME`, and OPL
+state, and uses `/projects` as the workspace root. The final PID 1 is Node;
+Electron, AionUI, and AionCore are absent.
+
+Those default build arguments establish a locally reproducible candidate, not
+a release freeze. App-owned release tooling must later replace them with the
+accepted source cohort and digest verification before publication. Remote
+exposure also remains inadmissible until an App-owned authentication and network
+boundary exists; Compose therefore publishes host loopback only.
 
 ## Runtime Independence
 

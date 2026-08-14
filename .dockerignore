@@ -1,0 +1,16 @@
+.git
+.github
+.worktrees
+.codegraph
+node_modules
+dist
+out
+coverage
+*.log
+docs
+tests
+desktop
+assets
+electron-builder.yml
+scripts/webui-host/*.test.mjs
+scripts/webui-host/fixtures

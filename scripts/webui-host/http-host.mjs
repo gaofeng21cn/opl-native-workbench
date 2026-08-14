@@ -77,6 +77,8 @@ export async function createWebUiHost({
 } = {}) {
   const hostCore = core ?? await createOplHostCore(coreOptions);
   const oplEventClients = new Set();
+  let closing = false;
+  let closePromise;
   const emitTo = (clients, event) => {
     const frame = `data: ${JSON.stringify(event)}\n\n`;
     for (const client of clients) client.write(frame);
@@ -86,6 +88,23 @@ export async function createWebUiHost({
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     try {
+      if (req.method === "GET" && url.pathname === "/healthz") {
+        json(res, closing ? 503 : 200, {
+          status: closing ? "stopping" : "ok",
+          service: "one-person-lab-headless"
+        });
+        return;
+      }
+      if (req.method === "GET" && url.pathname === "/readyz") {
+        const capabilities = hostCore.capabilities();
+        const ready = !closing && capabilities.appServerAvailable === true;
+        json(res, ready ? 200 : 503, {
+          status: ready ? "ready" : "not_ready",
+          appServerAvailable: capabilities.appServerAvailable,
+          appServerError: capabilities.appServerError
+        });
+        return;
+      }
       if (req.method === "GET" && url.pathname === "/api/opl-events") {
         res.writeHead(200, {
           "content-type": "text/event-stream; charset=utf-8",
@@ -199,12 +218,16 @@ export async function createWebUiHost({
     transport: hostCore.transport,
     threads: hostCore.threads,
     async close() {
-      for (const client of oplEventClients) client.end();
-      if (server.listening) {
-        server.closeAllConnections?.();
-        await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-      }
-      await hostCore.close();
+      closePromise ??= (async () => {
+        closing = true;
+        for (const client of oplEventClients) client.end();
+        if (server.listening) {
+          server.closeAllConnections?.();
+          await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+        }
+        await hostCore.close();
+      })();
+      return closePromise;
     }
   };
 }

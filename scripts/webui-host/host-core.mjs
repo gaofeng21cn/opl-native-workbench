@@ -56,6 +56,12 @@ export class OplHostCore extends EventEmitter {
 
     this.threads.on("event", (event) => this.emit("event", event));
     this.transport.on("availability", (availability) => {
+      this.appServerError = availability.available === true
+        ? null
+        : {
+            code: "app_server_unavailable",
+            message: `Codex App Server became unavailable (${availability.signal ?? availability.code ?? "unknown"})`
+          };
       this.emit("event", { method: "host/availability", params: availability });
     });
   }
@@ -76,6 +82,7 @@ export class OplHostCore extends EventEmitter {
   capabilities() {
     return {
       localHost: true,
+      appServerAvailable: this.transport.initialized === true && this.appServerError === null,
       threadAdapter: this.threads.capabilities(),
       appServerError: this.appServerError,
       oplPassthrough: { available: true, authorityBoundary: "app_bridge_no_domain_authority" }

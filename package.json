@@ -51,9 +51,10 @@
     "typescript": "5.8.3"
   },
   "scripts": {
-    "dev": "node scripts/dev-webui-server.mjs",
+    "dev": "npm run build:webui && node scripts/dev-webui-server.mjs",
     "dev:desktop": "npm run build:desktop && electron .",
-    "webui": "node scripts/dev-webui-server.mjs",
+    "webui": "npm run dev",
+    "start:headless": "node scripts/headless/run.mjs",
     "build": "node scripts/build-renderer.mjs",
     "build:webui": "node scripts/build-webui.mjs",
     "build:desktop": "node scripts/build-desktop.mjs",
@@ -66,8 +67,10 @@
     "dist:mac": "npm run build:desktop && electron-builder --mac --config electron-builder.yml",
     "dist:windows": "npm run build:desktop && electron-builder --win --config electron-builder.yml",
     "dist:linux": "npm run build:desktop && electron-builder --linux --config electron-builder.yml",
+    "build:docker": "docker build --tag one-person-lab-app:headless-candidate .",
     "smoke:desktop-live": "node scripts/smoke-desktop-live.mjs",
     "test:desktop": "node --test desktop/desktop-contract.test.mjs desktop/shutdown.test.mjs desktop/updater.test.mjs",
+    "test:headless": "node --test tests/headless/*.test.mjs",
     "test:gateway-account-projection": "bun run scripts/gateway-account-projection-regression.ts",
     "test:package-projection": "bun test tests/workbench/package-projection.test.mts",
     "test:runtime-projection": "bun test tests/workbench/runtime-projection.test.mts",
@@ -81,6 +84,7 @@
     "validate:package": "node scripts/validate-desktop-package.mjs",
     "smoke:webui": "node scripts/smoke-webui.mjs",
     "smoke:visual": "node scripts/smoke-visual.mjs",
-    "test": "npm run typecheck && npm run test:desktop && npm run test:gateway-account-projection && npm run test:package-projection && npm run test:runtime-projection && npm run test:ui-contributions && npm run test:storage-migration && npm run test:threads && npm run validate:candidate && npm run validate:state-model && npm run smoke:webui && npm run smoke:visual && npm run package && npm run validate:package"
+    "smoke:docker": "node tests/headless/docker-smoke.mjs",
+    "test": "npm run typecheck && npm run test:desktop && npm run test:headless && npm run test:gateway-account-projection && npm run test:package-projection && npm run test:runtime-projection && npm run test:ui-contributions && npm run test:storage-migration && npm run test:threads && npm run validate:candidate && npm run validate:state-model && npm run smoke:webui && npm run smoke:visual && npm run package && npm run validate:package"
   }
 }

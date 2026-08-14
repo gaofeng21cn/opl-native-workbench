@@ -29,10 +29,11 @@ reserved disabled interface names and add no current code path or dependency.
 
 OPL Workspace serves the same renderer through the shared Node host core and a
 lightweight HTTP/SSE adapter. Docker runs neither Electron nor AionCore. The
-source and package configuration include macOS, Windows, and Linux desktop
-targets, but each platform and the successor OCI carrier still require their
-own build, installation, update, and release qualification before they can be
-claimed as released or supported.
+source now includes a standalone Node command and a non-root OCI carrier with
+`/data` and `/projects` persistence. The source and package configuration also
+include macOS, Windows, and Linux desktop targets, but every platform and the
+successor OCI carrier still require their own installation, update, and release
+qualification before they can be claimed as released or supported.
 
 The conversation directory is not a Native copy. It reads the canonical Codex
 state DB overview with `thread/list useStateDbOnly=true`, then opens the same
@@ -72,6 +73,37 @@ Candidate actions are dry-run-only by default. `--allow-actions` is an explicit
 local override that still requires the candidate confirmation path. Directly
 opening the bundle uses host-path fallback and does not prove parity with the
 App-managed launcher.
+
+### Standalone WebUI
+
+Build the shared renderer once, then start the Node host:
+
+```bash
+npm run build:webui
+npm run start:headless
+```
+
+The default URL is `http://127.0.0.1:4178`. `OPL_HEADLESS_HOST`,
+`OPL_HEADLESS_PORT`, `OPL_CODEX_BIN`, `OPL_APP_OPL_BIN`, `CODEX_HOME`, and
+`OPL_STUDIO_CODEX_CWD` select the bind and external runtime inputs. `/healthz`
+is process liveness; `/readyz` is successful Codex App Server initialization.
+SIGINT and SIGTERM close HTTP/SSE and the child App Server within the configured
+shutdown bound.
+
+### Docker Candidate
+
+```bash
+docker compose up --build
+```
+
+Compose publishes only to host loopback by default, persists `/data` and
+`/projects`, and runs the image as UID 1000. The image starts Node directly; it
+contains no Electron, AionUI, or AionCore runtime. Its default OPL Framework
+commit, App product-profile commit, and Codex package are candidate build inputs
+that can be overridden with exact inputs. The App source is used only to build
+the renderer policy and is not copied into the runtime image. These defaults are
+not a release cohort or update contract. Do not expose the HTTP bridge to an
+untrusted network; this candidate has no remote access control boundary.
 
 ## Authority Boundary
 
@@ -114,9 +146,11 @@ npm ci
 npm test
 ```
 
-`npm test` covers typecheck, focused regressions, candidate/state validators,
-WebUI and visual smoke, Electron package construction, and package validation.
+`npm test` covers typecheck, desktop/headless focused regressions,
+candidate/state validators, WebUI and visual smoke, Electron package
+construction, and package validation.
 Run `npm run smoke:desktop-live` separately for local packaged-window evidence.
+Run `npm run smoke:docker` separately for a local OCI build/runtime smoke.
 See [verification](docs/verification.md) before interpreting either result.
 
 </details>
