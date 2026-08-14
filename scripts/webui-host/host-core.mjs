@@ -35,13 +35,28 @@ function defaultNativeUpdater() {
   return createNativeAppUpdaterFromEnvironment();
 }
 
+function unavailableCarrierDiagnostics(reasonCode = "carrier_log_directory_unavailable") {
+  return {
+    schema: "opl_app_carrier_diagnostics.v1",
+    owner: "one-person-lab-app_native_host",
+    carrier: "standalone_headless_webui",
+    status: "unavailable",
+    reasonCode
+  };
+}
+
+function defaultCarrierDiagnostics() {
+  return { read: async () => unavailableCarrierDiagnostics() };
+}
+
 export class OplHostCore extends EventEmitter {
   constructor({
     transport = new CodexAppServerTransport({ cwd: workspaceRoot }),
     opl = createOplPassthrough({ cwd: workspaceRoot }),
     gatewayAccountLogin = createGatewayAccountLogin({ cwd: workspaceRoot }),
     platform = defaultPlatformServices(),
-    nativeUpdater = defaultNativeUpdater()
+    nativeUpdater = defaultNativeUpdater(),
+    carrierDiagnostics = defaultCarrierDiagnostics()
   } = {}) {
     super();
     this.transport = transport;
@@ -49,6 +64,7 @@ export class OplHostCore extends EventEmitter {
     this.gatewayAccountLogin = gatewayAccountLogin;
     this.platform = { ...defaultPlatformServices(), ...platform };
     this.nativeUpdater = nativeUpdater;
+    this.carrierDiagnostics = carrierDiagnostics;
     this.threads = new CodexThreadAdapter(transport);
     this.appServerError = null;
 
@@ -94,7 +110,16 @@ export class OplHostCore extends EventEmitter {
 
     switch (method) {
       case "beginWindowDrag": return this.platform.beginWindowDrag();
-      case "readState": return this.opl.readState(payload.profile ?? "fast");
+      case "readState": {
+        const state = await this.opl.readState(payload.profile ?? "fast");
+        let carrierDiagnostics;
+        try {
+          carrierDiagnostics = await this.carrierDiagnostics.read();
+        } catch {
+          carrierDiagnostics = unavailableCarrierDiagnostics("carrier_diagnostics_read_failed");
+        }
+        return { ...state, carrierDiagnostics };
+      }
       case "readFullDrilldown": return this.opl.readFullDrilldown();
       case "readContribution": return this.opl.readContribution(payload);
       case "executeAction": return this.opl.executeAction(payload);

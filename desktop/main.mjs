@@ -88,6 +88,15 @@ async function createDesktopHost() {
         return result.canceled ? null : result.filePaths[0] ?? null;
       }
     },
+    carrierDiagnostics: {
+      read: async () => ({
+        schema: "opl_app_carrier_diagnostics.v1",
+        owner: "one-person-lab-app_desktop_host",
+        carrier: "electron_desktop",
+        status: "available",
+        logsDirectory: app.getPath("logs")
+      })
+    },
     nativeUpdater: desktopUpdater
   });
 

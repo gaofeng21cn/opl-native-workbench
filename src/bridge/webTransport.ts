@@ -1,6 +1,7 @@
 import {
   normalizeBridgeEvent,
   parseEventSourceMessage,
+  type OplStateReadback,
   type OplBridgeEvent,
   type OplStudioSurface
 } from "./oplBridge";
@@ -72,7 +73,7 @@ export function installWebTransport(): void {
   const surface: WebSurface = {
     eventSourceUrl,
     beginWindowDrag: () => undefined,
-    readState: (profile = "fast") => requestJson(`/api/opl/state?profile=${encodeURIComponent(profile)}`),
+    readState: (profile = "fast") => requestJson<OplStateReadback>(`/api/opl/state?profile=${encodeURIComponent(profile)}`),
     readFullDrilldown: () => requestJson("/api/opl/drilldown"),
     readContribution: (request) => postJson("/api/opl/contribution/read", request),
     executeAction: (request) => postJson("/api/opl/action", request),
