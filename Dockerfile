@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG NODE_IMAGE=node:22-bookworm-slim
+ARG NODE_IMAGE=node:22-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436
 
 FROM ${NODE_IMAGE} AS source-builder-base
 RUN apt-get update \
@@ -30,7 +30,7 @@ RUN npm install --global --prefix /opt/codex "${OPL_CODEX_NPM_SPEC}" \
 
 FROM source-builder-base AS app-product-profile
 ARG OPL_APP_REPOSITORY=https://github.com/gaofeng21cn/one-person-lab-app.git
-ARG OPL_APP_REF=926444c51e69726ddf791b98f98d3f3f967a592b
+ARG OPL_APP_REF=65e6d5674d0bcd6aacd977dfbfcbecd925627ae6
 WORKDIR /src/one-person-lab-app
 RUN git init \
   && git remote add origin "${OPL_APP_REPOSITORY}" \
@@ -54,7 +54,13 @@ COPY --from=app-product-profile /src/one-person-lab-app/contracts/app-product-pr
 RUN npm run build:webui
 
 FROM ${NODE_IMAGE} AS runtime
+ARG OPL_SOURCE_REVISION=local-candidate
 WORKDIR /app
+
+LABEL org.opencontainers.image.title="One Person Lab" \
+  org.opencontainers.image.description="One Person Lab headless WebUI carrier" \
+  org.opencontainers.image.source="https://github.com/gaofeng21cn/opl-studio" \
+  org.opencontainers.image.revision="${OPL_SOURCE_REVISION}"
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates git \

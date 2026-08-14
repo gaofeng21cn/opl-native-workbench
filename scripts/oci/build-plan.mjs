@@ -1,0 +1,67 @@
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+export const multiArchPlatforms = Object.freeze(["linux/amd64", "linux/arm64"]);
+
+function required(value, name) {
+  if (typeof value !== "string" || !value || /[\0\r\n]/.test(value)) {
+    throw new Error(`${name} must be a non-empty single-line value`);
+  }
+  return value;
+}
+
+export function createMultiArchBuildPlan({ image, sourceRevision, output }) {
+  const imageRef = required(image, "image");
+  const revision = required(sourceRevision, "sourceRevision");
+  const destination = path.resolve(required(output, "output"));
+  if (/:latest$/.test(imageRef)) throw new Error("image must not use the latest tag");
+  if (!/^[a-f0-9]{40}$/.test(revision)) throw new Error("sourceRevision must be an exact 40-character Git SHA");
+  return {
+    schema: "one_person_lab_oci_multi_arch_build_plan.v1",
+    status: "plan_only",
+    platforms: multiArchPlatforms,
+    image: imageRef,
+    sourceRevision: revision,
+    output: destination,
+    command: [
+      "docker", "buildx", "build",
+      "--platform", multiArchPlatforms.join(","),
+      "--provenance=mode=max",
+      "--sbom=true",
+      "--output", `type=oci,dest=${destination}`,
+      "--build-arg", `OPL_SOURCE_REVISION=${revision}`,
+      "--tag", imageRef,
+      "."
+    ],
+    evidenceBoundary: {
+      executesBuild: false,
+      publishesImage: false,
+      hostedArchitectureQualified: false,
+      registryDigestKnown: false,
+      signatureVerified: false
+    }
+  };
+}
+
+function parse(argv) {
+  const options = {};
+  for (let index = 0; index < argv.length; index += 2) {
+    const flag = argv[index];
+    const value = argv[index + 1];
+    if (!value) throw new Error(`Missing value for ${flag}`);
+    if (flag === "--image") options.image = value;
+    else if (flag === "--source-revision") options.sourceRevision = value;
+    else if (flag === "--output") options.output = value;
+    else throw new Error(`Unknown option: ${flag}`);
+  }
+  return options;
+}
+
+if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
+  try {
+    process.stdout.write(`${JSON.stringify(createMultiArchBuildPlan(parse(process.argv.slice(2))), null, 2)}\n`);
+  } catch (error) {
+    process.stderr.write(`${JSON.stringify({ status: "oci_build_plan_failed", message: error.message }, null, 2)}\n`);
+    process.exitCode = 1;
+  }
+}

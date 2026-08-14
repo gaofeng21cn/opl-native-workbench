@@ -1,0 +1,32 @@
+# Managed by scripts/oci/manage.mjs. OPL_APP_IMAGE must be an immutable digest
+# or a local image ID resolved by that manager.
+services:
+  one-person-lab:
+    image: ${OPL_APP_IMAGE:?immutable OPL_APP_IMAGE is required}
+    pull_policy: never
+    init: true
+    user: "1000:1000"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 512
+    environment:
+      OPL_HEADLESS_HOST: 0.0.0.0
+      OPL_HEADLESS_PORT: 4178
+      OPL_STUDIO_CODEX_CWD: /projects
+      OPL_NATIVE_WORKBENCH_READ_ONLY: ${OPL_APP_READ_ONLY:-1}
+    ports:
+      - "127.0.0.1:${OPL_APP_PORT:-4178}:4178"
+    volumes:
+      - opl-data:/data
+      - opl-projects:/projects
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m
+    stop_grace_period: 10s
+    restart: unless-stopped
+
+volumes:
+  opl-data:
+  opl-projects:

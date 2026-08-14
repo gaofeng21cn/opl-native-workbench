@@ -1,0 +1,164 @@
+import assert from "node:assert/strict";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtemp } from "node:fs/promises";
+import net from "node:net";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const suffix = `${process.pid}-${Date.now()}`;
+const imageA = `opl-studio-oci-lifecycle-a:${suffix}`;
+const imageB = `opl-studio-oci-lifecycle-b:${suffix}`;
+const project = `opl-oci-${suffix}`.toLowerCase();
+const stateDirectory = await mkdtemp(path.join(os.tmpdir(), "opl-oci-state-"));
+const sourceCompose = path.join(root, "docker-compose.distribution.yaml");
+
+function docker(...args) {
+  return execFileSync("docker", args, { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 }).trim();
+}
+
+function manager(action, ...args) {
+  const output = execFileSync(process.execPath, [
+    "scripts/oci/manage.mjs",
+    action,
+    "--state-dir", stateDirectory,
+    ...args
+  ], { cwd: root, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
+  return JSON.parse(output);
+}
+
+async function freePort() {
+  const server = net.createServer();
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  return address.port;
+}
+
+async function waitFor(url, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) return response;
+      lastError = new Error(`${url} returned ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw lastError ?? new Error(`${url} did not become available`);
+}
+
+function containerId() {
+  return docker(
+    "ps",
+    "--filter", `label=com.docker.compose.project=${project}`,
+    "--filter", "label=com.docker.compose.service=one-person-lab",
+    "--format", "{{.ID}}"
+  );
+}
+
+const port = await freePort();
+const volumeNames = [`${project}_opl-data`, `${project}_opl-projects`];
+const revisionA = "a".repeat(40);
+const revisionB = "b".repeat(40);
+
+try {
+  for (const [image, revision] of [[imageA, revisionA], [imageB, revisionB]]) {
+    const build = spawnSync("docker", [
+      "build",
+      "--build-arg", `OPL_SOURCE_REVISION=${revision}`,
+      "--tag", image,
+      "."
+    ], { cwd: root, stdio: "inherit", timeout: 20 * 60_000 });
+    assert.equal(build.status, 0, `docker build failed for ${image} with ${build.status}`);
+  }
+  const imageAId = docker("image", "inspect", imageA, "--format", "{{.Id}}");
+  const imageBId = docker("image", "inspect", imageB, "--format", "{{.Id}}");
+  assert.notEqual(imageAId, imageBId);
+
+  const baseArgs = [
+    "--allow-local-image",
+    "--project-name", project,
+    "--port", String(port)
+  ];
+  const installed = manager("install", "--image", imageA, ...baseArgs);
+  assert.equal(installed.status, "oci_installed");
+  assert.equal(installed.current.immutableRef, imageAId);
+  assert.equal((await waitFor(`http://127.0.0.1:${port}/healthz`, 30_000)).status, 200);
+  let container = containerId();
+  docker("exec", container, "node", "-e", "require('fs').writeFileSync('/projects/oci-lifecycle-marker','persistent')");
+
+  const updated = manager("update", "--image", imageB, ...baseArgs);
+  assert.equal(updated.status, "oci_updated");
+  assert.equal(updated.current.immutableRef, imageBId);
+  container = containerId();
+  assert.equal(docker("inspect", container, "--format", "{{.Image}}"), imageBId);
+  assert.equal(docker("exec", container, "cat", "/projects/oci-lifecycle-marker"), "persistent");
+
+  const rolledBack = manager("rollback", ...baseArgs);
+  assert.equal(rolledBack.status, "oci_rolled_back");
+  container = containerId();
+  assert.equal(docker("inspect", container, "--format", "{{.Image}}"), imageAId);
+  assert.equal(docker("exec", container, "cat", "/projects/oci-lifecycle-marker"), "persistent");
+  assert.equal(manager("recreate", ...baseArgs).status, "oci_recreated");
+  assert.equal(manager("start", ...baseArgs).status, "oci_started");
+
+  container = containerId();
+  assert.equal(docker("inspect", container, "--format", "{{.Config.User}}"), "1000:1000");
+  assert.equal(docker("inspect", container, "--format", "{{.HostConfig.ReadonlyRootfs}}"), "true");
+  assert.match(docker("inspect", container, "--format", "{{json .HostConfig.SecurityOpt}}"), /no-new-privileges/);
+  assert.match(docker("inspect", container, "--format", "{{json .HostConfig.CapDrop}}"), /ALL/);
+  assert.equal(docker("inspect", container, "--format", "{{.HostConfig.PidsLimit}}"), "512");
+  assert.match(docker("port", container, "4178/tcp"), /^127\.0\.0\.1:/);
+
+  const preserved = manager("uninstall", ...baseArgs);
+  assert.equal(preserved.dataPreserved, true);
+  for (const volume of volumeNames) assert.ok(docker("volume", "inspect", volume));
+
+  manager("install", "--image", imageA, ...baseArgs);
+  container = containerId();
+  assert.equal(docker("exec", container, "cat", "/projects/oci-lifecycle-marker"), "persistent");
+  const purged = manager("uninstall", "--purge-data", ...baseArgs);
+  assert.equal(purged.dataPreserved, false);
+  for (const volume of volumeNames) {
+    const inspect = spawnSync("docker", ["volume", "inspect", volume], { stdio: "ignore" });
+    assert.notEqual(inspect.status, 0, `${volume} should be removed`);
+  }
+
+  console.log(JSON.stringify({
+    status: "oci_lifecycle_smoke_passed",
+    carrier: "shared_node_host_and_renderer",
+    installedImage: imageAId,
+    updatedImage: imageBId,
+    lifecycle: ["install", "start", "update", "recreate", "rollback", "uninstall"],
+    persistence: "survived_update_rollback_and_preserving_uninstall",
+    security: {
+      runtimeUser: "1000:1000",
+      readOnlyRoot: true,
+      noNewPrivileges: true,
+      droppedCapabilities: "ALL",
+      pidsLimit: 512,
+      publishedAddress: "127.0.0.1"
+    },
+    publicImagePublished: false,
+    hostedArchitectureQualified: false
+  }, null, 2));
+} finally {
+  spawnSync("docker", [
+    "compose", "--project-name", project,
+    "--file", sourceCompose,
+    "down", "--volumes", "--remove-orphans"
+  ], {
+    cwd: root,
+    env: { ...process.env, OPL_APP_IMAGE: imageA, OPL_APP_PORT: String(port) },
+    stdio: "ignore"
+  });
+  spawnSync("docker", ["image", "rm", "--force", imageA, imageB], { stdio: "ignore" });
+}
