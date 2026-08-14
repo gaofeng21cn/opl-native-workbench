@@ -38,7 +38,28 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
       status: request.dryRun === false ? "executed" : "preview_ready"
     })
   };
-  const host = await createWebUiHost({ transport, opl, webRoot: directory });
+  const nativeUpdateOperations = [];
+  const host = await createWebUiHost({
+    transport,
+    opl,
+    nativeUpdater: {
+      perform: async (operation) => {
+        nativeUpdateOperations.push(operation);
+        return {
+          schema: "opl_native_app_updater.v1",
+          owner: "one-person-lab-app_native_host",
+          host: "native",
+          carrierAdapter: "standalone_headless_webui",
+          operation,
+          supported: true,
+          state: operation === "restart" ? "restart_scheduled" : "idle",
+          restartRequired: operation === "apply",
+          accepted: true
+        };
+      }
+    },
+    webRoot: directory
+  });
   t.after(async () => {
     host.server.closeAllConnections();
     await host.close();
@@ -128,16 +149,16 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
   assert.equal(action.body.authorityBoundary, "app_bridge_no_domain_authority");
 
   const nativeUpdateStatus = await fetch(`${baseUrl}/api/native-app-update/status`).then((response) => response.json());
-  assert.equal(nativeUpdateStatus.supported, false);
-  assert.equal(nativeUpdateStatus.reasonCode, "native_host_required");
-  assert.equal(nativeUpdateStatus.ownerFallback, "one-person-lab-app");
+  assert.equal(nativeUpdateStatus.supported, true);
+  assert.equal(nativeUpdateStatus.host, "native");
+  assert.equal(nativeUpdateStatus.carrierAdapter, "standalone_headless_webui");
   for (const operation of ["check", "apply", "restart"]) {
     const updateResult = await post(baseUrl, `/api/native-app-update/${operation}`, {});
     assert.equal(updateResult.status, 200);
     assert.equal(updateResult.body.operation, operation);
-    assert.equal(updateResult.body.supported, false);
-    assert.equal(updateResult.body.state, "unsupported");
+    assert.equal(updateResult.body.supported, true);
   }
+  assert.deepEqual(nativeUpdateOperations, ["status", "check", "apply", "restart"]);
 
   const models = await fetch(`${baseUrl}/api/codex/models`).then((response) => response.json());
   assert.equal(models.data[0].id, "gpt-test");

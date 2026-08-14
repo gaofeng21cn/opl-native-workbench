@@ -46,8 +46,11 @@ test("shared host core serves desktop and HTTP adapters through one typed method
   assert.equal((await core.invoke("listThreads", {})).data.length, 5);
   assert.deepEqual(await core.invoke("pickFiles"), ["/tmp/one.txt"]);
   assert.equal(await core.invoke("pickDirectory"), "/tmp/project");
+  assert.deepEqual(await core.invoke("readNativeAppUpdateStatus"), { supported: true, operation: "status" });
   assert.deepEqual(await core.invoke("checkNativeAppUpdate"), { supported: true, operation: "check" });
-  assert.deepEqual(updateOperations, ["check"]);
+  assert.deepEqual(await core.invoke("applyNativeAppUpdate"), { supported: true, operation: "apply" });
+  assert.deepEqual(await core.invoke("restartNativeApp"), { supported: true, operation: "restart" });
+  assert.deepEqual(updateOperations, ["status", "check", "apply", "restart"]);
   await assert.rejects(
     core.invoke("unregisteredMethod"),
     (error) => error.code === "host_method_not_found" && error.httpStatus === 404

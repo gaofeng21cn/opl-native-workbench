@@ -282,15 +282,37 @@ export type GatewayAccountLoginResult =
 export type NativeAppUpdateOperation = "status" | "check" | "apply" | "restart";
 export type NativeAppUpdateResult = {
   schema: "opl_native_app_updater.v1";
-  owner: "one-person-lab-app_native_host";
-  host: "native" | "web" | "browser_placeholder";
+  owner: "one-person-lab-app_native_host" | "one-person-lab-app_desktop_host";
+  host: "electron" | "native" | "web" | "browser_placeholder";
+  carrierAdapter?: "electron_desktop" | "standalone_headless_webui" | "docker_webui";
   operation: NativeAppUpdateOperation;
   supported: boolean;
-  state: "unsupported" | "restart_scheduled";
+  state:
+    | "idle"
+    | "checking"
+    | "not-available"
+    | "not_available"
+    | "available"
+    | "downloading"
+    | "downloaded"
+    | "applying"
+    | "applied"
+    | "installing"
+    | "restart_scheduled"
+    | "recreating"
+    | "recreated"
+    | "busy"
+    | "cancelled"
+    | "error"
+    | "unsupported";
   currentVersion?: string;
-  accepted?: true;
+  targetVersion?: string;
+  progressPercent?: number;
+  accepted?: boolean;
   restartRequired: boolean;
-  reasonCode?: "native_updater_not_packaged" | "native_host_required" | "application_bundle_unavailable";
+  reasonCode?: string;
+  errorCode?: string;
+  message?: string;
   ownerFallback?: "one-person-lab-app";
 };
 

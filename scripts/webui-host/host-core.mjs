@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CodexAppServerTransport } from "./app-server-transport.mjs";
 import { createGatewayAccountLogin } from "./gateway-account-login.mjs";
-import { unsupportedNativeAppUpdate } from "./native-app-updater.mjs";
+import { createNativeAppUpdaterFromEnvironment } from "./native-app-updater.mjs";
 import { createOplPassthrough } from "./opl-passthrough.mjs";
 import { CodexThreadAdapter, ThreadAdapterError } from "./thread-adapter.mjs";
 
@@ -32,9 +32,7 @@ function defaultPlatformServices() {
 }
 
 function defaultNativeUpdater() {
-  return {
-    perform: async (operation) => unsupportedNativeAppUpdate(operation)
-  };
+  return createNativeAppUpdaterFromEnvironment();
 }
 
 export class OplHostCore extends EventEmitter {
