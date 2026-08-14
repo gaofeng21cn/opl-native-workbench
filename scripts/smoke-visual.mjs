@@ -19,7 +19,9 @@ const primitiveSource = read("src/ui/workbenchPrimitives.tsx");
 const moduleRegistry = read("src/renderers/moduleRegistry.ts");
 const settingsModel = read("src/workbench/settingsModel.ts");
 const evidenceSource = read("src/candidateContractEvidence.json");
-const packageScript = read("scripts/package-opl-studio.mjs");
+const desktopBuild = read("scripts/build-desktop.mjs");
+const desktopMain = read("desktop/main.mjs");
+const desktopPreload = read("desktop/preload.cjs");
 const rendererEntry = read("src/main.tsx");
 const rendererShell = read("src/renderer-shell.html");
 const evidence = readJson("src/candidateContractEvidence.json");
@@ -52,12 +54,14 @@ for (const marker of [
 ]) {
   assert(rendererSource.includes(marker), `missing polished MVP visual marker ${marker}`);
 }
-for (const marker of ["buildRenderer", "workbench.html", "renderer.js", "shared_renderer_entry"]) {
-  assert(packageScript.includes(marker), `missing packaged convergence marker ${marker}`);
+for (const marker of ["buildRenderer", "dist", "desktop", "index.html", "renderer.js"]) {
+  assert(desktopBuild.includes(marker), `missing desktop renderer convergence marker ${marker}`);
 }
-for (const marker of ["messageHandlers?.oplStudio", "installWebTransport", 'document.getElementById("root")']) {
+for (const marker of ["Boolean(window.oplStudio)", "installWebTransport", 'document.getElementById("root")']) {
   assert(rendererEntry.includes(marker), `missing shared renderer entry marker ${marker}`);
 }
+assert(desktopMain.includes("createOplHostCore") && desktopMain.includes('ipcMain.handle("opl:invoke"'), "desktop host must adapt the shared host core through IPC");
+assert(desktopPreload.includes('contextBridge.exposeInMainWorld("oplStudio"'), "desktop preload must expose the shared bridge ABI");
 for (const marker of ['<div id="root"></div>']) {
   assert(rendererShell.includes(marker), `missing renderer shell marker ${marker}`);
 }
@@ -70,7 +74,9 @@ assertNoFalseReadyFields({
   "src/renderers/moduleRegistry.ts": moduleRegistry,
   "src/candidateContractEvidence.json": evidenceSource,
   "src/main.tsx": rendererEntry,
-  "scripts/package-opl-studio.mjs": packageScript
+  "scripts/build-desktop.mjs": desktopBuild,
+  "desktop/main.mjs": desktopMain,
+  "desktop/preload.cjs": desktopPreload
 });
 
 console.log(JSON.stringify({

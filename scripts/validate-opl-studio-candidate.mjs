@@ -56,21 +56,23 @@ const requiredFiles = [
   "src/workbench/threads/ThreadLifecycleConfirmationDialog.tsx",
   "src/candidateContractEvidence.json",
   "scripts/build-renderer.mjs",
+  "scripts/build-desktop.mjs",
   "scripts/bun-build-renderer-entry.ts",
   "scripts/deepseek-harness-gui-vendor.mjs",
-  "scripts/model-list-pagination-regression.mjs",
-  "scripts/model-list-pagination-regression.swift",
-  "scripts/thread-list-pagination-regression.mjs",
-  "scripts/thread-list-pagination-regression.swift",
   "scripts/model-policy-regression.ts",
   "scripts/validate-state-model.mjs",
-  "scripts/validate-packaged-runtime.mjs",
+  "scripts/validate-desktop-package.mjs",
   "scripts/smoke-webui.mjs",
+  "scripts/smoke-desktop-live.mjs",
   "scripts/smoke-visual.mjs",
-  "scripts/package-opl-studio.mjs",
   "scripts/resolve-app-repo-root.mjs",
-  "scripts/opl-studio-app.swift",
+  "desktop/main.mjs",
+  "desktop/preload.cjs",
+  "desktop/updater.mjs",
   "scripts/webui-host/app-server-transport.mjs",
+  "scripts/webui-host/host-core.mjs",
+  "scripts/webui-host/host-core.test.mjs",
+  "scripts/webui-host/http-host.mjs",
   "scripts/webui-host/thread-adapter.mjs",
   "scripts/webui-host/thread-adapter.test.mjs",
   "tests/renderer/thread-renderer-source.test.mjs"
@@ -78,13 +80,14 @@ const requiredFiles = [
 
 const requiredScripts = [
   "dev",
+  "dev:desktop",
   "build",
   "webui",
   "build:webui",
+  "build:desktop",
   "verify:dsh-gui",
   "package",
-  "test:model-list-pagination",
-  "test:thread-list-pagination",
+  "test:desktop",
   "test:threads",
   "test:ui-contributions",
   "test:storage-migration",
@@ -159,24 +162,27 @@ assert(
   "Studio profile must require the OPL minimum-complete product without making release or AionUI parity implicit"
 );
 const expectedDeliveryEvaluation = {
-  role: "lightweight_opl_native_product_target",
+  role: "unified_opl_app_delivery_target",
   current_mainline: false,
   future_mainline_cutover_target: true,
   renderer_technology: "react",
-  macos_host: "swift_appkit_wkwebview",
-  workspace_host: "node_http_sse",
+  desktop_host: "electron",
+  desktop_platforms: ["macos", "windows", "linux"],
+  headless_host: "node_http_sse",
+  docker_host: "node_http_sse",
+  shared_host_core: "scripts/webui-host/host-core.mjs",
   workspace_product_name: "One Person Lab",
   shared_renderer_and_bridge_shape_required: true,
   runtime_backend_scope: "codex_cli_only",
   aionui_runtime_dependency_allowed: false,
   aioncore_runtime_dependency_allowed: false,
-  cross_platform_wrapper_selection: "deferred_electron_or_tauri",
-  windows_linux_support_claim_allowed: false,
+  cross_platform_wrapper_selection: "electron_selected",
+  windows_linux_source_support: true,
   release_adoption_requires_separate_app_qualification: true
 };
 assert(
   JSON.stringify(studioProfile.delivery_evaluation) === JSON.stringify(expectedDeliveryEvaluation),
-  "Studio profile must declare the lightweight native macOS and OPL Studio WebUI product target"
+  "Studio profile must declare one renderer and host core across desktop, headless, and Docker targets"
 );
 assert(
   studioProfile.runtime_dependency_policy?.aioncore_required === false
@@ -198,9 +204,11 @@ assert(
 );
 assert(
   !Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).some((name) =>
-    ["aioncore", "aionui", "electron", "tauri"].some((forbidden) => name.toLowerCase().includes(forbidden))
-  ),
-  "candidate package must not declare AionUI, AionCore, Electron, or Tauri dependencies"
+    ["aioncore", "aionui", "tauri"].some((forbidden) => name.toLowerCase().includes(forbidden))
+  ) && pkg.devDependencies?.electron === "37.10.3"
+    && pkg.devDependencies?.["electron-builder"] === "26.8.1"
+    && pkg.dependencies?.["electron-updater"] === "6.8.3",
+  "candidate package must use the selected Electron carrier without AionUI, AionCore, or Tauri dependencies"
 );
 
 const app = read("src/workbench/App.tsx");
@@ -245,7 +253,9 @@ function assertSourceMarkerRequirements(evidence) {
 
 function assertPrivateThreadLayerRemoved(evidence) {
   const runtimeSources = [
-    "scripts/opl-studio-app.swift",
+    "desktop/main.mjs",
+    "desktop/preload.cjs",
+    "scripts/webui-host/host-core.mjs",
     "scripts/webui-host/app-server-transport.mjs",
     "scripts/webui-host/http-host.mjs",
     "scripts/webui-host/thread-adapter.mjs",
@@ -273,12 +283,13 @@ function assertPrivateThreadLayerRemoved(evidence) {
   assert(evidence.functional_mvp?.private_coordination_layer === false, "functional MVP must reject a private coordination layer");
   assert(evidence.webui_transport?.private_coordination_layer === false, "WebUI must reject a private coordination layer");
   assert(
-    evidence.webui_transport?.native_host === "scripts/opl-studio-app.swift"
-      && evidence.webui_transport.native_transport === "src/main.tsx#installNativeTransport",
-    "packaged macOS evidence must use the Swift WKScriptMessageHandler transport"
+    evidence.webui_transport?.host_core === "scripts/webui-host/host-core.mjs"
+      && evidence.webui_transport.native_host === "desktop/main.mjs"
+      && evidence.webui_transport.native_transport === "desktop/preload.cjs#window.oplStudio",
+    "desktop and WebUI evidence must share the Node host core through thin transport adapters"
   );
   assert(evidence.functional_mvp?.codex_subagent_projection?.includes("collabAgentToolCall"), "functional MVP must record Codex subagent item projection");
-  assert(evidence.thread_list_pagination_regression?.validation_command === "npm run test:thread-list-pagination", "candidate evidence must record the thread/list regression command");
+  assert(evidence.thread_list_pagination_regression?.validation_command === "npm run test:webui-host", "candidate evidence must record the thread/list regression command");
   assert(evidence.thread_list_pagination_regression?.fixtures?.includes("scripts/webui-host/thread-adapter.test.mjs"), "candidate evidence must record the WebUI thread adapter fixture");
   for (const retired of [
     "typed_cross_top_level_thread_host_bridge",
@@ -394,12 +405,6 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
       && activePlan.includes("active_product_development_release_admission_separate"),
     "Active Truth must preserve product development and separate release admission"
   );
-  assert(
-    publicEntry.includes("first-party Native implementation target")
-      && publicEntry.includes("AionUI remains the active release shell")
-      && publicEntry.includes("minimum-complete"),
-    "public entry must preserve the Native successor, current-mainline, and minimum-complete boundaries"
-  );
   const legacyClaims = `${publicEntry}\n${architecture}\n${JSON.stringify(evidence)}`.toLowerCase();
   for (const claim of ["imagegen", "image-generated", "three-column", "chat_first_with_preview_inspector", "preview inspector default-open"]) {
     assert(!legacyClaims.includes(claim), `legacy visual baseline claim must be removed: ${claim}`);
@@ -418,7 +423,9 @@ function assertCodexModelControls(evidence, app, rendererSource) {
   const rendererBuilder = read("scripts/build-renderer.mjs");
   const appRepoResolver = read("scripts/resolve-app-repo-root.mjs");
   const bridge = read("src/bridge/oplBridge.ts");
-  const nativeApp = read("scripts/opl-studio-app.swift");
+  const hostTransport = read("scripts/webui-host/app-server-transport.mjs");
+  const hostCore = read("scripts/webui-host/host-core.mjs");
+  const oplPassthrough = read("scripts/webui-host/opl-passthrough.mjs");
   const appRepoRoot = resolveAppRepoRoot(root);
   const appProductProfilePath = path.join(appRepoRoot, "contracts", "app-product-profile.json");
   const appProductProfile = JSON.parse(fs.readFileSync(appProductProfilePath, "utf8"));
@@ -432,7 +439,7 @@ function assertCodexModelControls(evidence, app, rendererSource) {
   assert(settings.includes('agentPermissions: ":danger-full-access"'), "renderer settings must default Agent permissions to full access");
   assert(app.includes("permissions: settings.agentPermissions"), "composer must send the selected Agent permission profile");
   assert(bridge.includes('defaultPermissions: ":danger-full-access"'), "browser bridge must default Agent permissions to full access");
-  assert(nativeApp.includes('private static let defaultPermissions = ":danger-full-access"'), "native bridge must default Agent permissions to full access");
+  assert(hostTransport.includes('DEFAULT_PERMISSION_PROFILE = ":danger-full-access"'), "shared host core must default Agent permissions to full access");
   assert(injectedPolicy.defaultModel === appProductProfile.default_session_profile.model, "injected default model must match the App product profile");
   assert(injectedPolicy.defaultReasoningEffort === appProductProfile.default_session_profile.reasoning_effort, "injected default reasoning effort must match the App product profile");
   assert(injectedPolicy.visibleModels.length === profileModels.length, "injected model list length must match the App product profile");
@@ -454,18 +461,10 @@ function assertCodexModelControls(evidence, app, rendererSource) {
     regression.status === 0,
     `dynamic model policy regression failed\n${regression.stdout ?? ""}\n${regression.stderr ?? ""}`
   );
-  const paginationRegression = spawnSync("node", [path.join(root, "scripts", "model-list-pagination-regression.mjs")], {
-    cwd: root,
-    encoding: "utf8"
-  });
-  assert(
-    paginationRegression.status === 0,
-    `model/list pagination regression failed\n${paginationRegression.stdout ?? ""}\n${paginationRegression.stderr ?? ""}`
-  );
   assert(evidence.model_policy_regression?.fixture === "scripts/model-policy-regression.ts", "candidate evidence must record the dynamic model policy regression fixture");
   assert(evidence.model_policy_regression?.validation_command === "npm run validate:candidate", "candidate evidence must record the model policy regression command");
-  assert(evidence.model_list_pagination_regression?.fixture === "scripts/model-list-pagination-regression.swift", "candidate evidence must record the model/list pagination fixture");
-  assert(evidence.model_list_pagination_regression?.validation_command === "npm run test:model-list-pagination", "candidate evidence must record the model/list pagination command");
+  assert(evidence.model_list_pagination_regression?.fixture === "scripts/webui-host/host-core.test.mjs", "candidate evidence must record the model/list pagination fixture");
+  assert(evidence.model_list_pagination_regression?.validation_command === "npm run test:webui-host", "candidate evidence must record the model/list pagination command");
   assert(settings.includes('modelAccess: "__auto"'), "settings must default to App-owned Auto model resolution");
   assert(settings.includes("codexModelPolicy.defaultReasoningEffort"), "settings default reasoning must consume the App-derived policy");
   assert(policySource.includes("codexModelPolicy.modelOptions.map") && app.includes("modelOptions.map"), "composer and Settings must render the App-derived model list");
@@ -490,21 +489,15 @@ function assertCodexModelControls(evidence, app, rendererSource) {
   assert(bridge.includes("model?: string"), "bridge request must carry the App-selected model override");
   assert(bridge.includes("reasoningEffort?: string"), "bridge request must carry the App-selected reasoning override");
   assert(bridge.includes("readCodexModels()"), "bridge must expose the app-server model catalog");
-  assert(nativeApp.includes('method: "model/list"'), "native app must read app-server model/list");
-  assert(nativeApp.includes('params["cursor"] = cursor'), "native app must follow app-server model/list cursors");
-  assert(nativeApp.includes("models.append(contentsOf: pageModels)"), "native app must merge model/list pages");
-  assert(nativeApp.includes('turnParams["model"] = model'), "native app must pass model to app-server turn/start");
-  assert(nativeApp.includes('turnParams["effort"] = effort'), "native app must pass effort to app-server turn/start");
-  for (const marker of [
-    "OPL_CODEX_BIN",
-    "OPL_APP_OPL_BIN",
-    "OPL_APP_RUNTIME_IDENTITY_JSON",
-    "readRuntimeIdentity",
-    "OPL_STUDIO_READ_ONLY",
-    "blocked_read_only",
-    "candidate_read_only_policy"
-  ]) {
-    assert(nativeApp.includes(marker), `native app must preserve launcher/runtime safety marker ${marker}`);
+  assert(hostTransport.includes('this.request("model/list"'), "shared host core must read app-server model/list");
+  assert(hostTransport.includes("...(cursor ? { cursor } : {})"), "shared host core must follow app-server model/list cursors");
+  assert(hostTransport.includes("data.push(...page.data)"), "shared host core must merge model/list pages");
+  assert(hostTransport.includes("...(model ? { model } : {})"), "shared host core must pass model to app-server turn/start");
+  assert(hostTransport.includes("...(reasoningEffort ? { effort: reasoningEffort } : {})"), "shared host core must pass effort to app-server turn/start");
+  assert(hostTransport.includes("process.env.OPL_CODEX_BIN"), "shared host core must consume the App launcher Codex executable");
+  assert(hostCore.includes("process.env.OPL_NATIVE_WORKBENCH_CODEX_CWD"), "shared host core must consume the App launcher workspace");
+  for (const marker of ["OPL_APP_OPL_BIN", "OPL_NATIVE_WORKBENCH_READ_ONLY", "blocked_read_only", "candidate_read_only_policy"]) {
+    assert(oplPassthrough.includes(marker), `shared host core must preserve launcher/runtime safety marker ${marker}`);
   }
   assert(rendererBuilder.includes("__OPL_CODEX_MODEL_POLICY__"), "renderer build must inject the App-owned model policy");
   assert(rendererBuilder.includes("resolveAppRepoRoot"), "renderer build must resolve the App repo through the shared helper");
@@ -565,7 +558,10 @@ for (const capability of [
   "native_react_workbench_renderer",
   "dynamic_app_product_profile_model_policy",
   "codex_app_server_thread_turn_backend",
-  "native_wkwebview_command_bridge",
+  "electron_context_isolated_ipc_bridge",
+  "shared_node_host_core",
+  "cross_platform_electron_desktop",
+  "headless_webui",
   "results_and_delivery_first_presentation",
   "opl_app_state_bridge",
   "opl_app_action_bridge",

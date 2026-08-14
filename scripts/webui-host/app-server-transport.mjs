@@ -87,7 +87,7 @@ function agentSelectionContext(selection) {
 
 export class CodexAppServerTransport extends EventEmitter {
   constructor({
-    command = process.env.CODEX_APP_SERVER_COMMAND ?? "codex",
+    command = process.env.OPL_CODEX_BIN ?? process.env.CODEX_APP_SERVER_COMMAND ?? "codex",
     args = process.env.CODEX_APP_SERVER_ARGS?.split(" ").filter(Boolean) ?? ["app-server", "--stdio"],
     cwd = process.env.OPL_STUDIO_CODEX_CWD ?? process.cwd(),
     env = process.env,
@@ -174,14 +174,19 @@ export class CodexAppServerTransport extends EventEmitter {
     child.kill("SIGTERM");
     await new Promise((resolve) => {
       if (child.exitCode !== null) return resolve();
-      const timer = setTimeout(() => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(forceTimer);
+        clearTimeout(abandonTimer);
+        resolve();
+      };
+      const forceTimer = setTimeout(() => {
         child.kill("SIGKILL");
-        resolve();
       }, 2_000);
-      child.once("exit", () => {
-        clearTimeout(timer);
-        resolve();
-      });
+      const abandonTimer = setTimeout(finish, 5_000);
+      child.once("exit", finish);
     });
   }
 

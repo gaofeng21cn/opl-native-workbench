@@ -17,10 +17,13 @@ DeepSeek Harness App frame, navigation, conversation, composer, Settings,
 theme, and queue source as its visual and interaction baseline, then composes
 OPL-owned capabilities through typed contribution boundaries.
 
-The implementation has one React renderer, Swift/AppKit + WKWebView on macOS,
-and a Node HTTP/SSE OPL Workspace host. Both start Codex CLI App Server directly
-and consume Framework state/action contracts without AionUI/AionCore, a
-multi-backend abstraction, or a second thread/session store.
+The implementation has one React renderer and one shared Node host core.
+Electron packages them for macOS, Windows, and Linux, while a thin HTTP/SSE
+adapter exposes standalone WebUI and headless operation. Every carrier starts
+Codex CLI App Server directly and consumes Framework state/action contracts
+without AionUI/AionCore, a multi-backend abstraction, or a second thread/session
+store. The successor Docker carrier uses the same WebUI/host core and never runs
+Electron.
 
 Native development is required against the App-owned minimum-complete product
 contract. It must preserve the necessary user outcomes of the current AionUI
@@ -40,10 +43,10 @@ release admission, and is explicitly adopted.
 | Product completion obligation | `true` | Minimum-complete Native gaps enter the App development backlog without blocking the current AionUI release |
 | DSH GUI baseline | `pinned_source_reuse_implemented` | App frame, navigation, conversation, composer, Settings, theme, and queue are reused from the pinned MIT upstream source; OPL features enter through composition/adapters |
 | Product brand | `one_person_lab_only` | `OPL Studio` remains an internal repo/codename and is not a user-facing product brand or logo |
-| Renderer/hosts | `source_implemented_candidate_evidence` | Native macOS and Workspace evaluate one OPL renderer/bridge shape; packaged and Web smoke pass, but release-cohort equivalence is not proven |
-| macOS host | `swift_appkit_wkwebview` | Electron is not required or packaged for the candidate |
-| Workspace host | `node_http_sse` | Candidate WebUI starts Codex App Server directly; no Electron/AionCore or Desktop database |
-| Cross-platform delivery | `not_candidate_obligation` | Electron/Tauri selection and Windows/Linux acceptance require a future owner decision |
+| Renderer/hosts | `shared_renderer_and_node_host_core_implemented` | Electron IPC and HTTP/SSE adapt one host core and one renderer; release-cohort equivalence is not proven |
+| Desktop host | `electron_selected_source_implemented` | macOS directory package and live window are proven locally; Windows/Linux remain source targets pending native qualification |
+| Headless/WebUI host | `node_http_sse_implemented` | Candidate WebUI starts Codex App Server directly; no Electron/AionCore or Desktop database |
+| Docker carrier | `successor_oci_not_yet_implemented` | Must package the same Node host core/renderer with explicit Base, Codex, volume, update, and security contracts |
 | AionUI/AionCore dependency | `false` | Native starts Codex App Server directly and consumes only Framework App state/action contracts |
 | Enabled carrier | `codex_app_server_stdio` | The candidate has one runtime carrier and one App Server child per native window or Web host |
 | Reserved carriers | `pi`, `hermes` disabled | Interface names only; no dependency, process, fallback, or UI path is enabled |
@@ -67,10 +70,11 @@ release admission, and is explicitly adopted.
 | Gap | Class | Owner route | Stop condition |
 | --- | --- | --- | --- |
 | App contract currentness must be re-read before any change | `structural_currentness_gate` | App contracts and GUI docs | Stop if the candidate write set conflicts with a newer App decision or active owner lane |
-| Native App update carrier is not packaged | `release_admission_p0` | App release producer plus Native host/package owner | Produce a dedicated signed/notarized Native artifact and signed feed, integrate one native updater engine, and prove check/download/apply/restart/version readback; do not consume the active AionUI `latest-mac.yml` |
+| Desktop App updater feed is not qualified | `release_admission_p0` | App release producer plus desktop package owner | Electron updater state/operations are implemented; produce signed artifacts and a dedicated signed feed, then prove check/download/apply/restart/version readback without consuming AionUI update metadata |
+| Successor OCI carrier is absent | `delivery_p0` | App release/install owner plus host-core owner | Build the Node-only image, bind Base/Codex inputs and persistent volumes, and prove install/start/update/rollback without Electron or AionCore |
+| Windows/Linux desktop qualification is absent | `delivery_p1` | Platform package owners | Run platform-native build/install/start/update/cleanup qualification; source configuration alone is not support evidence |
 | Framework producer must reach canonical SSOT | `cross_repo_integration_gate` | Framework UI contribution and managed-update producer | Fresh-replay Base check/apply, `runtime.detail`, disabled-package filtering, and standard-Agent route projection, then pass producer-consumer conformance |
 | App product SSOT must absorb the final baseline | `cross_repo_integration_gate` | App contracts/docs/tests | Keep necessary-outcome parity, Agent admission, Settings destinations, update ownership, and AionUI-to-Native adoption conditions aligned with the tested candidate |
-| Windows/Linux wrapper is not selected | `future_product_decision_not_candidate_gap` | Future cross-platform carrier owner | Do not add Electron/Tauri or claim support in this candidate task |
 | Adoption, clean-VM, same-cohort live parity, and release proof are absent | `non_blocking_candidate_evidence_gap` | App release owner and owning runtime/release surfaces | Do not promote docs/tests/package/local smoke to readiness; absence does not block App mainline |
 
 Remote cross-machine coordination, model-driven permission/write-set decisions,
@@ -84,12 +88,12 @@ does not depend on Team mode.
 
 ### Goal
 
-For Native product development, close the native updater release-admission
-slice and the remaining cross-repository producer/consumer admission against
+For successor product development, close the desktop updater and OCI delivery
+slices plus the remaining cross-repository producer/consumer admission against
 current App contracts while preserving the Codex-only thin-consumer boundary.
 Do not reproduce AionUI-only inherited surfaces, create a speculative
-multi-backend framework, or start an unrelated cross-platform delivery
-workstream.
+multi-backend framework, or duplicate the renderer/host core for another
+carrier.
 
 ### Write Scope
 
@@ -101,7 +105,7 @@ workstream.
 
 ### Non-goals And Forbidden Scope
 
-- no active-shell switch, release-channel change, Windows/Linux support, or readiness claim without
+- no active-shell switch, release-channel change, platform support, or readiness claim without
   App owner adoption;
 - no second product model, model catalog, package registry, thread/history
   store, permission control plane, runtime truth, domain truth, or artifact
@@ -111,7 +115,7 @@ workstream.
 - no conflation of AionUI Team executor orchestration with Codex App Server
   subagent lineage and activity projection;
 - no AionUI/AionCore runtime dependency or provider/session abstraction;
-- no Electron/Tauri dependency before the cross-platform carrier decision;
+- no second desktop runtime or Electron inside headless/Docker;
 - no AionUI, Hermes, AGUI, K-Dense, Open Science, or Codex source/brand vendoring.
 
 ### Live Truth Inputs
@@ -136,9 +140,8 @@ workstream.
    composer group.
 3. Absorb the tested Native and App contract bytes to their canonical `main`
    branches and read back exact remote commits/trees.
-4. Treat the Native signed updater carrier as the only remaining release-
-   admission implementation slice; keep `native_updater_not_packaged` truthful
-   until that carrier and post-restart version proof exist.
+4. Complete the successor OCI carrier and desktop updater cohorts without
+   importing AionUI/AionCore or creating a second host core.
 5. Preserve App state/action, Codex thread, package, domain, and false-ready
    boundaries, and keep AionUI active until explicit adoption.
 
@@ -151,7 +154,7 @@ workstream.
   repository as a risk map;
 - tracked Markdown relative-link scan;
 - `git diff --check`;
-- `npm run smoke:native-live` only when the authorized delta affects packaged
+- `npm run smoke:desktop-live` only when the authorized delta affects packaged
   local-window behavior.
 
 ### Completion Gate

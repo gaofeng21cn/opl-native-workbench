@@ -7,10 +7,11 @@ State: `active_product_development_release_admission_separate`
 Machine boundary: Human-readable Native product entry. App product and adoption truth stays in one-person-lab-app contracts; runtime/package truth stays in OPL Framework; domain truth stays with domain owners. This page does not prove active-shell adoption, release readiness, owner acceptance, or production readiness.
 -->
 
-`opl-studio` is the first-party Native implementation target for One
-Person Lab App. It develops a lightweight OPL-owned React renderer, native
-macOS Swift/AppKit + WKWebView host, lightweight OPL Workspace Node Web host,
-and their shared typed bridge.
+`opl-studio` is the internal repository and development codename for the
+first-party One Person Lab App successor. The product uses a DeepSeek
+Harness-derived React renderer and one shared Node host core. Electron is the
+thin desktop carrier for macOS, Windows, and Linux; HTTP/SSE exposes the same
+renderer and bridge for standalone WebUI, headless, and Docker forms.
 
 AionUI remains the active release shell. Selecting or launching Studio is a
 local development choice only; it does not change the release adapter, updater
@@ -19,19 +20,19 @@ and AionCore are not candidate renderer/runtime dependencies.
 
 Studio is now required product development against the App-owned minimum-complete
 contract. It is not a full AionUI parity program, scheduled workstream, or release
-blocker. The packaged macOS host starts Codex App Server directly
+blocker. The desktop and headless hosts start Codex App Server directly
 from `OPL_CODEX_BIN` or an exact external Codex executable, while OPL state and
 mutations remain behind Framework `opl app state/action` contracts. It does not
 package or read AionUI/AionCore manifests, sessions, or data.
 Codex App Server stdio is the only enabled carrier; `pi` and `hermes` are
 reserved disabled interface names and add no current code path or dependency.
 
-OPL Workspace serves the same renderer through a lightweight Node HTTP/SSE
-host, starts Codex App Server directly, and keeps Codex state in its own volume.
-Docker runs neither Electron nor AionCore. The architecture direction requires
-future Windows/Linux work to reuse this renderer and Codex-only boundary, but
-Electron versus Tauri remains deferred. Native is not responsible for that
-cross-platform delivery and neither platform is currently claimed as supported.
+OPL Workspace serves the same renderer through the shared Node host core and a
+lightweight HTTP/SSE adapter. Docker runs neither Electron nor AionCore. The
+source and package configuration include macOS, Windows, and Linux desktop
+targets, but each platform and the successor OCI carrier still require their
+own build, installation, update, and release qualification before they can be
+claimed as released or supported.
 
 The conversation directory is not a Native copy. It reads the canonical Codex
 state DB overview with `thread/list useStateDbOnly=true`, then opens the same
@@ -47,7 +48,7 @@ settings, and unsent drafts locally.
 - App state readback and action preview through the typed OPL bridge;
 - Settings, artifact previews, professional starter forms, and package status
   projections that remain refs-only;
-- one OPL-owned renderer across the packaged macOS host and OPL Workspace transport.
+- one OPL-owned renderer and host core across Electron desktop and OPL Workspace.
 
 The candidate may display only state and actions supplied by App/Framework
 contracts. Placeholder, fallback, or unavailable data remains visibly
@@ -114,8 +115,8 @@ npm test
 ```
 
 `npm test` covers typecheck, focused regressions, candidate/state validators,
-WebUI and visual smoke, package construction, and packaged-runtime validation.
-Run `npm run smoke:native-live` separately for local packaged-window evidence.
+WebUI and visual smoke, Electron package construction, and package validation.
+Run `npm run smoke:desktop-live` separately for local packaged-window evidence.
 See [verification](docs/verification.md) before interpreting either result.
 
 </details>

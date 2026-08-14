@@ -14,10 +14,10 @@ npm ci
 npm test
 ```
 
-`npm test` runs the repository's current typecheck, native-command and model
-pagination regressions, Gateway-account projection regression, standard thread
-adapter/lifecycle/subagent tests, candidate and state validators, WebUI and
-visual smoke, package construction, and packaged-runtime validation. Read
+`npm test` runs the repository's current typecheck, Electron host/updater tests,
+Gateway-account projection regression, standard thread adapter/lifecycle/
+subagent tests, candidate and state validators, WebUI and visual smoke,
+Electron directory packaging, and package validation. Read
 `package.json` before relying on this summary because the script is the command
 owner.
 
@@ -26,14 +26,15 @@ owner.
 | Command | Evidence layer |
 | --- | --- |
 | `npm run typecheck` | TypeScript source consistency |
+| `npm run test:desktop` | Electron isolation, IPC adapter, updater, and guarded shutdown behavior |
 | `npm run test:threads` | Standard Desktop/WebUI thread lifecycle, pagination, renderer, and Codex subagent projection tests |
-| `npm run test:thread-list-pagination` | Native Swift thread/list aggregation and repeated-cursor rejection |
+| `npm run test:webui-host` | Shared host core, HTTP/SSE, model/thread pagination, OPL projection, and read-only mutation guard |
 | `npm run validate:candidate` | Required source markers and false-ready guards |
 | `npm run validate:state-model` | App-state projection mapping |
 | `npm run smoke:webui` | Local WebUI host/renderer smoke |
 | `npm run smoke:visual` | Source-level visual smoke |
-| `npm run package` | Candidate bundle construction |
-| `npm run validate:package` | Packaged-runtime structure |
+| `npm run package` | Current-platform Electron directory package construction |
+| `npm run validate:package` | Electron package and three-platform builder configuration structure |
 
 When the App checkout mounts this repository at the expected candidate path,
 the App owner can also run `npm run validate:candidate:native`. That is App
@@ -42,13 +43,12 @@ candidate-conformance evidence, not release adoption.
 ## Local Packaged-App Smoke
 
 ```bash
-npm run smoke:native-live
+npm run smoke:desktop-live
 ```
 
-This command launches a fresh local candidate bundle, requires a new process and
-real window, executes packaged-bridge `thread/list` and `thread/read`, requires
-exactly one descendant `codex app-server --stdio`, captures the window, checks
-renderer markers, and verifies process cleanup. Its output is local candidate evidence only. It does not establish
+This command launches the current macOS directory package, requires a real
+window, and verifies that quitting the App removes its Electron and Codex App
+Server processes. Its output is local candidate evidence only. It does not establish
 clean-VM behavior, shared Runtime parity, active-shell adoption, or release
 readiness.
 

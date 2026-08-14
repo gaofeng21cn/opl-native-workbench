@@ -13,7 +13,8 @@ readback, Codex App Server, and domain owners retain their respective truth.
 one-person-lab-app product and candidate contracts
 -> OPL Framework app state/action JSON
 -> Codex App Server thread/turn protocol
--> native macOS and OPL Workspace transport adapters
+-> shared Node host core
+-> Electron IPC or HTTP/SSE transport adapter
 -> shared candidate renderer
 ```
 
@@ -24,29 +25,28 @@ thread truth, or domain authority.
 
 ## Renderer And Host Topology
 
-The source evaluates one OPL-owned React renderer with two candidate hosts:
+The implementation has one DeepSeek Harness-derived React renderer and one
+Node host core. Transport adapters do not own product or runtime behavior:
 
-- packaged macOS uses Swift/AppKit + WKWebView and a native
-  `WKScriptMessageHandler` bridge to local processes;
-- OPL Workspace uses a lightweight Node HTTP/SSE host and the same typed bridge
-  shape, with Codex state persisted in its container volume.
+- Electron packages the renderer and host core for macOS, Windows, and Linux,
+  exposing the typed `window.oplStudio` ABI through an isolated preload and
+  allowlisted IPC;
+- OPL Workspace exposes the same host core through loopback HTTP/SSE for
+  standalone WebUI and headless operation;
+- the successor Docker carrier will run the Node host core and WebUI only. It
+  does not run Electron or AionCore.
 
 The packaged candidate has an isolated name, path, bundle id, and default
-read-only action policy. Sharing a renderer is structural convergence evidence,
-not proof that both delivery surfaces have equivalent live behavior.
-
-Docker runs neither Electron nor AionCore and does not mount a Desktop-private
-database. The product direction requires future Windows/Linux carriers to reuse
-the renderer and bridge, but Native does not own that delivery. Electron and
-Tauri remain unselected until artifact size, signing, update, and installed
-acceptance are measured. No source marker here proves Windows/Linux support.
+read-only action policy. Source support and local package output are candidate
+evidence only. They do not prove a platform release, clean installation,
+updater cohort, Docker image, or cross-carrier runtime equivalence.
 
 ## Runtime Independence
 
-Native does not require, start, package, or read AionUI or AionCore. The packaged macOS
-host resolves `OPL_CODEX_BIN` or an exact external Codex executable and starts
-`codex app-server --stdio` directly. The Node WebUI host also talks directly to
-Codex App Server. Both hosts consume OPL only through Framework state/action
+Native does not require, start, package, or read AionUI or AionCore. The shared
+host core resolves `OPL_CODEX_BIN` or an exact external Codex executable and
+starts `codex app-server --stdio` directly. Every carrier consumes OPL only
+through Framework state/action
 contracts; AionUI/AionCore managed-resource manifests, provider abstractions,
 session/database state, backend, and authentication are not Native runtime inputs.
 
@@ -88,7 +88,7 @@ permissions, model catalog, and turn state. Native consumes the App Server
 thread/turn/event flow; `localStorage` is limited to UI selection, settings,
 and unsent drafts.
 
-Desktop and WebUI use one standard adapter for `thread/list`, `thread/read`,
+Electron and WebUI use one standard adapter for `thread/list`, `thread/read`,
 `thread/resume`, `thread/fork`, `thread/archive`, and `thread/unarchive`.
 `parentThreadId`, `agentRole`, `agentNickname`, subagent source kinds,
 `collabAgentToolCall`, and `subAgentActivity` are read-only Codex projections;
@@ -129,7 +129,7 @@ authority, export acceptance, or delivery readiness.
 ## Adoption Boundary
 
 AionUI is the current active release shell and only mainline. Studio is the
-first-party Native successor under active product development, but it does not
+internal development codename for the first-party successor, but it does not
 acquire mainline, full-AionUI-parity, release, or cross-platform delivery status
 before its minimum-complete and release gates pass. Adoption requires an
 explicit App owner decision and a change to the App shell adapter after the

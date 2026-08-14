@@ -1,7 +1,33 @@
 appId: cn.gflab.opl.studio.preview
 productName: One Person Lab Preview
+asar: true
+npmRebuild: false
 directories:
   output: out
 files:
-  - src/**/*
+  - desktop/**/*
+  - dist/desktop/**/*
+  - scripts/webui-host/**/*
   - package.json
+mac:
+  icon: assets/branding/opl-studio.icns
+  category: public.app-category.developer-tools
+  target:
+    - dmg
+    - zip
+win:
+  icon: assets/branding/opl-studio.png
+  target:
+    - nsis
+    - zip
+linux:
+  icon: assets/branding/opl-studio.png
+  category: Development
+  target:
+    - AppImage
+    - deb
+artifactName: one-person-lab-preview-${version}-${os}-${arch}.${ext}
+publish:
+  provider: github
+  owner: gaofeng21cn
+  repo: opl-studio

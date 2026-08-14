@@ -1,6 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compactFastState } from "./opl-passthrough.mjs";
+import { compactFastState, createOplPassthrough } from "./opl-passthrough.mjs";
+
+test("candidate blocks confirmed mutations unless the launcher explicitly enables actions", async () => {
+  const blocked = createOplPassthrough({
+    cwd: process.cwd(),
+    command: "/missing/opl-must-not-run",
+    allowActions: false
+  });
+  const receipt = await blocked.executeAction({
+    actionId: "test.mutate",
+    dryRun: false,
+    payload: { confirmed: true }
+  });
+  assert.equal(receipt.receiptKind, "blocked_read_only");
+  assert.equal(receipt.status, "blocked_read_only");
+  assert.equal(receipt.canExecute, false);
+  assert.equal(receipt.stderr, "candidate_read_only_policy");
+});
 
 test("fast state keeps GUI package fields without copying deep runtime payloads", () => {
   const compact = compactFastState({

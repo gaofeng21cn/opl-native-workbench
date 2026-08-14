@@ -10,19 +10,26 @@
     "release_blocking": false
   },
   "delivery_evaluation": {
-    "role": "lightweight_opl_native_product_target",
+    "role": "unified_opl_app_delivery_target",
     "current_mainline": false,
     "future_mainline_cutover_target": true,
     "renderer_technology": "react",
-    "macos_host": "swift_appkit_wkwebview",
-    "workspace_host": "node_http_sse",
+    "desktop_host": "electron",
+    "desktop_platforms": [
+      "macos",
+      "windows",
+      "linux"
+    ],
+    "headless_host": "node_http_sse",
+    "docker_host": "node_http_sse",
+    "shared_host_core": "scripts/webui-host/host-core.mjs",
     "workspace_product_name": "One Person Lab",
     "shared_renderer_and_bridge_shape_required": true,
     "runtime_backend_scope": "codex_cli_only",
     "aionui_runtime_dependency_allowed": false,
     "aioncore_runtime_dependency_allowed": false,
-    "cross_platform_wrapper_selection": "deferred_electron_or_tauri",
-    "windows_linux_support_claim_allowed": false,
+    "cross_platform_wrapper_selection": "electron_selected",
+    "windows_linux_source_support": true,
     "release_adoption_requires_separate_app_qualification": true
   },
   "canonical_docs": [

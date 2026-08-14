@@ -364,7 +364,12 @@ function boundedReadback(args, result) {
 
 export { compactFastState };
 
-export function createOplPassthrough({ cwd = process.cwd(), command = process.env.OPL_COMMAND ?? "opl" } = {}) {
+export function createOplPassthrough({
+  cwd = process.cwd(),
+  command = process.env.OPL_APP_OPL_BIN ?? process.env.OPL_COMMAND ?? "opl",
+  allowActions = process.env.OPL_NATIVE_WORKBENCH_READ_ONLY === "0"
+    || process.env.OPL_STUDIO_READ_ONLY === "0"
+} = {}) {
   return {
     async readState(profile = "fast") {
       const normalizedProfile = profile === "full" ? "full" : "fast";
@@ -402,27 +407,34 @@ export function createOplPassthrough({ cwd = process.cwd(), command = process.en
       const confirmed = payload.confirmed === true;
       const rollbackRef = typeof payload.rollbackRef === "string" ? payload.rollbackRef : undefined;
       const requestedMode = request.mode === "rollback" || request.mode === "execute" ? request.mode : "preview";
-      const receiptKind = !dryRun && !confirmed
+      const blockedReadOnly = !dryRun && !allowActions;
+      const receiptKind = blockedReadOnly
+        ? "blocked_read_only"
+        : !dryRun && !confirmed
         ? "confirmation_required"
         : (requestedMode === "rollback" || rollbackRef ? "rollback" : (dryRun ? "preview" : "execute"));
       const args = [command, "app", "action", "execute", "--action", actionId];
       if (Object.keys(payload).length) args.push("--payload", JSON.stringify(payload));
       if (dryRun) args.push("--dry-run");
       args.push("--json");
-      const result = !dryRun && !confirmed
+      const result = blockedReadOnly
+        ? { exitCode: -1, stdout: "", stderr: "candidate_read_only_policy", timedOut: false }
+        : !dryRun && !confirmed
         ? { exitCode: -1, stdout: "", stderr: "confirmation_required", timedOut: false }
         : await run(command, args.slice(1), { cwd, timeoutMs: 45_000 });
       return {
         actionId,
         dryRun,
         confirmationRequired: dryRun || (!dryRun && !confirmed),
-        canExecute: dryRun || confirmed,
+        canExecute: dryRun || (allowActions && confirmed),
         receiptKind,
         authorityBoundary: "app_bridge_no_domain_authority",
         requestedMode,
         status: result.timedOut
           ? "timed_out"
-          : (!dryRun && !confirmed ? "confirmation_required" : (result.exitCode === 0 ? (dryRun ? "preview_ready" : "executed") : "error")),
+          : (blockedReadOnly
+              ? "blocked_read_only"
+              : (!dryRun && !confirmed ? "confirmation_required" : (result.exitCode === 0 ? (dryRun ? "preview_ready" : "executed") : "error"))),
         ...commandReadback(args, result),
         payload,
         stdoutJson: jsonValue(result.stdout),

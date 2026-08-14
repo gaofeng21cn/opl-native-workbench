@@ -3,11 +3,8 @@ import { access, readFile } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { CodexAppServerTransport } from "./app-server-transport.mjs";
-import { createGatewayAccountLogin } from "./gateway-account-login.mjs";
-import { unsupportedNativeAppUpdate } from "./native-app-updater.mjs";
-import { createOplPassthrough } from "./opl-passthrough.mjs";
-import { CodexThreadAdapter, ThreadAdapterError } from "./thread-adapter.mjs";
+import { createOplHostCore } from "./host-core.mjs";
+import { ThreadAdapterError } from "./thread-adapter.mjs";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const mimeTypes = new Map([
@@ -74,28 +71,17 @@ async function serveStatic(url, res, webRoot) {
 }
 
 export async function createWebUiHost({
-  transport = new CodexAppServerTransport({ cwd: process.env.OPL_STUDIO_CODEX_CWD ?? repositoryRoot }),
-  opl = createOplPassthrough({ cwd: process.env.OPL_STUDIO_CODEX_CWD ?? repositoryRoot }),
-  gatewayAccountLogin = createGatewayAccountLogin({ cwd: process.env.OPL_STUDIO_CODEX_CWD ?? repositoryRoot }),
-  webRoot = path.join(repositoryRoot, "dist", "webui")
+  core,
+  webRoot = path.join(repositoryRoot, "dist", "webui"),
+  ...coreOptions
 } = {}) {
-  const threads = new CodexThreadAdapter(transport);
-  let appServerError = null;
-  try {
-    await transport.start();
-  } catch (error) {
-    appServerError = { code: error.code ?? "app_server_unavailable", message: error.message };
-  }
+  const hostCore = core ?? await createOplHostCore(coreOptions);
   const oplEventClients = new Set();
   const emitTo = (clients, event) => {
     const frame = `data: ${JSON.stringify(event)}\n\n`;
     for (const client of clients) client.write(frame);
   };
-  threads.on("event", (event) => emitTo(oplEventClients, event));
-  transport.on("availability", (availability) => {
-    const event = { method: "host/availability", params: availability };
-    emitTo(oplEventClients, event);
-  });
+  hostCore.on("event", (event) => emitTo(oplEventClients, event));
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
@@ -107,7 +93,7 @@ export async function createWebUiHost({
           connection: "keep-alive",
           "x-accel-buffering": "no"
         });
-        res.write(`data: ${JSON.stringify({ method: "host/ready", params: threads.capabilities() })}\n\n`);
+        res.write(`data: ${JSON.stringify({ method: "host/ready", params: hostCore.capabilities().threadAdapter })}\n\n`);
         oplEventClients.add(res);
         const heartbeat = setInterval(() => res.write(": heartbeat\n\n"), 15_000);
         req.once("close", () => {
@@ -117,62 +103,55 @@ export async function createWebUiHost({
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/capabilities") {
-        json(res, 200, {
-          localHost: true,
-          threadAdapter: threads.capabilities(),
-          appServerError,
-          oplPassthrough: { available: true, authorityBoundary: "app_bridge_no_domain_authority" }
-        });
+        json(res, 200, hostCore.capabilities());
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/opl/state") {
-        json(res, 200, await opl.readState(url.searchParams.get("profile") ?? "fast"));
+        json(res, 200, await hostCore.invoke("readState", { profile: url.searchParams.get("profile") ?? "fast" }));
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/opl/drilldown") {
-        json(res, 200, await opl.readFullDrilldown());
+        json(res, 200, await hostCore.invoke("readFullDrilldown"));
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/opl/contribution/read") {
-        json(res, 200, await opl.readContribution(await body(req)));
+        json(res, 200, await hostCore.invoke("readContribution", await body(req)));
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/opl/action") {
-        json(res, 200, await opl.executeAction(await body(req)));
+        json(res, 200, await hostCore.invoke("executeAction", await body(req)));
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/codex/models") {
-        json(res, 200, await transport.listModels());
+        json(res, 200, await hostCore.invoke("readCodexModels"));
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/codex/capabilities") {
-        json(res, 200, await transport.listCapabilities(url.searchParams.get("threadId") ?? undefined));
+        json(res, 200, await hostCore.invoke("readCodexCapabilities", { threadId: url.searchParams.get("threadId") ?? undefined }));
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/codex/permission-profiles") {
-        json(res, 200, await transport.listPermissionProfiles());
+        json(res, 200, await hostCore.invoke("readCodexPermissionProfiles"));
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/send-message") {
-        const request = await body(req);
-        const response = await transport.sendMessage(request);
-        json(res, 200, response);
+        json(res, 200, await hostCore.invoke("sendMessage", await body(req)));
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/turns/steer") {
-        json(res, 200, await transport.steerMessage(await body(req)));
+        json(res, 200, await hostCore.invoke("steerTurn", await body(req)));
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/turns/interrupt") {
-        json(res, 200, await transport.interruptMessage(await body(req)));
+        json(res, 200, await hostCore.invoke("interruptTurn", await body(req)));
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/opl-runtime/gateway-account-login") {
-        json(res, 200, await gatewayAccountLogin(await body(req)));
+        json(res, 200, await hostCore.invoke("loginGatewayAccount", await body(req)));
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/native-app-update/status") {
-        json(res, 200, unsupportedNativeAppUpdate("status"));
+        json(res, 200, await hostCore.invoke("readNativeAppUpdateStatus"));
         return;
       }
       const nativeUpdaterOperation = new Map([
@@ -182,17 +161,22 @@ export async function createWebUiHost({
       ]).get(url.pathname);
       if (req.method === "POST" && nativeUpdaterOperation) {
         await body(req);
-        json(res, 200, unsupportedNativeAppUpdate(nativeUpdaterOperation));
+        const method = {
+          check: "checkNativeAppUpdate",
+          apply: "applyNativeAppUpdate",
+          restart: "restartNativeApp"
+        }[nativeUpdaterOperation];
+        json(res, 200, await hostCore.invoke(method));
         return;
       }
 
       const postRoutes = new Map([
-        ["/api/threads/list", (value) => threads.listThreads(value)],
-        ["/api/threads/read", (value) => threads.readThread(value)],
-        ["/api/threads/resume", (value) => threads.resumeThread(value)],
-        ["/api/threads/fork", (value) => threads.forkThread(value)],
-        ["/api/threads/archive", (value) => threads.setArchived({ ...value, archived: true })],
-        ["/api/threads/unarchive", (value) => threads.setArchived({ ...value, archived: false })]
+        ["/api/threads/list", (value) => hostCore.invoke("listThreads", value)],
+        ["/api/threads/read", (value) => hostCore.invoke("readThread", value)],
+        ["/api/threads/resume", (value) => hostCore.invoke("resumeThread", value)],
+        ["/api/threads/fork", (value) => hostCore.invoke("forkThread", value)],
+        ["/api/threads/archive", (value) => hostCore.invoke("setArchived", { ...value, archived: true })],
+        ["/api/threads/unarchive", (value) => hostCore.invoke("setArchived", { ...value, archived: false })]
       ]);
       const route = req.method === "POST" ? postRoutes.get(url.pathname) : undefined;
       if (route) {
@@ -211,15 +195,16 @@ export async function createWebUiHost({
 
   return {
     server,
-    transport,
-    threads,
+    core: hostCore,
+    transport: hostCore.transport,
+    threads: hostCore.threads,
     async close() {
       for (const client of oplEventClients) client.end();
       if (server.listening) {
         server.closeAllConnections?.();
         await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
       }
-      await transport.stop();
+      await hostCore.close();
     }
   };
 }

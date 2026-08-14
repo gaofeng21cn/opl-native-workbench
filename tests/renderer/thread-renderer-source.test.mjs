@@ -21,8 +21,10 @@ const appFrame = read("src/vendor/deepseek-harness/packages/client/ui-layout/src
 const appFrameStyles = read("src/vendor/deepseek-harness/packages/client/ui-layout/src/client/AppFrame.module.css");
 const conversationStyles = read("src/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css");
 const settingsRoot = read("src/vendor/deepseek-harness/packages/client/ui-settings-general/src/client/SettingsRoot.tsx");
-const nativeWindow = read("scripts/opl-studio-app.swift");
-const nativeSmoke = read("scripts/smoke-native-app-live.mjs");
+const desktopMain = read("desktop/main.mjs");
+const desktopPreload = read("desktop/preload.cjs");
+const hostCore = read("scripts/webui-host/host-core.mjs");
+const appServerTransport = read("scripts/webui-host/app-server-transport.mjs");
 const rail = read("src/workbench/threads/ThreadRail.tsx");
 const detail = read("src/workbench/threads/ThreadDetailPopover.tsx");
 const lifecycle = read("src/workbench/threads/ThreadLifecycleConfirmationDialog.tsx");
@@ -40,14 +42,15 @@ test("renderer consumes one standard Codex thread adapter", () => {
   assert.match(app, /from "\.\.\/threads\/types"/);
   assert.match(app, /from "\.\/threads\/ThreadRail"/);
   for (const method of ["listThreads", "readThread", "resumeThread", "forkThread", "setArchived"]) {
-    assert.match(main, new RegExp(`${method}:`));
+    assert.match(desktopPreload, new RegExp(`${method}:`));
+    assert.match(hostCore, new RegExp(`case "${method}"`));
     assert.match(bridge, new RegExp(`${method}\\(`));
   }
   for (const route of ["/api/threads/list", "/api/threads/read", "/api/threads/resume", "/api/threads/fork", "/api/threads/archive", "/api/threads/unarchive"]) {
     assert.ok(webTransport.includes(route), `missing WebUI thread route ${route}`);
   }
 
-  const runtimeSources = `${app}\n${main}\n${bridge}\n${webTransport}\n${nativeWindow}`;
+  const runtimeSources = `${app}\n${main}\n${bridge}\n${webTransport}\n${desktopMain}\n${desktopPreload}\n${hostCore}`;
   for (const retired of [
     "prepareCoordination",
     "dispatchCoordination",
@@ -248,7 +251,7 @@ test("assistant display consumes Codex UI directives without rewriting Markdown 
   assert.match(visible, /::unknown-directive\{value="visible"\}/);
 });
 
-test("native window hosts the live DeepSeek Harness composition root", () => {
+test("Electron desktop hosts the live DeepSeek Harness composition root", () => {
   assert.match(slotHost, /import \{ AppFrame \} from "@opl-vendor\/dsh-app-frame"/);
   assert.match(slotHost, /import \{ SidebarRoot \} from "@opl-vendor\/dsh-sidebar-root"/);
   assert.match(slotHost, /import \{ ConversationRoot \} from "@opl-vendor\/dsh-conversation-root"/);
@@ -263,28 +266,16 @@ test("native window hosts the live DeepSeek Harness composition root", () => {
   assert.match(app, /conversationBody: studioConversationBody/);
   assert.match(app, /renderSettings: renderStudioSettings/);
   assert.match(main, /createRoot\(rootElement\)\.render\(renderOplStudioRoot\(\)\)/);
-  assert.match(main, /document\.documentElement\.dataset\.oplHost = nativeTransportInstalled \? "native" : "web"/);
-  assert.match(nativeWindow, /\.fullSizeContentView/);
-  assert.match(nativeWindow, /window\.titleVisibility = \.hidden/);
-  assert.match(nativeWindow, /window\.titlebarAppearsTransparent = true/);
-  assert.match(nativeWindow, /window\.titlebarSeparatorStyle = \.none/);
-  assert.match(nativeWindow, /window\.isMovableByWindowBackground = true/);
-  assert.match(bridge, /beginWindowDrag\(\)/);
-  assert.match(main, /beginWindowDrag: \(\) => \{\s*void post\("beginWindowDrag"\)/s);
-  assert.match(webTransport, /beginWindowDrag: \(\) => undefined/);
-  assert.match(nativeWindow, /if method == "beginWindowDrag"/);
-  assert.match(nativeWindow, /let currentEvent = NSApp\.currentEvent/);
-  assert.match(nativeWindow, /NSEvent\.mouseEvent\(/);
-  assert.match(nativeWindow, /NSEvent\.mouseLocation/);
-  assert.match(nativeWindow, /dragWindow\.performDrag\(with: event\)/);
-  assert.match(nativeWindow, /final class WindowDragView: NSView/);
-  assert.match(nativeWindow, /dragView\.leadingAnchor\.constraint\(equalTo: contentView\.leadingAnchor, constant: 96\)/);
-  assert.match(nativeWindow, /dragView\.trailingAnchor\.constraint\(equalTo: contentView\.trailingAnchor, constant: -64\)/);
-  assert.match(nativeWindow, /dragView\.heightAnchor\.constraint\(equalToConstant: 18\)/);
-  assert.doesNotMatch(nativeWindow, /dragView\.widthAnchor|equalToConstant: 164/);
-  assert.match(nativeSmoke, /output\.includes\("brand=1"\)/);
-  assert.doesNotMatch(nativeSmoke, /output\.includes\("codex=0"\)/);
-  assert.match(nativeSmoke, /global Codex project names are allowed/);
+  assert.match(main, /document\.documentElement\.dataset\.oplHost = desktopTransportInstalled \? "desktop" : "web"/);
+  assert.match(desktopMain, /new BrowserWindow\(/);
+  assert.match(desktopMain, /titleBarStyle: "hiddenInset"/);
+  assert.match(desktopMain, /contextIsolation: true/);
+  assert.match(desktopMain, /nodeIntegration: false/);
+  assert.match(desktopMain, /sandbox: true/);
+  assert.match(desktopMain, /ipcMain\.handle\("opl:invoke"/);
+  assert.match(desktopMain, /trustedRendererUrl\(event\.senderFrame\.url\)/);
+  assert.match(desktopPreload, /contextBridge\.exposeInMainWorld\("oplStudio"/);
+  assert.match(desktopPreload, /ipcRenderer\.invoke\("opl:invoke"/);
 });
 
 test("Web host exposes the product brand while keeping Studio as an internal client id", () => {
@@ -311,15 +302,13 @@ test("search, composer attachments, and Agent permissions route to real renderer
   assert.match(settings, /agentPermissions: ":danger-full-access"/);
   assert.match(app, /permissions: settings\.agentPermissions/);
   for (const method of ["readCodexCapabilities", "readCodexPermissionProfiles", "pickFiles", "pickDirectory"]) {
-    assert.match(main, new RegExp(`${method}:`));
+    assert.match(desktopPreload, new RegExp(`${method}:`));
+    assert.match(hostCore, new RegExp(`case "${method}"`));
     assert.match(bridge, new RegExp(`${method}\\(`));
   }
-  assert.match(nativeWindow, /case "readCodexCapabilities"/);
-  assert.match(nativeWindow, /case "readCodexPermissionProfiles"/);
-  assert.match(nativeWindow, /method: "permissionProfile\/list"/);
-  assert.match(nativeWindow, /private static let defaultPermissions = ":danger-full-access"/);
-  assert.match(nativeWindow, /case "pickFiles"/);
-  assert.match(nativeWindow, /case "pickDirectory"/);
+  assert.match(appServerTransport, /this\.request\("permissionProfile\/list"/);
+  assert.match(appServerTransport, /DEFAULT_PERMISSION_PROFILE = ":danger-full-access"/);
+  assert.match(desktopMain, /dialog\.showOpenDialog/);
   assert.match(composerPalette, /catalog\.skills/);
   assert.match(composerPalette, /seenSkillNames/);
   assert.match(composerPalette, /if \(!open\) \{\s*setQuery\(""\)/s);
@@ -335,7 +324,7 @@ test("DSH QueueDock owns queued follow-ups and steers the exact active Codex tur
   assert.doesNotMatch(`${app}\n${slotHost}`, /host_queue/);
 });
 
-test("native visual shell uses vendored DeepSeek Harness roots and theme tokens", () => {
+test("desktop visual shell uses vendored DeepSeek Harness roots and theme tokens", () => {
   const theme = read("src/vendor/deepseek-harness/packages/client/ui-theme/src/styles/design-platform.css");
   for (const marker of ["--dsw-static-deepseek-450", "--dsw-alias-bg-base", "--dsw-specific-sidebar-fill", "--dsw-alias-button-primary-fill"]) {
     assert.ok(theme.includes(marker), `missing DeepSeek Harness visual token: ${marker}`);
