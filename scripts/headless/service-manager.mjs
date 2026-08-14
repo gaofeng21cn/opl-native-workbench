@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -11,6 +12,14 @@ const serviceIds = {
 };
 const actions = new Set(["install", "status", "start", "stop", "restart", "uninstall"]);
 const modulePath = fileURLToPath(import.meta.url);
+
+function sameFile(left, right) {
+  try {
+    return realpathSync(left) === realpathSync(right);
+  } catch {
+    return false;
+  }
+}
 const repositoryRoot = path.resolve(path.dirname(modulePath), "../..");
 
 function xml(value) {
@@ -37,7 +46,32 @@ function systemdArgument(value) {
   return `"${safe}"`;
 }
 
-function launchAgent({ nodeExecutable, headlessEntry, workingDirectory, stdoutPath, stderrPath }) {
+function normalizedEnvironment(environment) {
+  if (!environment || typeof environment !== "object" || Array.isArray(environment)) {
+    throw new Error("serviceEnvironment must be an object");
+  }
+  return Object.entries(environment)
+    .filter(([, value]) => value !== undefined)
+    .map(([name, value]) => {
+      if (!/^[A-Z][A-Z0-9_]*$/.test(name)) throw new Error(`Invalid service environment name: ${name}`);
+      if (typeof value !== "string" || /[\0\r\n]/.test(value)) {
+        throw new Error(`${name} must be a single-line string`);
+      }
+      return [name, value];
+    })
+    .sort(([left], [right]) => left.localeCompare(right));
+}
+
+function launchEnvironment(entries) {
+  if (!entries.length) return "";
+  return `  <key>EnvironmentVariables</key>
+  <dict>
+${entries.map(([name, value]) => `    <key>${name}</key>\n    <string>${xml(value)}</string>`).join("\n")}
+  </dict>
+`;
+}
+
+function launchAgent({ nodeExecutable, headlessEntry, workingDirectory, stdoutPath, stderrPath, environment }) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -51,7 +85,7 @@ function launchAgent({ nodeExecutable, headlessEntry, workingDirectory, stdoutPa
   </array>
   <key>WorkingDirectory</key>
   <string>${xml(workingDirectory)}</string>
-  <key>RunAtLoad</key>
+${launchEnvironment(environment)}  <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
   <true/>
@@ -66,7 +100,7 @@ function launchAgent({ nodeExecutable, headlessEntry, workingDirectory, stdoutPa
 `;
 }
 
-function systemdUnit({ nodeExecutable, headlessEntry, workingDirectory }) {
+function systemdUnit({ nodeExecutable, headlessEntry, workingDirectory, environment }) {
   return `[Unit]
 Description=One Person Lab headless WebUI
 After=network.target
@@ -75,6 +109,7 @@ After=network.target
 Type=simple
 WorkingDirectory=${systemdArgument(workingDirectory)}
 ExecStart=${systemdArgument(nodeExecutable)} ${systemdArgument(headlessEntry)}
+${environment.map(([name, value]) => `Environment=${systemdArgument(`${name}=${value}`)}`).join("\n")}
 Restart=on-failure
 RestartSec=3
 
@@ -147,13 +182,16 @@ export function createHeadlessServiceManager({
   uid = typeof process.getuid === "function" ? process.getuid() : undefined,
   nodeExecutable = process.execPath,
   headlessEntry = path.join(repositoryRoot, "scripts", "headless", "run.mjs"),
+  serviceEnvironment = {},
   execute = executeProcess,
+  sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
   fileSystem = { mkdir, rm, writeFile }
 } = {}) {
   const pathApi = platform === "win32" ? path.win32 : path.posix;
   const serviceId = serviceIds[platform];
   const safeNodeExecutable = assertServiceValue(nodeExecutable, "nodeExecutable");
   const safeHeadlessEntry = assertServiceValue(headlessEntry, "headlessEntry");
+  const environment = normalizedEnvironment(serviceEnvironment);
   const workingDirectory = pathApi.dirname(pathApi.dirname(pathApi.dirname(safeHeadlessEntry)));
   const definitions = platform === "darwin"
     ? {
@@ -201,6 +239,16 @@ export function createHeadlessServiceManager({
   async function runDarwin(action) {
     const domain = `gui/${uid}`;
     const target = `${domain}/${serviceId}`;
+    const bootstrap = async () => {
+      let result;
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        result = await invoke("launchctl", ["bootstrap", domain, definitions.file], { allowFailure: true });
+        if (result.exitCode === 0) return result;
+        if (attempt < 19) await sleep(100);
+      }
+      const detail = result.stderr?.trim() || result.stdout?.trim() || `exit ${result.exitCode}`;
+      throw new Error(`launchctl failed: ${detail}`);
+    };
     if (action === "install") {
       await fileSystem.mkdir(definitions.directory, { recursive: true });
       await fileSystem.mkdir(definitions.logDirectory, { recursive: true });
@@ -209,18 +257,19 @@ export function createHeadlessServiceManager({
         headlessEntry: safeHeadlessEntry,
         workingDirectory,
         stdoutPath: pathApi.join(definitions.logDirectory, "headless.stdout.log"),
-        stderrPath: pathApi.join(definitions.logDirectory, "headless.stderr.log")
+        stderrPath: pathApi.join(definitions.logDirectory, "headless.stderr.log"),
+        environment
       }), { encoding: "utf8", mode: 0o644 });
       await invoke("launchctl", ["bootout", target], { allowFailure: true });
-      const native = await invoke("launchctl", ["bootstrap", domain, definitions.file]);
+      const native = await bootstrap();
       return outcome(action, native);
     }
     if (action === "status") return outcome(action, await invoke("launchctl", ["print", target], { allowFailure: true }));
-    if (action === "start") return outcome(action, await invoke("launchctl", ["bootstrap", domain, definitions.file]));
+    if (action === "start") return outcome(action, await bootstrap());
     if (action === "stop") return outcome(action, await invoke("launchctl", ["bootout", target], { allowFailure: true }));
     if (action === "restart") {
       await invoke("launchctl", ["bootout", target], { allowFailure: true });
-      return outcome(action, await invoke("launchctl", ["bootstrap", domain, definitions.file]));
+      return outcome(action, await bootstrap());
     }
     const native = await invoke("launchctl", ["bootout", target], { allowFailure: true });
     await fileSystem.rm(definitions.file, { force: true });
@@ -234,7 +283,8 @@ export function createHeadlessServiceManager({
       await fileSystem.writeFile(definitions.file, systemdUnit({
         nodeExecutable: safeNodeExecutable,
         headlessEntry: safeHeadlessEntry,
-        workingDirectory
+        workingDirectory,
+        environment
       }), { encoding: "utf8", mode: 0o644 });
       await invoke("systemctl", [...prefix, "daemon-reload"]);
       const native = await invoke("systemctl", [...prefix, "enable", "--now", serviceId]);
@@ -292,11 +342,36 @@ export function createHeadlessServiceManager({
         if (!Number.isInteger(uid)) throw new Error("A numeric user id is required for the user service");
         if (uid === 0) throw new Error("Headless service management must run as a non-root user");
       }
+      if (platform === "win32" && environment.length) {
+        throw new Error("Windows user-service environment binding is not qualified");
+      }
       if (platform === "darwin") return runDarwin(action);
       if (platform === "linux") return runLinux(action);
       return runWindows(action);
     }
   };
+}
+
+export async function restartLoadedHeadlessService({
+  platform = process.platform,
+  uid = typeof process.getuid === "function" ? process.getuid() : undefined,
+  execute = executeProcess
+} = {}) {
+  if (platform !== "win32" && (!Number.isInteger(uid) || uid === 0)) {
+    throw new Error("Loaded user service restart requires a non-root numeric user id");
+  }
+  const plan = platform === "darwin"
+    ? ["launchctl", ["kickstart", "-k", `gui/${uid}/${serviceIds.darwin}`]]
+    : platform === "linux"
+      ? ["systemctl", ["--user", "restart", serviceIds.linux]]
+      : null;
+  if (!plan) throw new Error(`Loaded service restart is not qualified for ${platform}`);
+  const result = await execute(plan[0], plan[1], { shell: false });
+  if (!result || result.exitCode !== 0) {
+    const detail = result?.stderr?.trim() || result?.stdout?.trim() || `exit ${result?.exitCode ?? "unknown"}`;
+    throw new Error(`${plan[0]} failed: ${detail}`);
+  }
+  return { platform, scope: "user", serviceId: serviceIds[platform], native: result };
 }
 
 export async function main(argv = process.argv.slice(2)) {
@@ -307,7 +382,7 @@ export async function main(argv = process.argv.slice(2)) {
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === modulePath) {
+if (process.argv[1] && sameFile(process.argv[1], modulePath)) {
   main().catch((error) => {
     process.stderr.write(`${JSON.stringify({ status: "headless_service_action_failed", message: error.message })}\n`);
     process.exitCode = 1;

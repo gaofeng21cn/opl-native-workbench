@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createHeadlessServiceManager } from "../../scripts/headless/service-manager.mjs";
+import {
+  createHeadlessServiceManager,
+  restartLoadedHeadlessService
+} from "../../scripts/headless/service-manager.mjs";
 
 function harness(platform, overrides = {}) {
   const calls = [];
@@ -40,7 +43,11 @@ function assertNoShell(calls) {
 test("macOS installs and controls a per-user launchd service with fixed argv", async () => {
   const { manager, calls, files } = harness("darwin", {
     homeDirectory: "/Users/opl",
-    uid: 501
+    uid: 501,
+    serviceEnvironment: {
+      OPL_HEADLESS_PORT: "4180",
+      OPL_NATIVE_APP_UPDATE_CARRIER: "standalone_headless_webui"
+    }
   });
 
   const installed = await manager.run("install");
@@ -54,6 +61,9 @@ test("macOS installs and controls a per-user launchd service with fixed argv", a
   assert.equal(plist.target, "/Users/opl/Library/LaunchAgents/com.onepersonlab.headless.plist");
   assert.match(plist.contents, /<string>\/usr\/bin\/node<\/string>/);
   assert.match(plist.contents, /<string>\/opt\/one-person-lab\/scripts\/headless\/run\.mjs<\/string>/);
+  assert.match(plist.contents, /<key>EnvironmentVariables<\/key>/);
+  assert.match(plist.contents, /<key>OPL_HEADLESS_PORT<\/key>\s*<string>4180<\/string>/);
+  assert.match(plist.contents, /<key>OPL_NATIVE_APP_UPDATE_CARRIER<\/key>\s*<string>standalone_headless_webui<\/string>/);
   assert.doesNotMatch(plist.contents, /\/bin\/(?:ba)?sh|--headless/);
   assertNoShell(calls);
 
@@ -72,7 +82,12 @@ test("macOS installs and controls a per-user launchd service with fixed argv", a
 });
 
 test("Linux uses systemd --user and removes only the user unit", async () => {
-  const { manager, calls, files } = harness("linux");
+  const { manager, calls, files } = harness("linux", {
+    serviceEnvironment: {
+      OPL_HEADLESS_PORT: "4180",
+      OPL_NATIVE_APP_UPDATE_CHECK_ARGS_JSON: '["/opt/one-person-lab/scripts/headless/update-runner.mjs","check"]'
+    }
+  });
 
   await manager.run("install");
   await manager.run("status");
@@ -95,6 +110,8 @@ test("Linux uses systemd --user and removes only the user unit", async () => {
   assert.equal(unit.target, "/home/opl/.config/systemd/user/one-person-lab-headless.service");
   assert.match(unit.contents, /^\[Unit\]/);
   assert.match(unit.contents, /ExecStart="\/usr\/bin\/node" "\/opt\/one-person-lab\/scripts\/headless\/run\.mjs"/);
+  assert.match(unit.contents, /Environment="OPL_HEADLESS_PORT=4180"/);
+  assert.match(unit.contents, /Environment="OPL_NATIVE_APP_UPDATE_CHECK_ARGS_JSON=\[\\"\/opt\/one-person-lab\/scripts\/headless\/update-runner\.mjs\\",\\"check\\"\]"/);
   assert.doesNotMatch(unit.contents, /--headless|ExecStart=.*(?:ba)?sh/);
   assert.ok(files.some((file) => file.operation === "rm" && file.target === unit.target));
   assertNoShell(calls);
@@ -145,4 +162,58 @@ test("unknown platforms and actions fail explicitly", async () => {
   await assert.rejects(unsupported.run("install"), /Unsupported platform/);
   const supported = harness("linux").manager;
   await assert.rejects(supported.run("enable"), /Unknown service action/);
+});
+
+test("loaded-service restart helper uses one fixed user-service argv without a shell", async () => {
+  const calls = [];
+  const execute = async (command, args, options) => {
+    calls.push({ command, args, options });
+    return { exitCode: 0, stdout: "", stderr: "" };
+  };
+  await restartLoadedHeadlessService({ platform: "darwin", uid: 501, execute });
+  await restartLoadedHeadlessService({ platform: "linux", uid: 1001, execute });
+  assert.deepEqual(calls, [
+    {
+      command: "launchctl",
+      args: ["kickstart", "-k", "gui/501/com.onepersonlab.headless"],
+      options: { shell: false }
+    },
+    {
+      command: "systemctl",
+      args: ["--user", "restart", "one-person-lab-headless.service"],
+      options: { shell: false }
+    }
+  ]);
+});
+
+test("macOS restart retries bootstrap while launchd finishes bootout", async () => {
+  const calls = [];
+  const waits = [];
+  let bootstrapAttempts = 0;
+  const manager = createHeadlessServiceManager({
+    platform: "darwin",
+    homeDirectory: "/Users/opl",
+    uid: 501,
+    nodeExecutable: "/usr/bin/node",
+    headlessEntry: "/opt/one-person-lab/scripts/headless/run.mjs",
+    sleep: async (milliseconds) => waits.push(milliseconds),
+    execute: async (command, args, options) => {
+      calls.push({ command, args, options });
+      if (args[0] === "bootstrap" && bootstrapAttempts++ === 0) {
+        return { exitCode: 5, stdout: "", stderr: "Bootstrap failed: 5: Input/output error" };
+      }
+      return { exitCode: 0, stdout: "", stderr: "" };
+    },
+    fileSystem: { mkdir: async () => {}, writeFile: async () => {}, rm: async () => {} }
+  });
+
+  const restarted = await manager.run("restart");
+  assert.equal(restarted.native.exitCode, 0);
+  assert.deepEqual(calls.map(({ command, args }) => [command, args]), [
+    ["launchctl", ["bootout", "gui/501/com.onepersonlab.headless"]],
+    ["launchctl", ["bootstrap", "gui/501", "/Users/opl/Library/LaunchAgents/com.onepersonlab.headless.plist"]],
+    ["launchctl", ["bootstrap", "gui/501", "/Users/opl/Library/LaunchAgents/com.onepersonlab.headless.plist"]]
+  ]);
+  assert.deepEqual(waits, [100]);
+  assertNoShell(calls);
 });
