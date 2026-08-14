@@ -28,6 +28,10 @@ select {
   font: inherit;
 }
 
+.opl-settings-slot-root {
+  display: contents;
+}
+
 .opl-studio-dsh-root svg[viewBox="0 0 182 24"],
 .opl-studio-dsh-root svg[viewBox="0 0 23.16 17.04"] {
   display: none;

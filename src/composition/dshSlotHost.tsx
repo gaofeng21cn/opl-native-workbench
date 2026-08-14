@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Folder, PanelRight, Settings as SettingsIcon, X } from "lucide-react";
 import {
   SlotCore,
@@ -67,6 +67,60 @@ function focusableElements(root: HTMLElement | null): HTMLElement[] {
   if (!root) return [];
   return Array.from(root.querySelectorAll<HTMLElement>(focusableSelector))
     .filter((element) => !element.closest('[hidden], [aria-hidden="true"]') && element.getClientRects().length > 0);
+}
+
+function useSettingsDialogFocus(rootRef: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    let dialog: HTMLElement | null = null;
+    let restoreTarget: HTMLElement | null = null;
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = focusableElements(dialog);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const current = document.activeElement as HTMLElement | null;
+      const currentIndex = current ? focusable.indexOf(current) : -1;
+      const wrapBackward = event.shiftKey && currentIndex <= 0;
+      const wrapForward = !event.shiftKey && currentIndex === focusable.length - 1;
+      if (!dialog.contains(current) || wrapBackward || wrapForward) {
+        event.preventDefault();
+        (event.shiftKey ? focusable.at(-1) : focusable[0])?.focus();
+      }
+    };
+
+    const syncDialog = () => {
+      const nextDialog = root.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"]');
+      if (nextDialog === dialog) return;
+      if (nextDialog) {
+        dialog = nextDialog;
+        restoreTarget = root.querySelector<HTMLElement>('button[aria-haspopup="dialog"]');
+        document.addEventListener("keydown", trapFocus, true);
+        return;
+      }
+      if (dialog) {
+        dialog = null;
+        document.removeEventListener("keydown", trapFocus, true);
+        const target = restoreTarget;
+        requestAnimationFrame(() => {
+          if (target?.isConnected) target.focus();
+        });
+      }
+    };
+
+    const observer = new MutationObserver(syncDialog);
+    observer.observe(root, { childList: true, subtree: true });
+    syncDialog();
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("keydown", trapFocus, true);
+    };
+  }, [rootRef]);
 }
 
 function constantObservable<T>(snapshot: T): HostObservable<T> {
@@ -323,6 +377,8 @@ function ShellOverlaySlot() {
 
 function SettingsSlot({ wide, renderSlot }: { wide: boolean; renderSlot: any }) {
   const studio = useStudio();
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  useSettingsDialogFocus(rootRef);
   const studioRows = settingsDestinations(studio.locale).map((destination, index) => ({
     id: settingsSectionId(destination.id),
     order: index * 10,
@@ -331,7 +387,7 @@ function SettingsSlot({ wide, renderSlot }: { wide: boolean; renderSlot: any }) 
   const contributionRows = studio.uiContributions.entries.filter((entry) => entry.slot === "settings.section").map((entry) => ({ id: entry.contributionKey, order: entry.sortOrder, label: entry.view ? contributionLabel(entry.view.title, studio.locale, entry.contributionId) : entry.contributionId }));
   const rows = [...studioRows, ...contributionRows];
   const sessions = { phase: "ready", current: "opl-current", byId: { "opl-current": { blank: false } } };
-  return <SettingsRoot wide={wide} useSections={(selector: any) => selector(rows)} useOnboardingSteps={(selector: any) => selector([])} useSessions={(selector: any) => selector(sessions)} renderSlot={renderSlot} />;
+  return <div ref={rootRef} className="opl-settings-slot-root"><SettingsRoot wide={wide} useSections={(selector: any) => selector(rows)} useOnboardingSteps={(selector: any) => selector([])} useSessions={(selector: any) => selector(sessions)} renderSlot={renderSlot} /></div>;
 }
 
 function SettingsTriggerSlot({ wide }: { wide: boolean }) {
