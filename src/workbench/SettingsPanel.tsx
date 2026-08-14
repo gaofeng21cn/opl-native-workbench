@@ -6,6 +6,7 @@ import {
   Boxes,
   CheckCircle2,
   ChevronDown,
+  FolderOpen,
   LoaderCircle,
   PackageOpen,
   Play,
@@ -14,11 +15,8 @@ import {
   Workflow,
   Wrench
 } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import {
-  createBrowserBridge,
-  type CarrierDiagnosticsReadback
-} from "../bridge/oplBridge";
+import { useMemo, useState, type ReactNode } from "react";
+import type { CarrierDiagnosticsReadback } from "../bridge/oplBridge";
 import type {
   ManagedUpdateComponentRef,
   ManagedUpdateProjection,
@@ -88,8 +86,10 @@ type SettingsPanelProps = {
   resolvedReasoningOptions: string[];
   stateStatus: "loading" | "ready" | "error";
   stateError: string;
+  carrierDiagnostics: CarrierDiagnosticsReadback;
   activeDestination: SettingsDestinationId;
   onRefresh: () => void;
+  onChangeLogDirectory: () => void;
   onSettingChange: <Key extends keyof WorkbenchSettings>(key: Key, value: WorkbenchSettings[Key]) => void;
   onReasoningChange: (reasoning: WorkbenchSettings["reasoningLevel"]) => void;
   onAction: (request: SettingsActionRequest) => void;
@@ -737,8 +737,10 @@ export function SettingsPanel({
   resolvedReasoningOptions,
   stateStatus,
   stateError,
+  carrierDiagnostics,
   activeDestination,
   onRefresh,
+  onChangeLogDirectory,
   onSettingChange,
   onReasoningChange,
   onAction,
@@ -761,8 +763,6 @@ export function SettingsPanel({
   const [gatewayEmail, setGatewayEmail] = useState("");
   const [gatewayPassword, setGatewayPassword] = useState("");
   const [gatewayDeviceLabel, setGatewayDeviceLabel] = useState("");
-  const [carrierDiagnostics, setCarrierDiagnostics] = useState<CarrierDiagnosticsReadback | null>(null);
-  const diagnosticsBridge = useMemo(() => createBrowserBridge(), []);
   const derivedActionViewModel = useMemo(() => buildSettingsActionViewModel(model, managedUpdate), [managedUpdate, model]);
   const actionViewModel = projectedActionViewModel ?? derivedActionViewModel;
   const availableStarters = model.starters.filter((starter) => starter.available).length;
@@ -784,27 +784,6 @@ export function SettingsPanel({
       : "OPL Gateway";
   const readbackStatus = stateLoading ? "loading" : stateFailed ? "attention_needed" : "ready";
   const gatewayAction = (kind: GatewayActionViewModel["kind"]) => actionViewModel.gatewayActions.find((action) => action.kind === kind);
-
-  useEffect(() => {
-    if (activeDestination !== "diagnostics") return;
-    let cancelled = false;
-    void diagnosticsBridge.readState(settings.runtimeProfile)
-      .then((readback) => {
-        if (!cancelled) setCarrierDiagnostics(readback.carrierDiagnostics);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCarrierDiagnostics({
-            schema: "opl_app_carrier_diagnostics.v1",
-            owner: "one-person-lab-app_native_host",
-            carrier: "browser_placeholder",
-            status: "unavailable",
-            reasonCode: "carrier_diagnostics_read_failed"
-          });
-        }
-      });
-    return () => { cancelled = true; };
-  }, [activeDestination, diagnosticsBridge, model.stateGeneratedAt, settings.runtimeProfile]);
 
   function settingValueLabel(key: SettingKey, value: WorkbenchSettings[SettingKey]): string {
     if (key === "modelAccess") return value === "__auto" ? (settings.locale === "zh" ? "自动" : "Auto") : modelLabel(value as string, settings.locale);
@@ -1179,6 +1158,7 @@ export function SettingsPanel({
     }
 
     if (activeDestination === "diagnostics") {
+      const appLogDirectory = carrierDiagnostics.application?.systemInfo.logDir;
       return (
         <>
           <SettingsGroup title={settings.locale === "zh" ? "诊断" : "Diagnostics"}>
@@ -1186,15 +1166,30 @@ export function SettingsPanel({
             <SettingRow label={settings.locale === "zh" ? "待处理问题" : "Issues"}><span>{projection?.statusSummary.issueCount ?? "--"}</span></SettingRow>
             <SettingRow
               label={settings.locale === "zh" ? "App 载体日志" : "App carrier logs"}
-              detail={carrierDiagnostics?.logsDirectory ?? carrierDiagnostics?.reasonCode}
+              detail={appLogDirectory ?? carrierDiagnostics.reasonCode}
             >
-              <StatusValue status={carrierDiagnostics?.status === "available" ? "ready" : carrierDiagnostics?.status} locale={settings.locale} />
+              <div className="settings-row-actions">
+                <StatusValue status={carrierDiagnostics.status === "available" ? "ready" : carrierDiagnostics.status} locale={settings.locale} />
+                {carrierDiagnostics.setLogDirectorySupported ? (
+                  <button
+                    className="settings-inline-command"
+                    type="button"
+                    disabled={actionBusyKey === "application.setLogDirectory"}
+                    onClick={onChangeLogDirectory}
+                  >
+                    {actionBusyKey === "application.setLogDirectory"
+                      ? <LoaderCircle aria-hidden="true" className="spin" size={14} />
+                      : <FolderOpen aria-hidden="true" size={14} />}
+                    {settings.locale === "zh" ? "更改目录" : "Change directory"}
+                  </button>
+                ) : null}
+              </div>
             </SettingRow>
             <SettingRow label={settings.locale === "zh" ? "开发者详情" : "Developer details"}>{renderSettingControl("developerDetails")}</SettingRow>
           </SettingsGroup>
           {settings.developerDetails ? (
             <SettingsGroup title={settings.locale === "zh" ? "高级详情" : "Advanced details"}>
-              <SettingRow label={settings.locale === "zh" ? "App 载体日志目录" : "App carrier log directory"}><code>{carrierDiagnostics?.logsDirectory ?? (settings.locale === "zh" ? "不可用" : "Unavailable")}</code></SettingRow>
+              <SettingRow label={settings.locale === "zh" ? "App 载体日志目录" : "App carrier log directory"}><code>{appLogDirectory ?? (settings.locale === "zh" ? "不可用" : "Unavailable")}</code></SettingRow>
               <SettingRow label={settings.locale === "zh" ? "Framework 运行时日志" : "Framework runtime logs"}><code>{projection?.localEnvironment.logsDir ?? "--"}</code></SettingRow>
               <SettingRow label={settings.locale === "zh" ? "状态目录" : "State directory"}><code>{projection?.localEnvironment.stateDir ?? "--"}</code></SettingRow>
               <SettingRow label={settings.locale === "zh" ? "运行时来源" : "Runtime sources"}><code>{projection?.localEnvironment.runtimeSourcesRoot ?? "--"}</code></SettingRow>

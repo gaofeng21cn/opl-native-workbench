@@ -1581,6 +1581,30 @@ export const codexWorkbenchStyles = `
     max-width: 100%;
   }
 
+  .settings-row-actions {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  .settings-inline-command {
+    min-height: 30px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 10px;
+    border: 1px solid var(--opl-border);
+    border-radius: 7px;
+    background: var(--opl-canvas);
+    color: var(--opl-text);
+  }
+
+  .settings-inline-command:disabled {
+    opacity: 0.55;
+  }
+
   .settings-page code {
     overflow-wrap: anywhere;
     color: var(--opl-muted);

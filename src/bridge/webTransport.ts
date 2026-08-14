@@ -82,6 +82,15 @@ export function installWebTransport(): void {
     readCodexPermissionProfiles: () => requestJson("/api/codex/permission-profiles"),
     pickFiles: () => Promise.reject(new WebTransportError("native_picker_unavailable", "The local WebUI cannot expose native file paths")),
     pickDirectory: () => Promise.reject(new WebTransportError("native_picker_unavailable", "The local WebUI cannot expose native folder paths")),
+    setLogDirectory: () => Promise.resolve({
+      schema: "opl_app_log_directory_update.v1",
+      owner: "one-person-lab-app_native_host",
+      carrier: "standalone_headless_webui",
+      action: "application.setLogDirectory",
+      status: "unsupported",
+      success: false,
+      reasonCode: "desktop_host_required"
+    }),
     sendMessage: (request) => postJson("/api/send-message", request),
     steerTurn: (request) => postJson("/api/turns/steer", request),
     interruptTurn: (request) => postJson("/api/turns/interrupt", request),

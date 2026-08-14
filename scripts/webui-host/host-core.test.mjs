@@ -19,6 +19,7 @@ test("shared host core serves desktop and HTTP adapters through one typed method
     turnTimeoutMs: 2_000
   });
   const updateOperations = [];
+  const logDirectoryUpdates = [];
   const core = await createOplHostCore({
     transport,
     opl: {
@@ -38,8 +39,21 @@ test("shared host core serves desktop and HTTP adapters through one typed method
         owner: "one-person-lab-app_desktop_host",
         carrier: "electron_desktop",
         status: "available",
-        logsDirectory: "/tmp/one-person-lab/logs"
-      })
+        application: { systemInfo: { logDir: "/tmp/one-person-lab/logs" } },
+        setLogDirectorySupported: true
+      }),
+      setLogDirectory: async (request) => {
+        logDirectoryUpdates.push(request);
+        return {
+          schema: "opl_app_log_directory_update.v1",
+          owner: "one-person-lab-app_desktop_host",
+          carrier: "electron_desktop",
+          action: "application.setLogDirectory",
+          status: "updated",
+          success: true,
+          hostLogDir: request.path
+        };
+      }
     },
     nativeUpdater: {
       perform: async (operation) => {
@@ -58,12 +72,23 @@ test("shared host core serves desktop and HTTP adapters through one typed method
       owner: "one-person-lab-app_desktop_host",
       carrier: "electron_desktop",
       status: "available",
-      logsDirectory: "/tmp/one-person-lab/logs"
+      application: { systemInfo: { logDir: "/tmp/one-person-lab/logs" } },
+      setLogDirectorySupported: true
     }
   });
   assert.equal((await core.invoke("listThreads", {})).data.length, 5);
   assert.deepEqual(await core.invoke("pickFiles"), ["/tmp/one.txt"]);
   assert.equal(await core.invoke("pickDirectory"), "/tmp/project");
+  assert.deepEqual(await core.invoke("setLogDirectory", { path: "/tmp/new-logs" }), {
+    schema: "opl_app_log_directory_update.v1",
+    owner: "one-person-lab-app_desktop_host",
+    carrier: "electron_desktop",
+    action: "application.setLogDirectory",
+    status: "updated",
+    success: true,
+    hostLogDir: "/tmp/new-logs"
+  });
+  assert.deepEqual(logDirectoryUpdates, [{ path: "/tmp/new-logs" }]);
   assert.deepEqual(await core.invoke("readNativeAppUpdateStatus"), { supported: true, operation: "status" });
   assert.deepEqual(await core.invoke("checkNativeAppUpdate"), { supported: true, operation: "check" });
   assert.deepEqual(await core.invoke("applyNativeAppUpdate"), { supported: true, operation: "apply" });
@@ -107,7 +132,41 @@ test("shared host core reports unavailable carrier logs instead of borrowing Fra
     owner: "one-person-lab-app_native_host",
     carrier: "standalone_headless_webui",
     status: "unavailable",
+    setLogDirectorySupported: false,
     reasonCode: "carrier_log_directory_unavailable"
   });
-  assert.notEqual(readback.carrierDiagnostics.logsDirectory, "/framework/runtime/logs");
+  assert.equal("logsDirectory" in readback.carrierDiagnostics, false);
+  assert.equal("application" in readback.carrierDiagnostics, false);
+});
+
+test("Docker projects application.systemInfo.logDir as read-only /data/logs", async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "opl-host-core-docker-test-"));
+  const transport = new CodexAppServerTransport({
+    command: process.execPath,
+    args: [fixture],
+    cwd: directory,
+    env: process.env,
+    requestTimeoutMs: 2_000,
+    turnTimeoutMs: 2_000
+  });
+  const core = await createOplHostCore({
+    transport,
+    opl: { readState: async () => ({ profile: "fast" }) },
+    env: {
+      HOME: "/data",
+      OPL_DATA_DIR: "/data",
+      OPL_WORKSPACE_ROOT: "/projects"
+    }
+  });
+  t.after(() => core.close());
+
+  assert.deepEqual((await core.invoke("readState", { profile: "fast" })).carrierDiagnostics, {
+    schema: "opl_app_carrier_diagnostics.v1",
+    owner: "one-person-lab-app_native_host",
+    carrier: "docker_webui",
+    status: "available",
+    application: { systemInfo: { logDir: "/data/logs" } },
+    setLogDirectorySupported: false,
+    reasonCode: "docker_log_directory_is_read_only"
+  });
 });

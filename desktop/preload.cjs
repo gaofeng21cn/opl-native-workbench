@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld("oplStudio", {
   readCodexPermissionProfiles: () => invoke("readCodexPermissionProfiles"),
   pickFiles: () => invoke("pickFiles"),
   pickDirectory: () => invoke("pickDirectory"),
+  setLogDirectory: (request) => invoke("setLogDirectory", request),
   sendMessage: (request) => invoke("sendMessage", request),
   steerTurn: (request) => invoke("steerTurn", request),
   interruptTurn: (request) => invoke("interruptTurn", request),

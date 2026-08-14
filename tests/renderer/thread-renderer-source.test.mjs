@@ -320,7 +320,7 @@ test("search, composer attachments, and Agent permissions route to real renderer
   assert.match(app, /setComposerSelections\(pendingSelections\)/);
   assert.match(settings, /agentPermissions: ":danger-full-access"/);
   assert.match(app, /permissions: settings\.agentPermissions/);
-  for (const method of ["readCodexCapabilities", "readCodexPermissionProfiles", "pickFiles", "pickDirectory"]) {
+  for (const method of ["readCodexCapabilities", "readCodexPermissionProfiles", "pickFiles", "pickDirectory", "setLogDirectory"]) {
     assert.match(desktopPreload, new RegExp(`${method}:`));
     assert.match(hostCore, new RegExp(`case "${method}"`));
     assert.match(bridge, new RegExp(`${method}\\(`));
@@ -448,6 +448,14 @@ test("Settings uses the App-owned navigation groups and one shared read model", 
   assert.match(model, /mergeManagedUpdateProjections/);
   assert.match(app, /captureManagedUpdateReceipt\(receipt\)/);
   assert.match(app, /managedUpdate=\{managedUpdate\}/);
+  assert.match(app, /setCarrierDiagnostics\(state\.carrierDiagnostics\)/);
+  assert.match(app, /carrierDiagnostics=\{carrierDiagnostics\}/);
+  assert.match(app, /await bridge\.setLogDirectory\(\{ path: selected\.path \}\)/);
+  assert.doesNotMatch(settingsPanel, /createBrowserBridge|\.readState\(/);
+  assert.match(settingsPanel, /carrierDiagnostics\.application\?\.systemInfo\.logDir/);
+  assert.match(settingsPanel, /carrierDiagnostics\.setLogDirectorySupported/);
+  assert.match(webTransport, /setLogDirectory: \(\) => Promise\.resolve/);
+  assert.doesNotMatch(webTransport, /\/api\/.*log.*director/i);
   for (const componentId of ["opl_app", "opl_base", "opl_packages"]) {
     assert.match(settingsPanel, new RegExp(`component\\("${componentId}"\\)`));
   }

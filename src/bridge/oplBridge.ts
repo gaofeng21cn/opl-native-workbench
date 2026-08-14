@@ -131,8 +131,27 @@ export type CarrierDiagnosticsReadback = {
   owner: "one-person-lab-app_native_host" | "one-person-lab-app_desktop_host";
   carrier: "electron_desktop" | "standalone_headless_webui" | "docker_webui" | "browser_placeholder";
   status: "available" | "unavailable";
-  logsDirectory?: string;
+  application?: {
+    systemInfo: {
+      logDir: string;
+    };
+  };
+  setLogDirectorySupported: boolean;
   reasonCode?: string;
+};
+
+export type AppLogDirectoryUpdateResult = {
+  schema: "opl_app_log_directory_update.v1";
+  owner: "one-person-lab-app_native_host" | "one-person-lab-app_desktop_host";
+  carrier: "electron_desktop" | "standalone_headless_webui" | "docker_webui" | "browser_placeholder";
+  action: "application.setLogDirectory";
+  status: "updated" | "unsupported" | "error";
+  success: boolean;
+  hostLogDir?: string;
+  errorCode?: string;
+  reasonCode?: string;
+  rollbackStatus?: "not_required" | "restored" | "failed";
+  message?: string;
 };
 
 export type OplFullDrilldownReadback = {
@@ -364,7 +383,7 @@ export type OplBridgeEvent = OplBridgeTypeEvent | OplBridgeMethodEvent;
 
 export type OplStudioSurface = Pick<
   OplBridge,
-  "beginWindowDrag" | "readState" | "readFullDrilldown" | "readContribution" | "executeAction" | "readCodexModels" | "readCodexCapabilities" | "readCodexPermissionProfiles" | "pickFiles" | "pickDirectory" | "sendMessage" | "steerTurn" | "interruptTurn" | "loginGatewayAccount" | "readNativeAppUpdateStatus" | "checkNativeAppUpdate" | "applyNativeAppUpdate" | "restartNativeApp" | "subscribeEvents"
+  "beginWindowDrag" | "readState" | "readFullDrilldown" | "readContribution" | "executeAction" | "readCodexModels" | "readCodexCapabilities" | "readCodexPermissionProfiles" | "pickFiles" | "pickDirectory" | "setLogDirectory" | "sendMessage" | "steerTurn" | "interruptTurn" | "loginGatewayAccount" | "readNativeAppUpdateStatus" | "checkNativeAppUpdate" | "applyNativeAppUpdate" | "restartNativeApp" | "subscribeEvents"
 > & Partial<CodexThreadAdapterBridge> & {
   eventSourceUrl?: string;
   connectEvents?: (onEvent: (event: OplBridgeEvent) => void) => () => void;
@@ -411,6 +430,7 @@ export type OplBridge = CodexThreadAdapterBridge & {
   readCodexPermissionProfiles(): Promise<CodexPermissionProfileCatalog>;
   pickFiles(): Promise<CodexPickedInput[]>;
   pickDirectory(): Promise<CodexPickedInput[]>;
+  setLogDirectory(request: { path: string }): Promise<AppLogDirectoryUpdateResult>;
   sendMessage(request: CodexMessageRequest): Promise<CodexMessageResponse>;
   steerTurn(request: ThreadSteerRequest): Promise<ThreadSteerResult>;
   interruptTurn(request: ThreadInterruptRequest): Promise<ThreadInterruptResult>;
@@ -447,6 +467,7 @@ function unavailableCarrierDiagnostics(
     owner: "one-person-lab-app_native_host",
     carrier,
     status: "unavailable",
+    setLogDirectorySupported: false,
     reasonCode
   };
 }
@@ -459,19 +480,23 @@ export function normalizeCarrierDiagnostics(value: unknown): CarrierDiagnosticsR
   const carrierValue = asString(record?.carrier);
   const carrier = (["electron_desktop", "standalone_headless_webui", "docker_webui", "browser_placeholder"] as const)
     .find((item) => item === carrierValue) ?? "browser_placeholder";
-  const logsDirectory = asString(record?.logsDirectory);
+  const application = asRecord(record?.application);
+  const systemInfo = asRecord(application?.systemInfo);
+  const logDir = asString(systemInfo?.logDir);
   if (
     record?.schema === "opl_app_carrier_diagnostics.v1"
     && owner
     && record.status === "available"
-    && logsDirectory
+    && logDir
   ) {
     return {
       schema: "opl_app_carrier_diagnostics.v1",
       owner,
       carrier,
       status: "available",
-      logsDirectory
+      application: { systemInfo: { logDir } },
+      setLogDirectorySupported: record.setLogDirectorySupported === true,
+      ...(asString(record.reasonCode) ? { reasonCode: asString(record.reasonCode) } : {})
     };
   }
   return unavailableCarrierDiagnostics(carrier, asString(record?.reasonCode));
@@ -1255,6 +1280,9 @@ export function createBrowserBridge(): OplBridge {
       const promise = candidate?.pickDirectory?.() ?? Promise.resolve([]);
       return Promise.resolve(promise).then(normalizePickedInputs);
     },
+    setLogDirectory(request) {
+      return candidate?.setLogDirectory?.(request) ?? Promise.resolve(unsupportedLogDirectoryUpdate());
+    },
     sendMessage(request) {
       const promise = candidate?.sendMessage?.(request) ?? Promise.resolve({
         command: CODEX_APP_SERVER.transport,
@@ -1394,5 +1422,17 @@ function nativeUpdaterPlaceholder(operation: NativeAppUpdateOperation): NativeAp
     restartRequired: false,
     reasonCode: "native_host_required",
     ownerFallback: "one-person-lab-app"
+  };
+}
+
+function unsupportedLogDirectoryUpdate(): AppLogDirectoryUpdateResult {
+  return {
+    schema: "opl_app_log_directory_update.v1",
+    owner: "one-person-lab-app_native_host",
+    carrier: "browser_placeholder",
+    action: "application.setLogDirectory",
+    status: "unsupported",
+    success: false,
+    reasonCode: "desktop_host_required"
   };
 }
