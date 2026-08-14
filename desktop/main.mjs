@@ -6,13 +6,23 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createOplHostCore } from "../scripts/webui-host/host-core.mjs";
 import { createAppLogDirectoryController } from "./app-log-directory.mjs";
 import { createShutdownController } from "./shutdown.mjs";
-import { createDesktopUpdater } from "./updater.mjs";
+import {
+  configureDesktopUpdaterQualification,
+  configureDesktopUpdaterQualificationState,
+  createDesktopUpdater
+} from "./updater.mjs";
 
 const { autoUpdater } = updaterPackage;
 const desktopRoot = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(desktopRoot, "..");
 const rendererIndex = path.join(repositoryRoot, "dist", "desktop", "index.html");
 let hostCore;
+let installingUpdate = false;
+let updaterQualificationEnabled = false;
+configureDesktopUpdaterQualificationState({
+  electronApp: app,
+  stateRoot: process.env.OPL_DESKTOP_UPDATE_QUALIFICATION_STATE_ROOT
+});
 const shutdown = createShutdownController({
   close: async () => {
     ipcMain.removeHandler("opl:invoke");
@@ -72,13 +82,23 @@ function createWindow() {
 
 async function createDesktopHost(appLogDirectory) {
   const updateConfigAvailable = fs.existsSync(path.join(process.resourcesPath, "app-update.yml"));
+  updaterQualificationEnabled = configureDesktopUpdaterQualification({
+    autoUpdater,
+    feedUrl: process.env.OPL_DESKTOP_UPDATE_QUALIFICATION_FEED_URL
+  });
+  let core;
   const desktopUpdater = createDesktopUpdater({
     autoUpdater,
     isPackaged: app.isPackaged,
     updateConfigAvailable,
-    currentVersion: app.getVersion()
+    currentVersion: app.getVersion(),
+    beforeRestart: async () => {
+      await core?.close();
+      ipcMain.removeHandler("opl:invoke");
+      installingUpdate = true;
+    }
   });
-  const core = await createOplHostCore({
+  core = await createOplHostCore({
     platform: {
       pickFiles: async () => {
         const result = await dialog.showOpenDialog({ properties: ["openFile", "multiSelections"] });
@@ -129,7 +149,7 @@ app.whenReady().then(async () => {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
-  if (desktopHost.desktopUpdater.snapshot().supported) {
+  if (desktopHost.desktopUpdater.snapshot().supported && !updaterQualificationEnabled) {
     void desktopHost.desktopUpdater.perform("check").catch(() => undefined);
   }
 });
@@ -139,11 +159,32 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", (event) => {
+  if (installingUpdate) return;
   if (!shutdown.exitAllowed) void shutdown.request(event);
 });
 
 if (typeof process.send === "function") {
-  process.on("message", (message) => {
+  process.on("message", async (message) => {
     if (message?.type === "opl-desktop-smoke-quit") app.quit();
+    if (message?.type === "opl-desktop-update-qualification" && updaterQualificationEnabled) {
+      const methods = {
+        status: "readNativeAppUpdateStatus",
+        check: "checkNativeAppUpdate",
+        apply: "applyNativeAppUpdate",
+        restart: "restartNativeApp"
+      };
+      const method = methods[message.operation];
+      if (!method) return;
+      try {
+        const result = await hostCore.invoke(method);
+        process.send?.({ type: "opl-desktop-update-qualification-result", operation: message.operation, result });
+      } catch (error) {
+        process.send?.({
+          type: "opl-desktop-update-qualification-result",
+          operation: message.operation,
+          error: error?.message ?? String(error)
+        });
+      }
+    }
   });
 }

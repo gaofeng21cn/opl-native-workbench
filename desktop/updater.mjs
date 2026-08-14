@@ -1,3 +1,7 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
 const baseState = (currentVersion) => ({
   schema: "opl_native_app_updater.v1",
   owner: "one-person-lab-app_desktop_host",
@@ -8,7 +12,58 @@ const baseState = (currentVersion) => ({
   restartRequired: false
 });
 
-export function createDesktopUpdater({ autoUpdater, isPackaged, updateConfigAvailable = true, currentVersion }) {
+function pathIsInside(parent, candidate) {
+  const relative = path.relative(parent, candidate);
+  return relative !== "" && relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
+export function configureDesktopUpdaterQualificationState({
+  electronApp,
+  stateRoot,
+  tempRoot = os.tmpdir()
+}) {
+  if (!stateRoot) return false;
+  if (!path.isAbsolute(stateRoot)) {
+    throw new Error("Desktop updater qualification state must use an absolute system-temp path");
+  }
+  const requestedTempRoot = path.resolve(tempRoot);
+  const requestedStateRoot = path.resolve(stateRoot);
+  if (!pathIsInside(requestedTempRoot, requestedStateRoot)) {
+    throw new Error("Desktop updater qualification state must stay inside the system temp directory");
+  }
+  fs.mkdirSync(requestedStateRoot, { recursive: true });
+  const realTempRoot = fs.realpathSync.native(tempRoot);
+  const realStateRoot = fs.realpathSync.native(requestedStateRoot);
+  if (!pathIsInside(realTempRoot, realStateRoot)) {
+    throw new Error("Desktop updater qualification state resolves outside the system temp directory");
+  }
+  for (const name of ["userData", "sessionData", "logs", "crashDumps"]) {
+    const directory = path.join(realStateRoot, name);
+    fs.mkdirSync(directory, { recursive: true });
+    electronApp.setPath(name, directory);
+  }
+  return true;
+}
+
+export function configureDesktopUpdaterQualification({ autoUpdater, feedUrl }) {
+  if (!feedUrl) return false;
+  const url = new URL(feedUrl);
+  const loopback = url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "[::1]";
+  if (url.protocol !== "http:" || !loopback || url.username || url.password) {
+    throw new Error("Desktop updater qualification requires a credential-free loopback HTTP feed");
+  }
+  autoUpdater.setFeedURL({ provider: "generic", url: url.href });
+  autoUpdater.autoRunAppAfterInstall = false;
+  return true;
+}
+
+export function createDesktopUpdater({
+  autoUpdater,
+  isPackaged,
+  updateConfigAvailable = true,
+  currentVersion,
+  beforeRestart = async () => undefined
+}) {
   const supported = isPackaged && updateConfigAvailable;
   let state = supported
     ? baseState(currentVersion)
@@ -81,7 +136,18 @@ export function createDesktopUpdater({ autoUpdater, isPackaged, updateConfigAvai
         if (state.state !== "downloaded") {
           return { ...this.snapshot(operation), accepted: false, reasonCode: "downloaded_update_required" };
         }
-        update({ state: "installing", operation, restartRequired: true });
+        try {
+          await beforeRestart();
+        } catch {
+          update({
+            state: "error",
+            operation,
+            restartRequired: true,
+            errorCode: "desktop_restart_preparation_failed"
+          });
+          return { ...this.snapshot(operation), accepted: false };
+        }
+        update({ state: "installing", operation, restartRequired: true, errorCode: undefined });
         setImmediate(() => autoUpdater.quitAndInstall(false, true));
         return { ...this.snapshot(operation), accepted: true };
       }
