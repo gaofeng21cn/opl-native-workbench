@@ -9,7 +9,7 @@ RUN apt-get update \
 
 FROM source-builder-base AS framework-builder
 ARG OPL_FRAMEWORK_REPOSITORY=https://github.com/gaofeng21cn/one-person-lab.git
-ARG OPL_FRAMEWORK_REF=29dcd0fdc543df8e677c437afb1c799ec2428011
+ARG OPL_FRAMEWORK_REF=45d8ffba80b06bf1633f1953de054fb1dfe6d614
 WORKDIR /src/opl-framework
 
 RUN git init \
@@ -30,7 +30,7 @@ RUN npm install --global --prefix /opt/codex "${OPL_CODEX_NPM_SPEC}" \
 
 FROM source-builder-base AS app-product-profile
 ARG OPL_APP_REPOSITORY=https://github.com/gaofeng21cn/one-person-lab-app.git
-ARG OPL_APP_REF=7b0b015b50766c60a2a7db36b440de4b1507e8f7
+ARG OPL_APP_REF=926444c51e69726ddf791b98f98d3f3f967a592b
 WORKDIR /src/one-person-lab-app
 RUN git init \
   && git remote add origin "${OPL_APP_REPOSITORY}" \
