@@ -111,6 +111,7 @@ export type OplAppState = Record<string, unknown> & {
     status: string;
   };
   active_project_lines: OplActiveProjectLine[];
+  ui_contributions?: Record<string, unknown>;
 };
 
 export type OplStateReadback = {
@@ -262,7 +263,7 @@ export type OplBridgeMethodEvent = BaseBridgeEvent & {
 
 export type OplBridgeEvent = OplBridgeTypeEvent | OplBridgeMethodEvent;
 
-export type OplNativeWorkbenchSurface = Pick<
+export type OplStudioSurface = Pick<
   OplBridge,
   "beginWindowDrag" | "readState" | "readFullDrilldown" | "executeAction" | "readCodexModels" | "readCodexCapabilities" | "readCodexPermissionProfiles" | "pickFiles" | "pickDirectory" | "sendMessage" | "subscribeEvents"
 > & Partial<CodexThreadAdapterBridge> & {
@@ -1006,8 +1007,8 @@ export function parseEventSourceMessage(data: string, source = "web_transport_ss
 }
 
 export function createBrowserBridge(): OplBridge {
-  const candidate = ((globalThis as Record<string, unknown>).window as { oplNativeWorkbench?: OplNativeWorkbenchSurface } | undefined)
-    ?.oplNativeWorkbench;
+  const candidate = ((globalThis as Record<string, unknown>).window as { oplStudio?: OplStudioSurface } | undefined)
+    ?.oplStudio;
   return {
     beginWindowDrag() {
       candidate?.beginWindowDrag?.();

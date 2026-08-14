@@ -14,7 +14,13 @@ const webTransport = read("src/bridge/webTransport.ts");
 const model = read("src/workbench/workbenchModel.ts");
 const settingsPanel = read("src/workbench/SettingsPanel.tsx");
 const styles = read("src/workbench/codexWorkbenchStyles.ts");
-const nativeWindow = read("scripts/native-workbench-app.swift");
+const adapterStyles = read("src/integrations/deepseek-harness/oplAdapter.css");
+const slotHost = read("src/composition/dshSlotHost.tsx");
+const appFrame = read("src/vendor/deepseek-harness/packages/client/ui-layout/src/client/AppFrame.tsx");
+const appFrameStyles = read("src/vendor/deepseek-harness/packages/client/ui-layout/src/client/AppFrame.module.css");
+const conversationStyles = read("src/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css");
+const settingsRoot = read("src/vendor/deepseek-harness/packages/client/ui-settings-general/src/client/SettingsRoot.tsx");
+const nativeWindow = read("scripts/opl-studio-app.swift");
 const nativeSmoke = read("scripts/smoke-native-app-live.mjs");
 const rail = read("src/workbench/threads/ThreadRail.tsx");
 const detail = read("src/workbench/threads/ThreadDetailPopover.tsx");
@@ -22,6 +28,12 @@ const lifecycle = read("src/workbench/threads/ThreadLifecycleConfirmationDialog.
 const threadSearch = read("src/workbench/ThreadSearchDialog.tsx");
 const composerPalette = read("src/workbench/ComposerCapabilityPalette.tsx");
 const settings = read("src/workbench/settingsModel.ts");
+const contributionComponents = read("src/composition/contributionComponents.tsx");
+const primitiveIndex = read("src/vendor/deepseek-harness/packages/client/ui-primitives/src/index.ts");
+const sourceManifest = JSON.parse(read("src/composition/deepseekHarnessSourceManifest.json"));
+const candidateEvidence = JSON.parse(read("src/candidateContractEvidence.json"));
+const tsconfig = JSON.parse(read("tsconfig.json"));
+const typecheckConfig = JSON.parse(read("tsconfig.typecheck.json"));
 
 test("renderer consumes one standard Codex thread adapter", () => {
   assert.match(app, /from "\.\.\/threads\/types"/);
@@ -56,7 +68,8 @@ test("ordinary fallback data and example content stay out of the renderer", () =
     assert.doesNotMatch(`${app}\n${model}`, new RegExp(example.replace(".", "\\.")));
   }
   assert.doesNotMatch(app, /model\.confirmations\[0\]!/);
-  assert.match(app, /model\.confirmations\[0\] && model\.questions\[0\]/);
+  assert.match(settingsPanel, /data-testid="opl-settings-action-confirmation"/);
+  assert.match(lifecycle, /data-testid="opl-thread-lifecycle-confirmation"/);
 });
 
 test("local storage keeps only UI metadata and drafts after one-way legacy backup", () => {
@@ -130,22 +143,26 @@ test("assistant display consumes Codex UI directives without rewriting Markdown 
   assert.match(visible, /::unknown-directive\{value="visible"\}/);
 });
 
-test("native window chrome follows the compact Codex composition", () => {
-  assert.doesNotMatch(app, /className="brand-name">Codex/);
-  assert.match(app, /<strong className="brand-mark">One Person Lab<\/strong>/);
-  const brandRow = app.match(/<header className="brand-row"[\s\S]*?<\/header>/)?.[0] ?? "";
-  assert.doesNotMatch(brandRow, /ChevronDown/);
+test("native window hosts the live DeepSeek Harness composition root", () => {
+  assert.match(slotHost, /import \{ AppFrame \} from "@opl-vendor\/dsh-app-frame"/);
+  assert.match(slotHost, /import \{ SidebarRoot \} from "@opl-vendor\/dsh-sidebar-root"/);
+  assert.match(slotHost, /import \{ ConversationRoot \} from "@opl-vendor\/dsh-conversation-root"/);
+  assert.match(slotHost, /import \{ InputBar \} from "@opl-vendor\/dsh-input-bar"/);
+  assert.match(slotHost, /import \{ SettingsRoot \} from "@opl-vendor\/dsh-settings-root"/);
+  for (const component of ["AppFrame", "SidebarRoot", "ConversationRoot", "InputBar", "SettingsRoot"]) {
+    assert.match(slotHost, new RegExp(`<${component}`));
+  }
+  assert.match(app, /return renderShell\(\{/);
+  assert.match(app, /workspaceRail: studioWorkspaceRail/);
+  assert.match(app, /conversationBody: studioConversationBody/);
+  assert.match(app, /settings: studioSettings/);
+  assert.match(main, /createRoot\(rootElement\)\.render\(renderOplStudioRoot\(\)\)/);
   assert.match(main, /document\.documentElement\.dataset\.oplHost = nativeTransportInstalled \? "native" : "web"/);
-  assert.match(styles, /:root\[data-opl-host="native"\]/);
-  assert.match(styles, /--opl-native-titlebar-inset: 34px/);
-  assert.match(styles, /padding-top: var\(--opl-native-titlebar-inset\)/);
   assert.match(nativeWindow, /\.fullSizeContentView/);
   assert.match(nativeWindow, /window\.titleVisibility = \.hidden/);
   assert.match(nativeWindow, /window\.titlebarAppearsTransparent = true/);
   assert.match(nativeWindow, /window\.titlebarSeparatorStyle = \.none/);
   assert.match(nativeWindow, /window\.isMovableByWindowBackground = true/);
-  assert.match(app, /className="brand-row" onPointerDown=\{beginWindowDrag\}/);
-  assert.match(app, /className="topbar" onPointerDown=\{beginWindowDrag\}/);
   assert.match(bridge, /beginWindowDrag\(\)/);
   assert.match(main, /beginWindowDrag: \(\) => \{\s*void post\("beginWindowDrag"\)/s);
   assert.match(webTransport, /beginWindowDrag: \(\) => undefined/);
@@ -165,8 +182,8 @@ test("native window chrome follows the compact Codex composition", () => {
 });
 
 test("search, composer attachments, and Agent permissions route to real renderer and bridge behavior", () => {
-  assert.match(app, /className="icon-button sidebar-search"[^>]*onClick=\{\(\) => setThreadSearchOpen\(true\)\}/);
-  assert.match(app, /className="sidebar-section-search"[^>]*onClick=\{\(\) => setThreadSearchOpen\(true\)\}/);
+  assert.match(app, /className="opl-dsh-rail-actions"/);
+  assert.match(app, /setThreadSearchOpen\(true\)/);
   assert.match(app, /<ThreadSearchDialog/);
   assert.match(threadSearch, /!thread\.isTemporaryWorkspace && !project\.projectless/);
   assert.match(app, /<ComposerCapabilityPalette/);
@@ -175,9 +192,8 @@ test("search, composer attachments, and Agent permissions route to real renderer
   assert.match(app, /inputs: pendingSelections\.map\(\(selection\) => selection\.input\)/);
   assert.match(app, /permissions: settings\.agentPermissions/);
   assert.match(app, /setComposerSelections\(pendingSelections\)/);
-  assert.match(app, /aria-label=\{t\.agentPermissions\}/);
-  assert.match(app, /<ShieldCheck className="composer-permission-icon"/);
   assert.match(settings, /agentPermissions: ":danger-full-access"/);
+  assert.match(app, /permissions: settings\.agentPermissions/);
   for (const method of ["readCodexCapabilities", "readCodexPermissionProfiles", "pickFiles", "pickDirectory"]) {
     assert.match(main, new RegExp(`${method}:`));
     assert.match(bridge, new RegExp(`${method}\\(`));
@@ -195,70 +211,83 @@ test("search, composer attachments, and Agent permissions route to real renderer
   assert.match(composerPalette, /catalog\.apps/);
 });
 
-test("native visual tokens track the current ChatGPT Codex light workbench", () => {
-  for (const marker of [
-    "ChatGPT Codex macOS 26.707.61608 visual token baseline",
-    "--opl-sidebar-width: 236px",
-    '--opl-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    "--opl-canvas: #fff",
-    "--opl-sidebar: #f7f7f8",
-    "--opl-surface-secondary: #f4f4f4",
-    "--opl-text: #202123",
-    "--opl-muted: color-mix(in oklab, var(--opl-text) 70%, transparent)",
-    "--opl-faint: color-mix(in oklab, var(--opl-text) 50%, transparent)",
-    "--opl-border: color-mix(in oklab, var(--opl-text) 8%, transparent)"
-  ]) assert.ok(styles.includes(marker), `missing ChatGPT Codex visual token: ${marker}`);
-  assert.match(styles, /font-family: var\(--opl-font-sans\);\s*font-size: 13px;\s*font-weight: 400;\s*line-height: 1\.5;/s);
-  assert.match(styles, /\.composer-frame \{[^}]*border-radius: 17px;/s);
-  assert.match(styles, /\[hidden\] \{\s*display: none !important;/s);
-  for (const legacyColor of ["#0d9488", "#e7f5f3", "#f7f7f7", "#eeeeec", "#e9e9e7"]) {
-    assert.ok(!styles.toLowerCase().includes(legacyColor), `legacy native palette color must stay removed: ${legacyColor}`);
+test("native visual shell uses vendored DeepSeek Harness roots and theme tokens", () => {
+  const theme = read("src/vendor/deepseek-harness/packages/client/ui-theme/src/styles/design-platform.css");
+  for (const marker of ["--dsw-static-deepseek-450", "--dsw-alias-bg-base", "--dsw-specific-sidebar-fill", "--dsw-alias-button-primary-fill"]) {
+    assert.ok(theme.includes(marker), `missing DeepSeek Harness visual token: ${marker}`);
   }
-  assert.doesNotMatch(styles, /OpenAISans|OpenAI Sans|SF Pro Text|Helvetica Neue/);
+  assert.match(adapterStyles, /\.opl-studio-dsh-root \{/);
+  assert.match(adapterStyles, /\.opl-dsh-workspace-rail \{/);
+  assert.match(adapterStyles, /\.opl-dsh-conversation-header \{/);
+  assert.match(adapterStyles, /\.opl-dsh-context-panel \{/);
+  assert.match(adapterStyles, /\.opl-dsh-hero-actions \{[^}]*flex-wrap: wrap;/s);
+  assert.match(adapterStyles, /letter-spacing: 0/);
   assert.match(styles, /\[data-streamdown="link"\]/);
   assert.match(styles, /\[data-streamdown="inline-code"\]/);
   assert.match(styles, /\[data-streamdown="code-block"\]/);
 });
 
+test("DSH controls resolve to the complete pinned upstream primitives tree while OPL branding stays external", () => {
+  const primitiveAlias = ["src/vendor/deepseek-harness/packages/client/ui-primitives/src/index.ts"];
+  assert.deepEqual(tsconfig.compilerOptions.paths["@deepseek-ai/dsh-client-ui-primitives"], primitiveAlias);
+  assert.deepEqual(typecheckConfig.compilerOptions.paths["@deepseek-ai/dsh-client-ui-primitives"], primitiveAlias);
+  assert.equal(sourceManifest.snapshot.file_count, 207);
+  assert.equal(sourceManifest.files.length, 207);
+  assert.equal(sourceManifest.snapshot.byte_identical_to_pinned_ref, true);
+  assert.ok(sourceManifest.snapshot.package_roots.includes("packages/client/ui-primitives/src"));
+  assert.equal(candidateEvidence.reused_oss_module_policy.vendored_file_count, 207);
+  assert.equal(candidateEvidence.reused_oss_module_policy.byte_identical_to_pinned_ref, true);
+  assert.equal(fs.existsSync(path.join(root, "src/integrations/deepseek-harness/uiPrimitives.tsx")), false);
+
+  for (const [source, primitives] of [
+    [app, ["MessageText", "Pill"]],
+    [composerPalette, ["Button", "Input"]],
+    [contributionComponents, ["Button", "Pill", "StateDot", "Tooltip"]]
+  ]) {
+    assert.match(source, /from "@deepseek-ai\/dsh-client-ui-primitives"/);
+    for (const primitive of primitives) assert.match(primitiveIndex, new RegExp(`export \\{ ${primitive} \\}`));
+  }
+
+  assert.match(adapterStyles, /svg\[viewBox="0 0 182 24"\]/);
+  assert.match(adapterStyles, /svg\[viewBox="0 0 23\.16 17\.04"\]/);
+  assert.match(adapterStyles, /var\(--opl-brand-logo\)/);
+  assert.match(adapterStyles, /content: "OPL Studio"/);
+  assert.match(main, /--opl-brand-logo/);
+  assert.match(main, /branding\/opl-app-logo\.png/);
+});
+
 test("primary canvas hides its scrollbar without disabling scrolling", () => {
-  assert.match(styles, /\.conversation \{[^}]*overflow-y: auto;[^}]*scrollbar-width: none;/s);
+  assert.match(conversationStyles, /\.scrollBody \{[^}]*overflow-y: auto;[^}]*overflow-x: hidden;/s);
   assert.match(styles, /\.settings-detail \{[^}]*overflow-y: auto;[^}]*scrollbar-width: none;/s);
-  assert.match(styles, /\.sidebar-scroll \{[^}]*overflow-x: hidden;[^}]*overflow-y: auto;/s);
-  assert.match(styles, /\.sidebar-scroll::\-webkit-scrollbar \{[^}]*width: 5px;[^}]*height: 0;/s);
-  assert.match(styles, /\.sidebar-scroll::\-webkit-scrollbar-track \{[^}]*background: transparent;/s);
-  assert.match(styles, /\.sidebar-scroll::\-webkit-scrollbar-thumb \{[^}]*background: color-mix\(in oklab, var\(--opl-text\) 12%, transparent\);/s);
+  assert.match(adapterStyles, /\.opl-dsh-projects > div \{[^}]*overflow-y: auto;[^}]*scrollbar-gutter: stable;/s);
   assert.match(styles, /\.sidebar-scroll > \*,[\s\S]*\.thread-directory-row \{[^}]*min-width: 0;[^}]*max-width: 100%;/s);
   assert.match(styles, /\.history-list li \.thread-directory-open \{[^}]*max-width: 100%;[^}]*overflow: hidden;/s);
   assert.match(styles, /\.history-list li \.thread-directory-open \.thread-directory-copy \{[^}]*max-width: 100%;[^}]*overflow: hidden;/s);
   assert.match(styles, /\.thread-directory-copy strong \{[^}]*max-width: 100%;[^}]*display: block;/s);
-  assert.match(styles, /\.context-scroll \{[^}]*overflow-y: auto;/s);
+  assert.match(adapterStyles, /\.opl-dsh-context-panel \.context-scroll \{[^}]*overflow-y: auto;/s);
 });
 
-test("desktop sidebar width is adjustable, bounded, and persisted as UI metadata", () => {
-  assert.match(app, /sidebarWidth: number/);
-  assert.match(app, /const minimumSidebarWidth = 200/);
-  assert.match(app, /const maximumSidebarWidth = 420/);
-  assert.match(app, /sidebarWidth: clampSidebarWidth\(metadata\?\.sidebarWidth\)/);
-  assert.match(app, /data-testid="opl-sidebar-resizer"/);
-  assert.match(app, /role="separator"/);
-  assert.match(app, /onPointerDown=\{beginSidebarResize\}/);
-  assert.match(app, /onDoubleClick=\{\(\) => persistSidebarWidth\(defaultSidebarWidth\)\}/);
-  assert.match(app, /style=\{\{ "--opl-sidebar-width": `\$\{sidebarWidth\}px` \} as CSSProperties\}/);
-  assert.match(styles, /\.sidebar-resizer \{[^}]*left: calc\(var\(--opl-sidebar-width\) - 3px\);[^}]*width: 6px;/s);
-  assert.match(styles, /:root\[data-opl-sidebar-resizing="true"\]/);
-  assert.match(styles, /\.sidebar-closed \.chat-shell \{\s*grid-column: 1 \/ -1;/s);
-  assert.doesNotMatch(styles, /grid-template-columns: 224px minmax\(0, 1fr\)/);
+test("DSH AppFrame owns bounded sidebar/details resize and responsive collapse", () => {
+  assert.match(appFrame, /computeColumns\(viewport, sidebarPreference/);
+  assert.match(appFrame, /const narrow = viewport < SIDEBAR_AUTO_COLLAPSE/);
+  assert.match(appFrame, /actions\.setSidebar\(sidebarBase\.current \+ dx\)/);
+  assert.match(appFrame, /actions\.setDetails\(detailsBase\.current - dx\)/);
+  assert.match(appFrame, /<DragHandle side="sidebar"/);
+  assert.match(appFrame, /<DragHandle side="details"/);
+  assert.match(appFrameStyles, /grid-template-rows: 100%/);
+  assert.match(appFrameStyles, /transition: grid-template-columns/);
+  assert.doesNotMatch(app, /data-testid="opl-sidebar-resizer"/);
 });
 
-test("sidebar and Settings consume the canonical Gateway account read model", () => {
+test("DSH Settings content consumes the canonical Gateway account read model", () => {
   assert.match(model, /app_settings_read_model/);
   assert.match(model, /opl_gateway_account_read_model\.v1/);
   assert.match(model, /gatewayAccountRecord\?\.display_name/);
   assert.match(model, /gatewayAccountProjection\.connection_mode === "account"/);
   assert.match(model, /gatewayConnectionMode/);
-  assert.match(app, /data-account-mode=\{sidebarAccountMode\}/);
-  assert.match(app, /sidebarAccountMode === "manual_key" \? <KeyRound/);
-  assert.match(app, /gatewayAccountInitials\(model\.gatewayAccount\?\.displayName\)/);
+  assert.match(app, /<SettingsPanel/);
+  assert.match(app, /settings: studioSettings/);
+  assert.match(slotHost, /<SettingsRoot/);
   assert.match(settingsPanel, /opl-settings-gateway-username/);
   assert.match(settingsPanel, /gateway\?\.displayName/);
   assert.match(settingsPanel, /gateway\?\.email/);
@@ -281,23 +310,20 @@ test("Settings uses the App-owned navigation groups and one shared read model", 
   assert.match(model, /codex_model_policy/);
   assert.match(model, /workspace_services/);
   assert.match(model, /storage_lifecycle/);
-  assert.match(app, /<SettingsSidebar/);
-  assert.match(settingsPanel, /opl-settings-back-to-app/);
+  assert.match(settingsRoot, /renderSlot\('settings\.section'/);
+  assert.match(slotHost, /register\(\{ name: "settings\.section", id: "opl-studio-settings"/);
   assert.match(settingsPanel, /onDestinationChange/);
   assert.doesNotMatch(settingsPanel, /useState<SettingsDestinationId>/);
   assert.doesNotMatch(styles, /grid-template-columns: 220px minmax\(0, 1fr\)/);
   assert.match(styles, /\.settings-mobile-navigation/);
 });
 
-test("desktop remains two-column and mobile thread dialogs are full-height", () => {
-  assert.match(styles, /grid-template-columns: var\(--opl-sidebar-width\) minmax\(0, 1fr\)/);
-  assert.doesNotMatch(styles, /grid-template-columns:\s*var\(--opl-sidebar-width\)\s+minmax\(0, 1fr\)\s+\d/);
+test("desktop uses DSH columns and mobile keeps full-height thread dialogs", () => {
+  assert.match(appFrame, /gridTemplateColumns: `\$\{cols\.sidebar\}px minmax\(0, 1fr\) \$\{cols\.details\}px`/);
   assert.match(styles, /@media \(max-width: 760px\)/);
-  assert.match(app, /window\.matchMedia\("\(max-width: 760px\)"\)\.matches\) setSidebarOpen\(false\)/);
   assert.match(rail, /project\.threads\.slice\(0, 2\)/);
   assert.match(app, /conversation\.scrollTop = conversation\.scrollHeight/);
-  assert.match(app, /mobile\.addEventListener\?\.\("change", syncSidebar\)/);
-  assert.match(app, /aria-label=\{t\.agentPermissions\}/);
+  assert.match(slotHost, /className="opl-dsh-rail-browser"/);
   assert.match(styles, /\.thread-detail-popover,\s*\.thread-confirmation-dialog \{\s*inset: 0;/s);
   assert.match(styles, /height: 100dvh/);
   assert.match(styles, /border-radius: 0/);

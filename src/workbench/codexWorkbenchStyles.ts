@@ -1,5 +1,6 @@
 export const codexWorkbenchStyles = `
-  /* ChatGPT Codex macOS 26.707.61608 visual token baseline. */
+  /* ChatGPT Codex macOS 26.707.61608 visual token baseline.
+     OPL Studio additionally uses pinned DeepSeek Harness GUI source reuse. */
   :root {
     color-scheme: light;
     --opl-native-titlebar-inset: 0px;
@@ -23,6 +24,38 @@ export const codexWorkbenchStyles = `
     --opl-warning: #e25507;
     --opl-warning-soft: #ffe7d9;
     --opl-danger: #e02e2a;
+
+    /* Selected from DeepSeek Harness ui-theme/design-platform.css at
+       47f943859bef60e4160492346772ded9b24f765a for the reused primitives. */
+    --dsw-static-deepseek-450: rgb(86, 134, 254);
+    --dsw-static-neutral-bluish-00: rgb(255, 255, 255);
+    --dsw-static-neutral-bluish-100: rgb(235, 238, 242);
+    --dsw-static-neutral-bluish-500: rgb(151, 157, 166);
+    --dsw-static-neutral-bluish-700: rgb(97, 102, 107);
+    --dsw-static-neutral-bluish-750: rgb(67, 69, 74);
+    --dsw-static-neutral-bluish-850: rgb(44, 44, 46);
+    --dsw-static-neutral-bluish-1000: rgb(15, 17, 21);
+    --dsw-static-green-500: rgb(34, 197, 94);
+    --dsw-static-amber-500: rgb(245, 158, 11);
+    --dsw-static-red-600: rgb(236, 19, 19);
+    --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-00);
+    --dsw-alias-border-l2: rgba(0, 0, 0, 0.1);
+    --dsw-alias-button-ghost-active-border: var(--dsw-static-neutral-bluish-500);
+    --dsw-alias-button-ghost-active-fill: var(--dsw-static-neutral-bluish-100);
+    --dsw-alias-button-primary-fill: var(--dsw-static-neutral-bluish-1000);
+    --dsw-alias-button-primary-hover: var(--dsw-static-neutral-bluish-750);
+    --dsw-alias-button-tool-bar-fill: rgba(84, 85, 87, 0.5);
+    --dsw-alias-button-tool-bar-hover: rgba(84, 85, 87, 0.6);
+    --dsw-alias-interactive-bg-active: rgba(38, 49, 72, 0.1);
+    --dsw-alias-interactive-bg-hover: rgba(38, 49, 72, 0.06);
+    --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-1000);
+    --dsw-alias-label-primary-foreground: var(--dsw-static-neutral-bluish-00);
+    --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-700);
+    --dsw-alias-state-success-primary: var(--dsw-static-green-500);
+    --dsw-alias-state-warn-primary: var(--dsw-static-amber-500);
+    --dsw-alias-state-error-primary: var(--dsw-static-red-600);
+    --dsw-alias-tooltip-bg: var(--dsw-static-neutral-bluish-850);
+    --ds-ease-in-out: ease-in-out;
   }
 
   :root[data-opl-host="native"] {
@@ -59,7 +92,91 @@ export const codexWorkbenchStyles = `
     opacity: 0.45;
   }
 
-  .opl-native-workbench {
+  .opl-contribution-slot {
+    display: grid;
+    gap: 0;
+    min-width: 0;
+  }
+
+  .opl-contribution {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+    padding: 10px 0;
+    border-top: 1px solid var(--opl-border);
+  }
+
+  .opl-contribution-header,
+  .opl-contribution-title,
+  .opl-contribution-meta,
+  .opl-contribution-badges,
+  .opl-contribution-actions,
+  .opl-contribution-fallback {
+    display: flex;
+    align-items: center;
+  }
+
+  .opl-contribution-header {
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .opl-contribution-title,
+  .opl-contribution-meta,
+  .opl-contribution-badges,
+  .opl-contribution-actions,
+  .opl-contribution-fallback {
+    gap: 7px;
+  }
+
+  .opl-contribution-title {
+    min-width: 0;
+  }
+
+  .opl-contribution-title strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .opl-contribution-meta,
+  .opl-contribution-badges,
+  .opl-contribution-actions {
+    flex-wrap: wrap;
+  }
+
+  .opl-contribution-view {
+    display: grid;
+    grid-template-columns: minmax(100px, 0.35fr) minmax(0, 1fr);
+    gap: 10px;
+    color: var(--opl-muted);
+    font-size: 12px;
+  }
+
+  .opl-contribution-view code {
+    overflow: hidden;
+    color: var(--opl-faint);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .opl-contribution-fallback {
+    margin: 0;
+    color: var(--opl-muted);
+  }
+
+  .settings-contribution-section {
+    display: grid;
+    gap: 8px;
+  }
+
+  .settings-contribution-section > h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .opl-studio {
     width: 100vw;
     height: 100vh;
     min-width: 0;
@@ -76,7 +193,7 @@ export const codexWorkbenchStyles = `
     letter-spacing: 0;
   }
 
-  .opl-native-workbench.sidebar-closed {
+  .opl-studio.sidebar-closed {
     grid-template-columns: 0 minmax(0, 1fr);
   }
 
@@ -2823,8 +2940,8 @@ export const codexWorkbenchStyles = `
   }
 
   @media (max-width: 760px) {
-    .opl-native-workbench,
-    .opl-native-workbench.sidebar-closed {
+    .opl-studio,
+    .opl-studio.sidebar-closed {
       grid-template-columns: 1fr;
     }
 

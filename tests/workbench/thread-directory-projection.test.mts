@@ -41,7 +41,7 @@ describe("Codex thread directory projection", () => {
         {
           id: "normal-workspace",
           title: "Normal workspace",
-          workspace: "/Users/test/workspace/opl-native-workbench",
+          workspace: "/Users/test/workspace/opl-studio",
           updatedAt: 2
         }
       ]
@@ -49,12 +49,12 @@ describe("Codex thread directory projection", () => {
 
     expect(groups.map((group) => group.id)).toEqual([
       "project:/Users/test/workspace/one-person-lab",
-      "workspace:/Users/test/workspace/opl-native-workbench",
+      "workspace:/Users/test/workspace/opl-studio",
       "projectless"
     ]);
     expect(groups[0].label).toBe("one-person-lab");
     expect(groups[0].threads.map((thread) => thread.id)).toEqual(["canonical"]);
-    expect(groups[1].label).toBe("opl-native-workbench");
+    expect(groups[1].label).toBe("opl-studio");
     expect(groups[2].workspace).toBeUndefined();
     expect(groups[2].threads.map((thread) => thread.id)).toEqual([
       "temporary",

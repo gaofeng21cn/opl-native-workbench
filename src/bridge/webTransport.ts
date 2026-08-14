@@ -2,10 +2,10 @@ import {
   normalizeBridgeEvent,
   parseEventSourceMessage,
   type OplBridgeEvent,
-  type OplNativeWorkbenchSurface
+  type OplStudioSurface
 } from "./oplBridge";
 
-type WebSurface = OplNativeWorkbenchSurface;
+type WebSurface = OplStudioSurface;
 
 class WebTransportError extends Error {
   code: string;
@@ -83,5 +83,5 @@ export function installWebTransport(): void {
     subscribeEvents,
     connectEvents: subscribeEvents
   };
-  window.oplNativeWorkbench = surface;
+  window.oplStudio = surface;
 }

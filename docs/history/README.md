@@ -1,4 +1,4 @@
-# OPL Native Workbench History
+# OPL Studio History
 
 Owner: `one-person-lab-app`
 Purpose: `history_index`

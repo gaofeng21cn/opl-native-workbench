@@ -4,13 +4,13 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const root = path.resolve(new URL("..", import.meta.url).pathname);
-const source = fs.readFileSync(path.join(root, "scripts", "native-workbench-app.swift"), "utf8");
+const source = fs.readFileSync(path.join(root, "scripts", "opl-studio-app.swift"), "utf8");
 const bootstrap = "\nlet app = NSApplication.shared";
 const bootstrapIndex = source.indexOf(bootstrap);
-if (bootstrapIndex < 0) throw new Error("native workbench bootstrap marker is missing");
+if (bootstrapIndex < 0) throw new Error("OPL Studio bootstrap marker is missing");
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "opl-native-command-output-"));
-const testSource = path.join(tempRoot, "NativeWorkbenchTestSource.swift");
+const testSource = path.join(tempRoot, "OplStudioTestSource.swift");
 const executable = path.join(tempRoot, "native-command-output-regression");
 
 try {

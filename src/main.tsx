@@ -1,16 +1,17 @@
 import { createRoot } from "react-dom/client";
-import type { OplBridgeEvent, OplNativeWorkbenchSurface } from "./bridge/oplBridge";
+import "./integrations/deepseek-harness/theme";
+import type { OplBridgeEvent, OplStudioSurface } from "./bridge/oplBridge";
 import { installWebTransport } from "./bridge/webTransport";
-import App from "./workbench/App";
+import { renderOplStudioRoot } from "./composition/dshSlotHost";
 
 declare global {
   interface Window {
-    __oplNativeWorkbenchResolve?: (id: string, ok: boolean, payload: unknown) => void;
-    __oplNativeWorkbenchEvent?: (event: unknown) => void;
-    oplNativeWorkbench?: OplNativeWorkbenchSurface;
+    __oplStudioResolve?: (id: string, ok: boolean, payload: unknown) => void;
+    __oplStudioEvent?: (event: unknown) => void;
+    oplStudio?: OplStudioSurface;
     webkit?: {
       messageHandlers?: {
-        oplNativeWorkbench?: {
+        oplStudio?: {
           postMessage(message: unknown): void;
         };
       };
@@ -24,8 +25,8 @@ type PendingRequest<T> = {
 };
 
 function installNativeTransport(): boolean {
-  const handler = window.webkit?.messageHandlers?.oplNativeWorkbench;
-  if (!handler || window.oplNativeWorkbench) return false;
+  const handler = window.webkit?.messageHandlers?.oplStudio;
+  if (!handler || window.oplStudio) return false;
 
   const pending = new Map<string, PendingRequest<unknown>>();
   const listeners = new Set<(event: OplBridgeEvent) => void>();
@@ -37,7 +38,7 @@ function installNativeTransport(): boolean {
       handler.postMessage({ id, method, payload });
     });
 
-  window.__oplNativeWorkbenchResolve = (id, ok, payload) => {
+  window.__oplStudioResolve = (id, ok, payload) => {
     const request = pending.get(id);
     if (!request) return;
     pending.delete(id);
@@ -52,7 +53,7 @@ function installNativeTransport(): boolean {
     request.reject(new Error(message));
   };
 
-  window.__oplNativeWorkbenchEvent = (event) => {
+  window.__oplStudioEvent = (event) => {
     listeners.forEach((listener) => listener(event as OplBridgeEvent));
   };
 
@@ -61,8 +62,8 @@ function installNativeTransport(): boolean {
     return () => listeners.delete(onEvent);
   };
 
-  window.oplNativeWorkbench = {
-    eventSourceUrl: "native://oplNativeWorkbench",
+  window.oplStudio = {
+    eventSourceUrl: "native://oplStudio",
     beginWindowDrag: () => {
       void post("beginWindowDrag").catch(() => undefined);
     },
@@ -88,6 +89,7 @@ function installNativeTransport(): boolean {
 
 const nativeTransportInstalled = installNativeTransport();
 document.documentElement.dataset.oplHost = nativeTransportInstalled ? "native" : "web";
+document.documentElement.style.setProperty("--opl-brand-logo", "url('branding/opl-app-logo.png')");
 
 if (!nativeTransportInstalled && window.location.protocol !== "file:") {
   installWebTransport();
@@ -98,4 +100,4 @@ if (!rootElement) {
   throw new Error("missing #root renderer mount");
 }
 
-createRoot(rootElement).render(<App />);
+createRoot(rootElement).render(renderOplStudioRoot());

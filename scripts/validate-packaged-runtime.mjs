@@ -1,17 +1,19 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { assert, readJson, root } from "./native-workbench-gates.mjs";
+import { assert, readJson, root } from "./opl-studio-gates.mjs";
 import { readCodexModelPolicy } from "./build-renderer.mjs";
 
-const appName = "One Person Lab Native";
+const appName = "One Person Lab Studio Preview";
 const appRoot = path.join(root, "out", `${appName}.app`);
 const resourcesDir = path.join(appRoot, "Contents", "Resources");
 const executablePath = path.join(appRoot, "Contents", "MacOS", appName);
 const workbenchPath = path.join(resourcesDir, "workbench.html");
 const rendererPath = path.join(resourcesDir, "renderer.js");
+const stylesheetPath = path.join(resourcesDir, "renderer.css");
+const noticesPath = path.join(resourcesDir, "THIRD_PARTY_NOTICES.md");
 const manifestPath = path.join(resourcesDir, "package-manifest.json");
-const nativeSourcePath = path.join(root, "scripts", "native-workbench-app.swift");
+const nativeSourcePath = path.join(root, "scripts", "opl-studio-app.swift");
 const appModelPolicy = readCodexModelPolicy();
 
 function assertOrderedValues(actual, expected, label) {
@@ -24,8 +26,10 @@ function assertOrderedValues(actual, expected, label) {
 
 assert(fs.existsSync(appRoot), "missing packaged .app");
 assert(fs.existsSync(executablePath), "missing packaged executable");
-assert(fs.existsSync(workbenchPath), "missing packaged native workbench HTML");
+assert(fs.existsSync(workbenchPath), "missing packaged OPL Studio HTML");
 assert(fs.existsSync(rendererPath), "missing packaged shared renderer script");
+assert(fs.existsSync(stylesheetPath), "missing packaged DeepSeek Harness stylesheet closure");
+assert(fs.existsSync(noticesPath), "missing packaged third-party notices");
 assert(!fs.existsSync(path.join(resourcesDir, "preview.html")), "preview-only browser page must not be packaged");
 
 const signatureCheck = spawnSync("codesign", ["--verify", "--deep", "--strict", "--verbose=2", appRoot], {
@@ -47,8 +51,8 @@ const policySmoke = spawnSync(executablePath, [], {
   encoding: "utf8",
   env: {
     ...process.env,
-    OPL_NATIVE_WORKBENCH_POLICY_SMOKE: "1",
-    OPL_NATIVE_WORKBENCH_READ_ONLY: "1"
+    OPL_STUDIO_POLICY_SMOKE: "1",
+    OPL_STUDIO_READ_ONLY: "1"
   }
 });
 assert(policySmoke.status === 0, `Candidate action policy smoke failed\n${policySmoke.stdout}\n${policySmoke.stderr}`);
@@ -58,6 +62,8 @@ assert(policySmokePayload.dryRunAllowed === true, "Candidate read-only policy mu
 
 const workbench = fs.readFileSync(workbenchPath, "utf8");
 const renderer = fs.readFileSync(rendererPath, "utf8");
+const stylesheet = fs.readFileSync(stylesheetPath, "utf8");
+const notices = fs.readFileSync(noticesPath, "utf8");
 const nativeSource = fs.readFileSync(nativeSourcePath, "utf8");
 const settingsModel = fs.readFileSync(path.join(root, "src", "workbench", "settingsModel.ts"), "utf8");
 const evidence = readJson("src/candidateContractEvidence.json");
@@ -69,19 +75,45 @@ assert(evidence.functional_mvp_closeout?.local_candidate_live_smoke?.boundaries?
 assert(evidence.functional_mvp_closeout?.local_candidate_live_smoke?.boundaries?.clean_vm_ready === false, "native live smoke must not claim clean-VM readiness");
 for (const marker of [
   '<div id="root"></div>',
+  '<link rel="stylesheet" href="./renderer.css" />',
   './renderer.js',
   'branding/opl-app-logo.png',
   '__OPL_CODEX_MODEL_POLICY__'
 ]) {
   assert(workbench.includes(marker), `missing packaged workbench marker ${marker}`);
 }
+for (const marker of [
+  "SlotCore",
+  "createSlotRenderer",
+  "AppFrame",
+  "SidebarRoot",
+  "ConversationRoot",
+  "InputBar",
+  "SettingsRoot",
+  "opl-studio-overlay"
+]) {
+  assert(renderer.includes(marker), `missing packaged DeepSeek Harness composition marker ${marker}`);
+}
+for (const stylesheetRoot of [
+  "AppFrame.module.css",
+  "SidebarRoot.module.css",
+  "ConversationRoot.module.css",
+  "InputBar.module.css",
+  "SettingsRoot.module.css",
+  "Button.module.css",
+  "Pill.module.css",
+  "Tooltip.module.css"
+]) {
+  assert(stylesheet.includes(stylesheetRoot), `packaged stylesheet must contain ${stylesheetRoot}`);
+}
+assert(notices.includes("DeepSeek Harness") && notices.includes("MIT License") && notices.includes("47f943859bef60e4160492346772ded9b24f765a"), "packaged notices must preserve the DeepSeek Harness MIT provenance");
 const serializedModelPolicy = JSON.stringify(appModelPolicy).replaceAll("<", "\\u003c");
 assert(
   workbench.includes(`globalThis.__OPL_CODEX_MODEL_POLICY__=${serializedModelPolicy};`),
   "packaged workbench model policy injection must match the current App product profile"
 );
 for (const marker of [
-  'opl-native-workbench-root',
+  'opl-studio-root',
   'opl-workspace-rail',
   'opl-project-inputs',
   'opl-project-attachments',
@@ -97,8 +129,8 @@ for (const marker of [
   'opl-confirmation-card',
   'opl-renderer-module-registry',
   'codex-sidebar-chat',
-  'messageHandlers?.oplNativeWorkbench',
-  'native://oplNativeWorkbench',
+  'messageHandlers?.oplStudio',
+  'native://oplStudio',
   'codex app-server',
   'initialize',
   '/api/opl-events',
@@ -136,7 +168,7 @@ for (const marker of [
   "OPL_APP_OPL_BIN",
   "OPL_APP_RUNTIME_IDENTITY_JSON",
   "readRuntimeIdentity",
-  "OPL_NATIVE_WORKBENCH_READ_ONLY",
+  "OPL_STUDIO_READ_ONLY",
   "blocked_read_only"
 ]) {
   assert(nativeSource.includes(marker), `missing native bridge marker ${marker}`);
@@ -195,8 +227,8 @@ for (const asset of [
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 assert(manifest.status === "candidate_app_bundle_built", "package status must describe a built candidate, not readiness");
 assert(manifest.bundle_identity?.display_name === appName, "manifest must preserve the formal Native test name");
-assert(manifest.bundle_identity?.bundle_id === "cn.gflab.opl.native-workbench.candidate", "manifest must preserve the isolated candidate bundle id");
-assert(manifest.bundle_identity?.installed_app_path === "/Applications/One Person Lab Native.app", "manifest must record the formal Native install path");
+assert(manifest.bundle_identity?.bundle_id === "cn.gflab.opl.studio.preview", "manifest must preserve the isolated candidate bundle id");
+assert(manifest.bundle_identity?.installed_app_path === "/Applications/One Person Lab Studio Preview.app", "manifest must record the formal Native install path");
 assert(manifest.bundle_identity?.isolated_from_active_mainline_bundle_id === "cn.onepersonlab.opl", "manifest must record the active mainline bundle isolation boundary");
 assert(manifest.launcher_runtime_resolution?.identity_schema === "app_runtime_executable_identity.v1", "manifest must record launcher Runtime identity readback");
 assert(manifest.launcher_runtime_resolution?.direct_launch_fallback === "host_path_without_runtime_parity_claim", "direct Candidate launch must not claim Runtime parity");
@@ -210,14 +242,39 @@ assert(manifest.carrier_policy?.disabled_carriers_add_runtime_dependencies === f
 assert(manifest.carrier_policy?.thread_overview?.includes("useStateDbOnly=true"), "package must record the canonical Codex state DB overview");
 assert(manifest.opens_default_browser === false, "candidate app must not open the default browser");
 assert(manifest.app_bundle_workbench === "Contents/Resources/workbench.html", "manifest must point at workbench.html");
-assert(manifest.primary_visual_reference?.product === "ChatGPT Codex macOS", "manifest must record ChatGPT Codex as the primary visual reference");
-assert(manifest.primary_visual_reference?.version === "26.707.61608", "manifest must record the current Codex reference version");
-assert(manifest.primary_visual_reference?.reference_date === "2026-08-09", "manifest must record the current Codex visual inspection date");
-assert(manifest.visual_style_reference?.desktop_sidebar_width === "236px", "manifest must record the current Codex sidebar density");
-assert(manifest.primary_visual_reference?.source_usage === "visual_and_interaction_reference_only_no_code_or_brand_copy", "manifest must keep Codex reference use visual-only");
+assert(manifest.app_bundle_stylesheet === "Contents/Resources/renderer.css", "manifest must point at the packaged stylesheet");
+assert(manifest.app_bundle_third_party_notices === "Contents/Resources/THIRD_PARTY_NOTICES.md", "manifest must point at third-party notices");
+assert(manifest.primary_visual_reference?.product === "DeepSeek Harness", "manifest must record DeepSeek Harness as the primary GUI reference");
+assert(manifest.primary_visual_reference?.version === "47f943859bef60e4160492346772ded9b24f765a", "manifest must record the pinned DeepSeek Harness source ref");
+assert(manifest.primary_visual_reference?.reference_date === "2026-08-14", "manifest must record the DeepSeek Harness inspection date");
+assert(manifest.primary_visual_reference?.source_usage === "direct_mit_gui_source_reuse", "manifest must record direct MIT GUI reuse");
+assert(manifest.deepseek_harness_source_reuse?.ui_package_version === "0.1.0-rc.6", "manifest must record the verified DeepSeek Harness UI package version");
+assert(manifest.deepseek_harness_source_reuse?.source_package_version === "0.1.0-rc.5", "manifest must record the pinned DeepSeek Harness source package version");
+assert(manifest.deepseek_harness_source_reuse?.adopted_scope?.includes("SlotCore"), "manifest must record the reused DeepSeek Harness slot core");
+assert(manifest.deepseek_harness_source_reuse?.adopted_scope?.includes("ui_primitives"), "manifest must record direct DeepSeek Harness UI primitive reuse");
+assert(manifest.deepseek_harness_source_reuse?.source_manifest === "src/composition/deepseekHarnessSourceManifest.json", "manifest must point to the vendored DeepSeek Harness source manifest");
+assert(manifest.deepseek_harness_source_reuse?.vendor_root === "src/vendor/deepseek-harness", "manifest must record the vendored DeepSeek Harness root");
+assert(manifest.deepseek_harness_source_reuse?.file_count === 207, "manifest must inventory 207 vendored DeepSeek Harness files");
+assert(manifest.deepseek_harness_source_reuse?.byte_identical === true, "manifest must record byte-identical DeepSeek Harness source");
+assert(manifest.deepseek_harness_source_reuse?.byte_identical_to_pinned_ref === true, "manifest must bind byte identity to the pinned DeepSeek Harness ref");
+assert(
+  JSON.stringify(manifest.deepseek_harness_source_reuse?.package_roots) === JSON.stringify([
+    "packages/client/ui-layout/src",
+    "packages/client/ui-sidebar/src",
+    "packages/client/ui-conversation/src",
+    "packages/client/ui-settings-general/src",
+    "packages/client/ui-theme/src",
+    "packages/client/ui-primitives/src"
+  ]),
+  "manifest must record all six DeepSeek Harness GUI package roots"
+);
+for (const rootName of ["AppFrame", "SidebarRoot", "ConversationRoot", "InputBar", "SettingsRoot"]) {
+  assert(manifest.deepseek_harness_source_reuse?.active_gui_roots?.some((entry) => entry.includes(rootName)), `manifest must record active GUI root ${rootName}`);
+}
+assert(manifest.deepseek_harness_source_reuse?.excluded_authority?.includes("plugin_manager"), "manifest must keep the DeepSeek Harness plugin manager outside OPL authority");
 assert(manifest.default_home_layout?.project_rail_visible === true, "manifest must keep the project rail visible by default");
 assert(manifest.default_home_layout?.environment_details_default_open === false, "manifest must keep environment details closed by default");
-assert(manifest.default_home_layout?.environment_details_presentation === "floating", "manifest must keep environment details floating");
+assert(manifest.default_home_layout?.environment_details_presentation === "dsh_resizable_column", "manifest must keep environment details in the DSH resizable column");
 assert(manifest.codex_model_policy?.source === appModelPolicy.source, "manifest must bind model policy to the App product profile");
 assert(manifest.codex_model_policy?.default_model === appModelPolicy.defaultModel, "manifest default model must match the App product profile");
 assert(manifest.codex_model_policy?.default_reasoning_effort === appModelPolicy.defaultReasoningEffort, "manifest default reasoning effort must match the App product profile");
@@ -232,8 +289,8 @@ assert(manifest.external_layout_reference?.companion_repo === "https://github.co
 assert(manifest.external_layout_reference?.adapted_patterns?.includes("persistent project and conversation rail with compact project context links"), "manifest must record the Codex project rail adaptation");
 assert(manifest.external_layout_reference?.adapted_patterns?.includes("single conversation canvas with centered max-width thread and bottom composer"), "manifest must record the Codex-style conversation adaptation");
 assert(manifest.external_layout_reference?.adapted_patterns?.includes("model and reasoning controls stay in the composer bottom row"), "manifest must record composer model configuration");
-assert(manifest.external_layout_reference?.adapted_patterns?.includes("attachments, outputs, preview, provenance, workflows, packages, and runtime live in floating user-requested environment details"), "manifest must record floating environment details");
-assert(manifest.external_layout_reference?.adapted_patterns?.includes("environment details are closed by default and do not resize the chat canvas"), "manifest must record closed-by-default environment details");
+assert(manifest.external_layout_reference?.adapted_patterns?.includes("attachments, outputs, preview, provenance, workflows, packages, and runtime live in the user-requested DSH details column"), "manifest must record the DSH details column");
+assert(manifest.external_layout_reference?.adapted_patterns?.includes("environment details are closed by default and use the DSH frame concession layout when opened"), "manifest must record closed-by-default environment details");
 assert(manifest.external_layout_reference?.adapted_patterns?.includes("K-Dense and Open Science remain feature references rather than the visual shell baseline"), "manifest must demote external workbenches to feature references");
 assert(manifest.functional_mvp?.codex_app_server_thread_turn === true, "manifest must record Codex app-server thread/turn MVP");
 assert(manifest.functional_mvp?.codex_protocol?.includes("model/list"), "manifest must record app-server model availability reads");
@@ -249,7 +306,7 @@ assert(manifest.release_ready === false, "candidate package must not claim relea
 assert(manifest.live_evidence === false, "candidate package must not claim live evidence");
 for (const marker of [
   "SETTINGS_STORAGE_KEY",
-  "opl.nativeWorkbench.settings.v1",
+  "opl.studio.settings.v1",
   "localStorage",
   "readSettings",
   "writeSettings",
@@ -263,7 +320,7 @@ assert(evidence.false_ready_boundary.settings_system_write_permission === false,
 assert(evidence.false_ready_boundary.artifact_authority === false, "artifact authority must stay false");
 assert(evidence.false_ready_boundary.starter_execution_authority === false, "starter execution authority must stay false");
 
-const rootManifest = readJson("out/opl-native-workbench-candidate-manifest.json");
+const rootManifest = readJson("out/opl-studio-candidate-manifest.json");
 assert(rootManifest.status === "candidate_app_bundle_built", "root manifest must not use a readiness status for a built candidate");
 assert(rootManifest.opens_default_browser === false, "root manifest must preserve browser boundary");
 

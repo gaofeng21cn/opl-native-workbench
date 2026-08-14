@@ -7,7 +7,7 @@ import {
   readJson,
   readRendererSource,
   validateNonLiveDeliveryEvidence
-} from "./native-workbench-gates.mjs";
+} from "./opl-studio-gates.mjs";
 import { buildRenderer } from "./build-renderer.mjs";
 import * as Mermaid from "mermaid";
 
@@ -26,7 +26,7 @@ assert(
   "Mermaid preview must preserve namespace/default interop",
 );
 
-for (const value of ["window.oplNativeWorkbench", "/api/opl-events", "EventSource"]) {
+for (const value of ["window.oplStudio", "/api/opl-events", "EventSource"]) {
   assert(webTransport.includes(value), `missing WebUI transport marker ${value}`);
 }
 for (const marker of [
@@ -39,7 +39,7 @@ for (const marker of [
 ]) {
   assert(webTransport.includes(marker), `missing standard WebUI thread route ${marker}`);
   assert(
-    webTransport.indexOf(marker) < webTransport.indexOf("window.oplNativeWorkbench = surface"),
+    webTransport.indexOf(marker) < webTransport.indexOf("window.oplStudio = surface"),
     `thread route must be installed before renderer startup: ${marker}`
   );
 }
@@ -56,14 +56,14 @@ const bundle = read("dist/webui/renderer.js");
 for (const marker of ['<div id="root"></div>', './renderer.js', 'branding/opl-app-logo.png']) {
   assert(html.includes(marker), `missing WebUI HTML marker ${marker}`);
 }
-for (const marker of ["opl-native-workbench-root", "window.oplNativeWorkbench", "/api/opl-events"]) {
+for (const marker of ["opl-studio-root", "window.oplStudio", "/api/opl-events"]) {
   assert(bundle.includes(marker), `missing WebUI renderer marker ${marker}`);
 }
 
 console.log(JSON.stringify({
   status: "webui_smoke_passed",
   shared_renderer: true,
-  bridge_shape: "window.oplNativeWorkbench",
+  bridge_shape: "window.oplStudio",
   covered_testids: webuiRendererTestIds.length,
   active_shell_adopted: false
 }, null, 2));

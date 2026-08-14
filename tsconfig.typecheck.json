@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@deepseek-ai/dsh-client-ui-primitives": ["src/vendor/deepseek-harness/packages/client/ui-primitives/src/index.ts"]
+    }
+  }
+}

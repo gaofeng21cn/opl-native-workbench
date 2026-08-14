@@ -28,11 +28,7 @@ import {
   reasoningLabel,
   type ResolvedCodexModelOption
 } from "./modelPolicy";
-import {
-  settingsDefaults,
-  type SettingKey,
-  type WorkbenchSettings
-} from "./settingsModel";
+import type { SettingKey, WorkbenchSettings } from "./settingsModel";
 
 export type SettingsDestinationId =
   | "overview"
@@ -79,6 +75,7 @@ type SettingsPanelProps = {
   pendingConfirmation: SettingsActionConfirmation | null;
   onConfirmAction: () => void;
   onCancelAction: () => void;
+  contributions?: ReactNode;
 };
 
 export type SettingsActionRequest = {
@@ -636,7 +633,8 @@ export function SettingsPanel({
   actionFeedback,
   pendingConfirmation,
   onConfirmAction,
-  onCancelAction
+  onCancelAction,
+  contributions
 }: SettingsPanelProps) {
   const groups = useMemo(() => navigationGroups(settings.locale), [settings.locale]);
   const locale = settings.locale === "zh" ? "zh-CN" : "en-US";
@@ -856,11 +854,19 @@ export function SettingsPanel({
 
     if (activeDestination === "capabilities") {
       return (
-        <SettingsGroup title={settings.locale === "zh" ? "能力" : "Capabilities"}>
-          <SettingRow label={settings.locale === "zh" ? "可用专业入口" : "Available professional starters"}><span>{availableStarters} / {model.starters.length}</span></SettingRow>
-          <SettingRow label={settings.locale === "zh" ? "本地默认入口" : "Local starter defaults"}>{renderSettingControl("professionalStarterDefaults")}</SettingRow>
-          <SettingRow label={settings.locale === "zh" ? "能力包读取" : "Package readback"}><span>{model.packageLifecycle.length}</span></SettingRow>
-        </SettingsGroup>
+        <>
+          <SettingsGroup title={settings.locale === "zh" ? "能力" : "Capabilities"}>
+            <SettingRow label={settings.locale === "zh" ? "可用专业入口" : "Available professional starters"}><span>{availableStarters} / {model.starters.length}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "本地默认入口" : "Local starter defaults"}>{renderSettingControl("professionalStarterDefaults")}</SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "能力包读取" : "Package readback"}><span>{model.packageLifecycle.length}</span></SettingRow>
+          </SettingsGroup>
+          {contributions ? (
+            <section className="settings-contribution-section" data-testid="opl-settings-contributions">
+              <h2>{settings.locale === "zh" ? "模块设置" : "Module settings"}</h2>
+              <div className="opl-contribution-slot">{contributions}</div>
+            </section>
+          ) : null}
+        </>
       );
     }
 
@@ -973,7 +979,7 @@ export function SettingsPanel({
     return (
       <>
         <div className="about-mark"><Boxes aria-hidden="true" size={24} /></div>
-        <SettingsGroup title="One Person Lab Native">
+        <SettingsGroup title="One Person Lab Studio Preview">
           <SettingRow label={settings.locale === "zh" ? "版本" : "Version"}><span>0.1.0</span></SettingRow>
           <SettingRow label={settings.locale === "zh" ? "定位" : "Channel"}><span>{settings.locale === "zh" ? "技术评估候选" : "Technical evaluation candidate"}</span></SettingRow>
           <SettingRow label="Codex CLI"><span>{projection?.codex.version ?? "--"}</span></SettingRow>

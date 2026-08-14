@@ -2,6 +2,11 @@ import {
   rendererModuleIdForPreviewKind,
   type RendererPreviewKind
 } from "../renderers/moduleRegistry";
+import {
+  emptyUiContributionsProjection,
+  readUiContributionsProjection,
+  type OplUiContributionsProjection
+} from "../composition/contributionProjection";
 
 export type WorkbenchPurpose = "research" | "grant" | "presentation" | "review";
 export type WorkbenchPreviewKind = RendererPreviewKind;
@@ -428,6 +433,7 @@ export type WorkbenchModel = {
   gatewayAccount?: WorkbenchGatewayAccount;
   settingsProjection?: WorkbenchSettingsProjection;
   runtimeOverview?: RuntimeOverviewRef;
+  uiContributions: OplUiContributionsProjection;
   stateGeneratedAt?: string;
 };
 
@@ -438,6 +444,7 @@ export const workbenchBridgeUnavailableDiagnostic = {
 
 export const initialWorkbenchModel: WorkbenchModel = {
   purposes: ["research", "grant", "presentation", "review"],
+  uiContributions: emptyUiContributionsProjection,
   sessions: [],
   results: [],
   deliverables: [],
@@ -494,7 +501,7 @@ export const initialWorkbenchModel: WorkbenchModel = {
         { label: "Codex surface", value: "missing_bridge", source: "missing_bridge" }
       ],
       actions: [],
-      authorityBoundary: "Native Workbench displays App/root package refs only; it cannot infer installed, ready, synced, or release state."
+      authorityBoundary: "OPL Studio displays App/root package refs only; it cannot infer installed, ready, synced, or release state."
     }
   ],
   starters: [
@@ -1532,7 +1539,7 @@ function packageLifecycleItem(
     details: packageLifecycleDetails(record, source),
     statusAxes: packageStatusAxes(record, source),
     actions: packageLifecycleActions(record, actionMap, source),
-    authorityBoundary: "Native Workbench consumes App/root package lifecycle refs and actions only; no executor, package truth, readiness, or release authority is created here."
+    authorityBoundary: "OPL Studio consumes App/root package lifecycle refs and actions only; no executor, package truth, readiness, or release authority is created here."
   };
 }
 
@@ -2629,6 +2636,7 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     gatewayAccount,
     settingsProjection,
     runtimeOverview,
+    uiContributions: readUiContributionsProjection(state),
     stateGeneratedAt: asString(meta?.generated_at) ?? fallback.stateGeneratedAt
   };
 }

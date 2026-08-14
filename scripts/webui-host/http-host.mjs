@@ -63,7 +63,7 @@ async function serveStatic(url, res, webRoot) {
       await access(file);
     } catch {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      res.end("<main id=\"root\">OPL Native Workbench WebUI build is unavailable.</main>");
+      res.end("<main id=\"root\">OPL Studio WebUI build is unavailable.</main>");
       return;
     }
   }
@@ -72,8 +72,8 @@ async function serveStatic(url, res, webRoot) {
 }
 
 export async function createWebUiHost({
-  transport = new CodexAppServerTransport({ cwd: process.env.OPL_NATIVE_WORKBENCH_CODEX_CWD ?? repositoryRoot }),
-  opl = createOplPassthrough({ cwd: process.env.OPL_NATIVE_WORKBENCH_CODEX_CWD ?? repositoryRoot }),
+  transport = new CodexAppServerTransport({ cwd: process.env.OPL_STUDIO_CODEX_CWD ?? repositoryRoot }),
+  opl = createOplPassthrough({ cwd: process.env.OPL_STUDIO_CODEX_CWD ?? repositoryRoot }),
   webRoot = path.join(repositoryRoot, "dist", "webui")
 } = {}) {
   const threads = new CodexThreadAdapter(transport);

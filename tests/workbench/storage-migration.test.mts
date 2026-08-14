@@ -1,0 +1,53 @@
+import { expect, test } from "bun:test";
+
+(globalThis as typeof globalThis & { __OPL_CODEX_MODEL_POLICY__?: unknown }).__OPL_CODEX_MODEL_POLICY__ = {
+  source: "test-fixture",
+  defaultModel: "codex-fixture",
+  defaultReasoningEffort: "high",
+  visibleModels: [{ id: "codex-fixture", label_zh: "Fixture", label_en: "Fixture" }],
+  reasoningEfforts: ["high"],
+  knownModelReasoningEffortOverrides: { "codex-fixture": "high" },
+  acceptUnknownCatalogDefault: true,
+  useHighestSupportedReasoningForUnknown: true
+};
+
+const {
+  SETTINGS_STORAGE_KEY,
+  migrateStorageValue,
+  readSettings
+} = await import("../../src/workbench/settingsModel.ts");
+
+function memoryStorage(initial: Record<string, string>) {
+  const values = new Map(Object.entries(initial));
+  return {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+    removeItem: (key: string) => values.delete(key),
+    values
+  };
+}
+
+test("migrates Native Workbench settings once into OPL Studio storage", () => {
+  const storage = memoryStorage({
+    "opl.nativeWorkbench.settings.v1": JSON.stringify({ locale: "en", runtimeProfile: "full" })
+  });
+  const settings = readSettings(storage);
+
+  expect(settings.locale).toBe("en");
+  expect(settings.runtimeProfile).toBe("full");
+  expect(storage.values.has("opl.nativeWorkbench.settings.v1")).toBe(false);
+  expect(storage.values.has(SETTINGS_STORAGE_KEY)).toBe(true);
+});
+
+test("preserves an existing OPL Studio value over a stale legacy value", () => {
+  const storage = memoryStorage({
+    "opl.studio.uiMetadata.v2": "current",
+    "opl.nativeWorkbench.uiMetadata.v2": "legacy"
+  });
+  expect(migrateStorageValue(
+    storage,
+    "opl.studio.uiMetadata.v2",
+    "opl.nativeWorkbench.uiMetadata.v2"
+  )).toBe("current");
+  expect(storage.values.get("opl.nativeWorkbench.uiMetadata.v2")).toBe("legacy");
+});

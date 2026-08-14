@@ -1,4 +1,4 @@
-# OPL Native Workbench
+# OPL Studio
 
 <!--
 Owner: `one-person-lab-app`
@@ -7,7 +7,7 @@ State: `foreground_alternative_candidate`
 Machine boundary: Human-readable candidate-shell entry. App product and adoption truth stays in one-person-lab-app contracts; runtime/package truth stays in OPL Framework; domain truth stays with domain owners. This page does not prove active-shell adoption, release readiness, owner acceptance, or production readiness.
 -->
 
-`opl-native-workbench` is the foreground alternative shell candidate for One
+`opl-studio` is the foreground alternative shell candidate for One
 Person Lab App. It evaluates a lightweight OPL-owned React renderer, native
 macOS Swift/AppKit + WKWebView host, lightweight OPL Workspace Node Web host,
 and their shared typed bridge.
@@ -59,12 +59,12 @@ readiness truth.
 Launch the candidate from the One Person Lab App repository:
 
 ```bash
-npm run gui -- --shell opl-native-workbench
+npm run gui -- --shell opl-studio
 ```
 
 Use `--rebuild` to rebuild and replace only
-`/Applications/One Person Lab Native.app`. The candidate has the isolated bundle
-id `cn.gflab.opl.native-workbench.candidate` and does not replace
+`/Applications/One Person Lab Studio Preview.app`. The candidate has the isolated bundle
+id `cn.gflab.opl.studio.preview` and does not replace
 `/Applications/One Person Lab.app`.
 
 Candidate actions are dry-run-only by default. `--allow-actions` is an explicit

@@ -4,7 +4,8 @@ import {
   type CodexReasoningEffort
 } from "./modelPolicy";
 
-export const SETTINGS_STORAGE_KEY = "opl.nativeWorkbench.settings.v1";
+export const SETTINGS_STORAGE_KEY = "opl.studio.settings.v1";
+const LEGACY_SETTINGS_STORAGE_KEY = "opl.nativeWorkbench.settings.v1";
 
 export type SettingsSectionId =
   | "overview"
@@ -89,10 +90,21 @@ const allowedSettingsValues = {
 } as const;
 
 type WorkbenchSettingsPatch = Partial<WorkbenchSettings>;
-type SettingsStorage = {
+export type SettingsStorage = {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
+  removeItem?(key: string): void;
 };
+
+export function migrateStorageValue(storage: SettingsStorage, key: string, legacyKey: string): string | null {
+  const current = storage.getItem(key);
+  if (current !== null) return current;
+  const legacy = storage.getItem(legacyKey);
+  if (legacy === null) return null;
+  storage.setItem(key, legacy);
+  storage.removeItem?.(legacyKey);
+  return legacy;
+}
 
 function browserStorage(): SettingsStorage | undefined {
   const storage = (globalThis as { localStorage?: SettingsStorage }).localStorage;
@@ -114,7 +126,7 @@ function normalizeSettings(value: unknown): WorkbenchSettings {
 
 export function readSettings(storage = browserStorage()): WorkbenchSettings {
   if (!storage) return settingsDefaults;
-  const raw = storage.getItem(SETTINGS_STORAGE_KEY);
+  const raw = migrateStorageValue(storage, SETTINGS_STORAGE_KEY, LEGACY_SETTINGS_STORAGE_KEY);
   if (!raw) return settingsDefaults;
   try {
     return normalizeSettings(JSON.parse(raw));

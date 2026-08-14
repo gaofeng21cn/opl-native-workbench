@@ -1,4 +1,4 @@
-# OPL Native Workbench Architecture
+# OPL Studio Architecture
 
 Owner: `one-person-lab-app`
 Purpose: `candidate_implementation_boundary`

@@ -1,26 +1,14 @@
-import * as Tabs from "@radix-ui/react-tabs";
+import { MessageText, Pill } from "@deepseek-ai/dsh-client-ui-primitives";
 import { Streamdown } from "streamdown";
 import {
-  Archive,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   CircleEllipsis,
-  Clock3,
   Download,
   FileText,
   Folder,
-  KeyRound,
-  PanelLeft,
-  PanelRightOpen,
   Plug,
-  Plus,
   RefreshCw,
   Search,
   Send,
-  Settings,
-  ShieldCheck,
-  Sparkles,
   X
 } from "lucide-react";
 import {
@@ -28,16 +16,12 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
-  type FormEvent,
-  type KeyboardEvent,
-  type PointerEvent as ReactPointerEvent
+  type FormEvent
 } from "react";
 import {
   createBrowserBridge,
   type CodexCapabilityCatalog,
   type CodexModelCatalogEntry,
-  type CodexPermissionProfile,
   type CodexPickedInput,
   type CodexSkillCapability,
   type OplActionReceipt
@@ -47,16 +31,13 @@ import {
   ActionReceiptSummary,
   ArtifactPreviewCard,
   ConfirmationCard,
-  DeliveryCard,
-  RendererModuleRegistryPanel,
-  StatusPill
+  RendererModuleRegistryPanel
 } from "../ui/workbenchPrimitives";
 import {
   deriveWorkbenchModelFromState,
   deriveThreadDirectory,
   deriveThreadMessages,
   initialWorkbenchModel,
-  workbenchBridgeUnavailableDiagnostic,
   type WorkbenchProjectGroup,
   type WorkbenchActionRef,
   type WorkbenchStarter,
@@ -64,6 +45,7 @@ import {
   type WorkbenchThreadMessage
 } from "./workbenchModel";
 import {
+  migrateStorageValue,
   readSettings,
   writeSetting,
   writeSettings,
@@ -80,8 +62,6 @@ import {
 } from "./modelPolicy";
 import {
   SettingsPanel,
-  SettingsSidebar,
-  gatewayAccountInitials,
   type SettingsActionConfirmation,
   type SettingsActionFeedback,
   type SettingsActionRequest,
@@ -97,21 +77,25 @@ import {
   type ComposerSelection
 } from "./ComposerCapabilityPalette";
 import { ThreadSearchDialog } from "./ThreadSearchDialog";
+import type {
+  OplContributionAction,
+  OplUiContributionsProjection,
+  RenderOplContributionSlot
+} from "../composition/contributionProjection";
+import type { RenderOplStudioShell } from "../composition/oplStudioSurface";
 
 const contextTabs = [
-  ["opl-files-panel", "sources"],
-  ["opl-artifact-preview-tabs", "results"],
-  ["opl-provenance-drawer", "actions"],
-  ["opl-starter-forms", "workflows"],
-  ["opl-package-lifecycle-panel", "packages"],
-  ["opl-runtime-summary", "runtime"],
-  ["opl-automations-panel", "scheduled"],
-  ["opl-memory-panel", "memory"],
-  ["opl-always-on-panel", "alwaysOn"]
+  "opl-files-panel",
+  "opl-artifact-preview-tabs",
+  "opl-provenance-drawer",
+  "opl-starter-forms",
+  "opl-package-lifecycle-panel",
+  "opl-runtime-summary",
+  "opl-automations-panel",
+  "opl-memory-panel",
+  "opl-always-on-panel"
 ] as const;
-const contextHomeId = "opl-environment-home" as const;
-type ContextTabId = (typeof contextTabs)[number][0];
-type ActiveContextTab = ContextTabId | typeof contextHomeId;
+type ContextTabId = (typeof contextTabs)[number];
 
 const assistantMarkdownLinkSafety = { enabled: false } as const;
 const assistantMarkdownControls = {
@@ -362,15 +346,16 @@ const emptyCapabilityCatalog: CodexCapabilityCatalog = {
   apps: [],
   errors: []
 };
-const permissionProfileOrder = [":danger-full-access", ":workspace", ":read-only"] as const;
 const legacyChatSessionsStorageKey = "opl.nativeWorkbench.chatSessions.v1";
-const legacyChatSessionsBackupKey = "opl.nativeWorkbench.chatSessions.legacyReadOnlyBackup.v1";
-const uiMetadataStorageKey = "opl.nativeWorkbench.uiMetadata.v2";
-const draftStorageKey = "opl.nativeWorkbench.drafts.v2";
+const legacyChatSessionsBackupKey = "opl.studio.chatSessions.legacyReadOnlyBackup.v1";
+const legacyChatSessionsBackupStorageKey = "opl.nativeWorkbench.chatSessions.legacyReadOnlyBackup.v1";
+const uiMetadataStorageKey = "opl.studio.uiMetadata.v2";
+const legacyUiMetadataStorageKey = "opl.nativeWorkbench.uiMetadata.v2";
+const draftStorageKey = "opl.studio.drafts.v2";
+const legacyDraftStorageKey = "opl.nativeWorkbench.drafts.v2";
 const defaultSidebarWidth = 236;
 const minimumSidebarWidth = 200;
 const maximumSidebarWidth = 420;
-const windowDragInteractiveSelector = "button, input, textarea, select, a, [role='button'], [contenteditable='true']";
 
 type ThreadScope = "current" | "all" | "archived";
 
@@ -466,8 +451,9 @@ function readPersistedWorkbenchUi(): { metadata: WorkbenchUiMetadata; drafts: Wo
   };
   if (!storage) return fallback;
   try {
-    const metadata = JSON.parse(storage.getItem(uiMetadataStorageKey) ?? "null") as Partial<WorkbenchUiMetadata> | null;
-    const drafts = JSON.parse(storage.getItem(draftStorageKey) ?? "null") as Partial<WorkbenchDrafts> | null;
+    const metadata = JSON.parse(migrateStorageValue(storage, uiMetadataStorageKey, legacyUiMetadataStorageKey) ?? "null") as Partial<WorkbenchUiMetadata> | null;
+    const drafts = JSON.parse(migrateStorageValue(storage, draftStorageKey, legacyDraftStorageKey) ?? "null") as Partial<WorkbenchDrafts> | null;
+    migrateStorageValue(storage, legacyChatSessionsBackupKey, legacyChatSessionsBackupStorageKey);
     const legacy = storage.getItem(legacyChatSessionsStorageKey);
     let selectedThreadId = typeof metadata?.selectedThreadId === "string" ? metadata.selectedThreadId : undefined;
     if (legacy) {
@@ -532,36 +518,37 @@ function eventCompletedText(event: unknown): string {
   return typeof item.text === "string" ? item.text : "";
 }
 
-export function App() {
+type AppProps = {
+  renderShell: RenderOplStudioShell;
+  renderContributionSlot?: RenderOplContributionSlot;
+  onUiContributionsChange?: (projection: OplUiContributionsProjection) => void;
+  onUiContributionsDispose?: () => void;
+};
+
+export function App({
+  renderShell,
+  renderContributionSlot,
+  onUiContributionsChange,
+  onUiContributionsDispose
+}: AppProps) {
   const bridge = useMemo(() => createBrowserBridge(), []);
   const persistedUi = useMemo(() => readPersistedWorkbenchUi(), []);
   const conversationRef = useRef<HTMLElement | null>(null);
   const pendingAssistantIdRef = useRef<string | null>(null);
   const messagesRef = useRef<ChatMessage[]>(createIntroMessages());
-  const sidebarResizeRef = useRef<{
-    pointerId: number;
-    startX: number;
-    startWidth: number;
-    currentWidth: number;
-  } | null>(null);
   const [model, setModel] = useState(initialWorkbenchModel);
   const [stateStatus, setStateStatus] = useState<"loading" | "ready" | "error">("loading");
   const [stateError, setStateError] = useState("");
-  const [activeView, setActiveView] = useState<"chat" | "settings">("chat");
   const [activeSettingsDestination, setActiveSettingsDestination] = useState<SettingsDestinationId>("overview");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [detailsRequestRevision, setDetailsRequestRevision] = useState(0);
   const [lastDryRun, setLastDryRun] = useState("No action preview yet.");
-  const [pendingAction, setPendingAction] = useState<{ actionId: string; payload: Record<string, unknown> } | null>(null);
   const [settingsActionBusyKey, setSettingsActionBusyKey] = useState<string | null>(null);
   const [settingsActionFeedback, setSettingsActionFeedback] = useState<SettingsActionFeedback | null>(null);
   const [settingsActionConfirmation, setSettingsActionConfirmation] = useState<SettingsActionConfirmation | null>(null);
   const [uiMetadata, setUiMetadata] = useState<WorkbenchUiMetadata>(persistedUi.metadata);
-  const [sidebarWidth, setSidebarWidth] = useState(persistedUi.metadata.sidebarWidth);
   const [drafts, setDrafts] = useState<WorkbenchDrafts>(persistedUi.drafts);
   const [prompt, setPrompt] = useState(persistedUi.drafts.prompts[persistedUi.metadata.selectedThreadId ?? "new"] ?? "");
   const [sendState, setSendState] = useState<"idle" | "running" | "error">("idle");
-  const [sendError, setSendError] = useState("");
   const [threadProjects, setThreadProjects] = useState<WorkbenchProjectGroup[]>([]);
   const [archivedThreadProjects, setArchivedThreadProjects] = useState<WorkbenchProjectGroup[]>([]);
   const [threadDirectoryStatus, setThreadDirectoryStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -580,13 +567,22 @@ export function App() {
   const [capabilityError, setCapabilityError] = useState("");
   const [composerPaletteOpen, setComposerPaletteOpen] = useState(false);
   const [composerSelections, setComposerSelections] = useState<ComposerSelection[]>([]);
-  const [permissionProfiles, setPermissionProfiles] = useState<CodexPermissionProfile[]>([]);
   const [threadSearchOpen, setThreadSearchOpen] = useState(false);
   const [starterDrafts, setStarterDrafts] = useState<Record<string, Record<string, string>>>({});
-  const [activeContextTab, setActiveContextTab] = useState<ActiveContextTab>(contextHomeId);
+  const [activeContextTab, setActiveContextTab] = useState<ContextTabId>("opl-runtime-summary");
   const t = uiCopy[settings.locale];
+  const contextTabLabels: Record<ContextTabId, string> = {
+    "opl-files-panel": t.sources,
+    "opl-artifact-preview-tabs": t.results,
+    "opl-provenance-drawer": t.actions,
+    "opl-starter-forms": t.workflows,
+    "opl-package-lifecycle-panel": t.packages,
+    "opl-runtime-summary": t.runtimeMenu,
+    "opl-automations-panel": t.scheduled,
+    "opl-memory-panel": t.memory,
+    "opl-always-on-panel": t.alwaysOn
+  };
   const purposeCopy = localizedPurposeLabels[settings.locale];
-  const localizedStateStatus = stateStatus === "loading" ? t.stateLoading : stateStatus === "ready" ? t.stateReady : t.stateError;
   const previewAction = firstPreviewAction(model.contextActions);
   const exportAction = model.contextActions.find((action) => action.id === exportActionRefId && action.dryRunSupported) ?? previewAction;
   const purposePreviewAction = model.contextActions.find((action) => action.id === previewActionRefId && action.dryRunSupported) ?? previewAction;
@@ -601,35 +597,6 @@ export function App() {
   const visibleThreadProjects = uiMetadata.threadScope === "archived"
     ? archivedThreadProjects
     : threadProjects;
-  const chatSessions = selectedProject?.threads ?? [];
-  const contextStatusText = stateStatus === "loading"
-    ? "Loading OPL App state..."
-    : stateStatus === "error"
-      ? `Bridge unavailable. Preview only. ${workbenchBridgeUnavailableDiagnostic.nextStep}. ${stateError}`
-      : model.stateGeneratedAt
-        ? `App state loaded from opl app state --profile fast --json at ${model.stateGeneratedAt}.`
-        : "App state loaded from the current App state.";
-  const shellBoundaryStatus = stateStatus === "loading"
-    ? "App state loading"
-    : stateStatus === "ready"
-      ? "App state loaded"
-      : "Bridge unavailable";
-  const gatewayConnectionMode = model.settingsProjection?.gatewayConnectionMode ?? "none";
-  const sidebarAccountMode = gatewayConnectionMode === "account" && model.gatewayAccount
-    ? "account"
-    : gatewayConnectionMode === "manual_key"
-      ? "manual_key"
-      : "none";
-  const accountDisplayName = sidebarAccountMode === "account"
-    ? model.gatewayAccount?.displayName ?? t.settings
-    : sidebarAccountMode === "manual_key"
-      ? "OPL Gateway"
-      : t.settings;
-  const accountSubtitle = sidebarAccountMode === "account"
-    ? model.gatewayAccount?.email
-    : sidebarAccountMode === "manual_key"
-      ? "API Key"
-      : undefined;
   const currentProject = selectedProject?.label ?? settings.defaultWorkspace ?? "Current project";
   const previewItems = useMemo(() => [...model.artifactPreviews].sort((left, right) => {
     if (left.previewKind === right.previewKind) return 0;
@@ -645,14 +612,6 @@ export function App() {
   const projectAttachments = projectAttachmentItems([...model.deliverables, ...model.results, ...model.receipts], previewItems);
   const sidebarSources = projectInputs;
   const modelOptions = useMemo(() => resolveCodexModelOptions(codexCatalog), [codexCatalog]);
-  const permissionOptions = useMemo(() => permissionProfileOrder.map((id) => {
-    const discovered = permissionProfiles.find((profile) => profile.id === id);
-    return {
-      id,
-      description: discovered?.description ?? "",
-      allowed: permissionProfiles.length ? discovered?.allowed === true : true
-    };
-  }), [permissionProfiles]);
   const {
     model: resolvedModel,
     reasoningEffort: resolvedReasoning,
@@ -660,38 +619,14 @@ export function App() {
     effectiveSelection
   } = resolveCodexSelection(modelOptions, settings.modelAccess, settings.reasoningLevel);
   const unavailableFixedModel = settings.modelAccess !== "__auto" && !resolvedModel;
-  const canSendCodexTurn = Boolean(resolvedModel);
   const resolvedConversationModelLabel = conversationModelLabel(
     settings.modelAccess,
     resolvedModel?.id,
     settings.locale
   );
-  const environmentItems = [
-    { id: "opl-files-panel", group: t.projectGroup, label: t.sources, description: t.sourcesDescription, meta: String(model.contextSources.length), icon: FileText },
-    { id: "opl-artifact-preview-tabs", group: t.projectGroup, label: t.results, description: t.resultsDescription, meta: String(projectAttachments.length), icon: Download },
-    { id: "opl-provenance-drawer", group: t.executionGroup, label: t.actions, description: t.actionsDescription, meta: String(model.actionReceipts.length), icon: CircleEllipsis },
-    { id: "opl-starter-forms", group: t.executionGroup, label: t.workflows, description: t.workflowsDescription, meta: String(model.starters.length), icon: Sparkles },
-    { id: "opl-automations-panel", group: t.executionGroup, label: t.scheduled, description: t.scheduledDescription, meta: String(model.contextTrace.filter((item) => item.label.toLowerCase().includes("automation")).length), icon: Clock3 },
-    { id: "opl-package-lifecycle-panel", group: t.systemGroup, label: t.packages, description: t.packagesDescription, meta: String(model.packageLifecycle.length), icon: Plug },
-    { id: "opl-runtime-summary", group: t.systemGroup, label: t.runtimeMenu, description: t.runtimeDescription, meta: localizedStateStatus, icon: RefreshCw },
-    { id: "opl-memory-panel", group: t.systemGroup, label: t.memory, description: t.memoryDescription, meta: "refs", icon: FileText },
-    { id: "opl-always-on-panel", group: t.systemGroup, label: t.alwaysOn, description: t.alwaysOnDescription, meta: localizedStateStatus, icon: RefreshCw }
-  ] satisfies { id: ContextTabId; group: string; label: string; description: string; meta: string; icon: typeof FileText }[];
-
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
-
-  useEffect(() => {
-    const mobile = globalThis.matchMedia?.("(max-width: 760px)");
-    if (!mobile) return;
-    const syncSidebar = (event: MediaQueryListEvent | MediaQueryList) => {
-      if (event.matches) setSidebarOpen(false);
-    };
-    syncSidebar(mobile);
-    mobile.addEventListener?.("change", syncSidebar);
-    return () => mobile.removeEventListener?.("change", syncSidebar);
-  }, []);
 
   useEffect(() => {
     if (!codexThreadId || !messages.length) return;
@@ -707,59 +642,6 @@ export function App() {
       writeUiMetadata(merged);
       return merged;
     });
-  }
-
-  function persistSidebarWidth(value: number) {
-    const nextWidth = clampSidebarWidth(value);
-    setSidebarWidth(nextWidth);
-    updateUiMetadata({ sidebarWidth: nextWidth });
-  }
-
-  function beginSidebarResize(event: ReactPointerEvent<HTMLDivElement>) {
-    if (event.button !== 0 || !event.isPrimary) return;
-    sidebarResizeRef.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startWidth: sidebarWidth,
-      currentWidth: sidebarWidth
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
-    document.documentElement.dataset.oplSidebarResizing = "true";
-    event.preventDefault();
-  }
-
-  function resizeSidebar(event: ReactPointerEvent<HTMLDivElement>) {
-    const resize = sidebarResizeRef.current;
-    if (!resize || resize.pointerId !== event.pointerId) return;
-    const nextWidth = clampSidebarWidth(resize.startWidth + event.clientX - resize.startX);
-    resize.currentWidth = nextWidth;
-    setSidebarWidth(nextWidth);
-  }
-
-  function endSidebarResize(event: ReactPointerEvent<HTMLDivElement>) {
-    const resize = sidebarResizeRef.current;
-    if (!resize || resize.pointerId !== event.pointerId) return;
-    sidebarResizeRef.current = null;
-    delete document.documentElement.dataset.oplSidebarResizing;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    persistSidebarWidth(resize.currentWidth);
-  }
-
-  function resizeSidebarWithKeyboard(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-    event.preventDefault();
-    const direction = event.key === "ArrowLeft" ? -1 : 1;
-    persistSidebarWidth(sidebarWidth + direction * (event.shiftKey ? 32 : 8));
-  }
-
-  function beginWindowDrag(event: ReactPointerEvent<HTMLElement>) {
-    if (event.button !== 0 || !event.isPrimary) return;
-    const target = event.target;
-    if (target instanceof Element && target.closest(windowDragInteractiveSelector)) return;
-    event.preventDefault();
-    bridge.beginWindowDrag();
   }
 
   function updateDrafts(next: (current: WorkbenchDrafts) => WorkbenchDrafts) {
@@ -869,7 +751,6 @@ export function App() {
     });
     setPrompt(drafts.prompts[thread.id] ?? "");
     setSendState("idle");
-    setSendError("");
     setComposerSelections([]);
     setComposerPaletteOpen(false);
     try {
@@ -877,9 +758,7 @@ export function App() {
       const nextMessages = deriveThreadMessages(readback);
       setMessages(nextMessages);
       messagesRef.current = nextMessages;
-      setActiveView("chat");
       setThreadDetail(null);
-      if (globalThis.matchMedia?.("(max-width: 760px)").matches) setSidebarOpen(false);
     } catch (error) {
       setThreadActionError(String(error));
     } finally {
@@ -947,6 +826,12 @@ export function App() {
   }, [bridge, settings.runtimeProfile]);
 
   useEffect(() => {
+    onUiContributionsChange?.(model.uiContributions);
+  }, [model.uiContributions, onUiContributionsChange]);
+
+  useEffect(() => () => onUiContributionsDispose?.(), [onUiContributionsDispose]);
+
+  useEffect(() => {
     void loadThreadDirectory(true);
   }, [bridge]);
 
@@ -954,12 +839,6 @@ export function App() {
     void bridge.readCodexModels()
       .then((catalog) => setCodexCatalog(catalog.models))
       .catch(() => setCodexCatalog([]));
-  }, [bridge]);
-
-  useEffect(() => {
-    void bridge.readCodexPermissionProfiles()
-      .then((catalog) => setPermissionProfiles(catalog.profiles))
-      .catch(() => setPermissionProfiles([]));
   }, [bridge]);
 
   useEffect(() => {
@@ -990,46 +869,39 @@ export function App() {
     }
   }), [bridge]);
 
+  function requestDetails(tab: ContextTabId) {
+    setActiveContextTab(tab);
+    setDetailsRequestRevision((revision) => revision + 1);
+  }
+
   function runDryRun(actionId: string, payload: Record<string, unknown> = {}) {
-    setPendingAction({ actionId, payload });
-    setInspectorOpen(true);
-    setActiveContextTab("opl-provenance-drawer");
+    requestDetails("opl-provenance-drawer");
     void bridge
       .executeAction({ actionId, payload, dryRun: true })
       .then((receipt) => setLastDryRun(formatReceipt(receipt)))
       .catch((error) => setLastDryRun(formatReceipt({ actionId, dryRun: true, error: String(error) })));
   }
 
-  function executeConfirmedAction() {
-    if (!pendingAction) return;
-    const receiptId = `${pendingAction.actionId}:${Date.now()}`;
-    const rollbackRef = `rollback://${receiptId}`;
-    setInspectorOpen(true);
-    setActiveContextTab("opl-provenance-drawer");
-    void bridge
-      .executeAction({
-        actionId: pendingAction.actionId,
-        payload: { ...pendingAction.payload, confirmed: true, receiptId, rollbackRef },
-        dryRun: false
-      })
-      .then((receipt) => setLastDryRun(formatReceipt(receipt)))
-      .catch((error) => setLastDryRun(formatReceipt({ ...pendingAction, dryRun: false, error: String(error) })));
-  }
-
-  function previewRollback() {
-    if (!pendingAction) return;
-    setInspectorOpen(true);
-    setActiveContextTab("opl-provenance-drawer");
-    void bridge
-      .executeAction({
-        actionId: pendingAction.actionId,
-        mode: "rollback",
-        payload: { ...pendingAction.payload, rollbackRef: `rollback://${pendingAction.actionId}` },
-        dryRun: true
-      })
-      .then((receipt) => setLastDryRun(formatReceipt(receipt)))
-      .catch((error) => setLastDryRun(formatReceipt({ ...pendingAction, mode: "rollback", error: String(error) })));
-  }
+  const contributionActionAvailable = model.contextActions.some(
+    (action) => action.id === "package_contribution_execute"
+  );
+  const handleContributionAction: OplContributionAction = (entry, command) => {
+    if (!contributionActionAvailable) return;
+    runDryRun("package_contribution_execute", {
+      package_id: entry.packageId,
+      ref: command.actionRef,
+      input: {},
+      confirmed: false
+    });
+  };
+  const contributionOwner = {
+    locale: settings.locale,
+    actionAvailable: contributionActionAvailable,
+    onAction: handleContributionAction
+  };
+  const hasContribution = (slot: "composer.palette" | "runtime.detail" | "settings.section") => (
+    model.uiContributions.entries.some((entry) => entry.slot === slot)
+  );
 
   async function forkThread(thread: WorkbenchThreadItem) {
     setThreadActionBusy(true);
@@ -1064,7 +936,7 @@ export function App() {
           threadId: lifecycleConfirmation.thread.id,
           archived: lifecycleConfirmation.action === "archive",
           confirmed: true,
-          confirmationId: `native-workbench:${Date.now()}`
+          confirmationId: `opl-studio:${Date.now()}`
         });
       }
       setLifecycleConfirmation(null);
@@ -1098,7 +970,6 @@ export function App() {
     setComposerSelections([]);
     setComposerPaletteOpen(false);
     setSendState("running");
-    setSendError("");
     void bridge
       .sendMessage({
         prompt: text,
@@ -1134,7 +1005,6 @@ export function App() {
         const message = t.sendFailed;
         updatePrompt(text);
         setComposerSelections(pendingSelections);
-        setSendError(message);
         setSendState("error");
         const errorMessage: ChatMessage = { id: pendingId, role: "system", text: message };
         const nextMessages = messagesRef.current.map((item) => item.id === pendingId ? errorMessage : item);
@@ -1155,11 +1025,9 @@ export function App() {
       selectedProjectId: currentWorkspaceProject?.id ?? uiMetadata.selectedProjectId
     });
     setPrompt(drafts.prompts.new ?? "");
-    setPendingAction(null);
     setLastDryRun("No action preview yet.");
     setThreadActionError("");
     setSendState("idle");
-    setSendError("");
     setComposerSelections([]);
     setComposerPaletteOpen(false);
   }
@@ -1259,969 +1127,413 @@ export function App() {
     setSettings(writeSettings({ modelAccess, reasoningLevel }));
   }
 
-  function openSettings() {
-    setActiveSettingsDestination(sidebarAccountMode === "none" ? "overview" : "account");
-    setActiveView("settings");
-    setInspectorOpen(false);
-    if (window.matchMedia("(max-width: 760px)").matches) setSidebarOpen(false);
-  }
-
-  function returnToApp() {
-    setActiveView("chat");
-    if (window.matchMedia("(max-width: 760px)").matches) setSidebarOpen(false);
-  }
-
-  return (
-    <main
-      data-testid="opl-native-workbench-root"
-      data-layout="codex-sidebar-chat"
-      className={`opl-native-workbench codex-sidebar-chat ${sidebarOpen ? "sidebar-open" : "sidebar-closed"} ${inspectorOpen ? "inspector-open" : "inspector-closed"}`}
-      style={{ "--opl-sidebar-width": `${sidebarWidth}px` } as CSSProperties}
-    >
-      <style>{codexWorkbenchStyles}</style>
-
-      <aside data-testid="opl-workspace-rail" className="sidebar" aria-label="Workspaces">
-        {activeView === "settings" ? (
-          <SettingsSidebar
-            locale={settings.locale}
-            activeDestination={activeSettingsDestination}
-            onDestinationChange={setActiveSettingsDestination}
-            onBack={returnToApp}
-            onWindowDrag={beginWindowDrag}
-            onMobileClose={() => setSidebarOpen(false)}
-          />
-        ) : (
-          <>
-            <header className="brand-row" onPointerDown={beginWindowDrag}>
-          <img src="branding/opl-app-logo.png" alt="One Person Lab App" />
-          <span className="brand-lockup">
-            <strong className="brand-mark">One Person Lab</strong>
-          </span>
-          <button className="icon-button sidebar-search" type="button" aria-label={settings.locale === "zh" ? "搜索对话" : "Search conversations"} onClick={() => setThreadSearchOpen(true)}>
-            <Search aria-hidden="true" size={15} />
-          </button>
-          <button className="icon-button sidebar-close-mobile" type="button" aria-label={t.hideSidebar} onClick={() => setSidebarOpen(false)}>
-            <X aria-hidden="true" size={16} />
-          </button>
-            </header>
-
-            <div className="sidebar-scroll">
-          <div className="quick-actions">
-            <button type="button" onClick={startNewChat}>
-              <Plus aria-hidden="true" size={15} />
-              {t.newTask}
-              <span className="kbd-hint">⌘N</span>
-            </button>
-          </div>
-
-          <nav className="sidebar-primary" aria-label="Primary navigation">
-            <button type="button" onClick={() => {
-              setActiveView("chat");
-              updateUiMetadata({ threadScope: "all" });
-            }}>
-              <Sparkles aria-hidden="true" size={15} />
-              {t.chat}
-            </button>
-            <button type="button" onClick={() => {
-              setInspectorOpen(true);
-              setActiveContextTab("opl-runtime-summary");
-            }}>
-              <RefreshCw aria-hidden="true" size={15} />
-              {t.runtimeMenu}
-            </button>
-            <button type="button" onClick={() => {
-              setInspectorOpen(true);
-              setActiveContextTab("opl-automations-panel");
-            }}>
-              <Clock3 aria-hidden="true" size={15} />
-              {t.scheduled}
-            </button>
-            <button
-              type="button"
-              aria-current={uiMetadata.threadScope === "archived" ? "page" : undefined}
-              onClick={() => {
-                const threadScope = uiMetadata.threadScope === "archived" ? "all" : "archived";
-                updateUiMetadata({
-                  threadScope,
-                  selectedProjectId: threadScope === "archived" ? archivedThreadProjects[0]?.id : threadProjects[0]?.id
-                });
+  const studioWorkspaceRail = (
+    <div data-testid="opl-workspace-rail" className="opl-dsh-workspace-rail" aria-label="Workspaces">
+      <div className="opl-dsh-rail-actions">
+        <button type="button" onClick={() => setThreadSearchOpen(true)}><Search aria-hidden="true" size={15} />{settings.locale === "zh" ? "搜索" : "Search"}</button>
+        <button type="button" onClick={() => requestDetails("opl-runtime-summary")}><RefreshCw aria-hidden="true" size={15} />{t.runtimeMenu}</button>
+        <button type="button" onClick={() => requestDetails("opl-package-lifecycle-panel")}><Plug aria-hidden="true" size={15} />{t.agents}</button>
+      </div>
+      <section className="opl-dsh-projects" aria-label="Codex projects and conversations">
+        <header><strong>{uiMetadata.threadScope === "archived" ? (settings.locale === "zh" ? "归档对话" : "Archived") : t.projects}</strong><button type="button" aria-label={settings.locale === "zh" ? "搜索对话" : "Search conversations"} onClick={() => setThreadSearchOpen(true)}><Search aria-hidden="true" size={14} /></button></header>
+        <div data-testid="opl-project-chats">
+          <div data-testid="opl-session-list">
+            <ThreadRail
+              projects={visibleThreadProjects}
+              selectedProjectId={uiMetadata.selectedProjectId}
+              selectedThreadId={codexThreadId}
+              locale={settings.locale}
+              scope={uiMetadata.threadScope}
+              loading={threadDirectoryStatus === "loading"}
+              error={threadDirectoryStatus === "error" ? threadDirectoryError : undefined}
+              onScopeChange={(threadScope) => {
+                updateUiMetadata({ threadScope, selectedProjectId: threadScope === "archived" ? archivedThreadProjects[0]?.id : threadProjects[0]?.id });
                 if (threadScope === "archived" && !archivedThreadProjects.length) void loadThreadDirectory(false, "archived");
               }}
-            >
-              <Archive aria-hidden="true" size={15} />
-              {settings.locale === "zh" ? "已归档" : "Archived"}
-            </button>
-            <button type="button" onClick={() => {
-              setInspectorOpen(true);
-              setActiveContextTab("opl-package-lifecycle-panel");
-            }}>
-              <Plug aria-hidden="true" size={15} />
-              {t.agents}
-            </button>
-          </nav>
-
-          <section className="sidebar-panel" aria-label="Codex projects and conversations">
-            <div className="sidebar-section-head">
-              <strong>{uiMetadata.threadScope === "archived" ? (settings.locale === "zh" ? "归档对话" : "Archived conversations") : t.projects}</strong>
-              <button className="sidebar-section-search" type="button" aria-label={settings.locale === "zh" ? "搜索对话" : "Search conversations"} onClick={() => setThreadSearchOpen(true)}>
-                <Search aria-hidden="true" size={14} />
-              </button>
-            </div>
-            <div data-testid="opl-project-chats">
-              <div data-testid="opl-session-list">
-                <ThreadRail
-                  projects={visibleThreadProjects}
-                  selectedProjectId={uiMetadata.selectedProjectId}
-                  selectedThreadId={codexThreadId}
-                  locale={settings.locale}
-                  scope={uiMetadata.threadScope}
-                  loading={threadDirectoryStatus === "loading"}
-                  error={threadDirectoryStatus === "error" ? threadDirectoryError : undefined}
-                  onScopeChange={(threadScope) => {
-                    updateUiMetadata({
-                      threadScope,
-                      selectedProjectId: threadScope === "archived"
-                        ? archivedThreadProjects[0]?.id
-                        : threadProjects.some((project) => project.id === uiMetadata.selectedProjectId)
-                          ? uiMetadata.selectedProjectId
-                          : threadProjects.find((project) => project.threads.some((thread) => thread.currentWorkspace))?.id
-                            ?? threadProjects[0]?.id
-                    });
-                    if (threadScope === "archived" && !archivedThreadProjects.length) {
-                      void loadThreadDirectory(false, "archived");
-                    }
-                  }}
-                  onSelectProject={(selectedProjectId) => updateUiMetadata({
-                    selectedProjectId,
-                    threadScope: uiMetadata.threadScope
-                  })}
-                  onSelectThread={(thread) => void openThread(thread)}
-                  onOpenDetail={setThreadDetail}
-                />
-              </div>
-            </div>
-
-            {uiMetadata.threadScope !== "archived" && selectedProject ? (
-              <div className="current-project-context">
-                <div className="project-root" aria-label={currentProject}>
-                  <Folder aria-hidden="true" size={15} />
-                  <strong>{currentProject}</strong>
-                  <span className="project-device">{t.local}</span>
-                  <span className="project-status-dot" aria-label={shellBoundaryStatus} />
-                </div>
-              <div className="project-context-links">
-                <button
-                  data-testid="opl-project-inputs"
-                  type="button"
-                  className="project-context-link"
-                  onClick={() => {
-                    setInspectorOpen(true);
-                    setActiveContextTab("opl-files-panel");
-                  }}
-                >
-                  <FileText aria-hidden="true" size={14} />
-                  <span>{t.projectContext}</span>
-                  <span>{sidebarSources.length}</span>
-                </button>
-                <button
-                  data-testid="opl-project-attachments"
-                  type="button"
-                  className="project-context-link"
-                  onClick={() => {
-                    setInspectorOpen(true);
-                    setActiveContextTab("opl-artifact-preview-tabs");
-                  }}
-                >
-                  <Download aria-hidden="true" size={14} />
-                  <span>{t.filesOutputs}</span>
-                  <span>{projectAttachments.length}</span>
-                </button>
-              </div>
-              </div>
-            ) : null}
-          </section>
-            </div>
-
-            <footer className="sidebar-footer" aria-label="Sidebar controls">
-              <button
-                type="button"
-                data-account-mode={sidebarAccountMode}
-                aria-label={accountSubtitle ? `${accountDisplayName}, ${accountSubtitle}` : accountDisplayName}
-                onClick={openSettings}
-              >
-                {sidebarAccountMode === "account" ? (
-                  <span className="account-avatar">{gatewayAccountInitials(model.gatewayAccount?.displayName)}</span>
-                ) : (
-                  <span className="account-auth-icon" aria-hidden="true">
-                    {sidebarAccountMode === "manual_key" ? <KeyRound size={15} /> : <Settings size={15} />}
-                  </span>
-                )}
-                <span className="account-copy">
-                  <strong>{accountDisplayName}</strong>
-                  {accountSubtitle ? <small>{accountSubtitle}</small> : null}
-                </span>
-              </button>
-              <StatusPill status={shellBoundaryStatus} />
-            </footer>
-          </>
-        )}
-      </aside>
-
-      <div
-        className="sidebar-resizer"
-        data-testid="opl-sidebar-resizer"
-        role="separator"
-        aria-label={settings.locale === "zh" ? "调整侧栏宽度" : "Resize sidebar"}
-        aria-orientation="vertical"
-        aria-valuemin={minimumSidebarWidth}
-        aria-valuemax={maximumSidebarWidth}
-        aria-valuenow={sidebarWidth}
-        tabIndex={sidebarOpen ? 0 : -1}
-        onDoubleClick={() => persistSidebarWidth(defaultSidebarWidth)}
-        onKeyDown={resizeSidebarWithKeyboard}
-        onPointerDown={beginSidebarResize}
-        onPointerMove={resizeSidebar}
-        onPointerUp={endSidebarResize}
-        onPointerCancel={endSidebarResize}
-        onLostPointerCapture={endSidebarResize}
-      />
-
-      <section className="chat-shell" aria-label="Single conversation canvas">
-        <header className="topbar" onPointerDown={beginWindowDrag}>
-          <div className="topbar-copy">
-            <button className="icon-button" type="button" aria-label={sidebarOpen ? t.hideSidebar : t.showSidebar} onClick={() => setSidebarOpen((open) => !open)}>
-              <PanelLeft aria-hidden="true" size={16} />
-            </button>
-            <div className="topbar-title">
-              {activeView === "chat" ? <Folder aria-hidden="true" size={15} /> : null}
-              <h1>{activeView === "settings" ? t.settings : localizedSessionTitle(currentSession?.title || t.newTaskTitle, settings.locale)}</h1>
-            </div>
-            {activeView === "chat" ? (
-              <button className="icon-button" type="button" aria-label={t.conversationMenu} disabled={!currentSession} onClick={() => setThreadDetail(currentSession ?? null)}>
-                <CircleEllipsis aria-hidden="true" size={16} />
-              </button>
-            ) : null}
+              onSelectProject={(selectedProjectId) => updateUiMetadata({ selectedProjectId })}
+              onSelectThread={(thread) => void openThread(thread)}
+              onOpenDetail={setThreadDetail}
+            />
           </div>
+        </div>
+      </section>
+      {selectedProject ? (
+        <div className="opl-dsh-project-context">
+          <strong><Folder aria-hidden="true" size={14} />{currentProject}</strong>
+          <button data-testid="opl-project-inputs" type="button" onClick={() => requestDetails("opl-files-panel")}><FileText aria-hidden="true" size={14} />{t.projectContext}<span>{sidebarSources.length}</span></button>
+          <button data-testid="opl-project-attachments" type="button" onClick={() => requestDetails("opl-artifact-preview-tabs")}><Download aria-hidden="true" size={14} />{t.filesOutputs}<span>{projectAttachments.length}</span></button>
+        </div>
+      ) : null}
+    </div>
+  );
 
-          <div className="topbar-actions">
+  const studioConversationBody = (
+    <div className="opl-dsh-thread" ref={conversationRef as never}>
+      {threadActionError ? <p className="thread-read-error" role="alert">{threadActionError}</p> : null}
+      {messages.map((message, index) => (
+        <article key={message.id} data-testid={message.role === "assistant" ? "opl-conversation-event" : undefined} className={`message ${message.role}${message.subagent ? " subagent" : ""}`}>
+          {message.role === "system" ? <span className="message-label">{message.subagent ? (settings.locale === "zh" ? "子智能体" : "Subagent") : t.runtime}</span> : null}
+          <div className="message-frame">
+            {message.role === "assistant" ? (
+              <Streamdown controls={assistantMarkdownControls} lineNumbers={false} linkSafety={assistantMarkdownLinkSafety} mode="static">{assistantDisplayMarkdown(message.text || (sendState === "running" ? t.codexWorking : t.waitingReply))}</Streamdown>
+            ) : <MessageText text={message.text || (sendState === "running" ? t.codexWorking : t.waitingReply)} />}
+          </div>
+          {message.role === "assistant" && index === messages.length - 1 && sendState === "running" ? <div className="run-events">{eventFeed.slice(0, 4).reverse().map((item, eventIndex) => <span key={`${item}-${eventIndex}`}>{item}</span>)}</div> : null}
+          {message.role === "assistant" ? <span data-testid="opl-codex-reply" hidden /> : null}
+        </article>
+      ))}
+    </div>
+  );
+
+  const studioHeroActions = (
+    <div data-testid="opl-workbench-delivery-mode" className="opl-dsh-hero-actions" aria-label="Suggested outputs">
+      {model.purposes.map((purpose) => <Pill key={purpose} data-testid="opl-delivery-mode-option" disabled={!purposePreviewAction} onClick={() => { if (purposePreviewAction) runDryRun(purposePreviewAction.id, { purpose }); }}>{purposeCopy[purpose]}</Pill>)}
+      <span data-testid="opl-delivery-mode" hidden>research</span>
+    </div>
+  );
+
+  const studioComposerAccessory = (
+    <>
+      {composerSelections.length ? (
+        <div className="composer-selections" aria-label={settings.locale === "zh" ? "已添加的内容" : "Added content"}>
+          {composerSelections.map((selection) => <span key={selection.id} className="composer-selection" title={selection.detail}><FileText aria-hidden="true" size={13} /><span>{selection.label}</span><button type="button" aria-label={`${settings.locale === "zh" ? "移除" : "Remove"} ${selection.label}`} onClick={() => setComposerSelections((current) => current.filter((item) => item.id !== selection.id))}><X aria-hidden="true" size={12} /></button></span>)}
+        </div>
+      ) : null}
+      <span
+        className={`composer-status ${sendState === "error" || unavailableFixedModel ? "error" : sendState}`}
+        data-testid="opl-composer-run-state"
+        aria-live="polite"
+      >
+        {sendState === "running" ? t.working : sendState === "error" ? t.sendFailed : unavailableFixedModel ? t.modelSelectionUnavailable : ""}
+      </span>
+    </>
+  );
+
+  const studioComposerOverlay = (
+    <ComposerCapabilityPalette
+      open={composerPaletteOpen}
+      locale={settings.locale}
+      catalog={capabilityCatalog}
+      status={capabilityStatus}
+      error={capabilityError}
+      selections={composerSelections}
+      onClose={() => setComposerPaletteOpen(false)}
+      onPickFiles={() => void pickComposerFiles()}
+      onPickDirectory={() => void pickComposerDirectory()}
+      onToggleSkill={toggleComposerSkill}
+      contributions={hasContribution("composer.palette") ? renderContributionSlot?.("composer.palette", contributionOwner) : null}
+    />
+  );
+
+  const studioModelControls = (
+    <span className="composer-model-controls" data-testid="opl-topbar-model-config">
+      <select data-testid="opl-model-access-entry" aria-label={settings.locale === "zh" ? "模型" : "Model"} value={effectiveSelection} onChange={(event) => updateSetting("modelAccess", event.currentTarget.value)}>
+        <option value="__auto">{resolvedConversationModelLabel}</option>
+        {modelOptions.map((option) => <option key={option.id} value={option.id} disabled={!option.available}>{modelLabel(option.id, settings.locale)}</option>)}
+      </select>
+      <select aria-label={settings.locale === "zh" ? "推理强度" : "Reasoning effort"} value={resolvedReasoning} disabled={!resolvedModel} onChange={(event) => updateReasoning(event.currentTarget.value as WorkbenchSettings["reasoningLevel"])}>
+        {codexModelPolicy.reasoningOptions.map((effort) => <option key={effort} value={effort} disabled={!resolvedReasoningOptions.includes(effort)}>{reasoningLabel(effort, settings.locale)}</option>)}
+      </select>
+    </span>
+  );
+
+  const studioDetails = (
+    <aside className="opl-dsh-context-panel" aria-label="On-demand context panel">
+      <nav data-testid="opl-context-tabs" className="environment-menu">
+        {contextTabs.map((id) => <button key={id} type="button" data-active={activeContextTab === id} onClick={() => setActiveContextTab(id)}>{contextTabLabels[id]}</button>)}
+      </nav>
+      <div className="context-scroll">
+        <section data-testid="opl-files-panel" className="context-block" hidden={activeContextTab !== "opl-files-panel"}><h3>{t.projectContext}</h3>{sidebarSources.length ? sidebarSources.map((source) => <div key={source.id}>{source.label}</div>) : <p className="context-empty">{settings.locale === "zh" ? "暂无项目上下文" : "No project context"}</p>}</section>
+        <section data-testid="opl-artifact-preview-tabs" className="context-block artifact-preview-tabs" hidden={activeContextTab !== "opl-artifact-preview-tabs"}>
+          <div role="tablist" aria-label="Artifact previews">
+            {previewItems.slice(0, 3).map((preview) => (
+              <button
+                key={preview.id}
+                role="tab"
+                aria-selected={preview.id === selectedPreview?.id}
+                data-testid="opl-artifact-preview-tab"
+                type="button"
+                onClick={() => setSelectedPreviewId(preview.id)}
+              >
+                {preview.title}
+              </button>
+            ))}
+          </div>
+          <div
+            role="tabpanel"
+            data-testid="opl-artifact-preview-panel"
+            className="artifact-preview"
+            data-preview-kind={selectedPreview?.rendererModuleId}
+          >
+            {selectedPreview ? (
+              <>
+                <span data-testid="opl-selected-artifact-preview" hidden />
+                <ArtifactPreviewCard preview={selectedPreview} />
+              </>
+            ) : <p className="context-empty">{settings.locale === "zh" ? "暂无产物" : "No artifacts"}</p>}
+          </div>
+          <button data-testid="opl-export-action" type="button" disabled={!exportAction} onClick={() => { if (exportAction) runDryRun(exportAction.id, { source: "artifact-panel" }); }}><Download aria-hidden="true" size={14} /><span data-testid="opl-export-action-dry-run">{t.previewExport}</span></button>
+        </section>
+        <section data-testid="opl-provenance-drawer" className="context-block provenance-drawer" hidden={activeContextTab !== "opl-provenance-drawer"}>
+          <header><h3>{t.traceAndActions}</h3></header>
+          <p data-testid="opl-provenance-ref" className="delivery-note">{t.traceBoundary}</p>
+          <dl className="trace-list">
+            {model.contextTrace.map((trace) => <div key={trace.id}><dt>{trace.label}</dt><dd>{trace.value}</dd></div>)}
+          </dl>
+          <div className="provenance-actions">
             <button
-              className="icon-button"
-              data-testid="opl-export-action"
-              hidden
+              data-testid="opl-export-action-dry-run"
               type="button"
-              aria-label={t.previewExport}
               disabled={!exportAction}
               onClick={() => {
                 if (exportAction) runDryRun(exportAction.id, { refs: model.deliverables.map((item) => item.ref) });
               }}
             >
-              <Download aria-hidden="true" size={15} />
+              <Download aria-hidden="true" size={16} />
+              {t.previewAction}
             </button>
-            <button className="icon-button" hidden type="button" aria-label={t.refreshContext} onClick={() => void loadState(settings.runtimeProfile)}>
-              <RefreshCw aria-hidden="true" size={15} />
-            </button>
-            {activeView === "chat" ? (
-              <button
-                className="icon-button"
-                type="button"
-                onClick={() => {
-                  setInspectorOpen((open) => !open);
-                  setActiveContextTab(contextHomeId);
-                }}
-                aria-label={inspectorOpen ? t.closeEnvironment : t.openEnvironment}
-                aria-pressed={inspectorOpen}
-              >
-                <PanelRightOpen aria-hidden="true" size={16} />
-              </button>
-            ) : null}
           </div>
-        </header>
-
-        {activeView === "chat" ? (
-          <section className="conversation" ref={conversationRef}>
-            <div className="conversation-inner">
-              <section
-                data-testid="opl-workbench-delivery-mode"
-                className="workflow-strip delivery-workbench"
-                aria-label="Suggested outputs"
-              >
-                <div className="workflow-strip-head">
-                  <span>Common OPL actions stay secondary until you ask for them.</span>
-                  <span className="delivery-mode-tag" data-testid="opl-delivery-mode">research</span>
-                </div>
-                <div className="workflow-chip-row">
-                  {model.purposes.map((purpose) => (
-                    <button
-                      key={purpose}
-                      data-testid="opl-delivery-mode-option"
-                      className="workflow-chip"
-                      type="button"
-                      disabled={!purposePreviewAction}
-                      onClick={() => {
-                        if (purposePreviewAction) runDryRun(purposePreviewAction.id, { purpose });
-                      }}
-                    >
-                      {purposeCopy[purpose]}
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              <div className="thread">
-                {threadActionError ? (
-                  <p className="thread-read-error" role="alert">{threadActionError}</p>
-                ) : null}
-                <section className="thread-intro" aria-label="Conversation guidance">
-                  <span className="thread-note">{sidebarSources.length} project materials loaded</span>
-                  <span className="thread-note">Preview and export actions require confirmation</span>
-                  <span className="thread-note">Artifact bodies remain source-owned</span>
-                </section>
-
-                {messages.length === 0 ? (
-                  <section className="empty-thread" aria-label="Empty conversation">
-                    <div className="empty-thread-inner">
-                      <strong>{t.emptyTitle}</strong>
-                      <p>{t.emptyDescription(currentProject)}</p>
-                      <div className="empty-starters" aria-label="Professional agent starters">
-                        {model.purposes.slice(0, 3).map((purpose) => (
-                          <button
-                            key={purpose}
-                            data-testid="opl-delivery-mode-option"
-                            type="button"
-                            onClick={() => updatePrompt(settings.locale === "zh" ? `${purposeCopy[purpose]}：${currentProject}` : `${purposeCopy[purpose]} for ${currentProject}`)}
-                          >
-                            {purposeCopy[purpose]}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </section>
-                ) : null}
-
-                {messages.map((message, index) => (
-                  <article
-                    key={message.id}
-                    data-testid={message.role === "assistant" ? "opl-conversation-event" : undefined}
-                    className={`message ${message.role}${message.subagent ? " subagent" : ""}`}
-                  >
-                    {message.role === "system" ? <span className="message-label">{message.subagent ? (settings.locale === "zh" ? "子智能体" : "Subagent") : t.runtime}</span> : null}
-                    <div className="message-frame">
-                      {message.role === "assistant" ? (
-                        <Streamdown
-                          controls={assistantMarkdownControls}
-                          lineNumbers={false}
-                          linkSafety={assistantMarkdownLinkSafety}
-                          mode="static"
-                        >
-                          {assistantDisplayMarkdown(message.text || (sendState === "running" ? t.codexWorking : t.waitingReply))}
-                        </Streamdown>
-                      ) : (
-                        <p>{message.text || (sendState === "running" ? t.codexWorking : t.waitingReply)}</p>
-                      )}
-                    </div>
-                    {message.role === "assistant" && index === messages.length - 1 && sendState === "running" ? (
-                      <div className="run-events" aria-label="Current run events">
-                        {eventFeed.slice(0, 4).reverse().map((item, eventIndex) => (
-                          <span className="run-event" key={`${item}-${eventIndex}`}>{item}</span>
-                        ))}
-                      </div>
-                    ) : null}
-                    <span className="message-meta">
-                      {message.role === "user"
-                        ? "Prompt"
-                        : message.role === "system"
-                          ? message.subagent
-                            ? [message.subagent.agentNickname, message.subagent.agentRole, message.subagent.type].filter(Boolean).join(" · ")
-                            : "Action or runtime event"
-                          : currentSession?.id
-                            ? "Streaming via codex app-server"
-                            : "Project context loaded"}
-                    </span>
-                    {message.role === "assistant" ? <span data-testid="opl-codex-reply" hidden /> : null}
-                  </article>
-                ))}
-              </div>
-
-              <form className="composer" onSubmit={sendCodexMessage}>
-                <div className="composer-frame">
-                  <ComposerCapabilityPalette
-                    open={composerPaletteOpen}
-                    locale={settings.locale}
-                    catalog={capabilityCatalog}
-                    status={capabilityStatus}
-                    error={capabilityError}
-                    selections={composerSelections}
-                    onClose={() => setComposerPaletteOpen(false)}
-                    onPickFiles={() => void pickComposerFiles()}
-                    onPickDirectory={() => void pickComposerDirectory()}
-                    onToggleSkill={toggleComposerSkill}
-                  />
-                  {composerSelections.length ? (
-                    <div className="composer-selections" aria-label={settings.locale === "zh" ? "已添加的内容" : "Added content"}>
-                      {composerSelections.map((selection) => {
-                        const SelectionIcon = selection.kind === "folder" ? Folder : selection.kind === "skill" ? Sparkles : FileText;
-                        return (
-                          <span key={selection.id} className="composer-selection" title={selection.detail}>
-                            <SelectionIcon aria-hidden="true" size={13} />
-                            <span>{selection.label}</span>
-                            <button
-                              type="button"
-                              aria-label={`${settings.locale === "zh" ? "移除" : "Remove"} ${selection.label}`}
-                              onClick={() => setComposerSelections((current) => current.filter((item) => item.id !== selection.id))}
-                            >
-                              <X aria-hidden="true" size={12} />
-                            </button>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                  <textarea
-                    aria-label="Prompt"
-                    placeholder={t.prompt}
-                    value={prompt}
-                    onChange={(event) => updatePrompt(event.currentTarget.value)}
-                    disabled={sendState === "running"}
-                  />
-                  <footer>
-                    <div className="composer-meta">
-                      <button className="composer-action" type="button" aria-label={t.attachFiles} aria-expanded={composerPaletteOpen} onClick={openComposerPalette}>
-                        <Plus aria-hidden="true" size={15} />
-                      </button>
-                      <label className="composer-select composer-permissions">
-                        <ShieldCheck className="composer-permission-icon" aria-hidden="true" size={14} />
-                        <select
-                          aria-label={t.agentPermissions}
-                          value={settings.agentPermissions}
-                          onChange={(event) => updateSetting("agentPermissions", event.currentTarget.value as WorkbenchSettings["agentPermissions"])}
-                        >
-                          {permissionOptions.map((profile) => (
-                            <option key={profile.id} value={profile.id} disabled={!profile.allowed}>
-                              {profile.id === ":danger-full-access" ? t.fullAccess : profile.id === ":workspace" ? t.workspaceAccess : t.readOnlyAccess}
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown aria-hidden="true" size={12} />
-                      </label>
-                      <span className={`composer-status ${sendState === "error" || unavailableFixedModel ? "error" : sendState}`} data-testid="opl-composer-run-state" aria-live="polite">
-                        {sendState === "running" ? t.working : sendState === "error" ? sendError : unavailableFixedModel ? t.modelSelectionUnavailable : ""}
-                      </span>
-                    </div>
-                    <div className="composer-actions">
-                      <nav data-testid="opl-topbar-model-config" className="composer-model-controls" aria-label="Conversation configuration">
-                        <label className="composer-select" data-testid="opl-model-access-entry">
-                          <select aria-label={settings.locale === "zh" ? "模型" : "Model"} value={settings.modelAccess} onChange={(event) => updateSetting("modelAccess", event.currentTarget.value as WorkbenchSettings["modelAccess"])}>
-                            <option value="__auto">{resolvedConversationModelLabel}</option>
-                            {settings.modelAccess !== "__auto" && !modelOptions.some((option) => option.id === settings.modelAccess) ? (
-                              <option value={settings.modelAccess} disabled>{modelLabel(settings.modelAccess, settings.locale)} ({t.unavailable})</option>
-                            ) : null}
-                            {modelOptions.map((option) => (
-                              <option key={option.id} value={option.id} disabled={!option.available}>
-                                {modelLabel(option.id, settings.locale)}{option.available ? "" : ` (${t.unavailable})`}
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown aria-hidden="true" size={12} />
-                        </label>
-                        <label className="composer-select">
-                          <select aria-label={settings.locale === "zh" ? "推理强度" : "Reasoning effort"} value={resolvedReasoning} disabled={!resolvedModel} onChange={(event) => updateReasoning(event.currentTarget.value as WorkbenchSettings["reasoningLevel"])}>
-                            {resolvedReasoningOptions.map((effort) => (
-                              <option key={effort} value={effort}>{reasoningLabel(effort, settings.locale, true)}</option>
-                            ))}
-                          </select>
-                          <ChevronDown aria-hidden="true" size={12} />
-                        </label>
-                      </nav>
-                      <button className="composer-submit" type="submit" aria-label={sendState === "running" ? t.running : sendState === "error" ? t.retry : t.send} disabled={(!prompt.trim() && !composerSelections.length) || sendState === "running" || !canSendCodexTurn}>
-                        <Send aria-hidden="true" size={15} />
-                        <span>{sendState === "running" ? t.running : sendState === "error" ? t.retry : t.send}</span>
-                      </button>
-                    </div>
-                  </footer>
-                </div>
-              </form>
-            </div>
+          <output data-testid="opl-runtime-action-receipt">{lastDryRun}</output>
+          <section data-testid="opl-action-receipt-summary-list" className="action-receipt-summary-list">
+            <h3>{t.actionReceipts}</h3>
+            {model.actionReceipts.map((receipt) => <ActionReceiptSummary key={receipt.id} receipt={receipt} />)}
           </section>
-        ) : (
-          <SettingsPanel
-            model={model}
-            settings={settings}
-            modelOptions={modelOptions}
-            resolvedModel={resolvedModel}
-            resolvedReasoning={resolvedReasoning}
-            resolvedReasoningOptions={resolvedReasoningOptions}
-            stateStatus={stateStatus}
-            stateError={stateError}
-            activeDestination={activeSettingsDestination}
-            onDestinationChange={setActiveSettingsDestination}
-            onRefresh={() => void loadState(settings.runtimeProfile)}
-            onSettingChange={updateSetting}
-            onReasoningChange={updateReasoning}
-            onAction={(request) => void runSettingsAction(request)}
-            actionBusyKey={settingsActionBusyKey}
-            actionFeedback={settingsActionFeedback}
-            pendingConfirmation={settingsActionConfirmation}
-            onConfirmAction={() => void confirmSettingsAction()}
-            onCancelAction={() => setSettingsActionConfirmation(null)}
-          />
-        )}
-      </section>
-
-      <ThreadSearchDialog
-        open={threadSearchOpen}
-        locale={settings.locale}
-        projects={uiMetadata.threadScope === "archived" ? archivedThreadProjects : threadProjects}
-        onOpenChange={setThreadSearchOpen}
-        onSelect={(thread) => void openThread(thread)}
-      />
-
-      <aside
-        className={`context-inspector ${inspectorOpen ? "open" : ""}`}
-        aria-label="On-demand context panel"
-        aria-hidden={!inspectorOpen}
-      >
-        <header className="inspector-header">
-          <div className="environment-detail-header">
-            {activeContextTab !== contextHomeId ? (
-              <button type="button" aria-label={t.backEnvironment} onClick={() => setActiveContextTab(contextHomeId)}>
-                <ChevronLeft aria-hidden="true" size={15} />
-              </button>
-            ) : null}
-            <h2>{activeContextTab === contextHomeId
-              ? t.environment
-              : environmentItems.find((item) => item.id === activeContextTab)?.label ?? t.environment}</h2>
-          </div>
-          <button type="button" aria-label={t.close} onClick={() => setInspectorOpen(false)}>
-            <X aria-hidden="true" size={15} />
-          </button>
-        </header>
-
-        <section className="context-summary" aria-live="polite">
-          <p className="context-status">{contextStatusText}</p>
+          {model.confirmations[0] && model.questions[0] ? (
+            <ConfirmationCard card={model.confirmations[0]} question={model.questions[0]} onDryRun={runDryRun} />
+          ) : null}
         </section>
-
-        <div className="context-scroll">
-          <nav data-testid="opl-context-tabs" className="environment-menu" hidden={activeContextTab !== contextHomeId}>
-            <p>{t.environmentStatus}</p>
-            {environmentItems.map((item, index) => {
-              const Icon = item.icon;
-              return (
-                <div className="environment-menu-entry" key={item.id}>
-                  {index === 0 || environmentItems[index - 1]?.group !== item.group ? <strong className="environment-menu-group">{item.group}</strong> : null}
-                  <button type="button" onClick={() => setActiveContextTab(item.id)}>
-                    <span className="environment-menu-icon"><Icon aria-hidden="true" size={16} /></span>
-                    <span className="environment-menu-copy">
-                      <strong>{item.label}</strong>
-                      <small title={item.description}>{item.description}</small>
-                    </span>
-                    <span className="environment-menu-meta">{item.meta}</span>
-                    <ChevronRight aria-hidden="true" size={15} />
-                  </button>
-                </div>
-              );
-            })}
-          </nav>
-
-          <section data-testid="opl-files-panel" className="context-block" hidden={activeContextTab !== "opl-files-panel"}>
-            <div className="context-list-head">
-              <strong>{t.sources}</strong>
-              <button className="context-quiet-action" type="button" onClick={() => void loadState(settings.runtimeProfile)}>{t.refresh}</button>
-            </div>
-            <p className="context-empty">{t.sourcesBoundary}</p>
-            <ol className="context-list">
-              {model.contextSources.map((source) => (
-                <li key={source.id}>
-                  <strong>{source.label}</strong>
-                  <span>{source.summary}</span>
-                  <code className="context-code">{source.ref}</code>
-                </li>
-              ))}
-            </ol>
-          </section>
-
-          <section className="context-block" hidden={activeContextTab !== "opl-artifact-preview-tabs"}>
-            <Tabs.Root
-              key={previewItems.map((preview) => preview.id).join(":")}
-              data-testid="opl-artifact-preview-tabs"
-              className="artifact-preview-tabs"
-              value={selectedPreview?.id}
-              onValueChange={setSelectedPreviewId}
-            >
-              <Tabs.List aria-label="Artifact previews">
-                {previewItems.slice(0, 3).map((preview, index) => (
-                  <Tabs.Trigger key={preview.id} value={preview.id} data-testid="opl-artifact-preview-tab">
-                    {index === 0 ? "Markdown" : index === 1 ? t.receipt : `${t.sources} (${model.contextSources.length})`}
-                  </Tabs.Trigger>
+        <section data-testid="opl-starter-forms" className="context-block starter-forms" aria-label="Workflow starters" hidden={activeContextTab !== "opl-starter-forms"}>
+          <div className="context-list-head">
+            <strong>{t.workflowStarters}</strong>
+            <span className="delivery-note">{t.previewFirst}</span>
+          </div>
+          <div className="starter-stack">
+            {model.contextActions.filter((action) => action.dryRunSupported).slice(0, 8).map((action) => (
+              <article key={action.id} className="starter-form" data-testid="opl-starter-form" data-starter={action.id}>
+                <header>
+                  <h3>{action.label}</h3>
+                  <span>{action.mutates}</span>
+                </header>
+                <p>{action.route}</p>
+                <button type="button" onClick={() => runDryRun(action.id)}>
+                  <Send aria-hidden="true" size={16} />
+                  {t.previewReceipt}
+                </button>
+              </article>
+            ))}
+            {model.starters.map((starter) => (
+              <form
+                key={starter.id}
+                className="starter-form"
+                data-testid="opl-starter-form"
+                data-starter-testid={`opl-starter-form-${starter.purpose}`}
+                data-starter={starter.id}
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const actionId = starter.previewActionId ?? starter.dryRunAction;
+                  if (actionId) {
+                    runDryRun(
+                      actionId,
+                      starterPayloadFromDraft(starter, starterDrafts[starter.id] ?? {})
+                    );
+                  }
+                }}
+              >
+                <header>
+                  <h3>{starter.title}</h3>
+                  <span>{starter.module}</span>
+                </header>
+                <p>{starter.intent}</p>
+                {starter.fields.map((field) => (
+                  <label key={field.name} className="starter-field">
+                    <span>{field.label}</span>
+                    {field.input === "textarea" ? (
+                      <textarea
+                        value={starterDrafts[starter.id]?.[field.name] ?? field.value}
+                        onChange={(event) => updateStarterField(starter.id, field.name, event.currentTarget.value)}
+                      />
+                    ) : field.input === "select" ? (
+                      <select
+                        value={starterDrafts[starter.id]?.[field.name] ?? field.value}
+                        onChange={(event) => updateStarterField(starter.id, field.name, event.currentTarget.value)}
+                      >
+                        {field.options?.map((option) => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={starterDrafts[starter.id]?.[field.name] ?? field.value}
+                        onChange={(event) => updateStarterField(starter.id, field.name, event.currentTarget.value)}
+                      />
+                    )}
+                  </label>
                 ))}
-              </Tabs.List>
-              {previewItems.slice(0, 3).map((preview) => (
-                <Tabs.Content
-                  key={preview.id}
-                  value={preview.id}
-                  data-preview-kind={preview.rendererModuleId}
-                  data-testid="opl-artifact-preview-panel"
-                  data-selected={preview.id === selectedPreview?.id}
-                  className="artifact-preview"
-                >
-                  {preview.id === selectedPreview?.id ? <span data-testid="opl-selected-artifact-preview" hidden /> : null}
-                  <ArtifactPreviewCard preview={preview} />
-                </Tabs.Content>
-              ))}
-            </Tabs.Root>
-
-            <section className="delivery-cards">
-              <div className="delivery-head">
-                <strong>{t.deliverables}</strong>
-                <span className="delivery-note">{t.recentRefs}</span>
-              </div>
-              <div className="delivery-stack">
-                {model.deliverables.slice(0, 3).map((item) => <DeliveryCard key={item.id} item={item} />)}
-                {model.receipts.slice(0, 2).map((item) => <DeliveryCard key={item.id} item={item} />)}
-              </div>
-            </section>
-          </section>
-
-          <section data-testid="opl-provenance-drawer" className="context-block provenance-drawer" hidden={activeContextTab !== "opl-provenance-drawer"}>
-            <header>
-              <h3>{t.traceAndActions}</h3>
-              <PanelRightOpen aria-hidden="true" size={18} />
-            </header>
-            <p data-testid="opl-provenance-ref" className="delivery-note">
-              {t.traceBoundary}
-            </p>
-            <dl className="trace-list">
-              {model.contextTrace.map((trace) => (
-                <div key={trace.id}>
-                  <dt>{trace.label}</dt>
-                  <dd>{trace.value}</dd>
-                </div>
-              ))}
-            </dl>
-            <div className="provenance-actions">
-              <button
-                data-testid="opl-export-action-dry-run"
-                type="button"
-                disabled={!exportAction}
-                onClick={() => {
-                  if (exportAction) runDryRun(exportAction.id, { refs: model.deliverables.map((item) => item.ref) });
-                }}
-              >
-                <Download aria-hidden="true" size={16} />
-                {t.previewAction}
-              </button>
-              <button
-                data-testid="opl-runtime-action-execute"
-                type="button"
-                disabled={!pendingAction}
-                onClick={executeConfirmedAction}
-              >
-                {t.executeConfirmed}
-              </button>
-              <button type="button" disabled={!pendingAction} onClick={previewRollback}>{t.previewRollback}</button>
-            </div>
-            <output data-testid="opl-runtime-action-receipt">{lastDryRun}</output>
-
-            <section data-testid="opl-action-receipt-summary-list" className="action-receipt-summary-list">
-              <h3>{t.actionReceipts}</h3>
-              {model.actionReceipts.map((receipt) => <ActionReceiptSummary key={receipt.id} receipt={receipt} />)}
-            </section>
-
-            {model.confirmations[0] && model.questions[0] ? (
-              <ConfirmationCard
-                card={model.confirmations[0]}
-                question={model.questions[0]}
-                onDryRun={runDryRun}
-              />
-            ) : null}
-          </section>
-
-          <section data-testid="opl-starter-forms" className="context-block starter-forms" aria-label="Workflow starters" hidden={activeContextTab !== "opl-starter-forms"}>
-            <div className="context-list-head">
-              <strong>{t.workflowStarters}</strong>
-              <span className="delivery-note">{t.previewFirst}</span>
-            </div>
-            <div className="starter-stack">
-              {model.contextActions.filter((action) => action.dryRunSupported).slice(0, 8).map((action) => (
-                <article key={action.id} className="starter-form" data-testid="opl-starter-form" data-starter={action.id}>
-                  <header>
-                    <h3>{action.label}</h3>
-                    <span>{action.mutates}</span>
-                  </header>
-                  <p>{action.route}</p>
-                  <button type="button" onClick={() => runDryRun(action.id)}>
-                    <Send aria-hidden="true" size={16} />
-                    {t.previewReceipt}
-                  </button>
-                </article>
-              ))}
-              {model.starters.map((starter) => (
-                <form
-                  key={starter.id}
-                  className="starter-form"
-                  data-testid="opl-starter-form"
-                  data-starter-testid={`opl-starter-form-${starter.purpose}`}
-                  data-starter={starter.id}
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    const actionId = starter.previewActionId ?? starter.dryRunAction;
-                    if (actionId) {
-                      runDryRun(
-                        actionId,
-                        starterPayloadFromDraft(starter, starterDrafts[starter.id] ?? {})
-                      );
-                    }
-                  }}
-                >
-                  <header>
-                    <h3>{starter.title}</h3>
-                    <span>{starter.module}</span>
-                  </header>
-                  <p>{starter.intent}</p>
-                  {starter.fields.map((field) => (
-                    <label key={field.name} className="starter-field">
-                      <span>{field.label}</span>
-                      {field.input === "textarea" ? (
-                        <textarea
-                          value={starterDrafts[starter.id]?.[field.name] ?? field.value}
-                          onChange={(event) => updateStarterField(starter.id, field.name, event.currentTarget.value)}
-                        />
-                      ) : field.input === "select" ? (
-                        <select
-                          value={starterDrafts[starter.id]?.[field.name] ?? field.value}
-                          onChange={(event) => updateStarterField(starter.id, field.name, event.currentTarget.value)}
-                        >
-                          {field.options?.map((option) => <option key={option} value={option}>{option}</option>)}
-                        </select>
-                      ) : (
-                        <input
-                          type="text"
-                          value={starterDrafts[starter.id]?.[field.name] ?? field.value}
-                          onChange={(event) => updateStarterField(starter.id, field.name, event.currentTarget.value)}
-                        />
-                      )}
-                    </label>
+                <small>{starter.sourceRef ?? starter.status ?? "No App action source ref."}</small>
+                <button type="submit" disabled={starter.available === false || !(starter.previewActionId ?? starter.dryRunAction)}>
+                  <Send aria-hidden="true" size={16} />
+                  {starter.available === false ? t.unavailable : t.previewWorkflow}
+                </button>
+              </form>
+            ))}
+          </div>
+        </section>
+        <section
+          data-testid="opl-package-lifecycle-panel"
+          className="context-block package-lifecycle-panel"
+          aria-label="Agent package lifecycle"
+          hidden={activeContextTab !== "opl-package-lifecycle-panel"}
+        >
+          <div className="context-list-head">
+            <strong>{t.agentPackages}</strong>
+            <span className="delivery-note">{t.appRootRefs}</span>
+          </div>
+          <p className="context-empty">{t.packageBoundary}</p>
+          <div className="package-lifecycle-list">
+            {model.packageLifecycle.map((item) => (
+              <article key={item.id} data-testid="opl-package-lifecycle-card" className="package-lifecycle-card">
+                <header>
+                  <strong>{item.label}</strong>
+                  <span className="delivery-note">{item.packageId} / {item.status}</span>
+                  <code className="context-code">{item.sourceRef}</code>
+                </header>
+                <p>{item.summary}</p>
+                <p className="delivery-note">{item.sourceExplanation}</p>
+                <div className="package-filter-list" aria-label={`${item.label} search and filter metadata`}>
+                  <div>
+                    <dt>{t.search}</dt>
+                    <dd><code>{item.searchMetadata.query}</code></dd>
+                  </div>
+                  <div>
+                    <dt>{t.filterTags}</dt>
+                    <dd><code>{item.searchMetadata.tags.join(", ")}</code></dd>
+                  </div>
+                  {item.searchMetadata.filters.map((filter) => (
+                    <div key={`${item.id}-filter-${filter.label}-${filter.ref}`}>
+                      <dt>{filter.label}</dt>
+                      <dd>
+                        <code>{filter.ref}</code>
+                        <small>{filter.summary}</small>
+                      </dd>
+                    </div>
                   ))}
-                  <small>{starter.sourceRef ?? starter.status ?? "No App action source ref."}</small>
-                  <button type="submit" disabled={starter.available === false || !(starter.previewActionId ?? starter.dryRunAction)}>
-                    <Send aria-hidden="true" size={16} />
-                    {starter.available === false ? t.unavailable : t.previewWorkflow}
-                  </button>
-                </form>
-              ))}
-            </div>
-          </section>
-
-          <section data-testid="opl-automations-panel" className="context-block" hidden={activeContextTab !== "opl-automations-panel"}>
-            <div className="context-list-head">
-              <strong>{t.scheduled}</strong>
-              <span className="delivery-note">{t.readbackOnly}</span>
-            </div>
-            <p className="context-empty">{t.scheduledDescription}</p>
-            <dl className="trace-list">
-              {model.contextTrace.filter((item) => item.label.toLowerCase().includes("automation")).map((item) => (
-                <div key={item.id}><dt>{item.label}</dt><dd>{item.value}</dd></div>
-              ))}
-            </dl>
-          </section>
-
-          <section
-            data-testid="opl-package-lifecycle-panel"
-            className="context-block package-lifecycle-panel"
-            aria-label="Agent package lifecycle"
-            hidden={activeContextTab !== "opl-package-lifecycle-panel"}
-          >
-            <div className="context-list-head">
-              <strong>{t.agentPackages}</strong>
-              <span className="delivery-note">{t.appRootRefs}</span>
-            </div>
-            <p className="context-empty">
-              {t.packageBoundary}
-            </p>
-            <div className="package-lifecycle-list">
-              {model.packageLifecycle.map((item) => (
-                <article key={item.id} data-testid="opl-package-lifecycle-card" className="package-lifecycle-card">
-                  <header>
-                    <strong>{item.label}</strong>
-                    <span className="delivery-note">{item.packageId} / {item.status}</span>
-                    <code className="context-code">{item.sourceRef}</code>
-                  </header>
-                  <p>{item.summary}</p>
-                  <p className="delivery-note">{item.sourceExplanation}</p>
-                  <div className="package-filter-list" aria-label={`${item.label} search and filter metadata`}>
-                    <div>
-                      <dt>{t.search}</dt>
-                      <dd><code>{item.searchMetadata.query}</code></dd>
+                </div>
+                <div className="package-axis-list" aria-label={`${item.label} status axes`}>
+                  {item.statusAxes.map((axis) => (
+                    <div key={`${item.id}-${axis.label}`}>
+                      <dt>{axis.label}</dt>
+                      <dd>
+                        <code>{axis.value}</code>
+                        <small> {axis.source}</small>
+                      </dd>
                     </div>
-                    <div>
-                      <dt>{t.filterTags}</dt>
-                      <dd><code>{item.searchMetadata.tags.join(", ")}</code></dd>
+                  ))}
+                </div>
+                <div className="package-detail-list" aria-label={`${item.label} lifecycle details`}>
+                  {item.details.map((detail) => (
+                    <div key={`${item.id}-detail-${detail.label}`}>
+                      <dt>{detail.label}</dt>
+                      <dd>
+                        <code>{detail.value}</code>
+                        <small> {detail.source}</small>
+                        {detail.ref ? <small><code>{detail.ref}</code></small> : null}
+                        <small>{detail.summary}</small>
+                      </dd>
                     </div>
-                    {item.searchMetadata.filters.map((filter) => (
-                      <div key={`${item.id}-filter-${filter.label}-${filter.ref}`}>
-                        <dt>{filter.label}</dt>
-                        <dd>
-                          <code>{filter.ref}</code>
-                          <small>{filter.summary}</small>
-                        </dd>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="package-axis-list" aria-label={`${item.label} status axes`}>
-                    {item.statusAxes.map((axis) => (
-                      <div key={`${item.id}-${axis.label}`}>
-                        <dt>{axis.label}</dt>
-                        <dd>
-                          <code>{axis.value}</code>
-                          <small> {axis.source}</small>
-                        </dd>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="package-detail-list" aria-label={`${item.label} lifecycle details`}>
-                    {item.details.map((detail) => (
-                      <div key={`${item.id}-detail-${detail.label}`}>
-                        <dt>{detail.label}</dt>
-                        <dd>
-                          <code>{detail.value}</code>
-                          <small> {detail.source}</small>
-                          {detail.ref ? <small><code>{detail.ref}</code></small> : null}
-                          <small>{detail.summary}</small>
-                        </dd>
-                      </div>
-                    ))}
-                  </div>
-                  {item.refs.length ? (
-                    <div className="package-ref-list" aria-label={`${item.label} refs`}>
-                      {item.refs.map((ref) => (
-                        <div key={`${item.id}-${ref.label}-${ref.ref}`}>
-                          <dt>{ref.label}</dt>
-                          <dd>
-                            <code>{ref.ref}</code>
-                            <small>{ref.summary}</small>
-                          </dd>
-                        </div>
-                      ))}
+                  ))}
+                </div>
+                <div className="package-ref-list" aria-label={`${item.label} source refs`}>
+                  {item.refs.map((ref) => (
+                    <div key={`${item.id}-${ref.label}-${ref.ref}`}>
+                      <dt>{ref.label}</dt>
+                      <dd>
+                        <code>{ref.ref}</code>
+                        <small>{ref.summary}</small>
+                      </dd>
                     </div>
-                  ) : null}
-                  <div className="package-action-row" aria-label={`${item.label} package actions`}>
-                    {item.actions.map((action) => (
-                      <div key={`${item.id}-${action.kind}`} className="package-action-detail">
-                        <button
-                          data-testid="opl-package-lifecycle-action"
-                          type="button"
-                          disabled={action.status !== "available" || !action.actionId}
-                          onClick={() => {
-                            runDryRun(action.actionId, action.payload);
-                          }}
-                        >
-                          {action.label}: {action.status}
-                        </button>
-                        <small>{action.reason}</small>
-                        <code className="context-code">{action.actionId}</code>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="delivery-note">{item.authorityBoundary}</p>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section
-            data-testid="opl-secondary-runtime-context"
-            className="context-block runtime-panel"
-            hidden={activeContextTab !== "opl-runtime-summary"}
-          >
-            <div className="context-list-head">
-              <h3 data-testid="opl-runtime-summary">{t.runtimeMenu}</h3>
-              <span className="delivery-note">{t.readbackOnly}</span>
-            </div>
-            <div className="runtime-meta">
-              <div data-testid="opl-runtime-context-group" className="session-chip">{localizedStateStatus}</div>
-              <div data-testid="opl-runtime-context-item" className="runtime-note">{t.runtimeNoAuthority}</div>
-            </div>
-            <div className="runtime-actions">
-              <button
-                data-testid="opl-runtime-full-detail-button"
-                type="button"
-                onClick={() => void bridge.readFullDrilldown()}
-              >
-                {t.fullDrilldown}
-              </button>
-              <button
-                data-testid="opl-runtime-action-dry-run"
-                type="button"
-                disabled={!runtimeAction}
-                onClick={() => {
-                  if (runtimeAction) runDryRun(runtimeAction.id, { source: "runtime-panel" });
-                }}
-              >
-                {t.previewAction}
-              </button>
-            </div>
-
-            <RendererModuleRegistryPanel />
-
-            <div className="utility-stack">
-              <section data-testid="opl-skills-panel" className="context-block">
-                <h3>{t.skills}</h3>
-                <p className="context-empty">{t.skillsBoundary}</p>
-              </section>
-              <section data-testid="opl-routing-panel" className="context-block">
-                <h3>{t.routing}</h3>
-                <p className="context-empty">{t.routingBoundary}</p>
-              </section>
-            </div>
-
-            <div className="visually-hidden" data-testid="opl-web-transport">window.oplNativeWorkbench / SSE /api/opl-events</div>
-            <div className="visually-hidden" data-testid="opl-event-feed">{eventFeed.join(" / ")} tool process diff file receipt user_input permission</div>
-          </section>
-
-          <section data-testid="opl-memory-panel" className="context-block" hidden={activeContextTab !== "opl-memory-panel"}>
-            <div className="context-list-head">
-              <h3>{t.memory}</h3>
-              <span className="delivery-note">refs-only</span>
-            </div>
-            <p className="context-empty">{t.memoryBoundary}</p>
-          </section>
-
-          <section data-testid="opl-always-on-panel" className="context-block" hidden={activeContextTab !== "opl-always-on-panel"}>
-            <div className="context-list-head">
-              <h3>{t.alwaysOn}</h3>
-              <span className="delivery-note">{localizedStateStatus}</span>
-            </div>
-            <p className="context-empty">{t.alwaysOnBoundary}</p>
-          </section>
-
-        </div>
-      </aside>
-
-      <ThreadDetailPopover
-        thread={threadDetail}
-        locale={settings.locale}
-        busy={threadActionBusy}
-        onClose={() => setThreadDetail(null)}
-        onResume={(thread) => void resumeThreadAndOpen(thread)}
-        onFork={(thread) => void forkThread(thread)}
-        onRequestArchive={(thread, archived) => {
-          setLifecycleConfirmation({ thread, action: archived ? "archive" : "unarchive" });
-          setThreadActionError("");
-          setThreadDetail(null);
-        }}
-      />
-
-      <ThreadLifecycleConfirmationDialog
-        thread={lifecycleConfirmation?.thread ?? null}
-        action={lifecycleConfirmation?.action ?? "archive"}
-        locale={settings.locale}
-        busy={threadActionBusy}
-        error={threadActionError}
-        onClose={() => setLifecycleConfirmation(null)}
-        onConfirm={() => void confirmThreadLifecycle()}
-      />
-
-    </main>
+                  ))}
+                </div>
+                <div className="package-action-list">
+                  {item.actions.map((action) => (
+                    <div key={`${item.id}-${action.kind}-${action.actionId ?? action.label}`}>
+                      <button
+                        data-testid="opl-package-lifecycle-action"
+                        type="button"
+                        disabled={action.status !== "available" || !action.actionId}
+                        onClick={() => runDryRun(action.actionId, action.payload)}
+                      >
+                        {action.label}: {action.status}
+                      </button>
+                      <small>{action.reason}</small>
+                      <code className="context-code">{action.actionId}</code>
+                    </div>
+                  ))}
+                </div>
+                <p className="delivery-note">{item.authorityBoundary}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+        <section data-testid="opl-secondary-runtime-context" className="context-block" hidden={activeContextTab !== "opl-runtime-summary"}><h3 data-testid="opl-runtime-summary">{t.runtimeMenu}</h3><button data-testid="opl-runtime-full-detail-button" type="button" onClick={() => void bridge.readFullDrilldown()}>{t.fullDrilldown}</button><button data-testid="opl-runtime-action-dry-run" type="button" disabled={!runtimeAction} onClick={() => { if (runtimeAction) runDryRun(runtimeAction.id, { source: "runtime-panel" }); }}>{t.previewAction}</button><div data-testid="opl-runtime-action-receipt">{lastDryRun}</div><RendererModuleRegistryPanel /><div data-testid="opl-skills-panel">{t.skills}</div><div data-testid="opl-routing-panel">{t.routing}</div></section>
+        <section data-testid="opl-automations-panel" className="context-block" hidden={activeContextTab !== "opl-automations-panel"}><h3>{t.scheduled}</h3><p className="context-empty">{settings.locale === "zh" ? "暂无计划任务" : "No scheduled tasks"}</p></section>
+        <section data-testid="opl-memory-panel" className="context-block" hidden={activeContextTab !== "opl-memory-panel"}><h3>{t.memory}</h3><p>{t.memoryBoundary}</p></section>
+        <section data-testid="opl-always-on-panel" className="context-block" hidden={activeContextTab !== "opl-always-on-panel"}><h3>{t.alwaysOn}</h3><p>{t.alwaysOnBoundary}</p></section>
+        <div className="visually-hidden" data-testid="opl-web-transport">window.oplStudio / SSE /api/opl-events</div>
+      </div>
+    </aside>
   );
+
+  const studioSettings = (
+    <SettingsPanel
+      model={model}
+      settings={settings}
+      modelOptions={modelOptions}
+      resolvedModel={resolvedModel}
+      resolvedReasoning={resolvedReasoning}
+      resolvedReasoningOptions={resolvedReasoningOptions}
+      stateStatus={stateStatus}
+      stateError={stateError}
+      activeDestination={activeSettingsDestination}
+      onDestinationChange={setActiveSettingsDestination}
+      onRefresh={() => void loadState(settings.runtimeProfile)}
+      onSettingChange={updateSetting}
+      onReasoningChange={updateReasoning}
+      onAction={(request) => void runSettingsAction(request)}
+      actionBusyKey={settingsActionBusyKey}
+      actionFeedback={settingsActionFeedback}
+      pendingConfirmation={settingsActionConfirmation}
+      onConfirmAction={() => void confirmSettingsAction()}
+      onCancelAction={() => setSettingsActionConfirmation(null)}
+    />
+  );
+
+  return renderShell({
+    locale: settings.locale,
+    projectTitle: currentProject,
+    sessionTitle: localizedSessionTitle(currentSession?.title || t.newTaskTitle, settings.locale),
+    workspacePath: selectedProject?.workspace ?? currentProject,
+    prompt,
+    promptRevision: prompt.length,
+    conversationBlank: messages.length === 0,
+    sending: sendState === "running",
+    contributionOwner,
+    uiContributions: model.uiContributions,
+    workspaceRail: studioWorkspaceRail,
+    conversationHeader: <><Folder aria-hidden="true" size={15} /><h1>{localizedSessionTitle(currentSession?.title || t.newTaskTitle, settings.locale)}</h1><button type="button" aria-label={t.conversationMenu} disabled={!currentSession} onClick={() => setThreadDetail(currentSession ?? null)}><CircleEllipsis aria-hidden="true" size={16} /></button></>,
+    conversationBody: studioConversationBody,
+    heroActions: studioHeroActions,
+    composerAccessory: studioComposerAccessory,
+    composerOverlay: studioComposerOverlay,
+    composerModelControls: studioModelControls,
+    details: studioDetails,
+    settings: studioSettings,
+    overlay: <><style>{codexWorkbenchStyles}</style><ThreadSearchDialog open={threadSearchOpen} locale={settings.locale} projects={uiMetadata.threadScope === "archived" ? archivedThreadProjects : threadProjects} onOpenChange={setThreadSearchOpen} onSelect={(thread) => void openThread(thread)} /><ThreadDetailPopover thread={threadDetail} locale={settings.locale} busy={threadActionBusy} onClose={() => setThreadDetail(null)} onResume={(thread) => void resumeThreadAndOpen(thread)} onFork={(thread) => void forkThread(thread)} onRequestArchive={(thread, archived) => { setLifecycleConfirmation({ thread, action: archived ? "archive" : "unarchive" }); setThreadActionError(""); setThreadDetail(null); }} /><ThreadLifecycleConfirmationDialog thread={lifecycleConfirmation?.thread ?? null} action={lifecycleConfirmation?.action ?? "archive"} locale={settings.locale} busy={threadActionBusy} error={threadActionError} onClose={() => setLifecycleConfirmation(null)} onConfirm={() => void confirmThreadLifecycle()} /></>,
+    detailsRequestRevision,
+    startSession: startNewChat,
+    updatePrompt,
+    submitPrompt: sendCodexMessage,
+    openComposerPalette
+  });
+
 }
 
 function formatEvent(event: unknown): string {

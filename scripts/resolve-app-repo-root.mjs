@@ -4,11 +4,11 @@ import path from "node:path";
 export function resolveAppRepoRoot(candidateRoot) {
   const candidates = [
     process.env.OPL_APP_REPO_ROOT,
-    // Mounted candidate checkout: <app-root>/shells/opl-native-workbench.
+    // Mounted candidate checkout: <app-root>/shells/opl-studio.
     path.join(candidateRoot, "..", ".."),
-    // Standalone worktree: <workspace>/opl-native-workbench/.worktrees/<name>.
+    // Standalone worktree: <workspace>/opl-studio/.worktrees/<name>.
     path.join(candidateRoot, "..", "..", "..", "one-person-lab-app"),
-    // Namespaced standalone worktree: <workspace>/opl-native-workbench/.worktrees/<namespace>/<name>.
+    // Namespaced standalone worktree: <workspace>/opl-studio/.worktrees/<namespace>/<name>.
     path.join(candidateRoot, "..", "..", "..", "..", "one-person-lab-app"),
     path.join(candidateRoot, "..", "one-person-lab-app"),
     path.join(candidateRoot, "..", "..", "one-person-lab-app")

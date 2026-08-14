@@ -1,5 +1,6 @@
 import { Check, FilePlus2, FolderPlus, Plug, Search, Sparkles, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Button, Input } from "@deepseek-ai/dsh-client-ui-primitives";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type {
   CodexCapabilityCatalog,
   CodexComposerInput,
@@ -21,6 +22,7 @@ type ComposerCapabilityPaletteProps = {
   status: "idle" | "loading" | "ready" | "error";
   error?: string;
   selections: ComposerSelection[];
+  contributions?: ReactNode;
   onClose(): void;
   onPickFiles(): void;
   onPickDirectory(): void;
@@ -34,6 +36,7 @@ export function ComposerCapabilityPalette({
   status,
   error,
   selections,
+  contributions,
   onClose,
   onPickFiles,
   onPickDirectory,
@@ -111,26 +114,35 @@ export function ComposerCapabilityPalette({
     <div ref={rootRef} className="composer-palette" role="dialog" aria-label={copy.title}>
       <header>
         <strong>{copy.title}</strong>
-        <button type="button" aria-label={locale === "zh" ? "关闭" : "Close"} onClick={onClose}>
-          <X aria-hidden="true" size={14} />
-        </button>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={locale === "zh" ? "关闭" : "Close"}
+          icon={<X aria-hidden="true" size={14} />}
+          onClick={onClose}
+        />
       </header>
-      <label className="composer-palette-search">
-        <Search aria-hidden="true" size={14} />
-        <input autoFocus value={query} placeholder={copy.search} onChange={(event) => setQuery(event.currentTarget.value)} />
-      </label>
+      <Input
+        className="composer-palette-search"
+        icon={<Search aria-hidden="true" size={14} />}
+        autoFocus
+        value={query}
+        placeholder={copy.search}
+        aria-label={copy.search}
+        onChange={(event) => setQuery(event.currentTarget.value)}
+      />
       <div className="composer-palette-scroll">
         {localVisible ? (
           <section>
             <strong className="composer-palette-group">{copy.local}</strong>
-            <button type="button" className="composer-palette-row" onClick={onPickFiles}>
+            <Button variant="ghost" className="composer-palette-row" onClick={onPickFiles}>
               <span className="composer-palette-icon"><FilePlus2 aria-hidden="true" size={16} /></span>
               <span><strong>{copy.files}</strong><small>{copy.filesHelp}</small></span>
-            </button>
-            <button type="button" className="composer-palette-row" onClick={onPickDirectory}>
+            </Button>
+            <Button variant="ghost" className="composer-palette-row" onClick={onPickDirectory}>
               <span className="composer-palette-icon"><FolderPlus aria-hidden="true" size={16} /></span>
               <span><strong>{copy.folder}</strong><small>{copy.folderHelp}</small></span>
-            </button>
+            </Button>
           </section>
         ) : null}
         {status === "loading" ? <p className="composer-palette-state">{copy.loading}</p> : null}
@@ -140,11 +152,11 @@ export function ComposerCapabilityPalette({
             {skills.map((skill) => {
               const selected = selections.some((item) => item.kind === "skill" && item.input.path === skill.path);
               return (
-                <button key={skill.path} type="button" className="composer-palette-row" aria-pressed={selected} onClick={() => onToggleSkill(skill)}>
+                <Button key={skill.path} variant="ghost" className="composer-palette-row" aria-pressed={selected} onClick={() => onToggleSkill(skill)}>
                   <span className="composer-palette-icon"><Sparkles aria-hidden="true" size={16} /></span>
                   <span><strong>{skill.name}</strong><small>{skill.description}</small></span>
                   {selected ? <Check aria-hidden="true" size={15} /> : null}
-                </button>
+                </Button>
               );
             })}
           </section>
@@ -159,6 +171,14 @@ export function ComposerCapabilityPalette({
                 <small className="composer-palette-loaded">{copy.loaded}</small>
               </div>
             ))}
+          </section>
+        ) : null}
+        {contributions ? (
+          <section data-testid="opl-composer-contributions">
+            <strong className="composer-palette-group">
+              {locale === "zh" ? "已安装模块" : "Installed modules"}
+            </strong>
+            <div className="opl-contribution-slot">{contributions}</div>
           </section>
         ) : null}
         {status === "error" ? <p className="composer-palette-state error">{error}</p> : null}

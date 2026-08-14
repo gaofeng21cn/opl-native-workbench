@@ -168,16 +168,14 @@ export function buildRenderer({
   const modelPolicy = readCodexModelPolicy();
 
   const jsPath = path.join(outDir, jsName);
+  const cssName = jsName.replace(/\.[^.]+$/, ".css");
+  const cssPath = path.join(outDir, cssName);
   const build = spawnSync(
     "bun",
     [
-      "build",
+      path.join(root, "scripts", "bun-build-renderer-entry.ts"),
       path.join(root, "src", "main.tsx"),
-      "--outfile",
-      jsPath,
-      "--target",
-      "browser",
-      "--format",
+      outDir,
       format
     ],
     { encoding: "utf8", cwd: root }
@@ -185,9 +183,18 @@ export function buildRenderer({
   if (build.status !== 0) {
     throw new Error(`renderer build failed\n${build.stdout}\n${build.stderr}`);
   }
+  const emittedJsPath = path.join(outDir, "main.js");
+  const emittedCssPath = path.join(outDir, "main.css");
+  if (!fs.existsSync(emittedJsPath)) {
+    throw new Error(`renderer build produced no JavaScript entry at ${emittedJsPath}`);
+  }
+  fs.renameSync(emittedJsPath, jsPath);
+  const hasStylesheet = fs.existsSync(emittedCssPath);
+  if (hasStylesheet) fs.renameSync(emittedCssPath, cssPath);
 
   const policyScript = `<script>globalThis.__OPL_CODEX_MODEL_POLICY__=${JSON.stringify(modelPolicy).replaceAll("<", "\\u003c")};</script>`;
   const html = fs.readFileSync(templatePath, "utf8")
+    .replace("</head>", hasStylesheet ? `  <link rel="stylesheet" href="./${cssName}" />\n</head>` : "</head>")
     .replace("<body>", `<body>\n  ${policyScript}`)
     .replace(
     "</body>",
@@ -204,6 +211,7 @@ export function buildRenderer({
     script: jsName,
     format,
     scriptType,
+    stylesheet: hasStylesheet ? cssName : null,
     modelPolicySource: modelPolicy.source,
     defaultModel: modelPolicy.defaultModel,
     defaultReasoningEffort: modelPolicy.defaultReasoningEffort,

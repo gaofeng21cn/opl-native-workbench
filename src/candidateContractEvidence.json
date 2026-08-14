@@ -1,6 +1,6 @@
 {
   "owner": "one-person-lab-app",
-  "shell": "opl-native-workbench",
+  "shell": "opl-studio",
   "delivery_evaluation": {
     "role": "lightweight_opl_gui_architecture_reference",
     "product_mainline_owner": false,
@@ -40,9 +40,14 @@
     "codex_agent_permission_profile_selector",
     "default_context_collapsed_chat_first_home",
     "results_and_delivery_first_presentation",
-    "codex_style_persistent_left_sidebar",
-    "chatgpt_codex_2026_07_11_visual_alignment",
-    "codex_floating_environment_details",
+    "dsh_chat_first_visual_baseline",
+    "dsh_slot_core_composition_host",
+    "dsh_create_slot_renderer_root",
+    "dsh_ui_primitives_direct_reuse",
+    "dsh_contribution_entry_error_isolation",
+    "framework_ui_contributions_projection",
+    "dynamic_contribution_registration_disposal",
+    "dsh_resizable_details_column",
     "lightweight_workspace_session_rail",
     "collapsible_contextual_tabs",
     "app_product_profile_mapping",
@@ -60,11 +65,12 @@
     "typed_runtime_readback_surface",
     "typed_action_receipt_surface",
     "typed_event_surface",
-    "codex_thread_adapter",
-    "codex_subagent_read_only_projection",
+    "single_codex_app_server_thread_adapter",
+    "thread_list_read_start_resume_fork_archive_unarchive",
+    "turn_start_steer",
+    "codex_subagent_event_projection",
     "desktop_webui_thread_lifecycle_parity",
     "private_coordination_layer_removed",
-    "thread_list_read_resume_fork_archive_unarchive",
     "settings_persistence",
     "execute_confirmation",
     "artifact_preview_mvp",
@@ -110,7 +116,7 @@
     "codex_model_reasoning_controls": "The build dynamically injects the App product profile default, complete ordered visible-model allowlist, labels, and reasoning options; runtime model/list follows cursors through the terminal page, filters unadvertised fixed alternatives, and keeps unavailable fixed selections blocked but cannot veto the App default route, Auto resolves the injected default model and default reasoning effort as one policy, manual reasoning pins the resolved model and exits Auto, and turn/start receives model and effort overrides",
     "opl_state_bridge": "opl app state --profile fast --json",
     "opl_action_bridge": "opl app action execute --action <action_id> --dry-run --json",
-    "native_bridge": "WKScriptMessageHandler window.webkit.messageHandlers.oplNativeWorkbench",
+    "native_bridge": "WKScriptMessageHandler window.webkit.messageHandlers.oplStudio",
     "default_agent_permissions_profile": ":danger-full-access",
     "agent_permissions_controls": "The composer exposes Codex permission profiles as Full access, Workspace access, and Read only; Full access is the candidate default, and the selected profile is sent through Desktop and WebUI to thread/start, thread/resume, and turn/start without a parallel sandbox field",
     "conversation_persistence": "codex_app_server_thread_history_authority_with_local_ui_metadata_and_drafts_only",
@@ -216,7 +222,7 @@
         ]
       },
       {
-        "file": "scripts/native-workbench-app.swift",
+        "file": "scripts/opl-studio-app.swift",
         "contains": [
           "initialize",
           "thread/start",
@@ -284,9 +290,9 @@
       {
         "file": "src/ui/workbenchPrimitives.tsx",
         "contains": [
-          "opl-confirmation-card",
-          "Preview action",
-          "preview receipts stay separate"
+          "opl-renderer-module-registry",
+          "candidate adapters only",
+          "authorityBoundary"
         ]
       }
     ],
@@ -294,10 +300,10 @@
       {
         "file": "src/workbench/App.tsx",
         "contains": [
-          "activeView",
-          "settings",
+          "renderShell",
+          "studioSettings",
           "SettingsPanel",
-          "Back to chat"
+          "settings: studioSettings"
         ]
       },
       {
@@ -328,19 +334,19 @@
     ],
     "execute_confirmation": [
       {
-        "file": "src/ui/workbenchPrimitives.tsx",
+        "file": "src/workbench/SettingsPanel.tsx",
         "contains": [
-          "opl-confirmation-card",
-          "Confirm the action before execution",
-          "preview receipts stay separate"
+          "opl-settings-action-confirmation",
+          "pendingConfirmation",
+          "onConfirmAction"
         ]
       },
       {
-        "file": "src/workbench/workbenchModel.ts",
+        "file": "src/workbench/App.tsx",
         "contains": [
-          "needs_human_confirmation",
-          "Preview receipt from opl app action execute --dry-run",
-          "Discard the candidate packet request before explicit execution"
+          "runSettingsAction",
+          "confirmSettingsAction",
+          "settingsActionConfirmation"
         ]
       }
     ],
@@ -437,7 +443,7 @@
         ]
       },
       {
-        "file": "scripts/native-workbench-app.swift",
+        "file": "scripts/opl-studio-app.swift",
         "contains": [
           "final class CodexThreadAdapter",
           "listThreads",
@@ -498,7 +504,7 @@
     "agui": false
   },
   "default_home_layout": {
-    "policy": "ordinary home opens with the Codex project and conversation rail visible, the chat canvas dominant, model and reasoning controls in the composer, and the inspector closed until explicitly requested",
+    "policy": "ordinary home uses the directly reused DeepSeek Harness chat-first composition baseline: workspace rail visible, conversation dominant, composer persistent, and secondary context closed until requested",
     "stage_classes": [
       "codex-sidebar-chat",
       "with-rail",
@@ -507,13 +513,13 @@
     "workspace_rail_default_open": true,
     "inspector_default_open": false,
     "environment_details_default_open": false,
-    "codex_design_reference_alignment": {
-      "reference_product": "ChatGPT Codex macOS",
+    "product_layout_contract": {
+      "reference_product": "DeepSeek Harness Web client",
       "project_rail": "persistent",
       "timeline": "single_conversation_timeline",
       "model_controls": "composer_bottom_row",
       "reasoning_controls": "composer_bottom_row",
-      "environment_details": "floating_on_demand",
+      "environment_details": "dsh_resizable_details_column_on_demand",
       "settings_locale_surface": "settings",
       "model_policy_source": "one-person-lab-app/contracts/app-product-profile.json#gui.home.codex_model_display_options",
       "model_policy_consumption": "dynamic_build_injection_with_minimal_offline_fallback",
@@ -521,55 +527,51 @@
         "persistent_project_rail",
         "single_conversation_timeline",
         "composer_model_and_reasoning_controls",
-        "floating_on_demand_environment",
+        "on_demand_dsh_details_column",
         "settings_locale_surface"
       ]
     },
-  "primary_visual_reference": {
-      "reference_product": "ChatGPT Codex macOS",
-      "reference_version": "26.707.61608",
-      "reference_date": "2026-08-09",
-      "source_usage": "visual_and_interaction_reference_only_no_code_or_brand_copy",
+    "primary_visual_reference": {
+      "reference_product": "DeepSeek Harness",
+      "reference_version": "47f943859bef60e4160492346772ded9b24f765a",
+      "reference_date": "2026-08-14",
+      "source_usage": "direct_mit_gui_source_reuse",
       "left_side": "persistent project and conversation rail",
       "center": "single dominant conversation timeline with bottom composer",
       "model_controls": "composer_bottom_row",
-      "right_side": "floating user-requested environment details",
+      "right_side": "user-requested DSH details column",
       "implementation_markers": {
-        "project_rail": [
-          "Projects",
-          "project-root",
-          "opl-project-chats",
-          "chatSessions"
+        "dsh_roots": [
+          "AppFrame",
+          "SidebarRoot",
+          "ConversationRoot",
+          "InputBar",
+          "SettingsRoot"
         ],
-        "project_context": [
-          "Project context",
-          "Files & outputs",
-          "opl-project-inputs",
-          "opl-project-attachments"
+        "slot_runtime": [
+          "SlotCore",
+          "createSlotRenderer",
+          "registerStaticSlots"
         ],
-        "composer_model_config": [
-          "composer-model-controls",
-          "opl-topbar-model-config",
-          "opl-model-access-entry"
+        "surface_handoff": [
+          "return renderShell({",
+          "workspaceRail: studioWorkspaceRail",
+          "conversationBody: studioConversationBody",
+          "settings: studioSettings"
         ],
-        "right_environment_popover": [
-          "context-inspector",
-          "useState(false)",
-          "opl-context-tabs"
-        ],
-        "settings_route": [
-          "account-copy",
-          "opl-settings-panel",
-          "opl-locale-toggle"
+        "dynamic_contributions": [
+          "replaceProjection",
+          "registerContribution",
+          "active.dispose()"
         ]
       }
     },
     "visual_style_reference": {
-      "reference_product": "ChatGPT Codex macOS",
-      "reference_version": "26.707.61608",
-      "reference_date": "2026-08-09",
-      "scope": "light_workbench_palette_system_font_stack_type_scale_weight_line_height_sidebar_density_and_composer_surface",
-      "token_source": "installed_app_css_and_fresh_window_screenshot",
+      "reference_product": "DeepSeek Harness",
+      "reference_version": "47f943859bef60e4160492346772ded9b24f765a",
+      "reference_date": "2026-08-14",
+      "scope": "six_pinned_gui_package_source_trees_with_vendor_external_opl_adapters",
+      "token_source": "src/vendor/deepseek-harness/packages/client/ui-theme/src/styles/design-platform.css",
       "palette": {
         "canvas": "#fff",
         "sidebar": "#f7f7f8",
@@ -586,12 +588,13 @@
         "ordinary_weight": 400
       },
       "desktop_sidebar_width": "236px",
-      "font_asset_policy": "match_system_workbench_stack_without_copying_or_redistributing_openai_sans_font_binaries"
+      "font_asset_policy": "system_font_stack_no_foreign_font_binary_redistribution"
     }
   },
   "webui_transport": {
     "renderer": "src/workbench/App.tsx",
-    "native_host": "scripts/native-workbench-app.swift",
+    "composition_host": "src/composition/dshSlotHost.tsx",
+    "native_host": "scripts/opl-studio-app.swift",
     "native_transport": "src/main.tsx#installNativeTransport",
     "web_transport": "src/bridge/webTransport.ts",
     "gateway": "scripts/dev-webui-server.mjs",
@@ -603,14 +606,21 @@
     "subagent_projection": "Codex-owned lineage, agent metadata, source kind, collabAgentToolCall, and subAgentActivity are rendered read-only"
   },
   "reuse_policy": {
+    "deepseek_harness_source_usage": "direct_mit_gui_source_reuse",
+    "deepseek_harness_source_ref": "47f943859bef60e4160492346772ded9b24f765a",
+    "deepseek_harness_ui_package_version": "0.1.0-rc.6",
     "kdense_source_usage": "experience_reference_only",
     "openclaudescience_source_usage": "experience_reference_only",
-    "copied_source": false,
+    "deepseek_harness_selected_source_reused": true,
+    "other_external_gui_source_copied": false,
     "runtime_authority_transfer": false,
     "adopted_patterns": [
+      "SlotCore typed slot registry and disposer lifecycle",
+      "createSlotRenderer React composition and entry error isolation",
+      "byte-identical AppFrame SidebarRoot ConversationRoot EmptyHero InputBar and SettingsRoot GUI source",
       "project-first persistent left sidebar",
       "single centered conversation canvas",
-      "default-closed floating environment details",
+      "default-closed DSH resizable details column",
       "project and conversation hierarchy in the persistent rail",
       "model and reasoning controls in the composer bottom row",
       "project sandbox organization",
@@ -620,7 +630,42 @@
     ]
   },
   "reused_oss_module_policy": {
-    "policy": "reference_and_adapter_only",
+    "policy": "pinned_direct_reuse_for_deepseek_harness_reference_only_for_other_gui_sources",
+    "direct_reuse_modules": [
+      "@deepseek-ai/dsh-client-ui-slots@0.1.0-rc.6",
+      "@deepseek-ai/dsh-client-web-react@0.1.0-rc.6"
+    ],
+    "vendored_source_root": "src/vendor/deepseek-harness",
+    "source_manifest": "src/composition/deepseekHarnessSourceManifest.json",
+    "vendored_file_count": 207,
+    "byte_identical": true,
+    "byte_identical_to_pinned_ref": true,
+    "vendored_package_roots": [
+      "packages/client/ui-layout/src",
+      "packages/client/ui-sidebar/src",
+      "packages/client/ui-conversation/src",
+      "packages/client/ui-settings-general/src",
+      "packages/client/ui-theme/src",
+      "packages/client/ui-primitives/src"
+    ],
+    "ui_primitives_index": "packages/client/ui-primitives/src/index.ts",
+    "direct_ui_primitives": [
+      "Button",
+      "Pill",
+      "Input",
+      "Tooltip",
+      "StateDot",
+      "MessageText",
+      "icons"
+    ],
+    "brand_override": "vendor_external_css_and_packaged_opl_asset",
+    "active_gui_roots": [
+      "packages/client/ui-layout/src/client/AppFrame.tsx#AppFrame",
+      "packages/client/ui-sidebar/src/client/SidebarRoot.tsx#SidebarRoot",
+      "packages/client/ui-conversation/src/client/skeleton/ConversationRoot.tsx#ConversationRoot+EmptyHero",
+      "packages/client/ui-conversation/src/client/skeleton/InputBar.tsx#InputBar",
+      "packages/client/ui-settings-general/src/client/SettingsRoot.tsx#SettingsRoot"
+    ],
     "allowed_reference_modules": [
       "K-Dense",
       "OpenClaudeScience",
@@ -628,10 +673,11 @@
       "Hermes Desktop",
       "AGUI"
     ],
-    "copied_source": false,
+    "deepseek_harness_selected_source_reused": true,
+    "other_external_source_copied": false,
     "runtime_authority_transfer": false,
     "user_visible_protocol_copy": false,
-    "required_boundary": "reuse interaction patterns only; do not vendor source, protocol truth, domain truth, runtime truth, or provider implementation authority"
+    "required_boundary": "render the pinned DeepSeek Harness GUI package source through OPL-owned adapters; do not adopt DeepSeek Harness session, agent, provider, credential, plugin-manager, control-plane, domain, runtime, or release authority"
   },
   "false_ready_boundary": {
     "active_shell_adopted": false,
@@ -728,12 +774,12 @@
       "status_field": "confirmation_cards_status",
       "live_evidence": false,
       "layout_markers": [
-        "confirmation-card"
+        "settings-action-dialog",
+        "thread-confirmation-dialog"
       ],
       "renderer_testids": [
-        "opl-confirmation-card",
-        "opl-question-card",
-        "opl-interview-card"
+        "opl-settings-action-confirmation",
+        "opl-thread-lifecycle-confirmation"
       ]
     },
     "renderer_module_registry": {
@@ -753,7 +799,7 @@
       "status_field": "delivery_mode_status",
       "live_evidence": false,
       "layout_markers": [
-        "delivery-workbench"
+        "opl-dsh-hero-actions"
       ],
       "renderer_testids": [
         "opl-workbench-delivery-mode",
@@ -807,7 +853,7 @@
   },
   "first_run_matrix_mapping": {
     "required_shell_testids": [
-      "opl-native-workbench-root",
+      "opl-studio-root",
       "opl-model-access-entry",
       "opl-skip-to-chat"
     ]
@@ -862,7 +908,7 @@
     ],
     "persistence_model": {
       "file": "src/workbench/settingsModel.ts",
-      "storage_key": "opl.nativeWorkbench.settings.v1",
+      "storage_key": "opl.studio.settings.v1",
       "storage": "localStorage",
       "system_write_permission": false,
       "release_ready": false,
@@ -954,7 +1000,7 @@
   },
   "webui_parity": {
     "shared_renderer": true,
-    "bridge_shape": "window.oplNativeWorkbench",
+    "bridge_shape": "window.oplStudio",
     "product_profile": "src/generated/oplProductProfile.generated.json",
     "desktop_and_webui_default_home": "chat_first_default_collapsed",
     "evidence_status_field": "webui_parity_status",

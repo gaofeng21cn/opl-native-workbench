@@ -3,13 +3,14 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const root = path.resolve(new URL("..", import.meta.url).pathname);
-const appName = "One Person Lab Native";
-const appPath = path.resolve(process.env.OPL_NATIVE_WORKBENCH_APP_PATH ?? path.join(root, "out", `${appName}.app`));
+const appName = "One Person Lab Studio Preview";
+const appPath = path.resolve(process.env.OPL_STUDIO_APP_PATH ?? path.join(root, "out", `${appName}.app`));
 const executablePath = path.join(appPath, "Contents", "MacOS", appName);
 const plistPath = path.join(appPath, "Contents", "Info.plist");
 const evidencePath = path.join(root, "out", "native-live-smoke.json");
 const screenshotPath = path.join(root, "out", "native-live-smoke.png");
 const bridgeEvidencePath = path.join(root, "out", "native-live-bridge-smoke.json");
+const bridgeEvidenceTimeoutMs = 90_000;
 
 function run(command, args) {
   return spawnSync(command, args, { encoding: "utf8" });
@@ -81,7 +82,7 @@ function descendantProcesses(rootPid) {
 }
 
 function waitForBridgeEvidence() {
-  const deadline = Date.now() + 30_000;
+  const deadline = Date.now() + bridgeEvidenceTimeoutMs;
   while (Date.now() < deadline) {
     try {
       const value = JSON.parse(fs.readFileSync(bridgeEvidencePath, "utf8"));
@@ -90,7 +91,7 @@ function waitForBridgeEvidence() {
     } catch {}
     run("/bin/sleep", ["0.25"]);
   }
-  return { status: "failed", error: "packaged bridge smoke timed out" };
+  return { status: "failed", error: `packaged bridge smoke timed out after ${bridgeEvidenceTimeoutMs}ms` };
 }
 
 function waitForProcess(beforePids) {
@@ -177,7 +178,7 @@ function readScreenshotMarkers() {
     "request.usesLanguageCorrection = false",
     "try VNImageRequestHandler(cgImage: cgImage).perform([request])",
     "let text = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: \" \" )",
-    "let hasBrand = text.localizedCaseInsensitiveContains(\"One Person Lab\")",
+    "let hasBrand = text.localizedCaseInsensitiveContains(\"OPL Studio\")",
     "let hasModel = text.localizedCaseInsensitiveContains(\"5.6 Sol\")",
     "print(\"brand=\\(hasBrand ? 1 : 0);model=\\(hasModel ? 1 : 0)\")"
   ].join("\n");
@@ -218,7 +219,7 @@ function captureScreenshot(pid) {
           screenshot_path: path.relative(root, screenshotPath),
           screenshot_bytes: fs.statSync(screenshotPath).size,
           screenshot_window_id: windowId,
-          screenshot_markers: ["One Person Lab", "5.6 Sol"],
+          screenshot_markers: ["OPL Studio", "5.6 Sol"],
           screenshot_semantics: "global Codex project names are allowed because the directory shares the canonical state DB overview"
         };
       }
@@ -297,8 +298,8 @@ const beforePids = new Set(before.processes.map((processInfo) => processInfo.pid
 fs.rmSync(bridgeEvidencePath, { force: true });
 const openResult = run("/usr/bin/open", [
   "-n", "-F",
-  "--env", "OPL_NATIVE_WORKBENCH_SMOKE=1",
-  "--env", `OPL_NATIVE_WORKBENCH_SMOKE_RESULT=${bridgeEvidencePath}`,
+  "--env", "OPL_STUDIO_SMOKE=1",
+  "--env", `OPL_STUDIO_SMOKE_RESULT=${bridgeEvidencePath}`,
   appPath
 ]);
 if (openResult.status !== 0) {

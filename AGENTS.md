@@ -1,4 +1,4 @@
-# OPL Native Workbench Instructions
+# OPL Studio Instructions
 
 - This repository is an external shell checkout for One Person Lab App.
 - Keep product truth in `one-person-lab-app` contracts and docs.

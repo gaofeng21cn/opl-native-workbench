@@ -1,4 +1,4 @@
-# OPL Native Workbench Current State And Manual Evaluation Policy
+# OPL Studio Current State And Manual Evaluation Policy
 
 Owner: `one-person-lab-app`
 Purpose: `single_active_truth_plan`
@@ -73,7 +73,7 @@ multi-backend framework, or cross-platform delivery workstream.
 
 ### Write Scope
 
-- `opl-native-workbench` source, tests, and existing docs only for the explicitly
+- `opl-studio` source, tests, and existing docs only for the explicitly
   authorized candidate delta;
 - `one-person-lab-app` contracts/docs/tests only when the App owner decision
   explicitly includes that write set;

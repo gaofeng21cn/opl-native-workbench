@@ -10,7 +10,7 @@ const packageLifecyclePolicy = evidence.agent_package_lifecycle_display;
 const workbenchModelSource = fs.readFileSync(path.join(root, "src/workbench/workbenchModel.ts"), "utf8");
 const appSource = fs.readFileSync(path.join(root, "src/workbench/App.tsx"), "utf8");
 const bridgeSource = fs.readFileSync(path.join(root, "src/bridge/oplBridge.ts"), "utf8");
-const sampleStatePath = "/tmp/opl-native-workbench-state-final.json";
+const sampleStatePath = "/tmp/opl-studio-state-final.json";
 const sampleState = loadSampleState();
 
 const requiredFields = [

@@ -1,4 +1,4 @@
-# OPL Native Workbench Documentation
+# OPL Studio Documentation
 
 Owner: `one-person-lab-app`
 Purpose: `docs_index`
@@ -35,7 +35,7 @@ Canonical filenames are mapped without creating duplicate truth:
 
 - [`app-shell-candidates.json`](https://github.com/gaofeng21cn/one-person-lab-app/blob/main/contracts/app-shell-candidates.json): Native is the foreground alternative candidate; AionUI remains active.
 - [`app-shell-adapter.json`](https://github.com/gaofeng21cn/one-person-lab-app/blob/main/contracts/app-shell-adapter.json): only this contract can change the active release shell.
-- [`opl-native-workbench-plan.md`](https://github.com/gaofeng21cn/one-person-lab-app/blob/main/docs/product/gui/opl-native-workbench-plan.md): Native remains a manual technical-evaluation option; product expansion or adoption requires a separate App owner decision.
+- [`opl-studio-plan.md`](https://github.com/gaofeng21cn/one-person-lab-app/blob/main/docs/product/gui/opl-studio-plan.md): Native remains a manual technical-evaluation option; product expansion or adoption requires a separate App owner decision.
 - [`app-gui-product-contract.json`](https://github.com/gaofeng21cn/one-person-lab-app/blob/main/contracts/app-gui-product-contract.json): product behavior and allowed state/action surfaces.
 
 These links are owner inputs, not copied truth. Read their current `main` bytes

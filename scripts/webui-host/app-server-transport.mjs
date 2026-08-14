@@ -44,7 +44,7 @@ export class CodexAppServerTransport extends EventEmitter {
   constructor({
     command = process.env.CODEX_APP_SERVER_COMMAND ?? "codex",
     args = process.env.CODEX_APP_SERVER_ARGS?.split(" ").filter(Boolean) ?? ["app-server", "--stdio"],
-    cwd = process.env.OPL_NATIVE_WORKBENCH_CODEX_CWD ?? process.cwd(),
+    cwd = process.env.OPL_STUDIO_CODEX_CWD ?? process.cwd(),
     env = process.env,
     requestTimeoutMs = 45_000,
     turnTimeoutMs = 180_000
@@ -106,8 +106,8 @@ export class CodexAppServerTransport extends EventEmitter {
 
     await this.request("initialize", {
       clientInfo: {
-        name: "opl-native-workbench-webui",
-        title: "One Person Lab Native Workbench WebUI",
+        name: "opl-studio-webui",
+        title: "OPL Studio WebUI",
         version: "0.1.0"
       },
       capabilities: {

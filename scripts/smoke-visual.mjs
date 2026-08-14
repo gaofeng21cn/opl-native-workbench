@@ -10,7 +10,7 @@ import {
   readRendererSource,
   rendererSourcePaths,
   validateNonLiveDeliveryEvidence
-} from "./native-workbench-gates.mjs";
+} from "./opl-studio-gates.mjs";
 
 const app = read("src/workbench/App.tsx");
 const rendererSource = readRendererSource();
@@ -19,7 +19,7 @@ const primitiveSource = read("src/ui/workbenchPrimitives.tsx");
 const moduleRegistry = read("src/renderers/moduleRegistry.ts");
 const settingsModel = read("src/workbench/settingsModel.ts");
 const evidenceSource = read("src/candidateContractEvidence.json");
-const packageScript = read("scripts/package-native-workbench.mjs");
+const packageScript = read("scripts/package-opl-studio.mjs");
 const rendererEntry = read("src/main.tsx");
 const rendererShell = read("src/renderer-shell.html");
 const evidence = readJson("src/candidateContractEvidence.json");
@@ -55,7 +55,7 @@ for (const marker of [
 for (const marker of ["buildRenderer", "workbench.html", "renderer.js", "shared_renderer_entry"]) {
   assert(packageScript.includes(marker), `missing packaged convergence marker ${marker}`);
 }
-for (const marker of ["messageHandlers?.oplNativeWorkbench", "installWebTransport", 'document.getElementById("root")']) {
+for (const marker of ["messageHandlers?.oplStudio", "installWebTransport", 'document.getElementById("root")']) {
   assert(rendererEntry.includes(marker), `missing shared renderer entry marker ${marker}`);
 }
 for (const marker of ["branding/opl-app-logo.png", '<div id="root"></div>']) {
@@ -69,7 +69,7 @@ assertNoFalseReadyFields({
   "src/renderers/moduleRegistry.ts": moduleRegistry,
   "src/candidateContractEvidence.json": evidenceSource,
   "src/main.tsx": rendererEntry,
-  "scripts/package-native-workbench.mjs": packageScript
+  "scripts/package-opl-studio.mjs": packageScript
 });
 
 console.log(JSON.stringify({

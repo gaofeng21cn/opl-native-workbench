@@ -5,7 +5,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const root = path.resolve(new URL("..", import.meta.url).pathname);
-const nativePath = path.join(root, "scripts/native-workbench-app.swift");
+const nativePath = path.join(root, "scripts/opl-studio-app.swift");
 const source = fs.readFileSync(nativePath, "utf8");
 const bootstrapIndex = source.indexOf("\nlet app = NSApplication.shared");
 assert(bootstrapIndex >= 0, "native bootstrap marker");
@@ -24,7 +24,7 @@ assert.equal(source.toLowerCase().includes("bundled-aioncore"), false, "Native m
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "opl-native-runtime-resolution-"));
 try {
-  const testSource = path.join(tempRoot, "NativeWorkbenchTestSource.swift");
+  const testSource = path.join(tempRoot, "OplStudioTestSource.swift");
   const executable = path.join(tempRoot, "native-runtime-resolution-regression");
   fs.writeFileSync(testSource, source.slice(0, bootstrapIndex));
   const compile = spawnSync("swiftc", [

@@ -4,6 +4,17 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@opl-vendor/dsh-app-frame": ["src/vendor/deepseek-harness/packages/client/ui-layout/src/client/AppFrame.tsx"],
+      "@opl-vendor/dsh-sidebar-root": ["src/vendor/deepseek-harness/packages/client/ui-sidebar/src/client/SidebarRoot.tsx"],
+      "@opl-vendor/dsh-conversation-root": ["src/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.tsx"],
+      "@opl-vendor/dsh-input-bar": ["src/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/InputBar.tsx"],
+      "@opl-vendor/dsh-settings-root": ["src/vendor/deepseek-harness/packages/client/ui-settings-general/src/client/SettingsRoot.tsx"],
+      "@deepseek-ai/dsh-client-ui-primitives": ["src/vendor/deepseek-harness/packages/client/ui-primitives/src/index.ts"],
+      "@deepseek-ai/dsh-client-ui-attachment": ["src/integrations/deepseek-harness/attachmentShim.tsx"],
+      "@deepseek-ai/dsh-client-runtime/client": ["src/integrations/deepseek-harness/runtimeShim.ts"]
+    },
     "jsx": "react-jsx",
     "strict": true,
     "noEmit": true,
@@ -14,5 +25,5 @@
     "types": ["node", "react", "react-dom"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["node_modules", "dist", "out"]
+  "exclude": ["node_modules", "dist", "out", "src/vendor/deepseek-harness"]
 }
