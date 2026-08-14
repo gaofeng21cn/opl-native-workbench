@@ -216,9 +216,12 @@ export function createHeadlessServiceManager({
       return outcome(action, native);
     }
     if (action === "status") return outcome(action, await invoke("launchctl", ["print", target], { allowFailure: true }));
-    if (action === "start") return outcome(action, await invoke("launchctl", ["kickstart", target]));
-    if (action === "stop") return outcome(action, await invoke("launchctl", ["kill", "SIGTERM", target], { allowFailure: true }));
-    if (action === "restart") return outcome(action, await invoke("launchctl", ["kickstart", "-k", target]));
+    if (action === "start") return outcome(action, await invoke("launchctl", ["bootstrap", domain, definitions.file]));
+    if (action === "stop") return outcome(action, await invoke("launchctl", ["bootout", target], { allowFailure: true }));
+    if (action === "restart") {
+      await invoke("launchctl", ["bootout", target], { allowFailure: true });
+      return outcome(action, await invoke("launchctl", ["bootstrap", domain, definitions.file]));
+    }
     const native = await invoke("launchctl", ["bootout", target], { allowFailure: true });
     await fileSystem.rm(definitions.file, { force: true });
     return outcome(action, native);

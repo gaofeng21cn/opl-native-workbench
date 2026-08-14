@@ -64,9 +64,10 @@ test("macOS installs and controls a per-user launchd service with fixed argv", a
   await manager.run("restart");
   assert.deepEqual(calls.map(({ command, args }) => [command, args]), [
     ["launchctl", ["print", "gui/501/com.onepersonlab.headless"]],
-    ["launchctl", ["kickstart", "gui/501/com.onepersonlab.headless"]],
-    ["launchctl", ["kill", "SIGTERM", "gui/501/com.onepersonlab.headless"]],
-    ["launchctl", ["kickstart", "-k", "gui/501/com.onepersonlab.headless"]]
+    ["launchctl", ["bootstrap", "gui/501", "/Users/opl/Library/LaunchAgents/com.onepersonlab.headless.plist"]],
+    ["launchctl", ["bootout", "gui/501/com.onepersonlab.headless"]],
+    ["launchctl", ["bootout", "gui/501/com.onepersonlab.headless"]],
+    ["launchctl", ["bootstrap", "gui/501", "/Users/opl/Library/LaunchAgents/com.onepersonlab.headless.plist"]]
   ]);
 });
 
