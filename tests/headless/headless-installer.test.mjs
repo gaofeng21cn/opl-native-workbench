@@ -142,3 +142,15 @@ test("installer does not claim an unqualified platform", async () => {
   const installer = createHeadlessInstaller({ platform: "win32", sourceRoot });
   await assert.rejects(installer.run("install"), /not qualified for Windows/);
 });
+
+test("installer rejects remote binding until the HTTP bridge has authentication", async () => {
+  const sourceRoot = await sourceFixture();
+  assert.throws(
+    () => createHeadlessInstaller({
+      platform: "darwin",
+      sourceRoot,
+      env: { OPL_HEADLESS_HOST: "0.0.0.0" }
+    }),
+    /requires a loopback host/
+  );
+});

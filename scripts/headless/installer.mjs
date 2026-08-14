@@ -24,8 +24,13 @@ function defaultInstallRoot(platform, homeDirectory) {
 }
 
 function readbackAddress(address) {
-  if (address === "0.0.0.0" || address === "::") return "127.0.0.1";
   return address.includes(":") ? `[${address}]` : address;
+}
+
+function assertLoopbackAddress(address) {
+  if (!["127.0.0.1", "::1", "localhost"].includes(address.toLowerCase())) {
+    throw new Error("Standalone Headless requires a loopback host until authenticated remote access is available");
+  }
 }
 
 async function installationRecord(installRoot) {
@@ -90,6 +95,7 @@ export function createHeadlessInstaller({
   const root = path.resolve(installRoot);
   const address = (env.OPL_HEADLESS_HOST ?? "127.0.0.1").trim();
   if (!address) throw new Error("OPL_HEADLESS_HOST must not be empty");
+  assertLoopbackAddress(address);
   const port = integer(env.OPL_HEADLESS_PORT, 4178, { name: "OPL_HEADLESS_PORT", minimum: 1, maximum: 65_535 });
   const timeoutMs = integer(readbackTimeoutMs, 20_000, { name: "readbackTimeoutMs", minimum: 100, maximum: 120_000 });
   const current = path.join(root, "current");
