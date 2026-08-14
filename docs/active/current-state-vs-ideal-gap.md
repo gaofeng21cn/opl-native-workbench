@@ -46,7 +46,7 @@ release admission, and is explicitly adopted.
 | Renderer/hosts | `shared_renderer_and_node_host_core_implemented` | Electron IPC and HTTP/SSE adapt one host core and one renderer; release-cohort equivalence is not proven |
 | Desktop host | `electron_selected_source_implemented` | macOS directory package and live window are proven locally; Windows/Linux remain source targets pending native qualification |
 | Headless/WebUI host | `node_http_sse_implemented` | Candidate WebUI starts Codex App Server directly; no Electron/AionCore or Desktop database |
-| Docker carrier | `successor_oci_not_yet_implemented` | Must package the same Node host core/renderer with explicit Base, Codex, volume, update, and security contracts |
+| Docker carrier | `successor_oci_source_implemented` | Dockerfile/Compose reuse the shared Node host core and renderer with pinned Base/Codex inputs and persistent volumes; distribution install, image update/recreate, multi-arch, security, and release admission remain open |
 | AionUI/AionCore dependency | `false` | Native starts Codex App Server directly and consumes only Framework App state/action contracts |
 | Enabled carrier | `codex_app_server_stdio` | The candidate has one runtime carrier and one App Server child per native window or Web host |
 | Reserved carriers | `pi`, `hermes` disabled | Interface names only; no dependency, process, fallback, or UI path is enabled |
@@ -71,7 +71,7 @@ release admission, and is explicitly adopted.
 | --- | --- | --- | --- |
 | App contract currentness must be re-read before any change | `structural_currentness_gate` | App contracts and GUI docs | Stop if the candidate write set conflicts with a newer App decision or active owner lane |
 | Desktop App updater feed is not qualified | `release_admission_p0` | App release producer plus desktop package owner | Electron updater state/operations are implemented; produce signed artifacts and a dedicated signed feed, then prove check/download/apply/restart/version readback without consuming AionUI update metadata |
-| Successor OCI carrier is absent | `delivery_p0` | App release/install owner plus host-core owner | Build the Node-only image, bind Base/Codex inputs and persistent volumes, and prove install/start/update/rollback without Electron or AionCore |
+| Successor OCI carrier distribution and admission are incomplete | `delivery_p0` | App release/install owner plus host-core owner | Keep the proven Node-only source carrier, then add distribution install and image update/recreate and qualify multi-arch, security, install/start/update/rollback, and release without Electron or AionCore |
 | Windows/Linux desktop qualification is absent | `delivery_p1` | Platform package owners | Run platform-native build/install/start/update/cleanup qualification; source configuration alone is not support evidence |
 | Framework producer must reach canonical SSOT | `cross_repo_integration_gate` | Framework UI contribution and managed-update producer | Fresh-replay Base check/apply, `runtime.detail`, disabled-package filtering, and standard-Agent route projection, then pass producer-consumer conformance |
 | App product SSOT must absorb the final baseline | `cross_repo_integration_gate` | App contracts/docs/tests | Keep necessary-outcome parity, Agent admission, Settings destinations, update ownership, and AionUI-to-Native adoption conditions aligned with the tested candidate |
