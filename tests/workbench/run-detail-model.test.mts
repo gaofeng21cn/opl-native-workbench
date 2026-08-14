@@ -122,3 +122,21 @@ test("work-item modules and results stay hidden without an explicit work-item id
   assert.deepEqual(viewModel.results, []);
   assert.deepEqual(viewModel.runtimeDetails, []);
 });
+
+test("a new task reports an idle Codex run instead of an unavailable runtime", () => {
+  const viewModel = buildRunDetailViewModel({
+    thread: null,
+    running: false,
+    activeLines: [],
+    files: [],
+    results: [],
+    contributions: {
+      surfaceKind: "opl_app_ui_contributions_projection.v1",
+      entries: []
+    }
+  });
+
+  assert.equal(viewModel.status.state, "idle");
+  assert.equal(viewModel.status.sourceStatus, "idle");
+  assert.equal(viewModel.status.agentLabel, "Codex");
+});

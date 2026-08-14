@@ -86,7 +86,7 @@ export function buildRunDetailViewModel(input: RunDetailModelInput): RunDetailVi
     ...(input.thread?.id ? { threadId: input.thread.id } : {}),
     ...(input.workItemId ? { workItemId: input.workItemId } : {})
   };
-  const sourceStatus = input.thread?.status ?? "unavailable";
+  const sourceStatus = input.thread?.status ?? "idle";
   const agentLabel = input.thread?.agentNickname ?? input.thread?.agentRole ?? "Codex";
 
   const runtimeDetails = input.contributions.entries
