@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createOplHostCore } from "../scripts/webui-host/host-core.mjs";
+import { createAppLogDirectoryController } from "./app-log-directory.mjs";
 import { createShutdownController } from "./shutdown.mjs";
 import { createDesktopUpdater } from "./updater.mjs";
 
@@ -69,7 +70,7 @@ function createWindow() {
   return window;
 }
 
-async function createDesktopHost() {
+async function createDesktopHost(appLogDirectory) {
   const updateConfigAvailable = fs.existsSync(path.join(process.resourcesPath, "app-update.yml"));
   const desktopUpdater = createDesktopUpdater({
     autoUpdater,
@@ -85,7 +86,10 @@ async function createDesktopHost() {
       },
       pickDirectory: async () => {
         const result = await dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"] });
-        return result.canceled ? null : result.filePaths[0] ?? null;
+        const directory = result.filePaths[0];
+        return result.canceled || !directory
+          ? []
+          : [{ kind: "folder", name: path.basename(directory), path: directory }];
       }
     },
     carrierDiagnostics: {
@@ -94,8 +98,10 @@ async function createDesktopHost() {
         owner: "one-person-lab-app_desktop_host",
         carrier: "electron_desktop",
         status: "available",
-        logsDirectory: app.getPath("logs")
-      })
+        application: { systemInfo: { logDir: app.getPath("logs") } },
+        setLogDirectorySupported: true
+      }),
+      setLogDirectory: (request) => appLogDirectory.setLogDirectory(request)
     },
     nativeUpdater: desktopUpdater
   });
@@ -115,7 +121,9 @@ async function createDesktopHost() {
 }
 
 app.whenReady().then(async () => {
-  const desktopHost = await createDesktopHost();
+  const appLogDirectory = createAppLogDirectoryController({ electronApp: app });
+  await appLogDirectory.restore();
+  const desktopHost = await createDesktopHost(appLogDirectory);
   hostCore = desktopHost.core;
   createWindow();
   app.on("activate", () => {

@@ -229,6 +229,14 @@ test("browser bridge normalization preserves App-projected Temporal runtime deta
           }
         }
       }
+    },
+    carrierDiagnostics: {
+      schema: "opl_app_carrier_diagnostics.v1",
+      owner: "one-person-lab-app_desktop_host",
+      carrier: "electron_desktop",
+      status: "available",
+      application: { systemInfo: { logDir: "/tmp/opl-app-logs" } },
+      setLogDirectorySupported: true
     }
   }, "fast");
 
@@ -236,6 +244,14 @@ test("browser bridge normalization preserves App-projected Temporal runtime deta
   assert.equal(model.runtimeOverview?.temporal.serviceStatus, "loaded_running");
   assert.equal(model.runtimeOverview?.temporal.workerStatus, "ready");
   assert.equal(model.runtimeOverview?.temporal.schedulerStatus, "attention_needed");
+  assert.deepEqual(readback.carrierDiagnostics, {
+    schema: "opl_app_carrier_diagnostics.v1",
+    owner: "one-person-lab-app_desktop_host",
+    carrier: "electron_desktop",
+    status: "available",
+    application: { systemInfo: { logDir: "/tmp/opl-app-logs" } },
+    setLogDirectorySupported: true
+  });
 
   const capabilities = normalizeCodexCapabilityCatalog({
     skills: [

@@ -6,6 +6,7 @@ import test from "node:test";
 const root = path.resolve(new URL("..", import.meta.url).pathname);
 const main = fs.readFileSync(path.join(root, "desktop", "main.mjs"), "utf8");
 const preload = fs.readFileSync(path.join(root, "desktop", "preload.cjs"), "utf8");
+const logDirectoryOwner = fs.readFileSync(path.join(root, "desktop", "app-log-directory.mjs"), "utf8");
 const settingsPanel = fs.readFileSync(path.join(root, "src", "workbench", "SettingsPanel.tsx"), "utf8");
 
 test("Electron is a thin, isolated adapter over the shared host core", () => {
@@ -23,7 +24,16 @@ test("Electron owns the App carrier log directory exposed in diagnostics", () =>
   assert.match(main, /app\.getPath\("logs"\)/);
   assert.match(main, /carrierDiagnostics:/);
   assert.match(main, /owner: "one-person-lab-app_desktop_host"/);
+  assert.match(main, /application: \{ systemInfo: \{ logDir:/);
+  assert.match(main, /setLogDirectorySupported: true/);
+  assert.match(main, /await appLogDirectory\.restore\(\)/);
+  assert.match(main, /setLogDirectory: \(request\) => appLogDirectory\.setLogDirectory\(request\)/);
+  assert.match(preload, /setLogDirectory: \(request\) => invoke\("setLogDirectory", request\)/);
+  assert.match(logDirectoryOwner, /desktop_client_system_info: \{ logDir \}/);
+  assert.match(logDirectoryOwner, /electronApp\.setAppLogsPath\(nextLogDir\)/);
   assert.match(settingsPanel, /App 载体日志/);
+  assert.match(settingsPanel, /carrierDiagnostics\.setLogDirectorySupported/);
+  assert.match(settingsPanel, /更改目录/);
   assert.match(settingsPanel, /Framework 运行时日志/);
   assert.doesNotMatch(settingsPanel, /label=\{settings\.locale === "zh" \? "日志" : "Logs"\}/);
 });

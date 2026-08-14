@@ -69,7 +69,7 @@
     "dist:linux": "npm run build:desktop && electron-builder --linux --config electron-builder.yml",
     "build:docker": "docker build --tag one-person-lab-app:headless-candidate .",
     "smoke:desktop-live": "node scripts/smoke-desktop-live.mjs",
-    "test:desktop": "node --test desktop/desktop-contract.test.mjs desktop/shutdown.test.mjs desktop/updater.test.mjs",
+    "test:desktop": "node --test desktop/app-log-directory.test.mjs desktop/desktop-contract.test.mjs desktop/shutdown.test.mjs desktop/updater.test.mjs",
     "test:headless": "node --test tests/headless/*.test.mjs",
     "test:gateway-account-projection": "bun run scripts/gateway-account-projection-regression.ts",
     "test:package-projection": "bun test tests/workbench/package-projection.test.mts",

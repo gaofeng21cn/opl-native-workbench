@@ -27,6 +27,7 @@ import {
   type CodexModelCatalogEntry,
   type CodexPickedInput,
   type CodexSkillCapability,
+  type CarrierDiagnosticsReadback,
   type NativeAppUpdateResult,
   type OplActionReceipt
 } from "../bridge/oplBridge";
@@ -549,6 +550,14 @@ export function App({
   const [model, setModel] = useState(initialWorkbenchModel);
   const [managedUpdate, setManagedUpdate] = useState<ManagedUpdateProjection | null>(null);
   const [nativeAppUpdate, setNativeAppUpdate] = useState<NativeAppUpdateResult | null>(null);
+  const [carrierDiagnostics, setCarrierDiagnostics] = useState<CarrierDiagnosticsReadback>({
+    schema: "opl_app_carrier_diagnostics.v1",
+    owner: "one-person-lab-app_native_host",
+    carrier: "browser_placeholder",
+    status: "unavailable",
+    setLogDirectorySupported: false,
+    reasonCode: "carrier_log_directory_unavailable"
+  });
   const [projectedGatewayActions, setProjectedGatewayActions] = useState<ProjectedGatewayAction[]>([]);
   const [stateStatus, setStateStatus] = useState<"loading" | "ready" | "error">("loading");
   const [stateError, setStateError] = useState("");
@@ -767,6 +776,7 @@ export function App({
       .readState(profile)
       .then((state) => {
         setModel(deriveWorkbenchModelFromState(state));
+        setCarrierDiagnostics(state.carrierDiagnostics);
         setProjectedGatewayActions(readGatewayActionsFromState(state));
         const updateProjection = readManagedUpdateProjection(state);
         if (updateProjection) {
@@ -882,6 +892,34 @@ export function App({
           : (result.reasonCode ?? (settings.locale === "zh" ? "当前载体不支持此操作。" : "This carrier does not support the operation."))
       });
       await loadState(settings.runtimeProfile);
+    } catch (error) {
+      setSettingsActionFeedback({ tone: "attention", message: String(error) });
+    } finally {
+      setSettingsActionBusyKey(null);
+    }
+  }
+
+  async function changeLogDirectory() {
+    const key = "application.setLogDirectory";
+    setSettingsActionBusyKey(key);
+    setSettingsActionFeedback(null);
+    try {
+      const selected = (await bridge.pickDirectory()).find((item) => item.kind === "folder");
+      if (!selected) return;
+      const result = await bridge.setLogDirectory({ path: selected.path });
+      if (result.success) {
+        await loadState(settings.runtimeProfile);
+        setSettingsActionFeedback({
+          tone: "success",
+          message: settings.locale === "zh" ? "App 日志目录已更新。" : "The App log directory was updated."
+        });
+      } else {
+        setSettingsActionFeedback({
+          tone: "attention",
+          message: result.message ?? result.errorCode ?? result.reasonCode
+            ?? (settings.locale === "zh" ? "App 日志目录未更新。" : "The App log directory was not updated.")
+        });
+      }
     } catch (error) {
       setSettingsActionFeedback({ tone: "attention", message: String(error) });
     } finally {
@@ -1721,8 +1759,10 @@ export function App({
       resolvedReasoningOptions={resolvedReasoningOptions}
       stateStatus={stateStatus}
       stateError={stateError}
+      carrierDiagnostics={carrierDiagnostics}
       activeDestination={activeDestination}
       onRefresh={() => void loadState(settings.runtimeProfile)}
+      onChangeLogDirectory={() => void changeLogDirectory()}
       onSettingChange={updateSetting}
       onReasoningChange={updateReasoning}
       onAction={(request) => void runSettingsAction(request)}

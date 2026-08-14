@@ -41,12 +41,48 @@ function unavailableCarrierDiagnostics(reasonCode = "carrier_log_directory_unava
     owner: "one-person-lab-app_native_host",
     carrier: "standalone_headless_webui",
     status: "unavailable",
+    setLogDirectorySupported: false,
     reasonCode
   };
 }
 
-function defaultCarrierDiagnostics() {
-  return { read: async () => unavailableCarrierDiagnostics() };
+function unsupportedLogDirectoryUpdate(reasonCode = "desktop_host_required") {
+  return {
+    schema: "opl_app_log_directory_update.v1",
+    owner: "one-person-lab-app_native_host",
+    carrier: "standalone_headless_webui",
+    action: "application.setLogDirectory",
+    status: "unsupported",
+    success: false,
+    reasonCode
+  };
+}
+
+function dockerCarrierConfirmed(env) {
+  return env.HOME === "/data"
+    && env.OPL_DATA_DIR === "/data"
+    && env.OPL_WORKSPACE_ROOT === "/projects";
+}
+
+function defaultCarrierDiagnostics(env) {
+  if (dockerCarrierConfirmed(env)) {
+    return {
+      read: async () => ({
+        schema: "opl_app_carrier_diagnostics.v1",
+        owner: "one-person-lab-app_native_host",
+        carrier: "docker_webui",
+        status: "available",
+        application: { systemInfo: { logDir: "/data/logs" } },
+        setLogDirectorySupported: false,
+        reasonCode: "docker_log_directory_is_read_only"
+      }),
+      setLogDirectory: async () => unsupportedLogDirectoryUpdate("docker_log_directory_is_read_only")
+    };
+  }
+  return {
+    read: async () => unavailableCarrierDiagnostics(),
+    setLogDirectory: async () => unsupportedLogDirectoryUpdate()
+  };
 }
 
 export class OplHostCore extends EventEmitter {
@@ -56,7 +92,8 @@ export class OplHostCore extends EventEmitter {
     gatewayAccountLogin = createGatewayAccountLogin({ cwd: workspaceRoot }),
     platform = defaultPlatformServices(),
     nativeUpdater = defaultNativeUpdater(),
-    carrierDiagnostics = defaultCarrierDiagnostics()
+    carrierDiagnostics,
+    env = process.env
   } = {}) {
     super();
     this.transport = transport;
@@ -64,7 +101,7 @@ export class OplHostCore extends EventEmitter {
     this.gatewayAccountLogin = gatewayAccountLogin;
     this.platform = { ...defaultPlatformServices(), ...platform };
     this.nativeUpdater = nativeUpdater;
-    this.carrierDiagnostics = carrierDiagnostics;
+    this.carrierDiagnostics = carrierDiagnostics ?? defaultCarrierDiagnostics(env);
     this.threads = new CodexThreadAdapter(transport);
     this.appServerError = null;
 
@@ -128,6 +165,8 @@ export class OplHostCore extends EventEmitter {
       case "readCodexPermissionProfiles": return this.transport.listPermissionProfiles();
       case "pickFiles": return this.platform.pickFiles(payload);
       case "pickDirectory": return this.platform.pickDirectory(payload);
+      case "setLogDirectory": return this.carrierDiagnostics.setLogDirectory?.(payload)
+        ?? unsupportedLogDirectoryUpdate();
       case "sendMessage": return this.transport.sendMessage(payload);
       case "steerTurn": return this.transport.steerMessage(payload);
       case "interruptTurn": return this.transport.interruptMessage(payload);
