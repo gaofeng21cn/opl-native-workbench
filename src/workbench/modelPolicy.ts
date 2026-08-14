@@ -249,7 +249,7 @@ export function modelLabel(model: CodexModelId, locale: WorkbenchLocale): string
 }
 
 export function autoModelLabel(locale: WorkbenchLocale): string {
-  return locale === "zh" ? "自动（推荐）" : "Auto (recommended)";
+  return locale === "zh" ? "自动" : "Auto";
 }
 
 export function conversationModelLabel(
@@ -258,11 +258,7 @@ export function conversationModelLabel(
   locale: WorkbenchLocale
 ): string {
   return selection === "__auto"
-    ? resolvedModel
-      ? locale === "zh"
-        ? `自动（当前 ${modelLabel(resolvedModel, locale)}）`
-        : `Auto (current: ${modelLabel(resolvedModel, locale)})`
-      : autoModelLabel(locale)
+    ? autoModelLabel(locale)
     : modelLabel(selection, locale);
 }
 

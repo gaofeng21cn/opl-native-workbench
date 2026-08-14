@@ -53,6 +53,7 @@ const injectedPolicy = createCodexModelPolicy(syntheticProfile);
 
 const {
   codexModelPolicy,
+  autoModelLabel,
   conversationModelLabel,
   reasoningLabel,
   resolveCodexModelOptions,
@@ -86,8 +87,10 @@ assert.equal(runtimeAuto.reasoningEffort, "max");
 assert.equal(reasoningLabel("max", "zh"), "推理最大");
 assert.equal(reasoningLabel("max", "en", true), "Max");
 assert.equal(runtimeAuto.effectiveSelection, "__auto");
-assert.equal(conversationModelLabel("__auto", runtimeAuto.model?.id, "en"), "Auto (current: Future primary)");
-assert.equal(conversationModelLabel("__auto", undefined, "en"), "Auto (recommended)");
+assert.equal(autoModelLabel("zh"), "自动");
+assert.equal(autoModelLabel("en"), "Auto");
+assert.equal(conversationModelLabel("__auto", runtimeAuto.model?.id, "en"), "Auto");
+assert.equal(conversationModelLabel("__auto", undefined, "en"), "Auto");
 const pinnedSecondary = resolveCodexSelection(runtimeOptions, "codex-future-secondary", "low");
 assert.equal(pinnedSecondary.model.id, "codex-future-secondary");
 assert.equal(pinnedSecondary.reasoningEffort, "low");

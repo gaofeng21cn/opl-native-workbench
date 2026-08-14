@@ -25,6 +25,7 @@ import type {
   WorkbenchModel
 } from "./workbenchModel";
 import {
+  autoModelLabel,
   codexModelPolicy,
   modelLabel,
   reasoningLabel,
@@ -883,13 +884,7 @@ export function SettingsPanel({
     if (key === "modelAccess") {
       return (
         <select className="setting-select" data-testid="opl-model-access-entry" value={value} onChange={(event) => onSettingChange("modelAccess", event.currentTarget.value)}>
-          <option value="__auto">
-            {resolvedModel
-              ? settings.locale === "zh"
-                ? `自动（当前 ${modelLabel(resolvedModel.id, settings.locale)}）`
-                : `Auto (current: ${modelLabel(resolvedModel.id, settings.locale)})`
-              : settings.locale === "zh" ? "自动（推荐）" : "Auto (recommended)"}
-          </option>
+          <option value="__auto">{autoModelLabel(settings.locale)}</option>
           {value !== "__auto" && !modelOptions.some((option) => option.id === value) ? (
             <option value={value} disabled>{modelLabel(value, settings.locale)} ({settings.locale === "zh" ? "不可用" : "Unavailable"})</option>
           ) : null}
