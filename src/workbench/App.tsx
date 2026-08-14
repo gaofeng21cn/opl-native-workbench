@@ -704,7 +704,7 @@ export function App({
         operation: "restart",
         componentIds: ["opl_app"],
         confirmationRequired: false,
-        availability: nativeAppUpdate?.host === "native" ? "ready" : "unavailable",
+        availability: nativeAppUpdate?.supported === true && nativeAppUpdate.restartRequired === true ? "ready" : "unavailable",
         sourceRef: "one-person-lab-app native host"
       }
     ]

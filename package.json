@@ -77,7 +77,7 @@
     "test:ui-contributions": "bun test tests/workbench/ui-contribution-composition.test.mts",
     "test:storage-migration": "bun test tests/workbench/storage-migration.test.mts",
     "test:thread-directory-projection": "bun test tests/workbench/thread-directory-projection.test.mts",
-    "test:webui-host": "node --test scripts/webui-host/host-core.test.mjs scripts/webui-host/thread-adapter.test.mjs scripts/webui-host/http-host.test.mjs scripts/webui-host/opl-passthrough.test.mjs scripts/webui-host/gateway-account-login.test.mjs",
+    "test:webui-host": "node --test scripts/webui-host/host-core.test.mjs scripts/webui-host/thread-adapter.test.mjs scripts/webui-host/http-host.test.mjs scripts/webui-host/opl-passthrough.test.mjs scripts/webui-host/gateway-account-login.test.mjs scripts/webui-host/native-app-updater.test.mjs",
     "test:threads": "npm run test:thread-directory-projection && npm run test:webui-host && node --test tests/renderer/thread-renderer-source.test.mjs",
     "validate:candidate": "node scripts/validate-opl-studio-candidate.mjs",
     "validate:state-model": "node scripts/validate-state-model.mjs",

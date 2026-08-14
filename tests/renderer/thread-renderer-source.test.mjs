@@ -285,6 +285,11 @@ test("Web host exposes the product brand while keeping Studio as an internal cli
   assert.doesNotMatch(webHostTransport, /title: "OPL Studio WebUI"/);
 });
 
+test("App update restart follows the carrier result instead of a host-name special case", () => {
+  assert.match(app, /nativeAppUpdate\?\.supported === true && nativeAppUpdate\.restartRequired === true/);
+  assert.doesNotMatch(app, /nativeAppUpdate\?\.host === "native"/);
+});
+
 test("search, composer attachments, and Agent permissions route to real renderer and bridge behavior", () => {
   assert.match(app, /data-testid="opl-workspace-rail"/);
   assert.match(app, /setThreadSearchOpen\(true\)/);
