@@ -3136,6 +3136,14 @@ export const codexWorkbenchStyles = `
       max-width: 74px;
     }
 
+    .composer-palette {
+      position: fixed;
+      inset: 54px 0 0 56px;
+      width: auto;
+      max-height: none;
+      border-radius: 0;
+    }
+
     .history-list li .thread-directory-detail {
       opacity: 1;
     }

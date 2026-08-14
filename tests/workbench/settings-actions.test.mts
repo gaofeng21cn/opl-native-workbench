@@ -11,6 +11,36 @@ function modelWith(overrides: Partial<WorkbenchModel>): WorkbenchModel {
   return { ...initialWorkbenchModel, ...overrides };
 }
 
+test("carrier diagnostics keep unavailable states human-readable and attention-toned", async () => {
+  Object.assign(globalThis, {
+    __OPL_CODEX_MODEL_POLICY__: {
+      source: "test App policy",
+      defaultModel: "test-model",
+      defaultReasoningEffort: "high",
+      visibleModels: [{ id: "test-model" }],
+      reasoningEfforts: ["high"],
+      knownModelReasoningEffortOverrides: {},
+      acceptUnknownCatalogDefault: true,
+      useHighestSupportedReasoningForUnknown: true
+    }
+  });
+  const { carrierLogDetail, statusTone } = await import("../../src/workbench/SettingsPanel.tsx");
+  const diagnostics = {
+    schema: "opl_app_carrier_diagnostics.v1",
+    owner: "one-person-lab-app_native_host",
+    carrier: "standalone_headless_webui",
+    status: "unavailable" as const,
+    setLogDirectorySupported: false,
+    reasonCode: "carrier_log_directory_unavailable"
+  };
+
+  assert.equal(statusTone("unavailable"), "attention");
+  assert.equal(statusTone("incompatible"), "attention");
+  assert.equal(statusTone("available"), "ready");
+  assert.equal(carrierLogDetail(diagnostics, "zh"), "当前载体不提供 App 日志目录");
+  assert.equal(carrierLogDetail(diagnostics, "en"), "This carrier does not expose an App log directory");
+});
+
 test("managed update host actions come only from the App-projected action catalog", async () => {
   Object.assign(globalThis, {
     __OPL_CODEX_MODEL_POLICY__: {

@@ -399,6 +399,7 @@ test("primary canvas hides its scrollbar without disabling scrolling", () => {
   assert.match(styles, /\.history-list li \.thread-directory-open \.thread-directory-copy \{[^}]*max-width: 100%;[^}]*overflow: hidden;/s);
   assert.match(styles, /\.thread-directory-copy strong \{[^}]*max-width: 100%;[^}]*display: block;/s);
   assert.match(adapterStyles, /\.opl-dsh-context-panel \.context-scroll \{[^}]*overflow-y: auto;/s);
+  assert.match(styles, /@media \(max-width: 760px\)[\s\S]*\.composer-palette \{[^}]*position: fixed;[^}]*inset: 54px 0 0 56px;/s);
 });
 
 test("DSH AppFrame owns bounded sidebar/details resize and responsive collapse", () => {

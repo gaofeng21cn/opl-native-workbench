@@ -54,15 +54,16 @@ release admission, and is explicitly adopted.
 | Shared directory | `codex_state_db_overview` | Uses `thread/list useStateDbOnly=true` and opens history by the same canonical thread ID |
 | Codex subagents | `read_only_app_server_projection` | Lineage, role, nickname, source kind, tool-call, and activity items are displayed without owning scheduling |
 | Private cross-thread layer | `removed_non_goal` | No proposal/dispatch/wait protocol, host queue, ledger, bilateral receipt, or dynamic-tool bridge remains |
-| OPL state/actions | `app_framework_consumer` | Reads App state and dispatches owner action refs; no internal-state or package-truth ownership |
+| OPL state/actions | `canonical_producer_consumer_conformance` | Framework Cordis composition and the public App state/action producer are canonical; Native keeps one bounded consumer bridge and imports neither Cordis nor another plugin runtime |
 | Conversation | `chat_first_with_on_demand_detail` | Primary surface is the DSH conversation; run status, roadmap/detail contributions, files, and results open on demand instead of becoming static home cards |
 | Standard Agents | `typed_dynamic_selection` | Composer separates OPL-owned `standard_agent` packages from skills/plugins/connections and requires selectable readiness plus a real Codex route |
 | Active turn | `direct_steer_with_renderer_queue` | Active submissions use Codex `turn/steer`; the DSH queue is temporary renderer state and is not a second persistent scheduler or queue |
 | Settings | `minimum_complete_control_plane_wired` | Account/Gateway, model, resources, working directory, storage, Agents, capabilities, instructions, services, updates, diagnostics, preferences, and About consume typed owner actions |
-| Updates | `separate_app_base_packages_model` | Base and Packages use Framework managed-update actions; App update uses the native-host updater ABI and currently reports truthful carrier unavailability |
+| Updates | `separate_app_base_packages_model` | Base and Packages execute projected Framework actions through dry-run, confirmation, receipt, and fresh readback. Electron and fixed host-managed headless/OCI command plans share one App updater ABI; distribution command injection and signed feeds remain open |
 | Run detail | `identity_scoped_composition` | Agent activity, work status, runtime detail, files, and results are scoped to the active thread/work item; unknown modules degrade locally |
 | Local launcher | `implemented_candidate_path` | Isolated bundle; actions dry-run-only by default |
-| Validation | `repo_native_structural_gates_present` | Tests/build/package/smoke prove only their exact candidate layers |
+| Minimum product baseline | `eight_source_outcomes_complete` | Thread/turn lifecycle, run detail, files/results, settings/diagnostics, dynamic Agents, capabilities/contributions, three-object maintenance, and service recovery are source-complete; later evidence axes remain independent |
+| Validation | `source_package_and_local_carrier_gates_green` | Focused/full tests, signed local directory package, live Electron, Docker, and desktop/mobile browser checks prove only their exact candidate bytes and local carriers |
 | Adoption and readiness | `false` | No active-shell adoption, release, clean-VM, domain, owner-acceptance, or production claim |
 
 ## Current Gaps
@@ -71,11 +72,11 @@ release admission, and is explicitly adopted.
 | --- | --- | --- | --- |
 | App contract currentness must be re-read before any change | `structural_currentness_gate` | App contracts and GUI docs | Stop if the candidate write set conflicts with a newer App decision or active owner lane |
 | Desktop App updater feed is not qualified | `release_admission_p0` | App release producer plus desktop package owner | Electron updater state/operations are implemented; produce signed artifacts and a dedicated signed feed, then prove check/download/apply/restart/version readback without consuming AionUI update metadata |
+| Headless service distribution is incomplete | `delivery_p0` | App install owner plus shared-host owner | Wire the proven user-service and fixed update command plans into supported installers, then prove install/start/stop/restart/update/uninstall and fresh App-state readback |
 | Successor OCI carrier distribution and admission are incomplete | `delivery_p0` | App release/install owner plus host-core owner | Keep the proven Node-only source carrier, then add distribution install and image update/recreate and qualify multi-arch, security, install/start/update/rollback, and release without Electron or AionCore |
 | Windows/Linux desktop qualification is absent | `delivery_p1` | Platform package owners | Run platform-native build/install/start/update/cleanup qualification; source configuration alone is not support evidence |
-| Framework producer must reach canonical SSOT | `cross_repo_integration_gate` | Framework UI contribution and managed-update producer | Fresh-replay Base check/apply, `runtime.detail`, disabled-package filtering, and standard-Agent route projection, then pass producer-consumer conformance |
-| App product SSOT must absorb the final baseline | `cross_repo_integration_gate` | App contracts/docs/tests | Keep necessary-outcome parity, Agent admission, Settings destinations, update ownership, and AionUI-to-Native adoption conditions aligned with the tested candidate |
-| Adoption, clean-VM, same-cohort live parity, and release proof are absent | `non_blocking_candidate_evidence_gap` | App release owner and owning runtime/release surfaces | Do not promote docs/tests/package/local smoke to readiness; absence does not block App mainline |
+| Exact-cohort Pixel and accessibility acceptance are absent | `evidence_p1` | App GUI acceptance owner | Capture the tested Desktop and WebUI cohorts across target viewports, keyboard and screen-reader paths; source screenshots do not close installed Pixel |
+| Install, security, Release, and cutover proof are absent | `non_blocking_candidate_evidence_gap` | App release owner and owning runtime/release surfaces | Qualify signed artifacts, clean installs, OCI supply chain, update/rollback, and release cohorts independently; switch AionUI only through a final explicit adoption decision |
 
 Remote cross-machine coordination, model-driven permission/write-set decisions,
 private thread runtimes, and candidate-owned delivery ledgers are explicitly not
@@ -88,9 +89,9 @@ does not depend on Team mode.
 
 ### Goal
 
-For successor product development, close the desktop updater and OCI delivery
-slices plus the remaining cross-repository producer/consumer admission against
-current App contracts while preserving the Codex-only thin-consumer boundary.
+For successor product development, turn the source-complete minimum product
+into supported Desktop, Headless, and Docker delivery cohorts while preserving
+the Codex-only thin-consumer boundary.
 Do not reproduce AionUI-only inherited surfaces, create a speculative
 multi-backend framework, or duplicate the renderer/host core for another
 carrier.
@@ -133,22 +134,22 @@ carrier.
 
 ### Required Actions
 
-1. Land Framework Base update, `runtime.detail`, disabled-package filtering,
-   and standard-Agent route projection on fresh canonical `main`.
-2. Run Framework-to-Native producer-consumer conformance and verify that only
-   selectable OPL standard Agents with a real Codex route enter the dedicated
-   composer group.
-3. Absorb the tested Native and App contract bytes to their canonical `main`
-   branches and read back exact remote commits/trees.
-4. Complete the successor OCI carrier and desktop updater cohorts without
-   importing AionUI/AionCore or creating a second host core.
-5. Preserve App state/action, Codex thread, package, domain, and false-ready
-   boundaries, and keep AionUI active until explicit adoption.
+1. Complete the macOS Desktop cohort with signed distributable artifacts, a
+   dedicated update feed, and installed check/apply/restart/version readback.
+2. Bind the existing headless user service and fixed update command plans to
+   supported installers and prove lifecycle/update/uninstall behavior.
+3. Complete Docker/OCI distribution, host-managed image recreate/rollback,
+   multi-arch, supply-chain, and remote-access security qualification.
+4. Run exact-cohort Desktop/WebUI Pixel and accessibility acceptance, then
+   qualify Windows and Linux in their native environments.
+5. Keep AionUI active until Source, Pixel, Install, Security, and Release are
+   all admitted; perform the adapter/release cutover only as one explicit final
+   App-owner decision.
 
 ### Verification Commands
 
 - `npm test` in the Native repository with the current App checkout available;
-- `npm run validate:candidate:native` in the App repository when its mounted
+- `npm run validate:candidate:studio` in the App repository when its mounted
   candidate checkout points at the tested bytes;
 - OPL Flow-bundled `$opl-doc` semantic governance against each changed
   repository as a risk map;
@@ -156,6 +157,7 @@ carrier.
 - `git diff --check`;
 - `npm run smoke:desktop-live` only when the authorized delta affects packaged
   local-window behavior.
+- `npm run smoke:docker` when the authorized delta affects the OCI carrier.
 
 ### Completion Gate
 

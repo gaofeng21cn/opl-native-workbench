@@ -240,16 +240,28 @@ export function settingsDestinations(locale: WorkbenchSettings["locale"]): Navig
   ];
 }
 
-function statusTone(status: string | undefined): "ready" | "attention" | "neutral" {
+export function statusTone(status: string | undefined): "ready" | "attention" | "neutral" {
   if (!status) return "neutral";
   const normalized = status.toLowerCase();
-  if (["ready", "connected", "active", "compatible", "available", "stable", "healthy"].some((value) => normalized.includes(value))) {
-    return "ready";
-  }
   if (["error", "attention", "stale", "required", "unavailable", "failed", "missing", "incompatible"].some((value) => normalized.includes(value))) {
     return "attention";
   }
+  if (["ready", "connected", "active", "compatible", "available", "stable", "healthy"].some((value) => normalized.includes(value))) {
+    return "ready";
+  }
   return "neutral";
+}
+
+export function carrierLogDetail(
+  diagnostics: CarrierDiagnosticsReadback,
+  locale: WorkbenchSettings["locale"]
+): string {
+  const logDirectory = diagnostics.application?.systemInfo.logDir;
+  if (logDirectory) return logDirectory;
+  if (diagnostics.status === "unavailable") {
+    return locale === "zh" ? "当前载体不提供 App 日志目录" : "This carrier does not expose an App log directory";
+  }
+  return locale === "zh" ? "App 日志目录尚未报告" : "The App log directory has not been reported";
 }
 
 function formatStatus(status: string | undefined, locale: WorkbenchSettings["locale"]): string {
@@ -1159,6 +1171,7 @@ export function SettingsPanel({
 
     if (activeDestination === "diagnostics") {
       const appLogDirectory = carrierDiagnostics.application?.systemInfo.logDir;
+      const appLogDirectoryDetail = carrierLogDetail(carrierDiagnostics, settings.locale);
       return (
         <>
           <SettingsGroup title={settings.locale === "zh" ? "诊断" : "Diagnostics"}>
@@ -1166,7 +1179,7 @@ export function SettingsPanel({
             <SettingRow label={settings.locale === "zh" ? "待处理问题" : "Issues"}><span>{projection?.statusSummary.issueCount ?? "--"}</span></SettingRow>
             <SettingRow
               label={settings.locale === "zh" ? "App 载体日志" : "App carrier logs"}
-              detail={appLogDirectory ?? carrierDiagnostics.reasonCode}
+              detail={appLogDirectoryDetail}
             >
               <div className="settings-row-actions">
                 <StatusValue status={carrierDiagnostics.status === "available" ? "ready" : carrierDiagnostics.status} locale={settings.locale} />
@@ -1190,6 +1203,7 @@ export function SettingsPanel({
           {settings.developerDetails ? (
             <SettingsGroup title={settings.locale === "zh" ? "高级详情" : "Advanced details"}>
               <SettingRow label={settings.locale === "zh" ? "App 载体日志目录" : "App carrier log directory"}><code>{appLogDirectory ?? (settings.locale === "zh" ? "不可用" : "Unavailable")}</code></SettingRow>
+              {carrierDiagnostics.reasonCode ? <SettingRow label={settings.locale === "zh" ? "载体状态代码" : "Carrier status code"}><code>{carrierDiagnostics.reasonCode}</code></SettingRow> : null}
               <SettingRow label={settings.locale === "zh" ? "Framework 运行时日志" : "Framework runtime logs"}><code>{projection?.localEnvironment.logsDir ?? "--"}</code></SettingRow>
               <SettingRow label={settings.locale === "zh" ? "状态目录" : "State directory"}><code>{projection?.localEnvironment.stateDir ?? "--"}</code></SettingRow>
               <SettingRow label={settings.locale === "zh" ? "运行时来源" : "Runtime sources"}><code>{projection?.localEnvironment.runtimeSourcesRoot ?? "--"}</code></SettingRow>
