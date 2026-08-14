@@ -44,6 +44,35 @@ export type ThreadListResult = { data: CodexThread[]; nextCursor: null };
 export type ThreadReadRequest = { threadId: string; includeTurns?: boolean };
 export type ThreadResumeRequest = { threadId: string };
 export type ThreadForkRequest = { threadId: string; throughTurnId?: string };
+export type ThreadSteerRequest = {
+  threadId: string;
+  expectedTurnId: string;
+  prompt: string;
+  inputs?: Array<
+    | { type: "localImage"; path: string; detail?: "auto" | "low" | "high" | "original" | null }
+    | { type: "skill"; name: string; path: string }
+    | { type: "mention"; name: string; path: string }
+  >;
+};
+export type ThreadSteerResult = {
+  executor: "codex_app_server";
+  transport: "stdio_json_rpc";
+  threadId: string;
+  expectedTurnId: string;
+  turnId: string;
+  accepted: true;
+};
+export type ThreadInterruptRequest = {
+  threadId: string;
+  turnId: string;
+};
+export type ThreadInterruptResult = {
+  executor: "codex_app_server";
+  transport: "stdio_json_rpc";
+  threadId: string;
+  turnId: string;
+  accepted: true;
+};
 export type SetArchivedRequest = {
   threadId: string;
   archived: boolean;

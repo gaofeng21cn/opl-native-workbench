@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { CodexAppServerTransport } from "../../scripts/webui-host/app-server-transport.mjs";
 import { assistantDisplayMarkdown } from "../../src/workbench/messageDisplay.ts";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -110,9 +111,113 @@ test("thread rail, lifecycle, and Codex subagent projection stay explicit", () =
   assert.match(model, /sourceKind/);
 });
 
-test("starting a new task clears errors from the previous thread", () => {
+test("starting a new task clears the previous thread identity and errors", () => {
   const startNewChat = app.match(/function startNewChat\(\) \{([\s\S]*?)\n  \}/)?.[1] ?? "";
+  assert.match(startNewChat, /setCodexThreadId\(undefined\)/);
+  assert.match(startNewChat, /selectedThreadId: undefined/);
   assert.match(startNewChat, /setThreadActionError\(""\)/);
+});
+
+test("standard Agent selection binds only to a newly created Codex thread", async () => {
+  const requests = [];
+  let threadSequence = 0;
+  let turnSequence = 0;
+  const transport = new CodexAppServerTransport({ cwd: "/tmp/opl-studio-agent-fixture" });
+  transport.request = async (method, params) => {
+    requests.push({ method, params });
+    if (method === "thread/start") return { thread: { id: `thread-${++threadSequence}` } };
+    if (method === "turn/start") return { turn: { id: `turn-${++turnSequence}` } };
+    throw new Error(`unexpected request: ${method}`);
+  };
+  transport.waitForTurn = async (turnId) => ({
+    finalMessage: `completed ${turnId}`,
+    events: [],
+    notification: { turn: { id: turnId, status: "completed" } }
+  });
+
+  const selection = {
+    package_id: "mas",
+    shortcut_id: "medical-autoscience",
+    codex_visible_entry: "med-autoscience:med-autoscience",
+    required_skill_ids: ["medical-research-lit", "medical-statistical-review"]
+  };
+  const first = await transport.sendMessage({
+    prompt: "Start the study",
+    inputs: [],
+    agentSelection: selection
+  });
+  const firstThreadStart = requests.find((request) => request.method === "thread/start");
+  const firstTurnStart = requests.find((request) => request.method === "turn/start");
+  assert.equal(first.threadId, "thread-1");
+  assert.match(firstThreadStart.params.developerInstructions, /application-owned routing snapshot/);
+  assert.ok(firstThreadStart.params.developerInstructions.includes(JSON.stringify(selection)));
+  assert.deepEqual(firstTurnStart.params.additionalContext, {
+    "opl.standard_agent_selection": {
+      kind: "application",
+      value: JSON.stringify(selection)
+    }
+  });
+
+  await assert.rejects(
+    transport.sendMessage({
+      prompt: "Rebind the existing conversation",
+      inputs: [],
+      threadId: first.threadId,
+      agentSelection: selection
+    }),
+    (error) => error?.code === "invalid_request" && /cannot be rebound/.test(error.message)
+  );
+
+  const second = await transport.sendMessage({ prompt: "Start another task", inputs: [] });
+  assert.equal(second.threadId, "thread-2");
+  assert.notEqual(second.threadId, first.threadId);
+  assert.equal(requests.filter((request) => request.method === "thread/start").length, 2);
+});
+
+test("turn steering preserves the active thread and expected turn identity", async () => {
+  const requests = [];
+  let acknowledgedTurnId = "turn-active";
+  const transport = new CodexAppServerTransport({ cwd: "/tmp/opl-studio-steer-fixture" });
+  transport.request = async (method, params) => {
+    requests.push({ method, params });
+    assert.equal(method, "turn/steer");
+    return { turnId: acknowledgedTurnId };
+  };
+
+  const accepted = await transport.steerMessage({
+    threadId: "thread-active",
+    expectedTurnId: "turn-active",
+    prompt: "Prioritize the new evidence",
+    inputs: []
+  });
+  assert.deepEqual(requests[0], {
+    method: "turn/steer",
+    params: {
+      threadId: "thread-active",
+      expectedTurnId: "turn-active",
+      input: [{ type: "text", text: "Prioritize the new evidence", text_elements: [] }]
+    }
+  });
+  assert.deepEqual(accepted, {
+    executor: "codex_app_server",
+    transport: "stdio_json_rpc",
+    threadId: "thread-active",
+    expectedTurnId: "turn-active",
+    turnId: "turn-active",
+    accepted: true
+  });
+
+  acknowledgedTurnId = "turn-other";
+  await assert.rejects(
+    transport.steerMessage({
+      threadId: "thread-active",
+      expectedTurnId: "turn-active",
+      prompt: "Do not accept a stale acknowledgement",
+      inputs: []
+    }),
+    (error) => error?.code === "invalid_app_server_response"
+      && error?.details?.receivedTurnId === "turn-other"
+  );
 });
 
 test("assistant display consumes Codex UI directives without rewriting Markdown examples", () => {
@@ -148,8 +253,9 @@ test("native window hosts the live DeepSeek Harness composition root", () => {
   assert.match(slotHost, /import \{ SidebarRoot \} from "@opl-vendor\/dsh-sidebar-root"/);
   assert.match(slotHost, /import \{ ConversationRoot \} from "@opl-vendor\/dsh-conversation-root"/);
   assert.match(slotHost, /import \{ InputBar \} from "@opl-vendor\/dsh-input-bar"/);
+  assert.match(slotHost, /import \{ QueueDock \} from "@opl-vendor\/dsh-queue-dock"/);
   assert.match(slotHost, /import \{ SettingsRoot \} from "@opl-vendor\/dsh-settings-root"/);
-  for (const component of ["AppFrame", "SidebarRoot", "ConversationRoot", "InputBar", "SettingsRoot"]) {
+  for (const component of ["AppFrame", "SidebarRoot", "ConversationRoot", "InputBar", "QueueDock", "SettingsRoot"]) {
     assert.match(slotHost, new RegExp(`<${component}`));
   }
   assert.match(app, /return renderShell\(\{/);
@@ -181,6 +287,13 @@ test("native window hosts the live DeepSeek Harness composition root", () => {
   assert.match(nativeSmoke, /global Codex project names are allowed/);
 });
 
+test("Web host exposes the product brand while keeping Studio as an internal client id", () => {
+  const webHostTransport = read("scripts/webui-host/app-server-transport.mjs");
+  assert.match(webHostTransport, /name: "opl-studio-webui"/);
+  assert.match(webHostTransport, /title: "One Person Lab"/);
+  assert.doesNotMatch(webHostTransport, /title: "OPL Studio WebUI"/);
+});
+
 test("search, composer attachments, and Agent permissions route to real renderer and bridge behavior", () => {
   assert.match(app, /data-testid="opl-workspace-rail"/);
   assert.match(app, /setThreadSearchOpen\(true\)/);
@@ -191,7 +304,8 @@ test("search, composer attachments, and Agent permissions route to real renderer
   assert.match(app, /<ComposerCapabilityPalette/);
   assert.match(app, /function openComposerPalette\(\)/);
   assert.doesNotMatch(app, /openComposerPalette\("capabilities"\)|composerPaletteMode/);
-  assert.match(app, /inputs: pendingSelections\.map\(\(selection\) => selection\.input\)/);
+  assert.match(app, /\.\.\.pendingSelections\.map\(\(selection\) => selection\.input\)/);
+  assert.match(app, /\.\.\.\(codexThreadId \? \[\] : selectedAgentInputs\(\)\)/);
   assert.match(app, /permissions: settings\.agentPermissions/);
   assert.match(app, /setComposerSelections\(pendingSelections\)/);
   assert.match(settings, /agentPermissions: ":danger-full-access"/);
@@ -211,6 +325,14 @@ test("search, composer attachments, and Agent permissions route to real renderer
   assert.match(composerPalette, /if \(!open\) \{\s*setQuery\(""\)/s);
   assert.match(composerPalette, /catalog\.plugins/);
   assert.match(composerPalette, /catalog\.apps/);
+});
+
+test("DSH QueueDock owns queued follow-ups and steers the exact active Codex turn", () => {
+  assert.match(slotHost, /function QueueDockSlot\(\)/);
+  assert.match(slotHost, /updateQueue=\{studio\.updateQueue\}/);
+  assert.match(slotHost, /name: "conversation\.input\.dock", id: "queue", order: 20/);
+  assert.match(app, /await bridge\.steerTurn\(\{\s*threadId: active\.threadId,\s*expectedTurnId: active\.turnId,/s);
+  assert.doesNotMatch(`${app}\n${slotHost}`, /host_queue/);
 });
 
 test("native visual shell uses vendored DeepSeek Harness roots and theme tokens", () => {
@@ -346,7 +468,8 @@ test("Settings directly reuses DSH appearance controls and applies the selected 
 });
 
 test("composer separates OPL standard agents from Skills, connections, and other modules", () => {
-  assert.match(app, /standardAgents=\{model\.packageLifecycle\.filter\(\(item\) => item\.official && item\.roleGroup === "agent"\)\}/);
+  assert.match(app, /standardAgents=\{codexThreadId \? \[\] : model\.packageLifecycle\.filter\(\(item\) => \(\s*item\.packageRole === "standard_agent"\s*&& item\.official\s*&& item\.readiness\.selectable\s*&& item\.homeShortcuts\.some\(\(shortcut\) => Boolean\(shortcut\.route\)\)\s*\)\)\}/s);
+  assert.match(app, /agentSelection: codexThreadId \? undefined : selectedAgentSnapshot\(\)/);
   assert.match(composerPalette, /data-testid="opl-standard-agents"/);
   assert.match(composerPalette, /OPL 标准智能体/);
   assert.match(composerPalette, /其他模块/);

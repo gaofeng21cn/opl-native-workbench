@@ -4,10 +4,11 @@ import { spawnSync } from "node:child_process";
 import { assert, readJson, root } from "./opl-studio-gates.mjs";
 import { readCodexModelPolicy } from "./build-renderer.mjs";
 
-const appName = "One Person Lab Studio Preview";
+const appName = "One Person Lab Preview";
 const appRoot = path.join(root, "out", `${appName}.app`);
 const resourcesDir = path.join(appRoot, "Contents", "Resources");
 const executablePath = path.join(appRoot, "Contents", "MacOS", appName);
+const plistPath = path.join(appRoot, "Contents", "Info.plist");
 const workbenchPath = path.join(resourcesDir, "workbench.html");
 const rendererPath = path.join(resourcesDir, "renderer.js");
 const stylesheetPath = path.join(resourcesDir, "renderer.css");
@@ -24,8 +25,18 @@ function assertOrderedValues(actual, expected, label) {
   }
 }
 
+function plistValue(key) {
+  const result = spawnSync("/usr/libexec/PlistBuddy", ["-c", `Print :${key}`, plistPath], {
+    cwd: root,
+    encoding: "utf8"
+  });
+  assert(result.status === 0, `packaged Info.plist is missing ${key}`);
+  return result.stdout.trim();
+}
+
 assert(fs.existsSync(appRoot), "missing packaged .app");
 assert(fs.existsSync(executablePath), "missing packaged executable");
+assert(fs.existsSync(plistPath), "missing packaged Info.plist");
 assert(fs.existsSync(workbenchPath), "missing packaged OPL Studio HTML");
 assert(fs.existsSync(rendererPath), "missing packaged shared renderer script");
 assert(fs.existsSync(stylesheetPath), "missing packaged DeepSeek Harness stylesheet closure");
@@ -45,6 +56,10 @@ const executable = fs.readFileSync(executablePath);
 const magic = executable.subarray(0, 4).toString("hex");
 assert(executable.subarray(0, 2).toString() !== "#!", "packaged executable must not be a shell script");
 assert(["cffaedfe", "feedfacf", "cafebabe", "cafebabf"].includes(magic), `packaged executable is not Mach-O: ${magic}`);
+assert(plistValue("CFBundleName") === appName, "packaged bundle name must use the One Person Lab product brand");
+assert(plistValue("CFBundleDisplayName") === appName, "packaged display name must use the One Person Lab product brand");
+assert(plistValue("CFBundleExecutable") === appName, "packaged executable identity must match the bundle name");
+assert(plistValue("CFBundleIdentifier") === "cn.gflab.opl.studio.preview", "packaged bundle id must preserve preview isolation");
 
 const policySmoke = spawnSync(executablePath, [], {
   cwd: root,
@@ -227,7 +242,7 @@ const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 assert(manifest.status === "candidate_app_bundle_built", "package status must describe a built candidate, not readiness");
 assert(manifest.bundle_identity?.display_name === appName, "manifest must preserve the formal Native test name");
 assert(manifest.bundle_identity?.bundle_id === "cn.gflab.opl.studio.preview", "manifest must preserve the isolated candidate bundle id");
-assert(manifest.bundle_identity?.installed_app_path === "/Applications/One Person Lab Studio Preview.app", "manifest must record the formal Native install path");
+assert(manifest.bundle_identity?.installed_app_path === "/Applications/One Person Lab Preview.app", "manifest must record the formal Native install path");
 assert(manifest.bundle_identity?.isolated_from_active_mainline_bundle_id === "cn.onepersonlab.opl", "manifest must record the active mainline bundle isolation boundary");
 assert(manifest.launcher_runtime_resolution?.identity_schema === "app_runtime_executable_identity.v1", "manifest must record launcher Runtime identity readback");
 assert(manifest.launcher_runtime_resolution?.direct_launch_fallback === "host_path_without_runtime_parity_claim", "direct Candidate launch must not claim Runtime parity");

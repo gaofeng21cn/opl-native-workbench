@@ -63,7 +63,7 @@ npm run gui -- --shell opl-studio
 ```
 
 Use `--rebuild` to rebuild and replace only
-`/Applications/One Person Lab Studio Preview.app`. The candidate has the isolated bundle
+`/Applications/One Person Lab Preview.app`. The candidate has the isolated bundle
 id `cn.gflab.opl.studio.preview` and does not replace
 `/Applications/One Person Lab.app`.
 

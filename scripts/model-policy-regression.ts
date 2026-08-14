@@ -97,6 +97,32 @@ assert.equal(pinnedPrimary.model?.id, "codex-future-primary");
 assert.equal(pinnedPrimary.reasoningEffort, "low");
 assert.equal(pinnedPrimary.effectiveSelection, "codex-future-primary");
 
+const aliasLinkedOptions = resolveCodexModelOptions([{
+  id: "codex-future-primary",
+  model: "codex-primary-canonical",
+  displayName: "Legacy primary alias",
+  isDefault: false,
+  defaultReasoningEffort: "high",
+  supportedReasoningEfforts: ["low", "high"]
+}, {
+  id: "codex-primary-canonical",
+  model: "codex-primary-current",
+  displayName: "Current catalog default",
+  isDefault: true,
+  defaultReasoningEffort: "max",
+  supportedReasoningEfforts: ["high", "max"]
+}]);
+assert.deepEqual(
+  aliasLinkedOptions.map((option) => option.id),
+  ["codex-future-primary", "codex-future-secondary"]
+);
+const aliasLinkedPrimary = aliasLinkedOptions.find((option) => option.id === "codex-future-primary");
+assert.equal(aliasLinkedPrimary?.isCatalogDefault, true);
+assert.deepEqual(aliasLinkedPrimary?.supportedReasoningEfforts, codexModelPolicy.reasoningOptions);
+const aliasLinkedAuto = resolveCodexSelection(aliasLinkedOptions, "__auto", "low");
+assert.equal(aliasLinkedAuto.model?.id, "codex-future-primary");
+assert.equal(aliasLinkedAuto.reasoningEffort, "max");
+
 const futureCatalog = normalizeCodexModelCatalog({
   data: [{
     id: "codex-future-secondary",

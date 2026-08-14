@@ -202,6 +202,7 @@ export type PackageLifecycleActionKind = "install" | "update" | "repair" | "unin
 export type PackageLifecycleActionRef = {
   kind: PackageLifecycleActionKind;
   semantic: string;
+  surface?: string;
   label: string;
   status: "available" | "unavailable";
   actionId: string;
@@ -243,6 +244,41 @@ export type PackageLifecycleDetailRef = {
   summary: string;
 };
 
+export type AgentPackageLocalizedText = {
+  zh?: string;
+  en?: string;
+};
+
+export type AgentPackageRouteRef = {
+  routeKind: string;
+  executor: string;
+  codexVisibleEntry: string;
+};
+
+export type AgentPackageShortcutRef = {
+  shortcutId: string;
+  labelI18n: AgentPackageLocalizedText;
+  defaultVisible: boolean | null;
+  userConfigurable: boolean | null;
+  visible: boolean;
+  sortOrder: number;
+  route?: AgentPackageRouteRef;
+};
+
+export type AgentPackageReadinessRef = {
+  status: string;
+  operationalReady: boolean | null;
+  launchAllowed: boolean | null;
+  verificationDeferred: boolean | null;
+  reason?: string;
+  detailSurface?: string;
+  statusReadError?: string;
+  present: boolean | null;
+  callable: boolean | null;
+  selectionStatus: "available" | "unavailable" | "checking";
+  selectable: boolean;
+};
+
 export type AgentPackageLifecycleRef = {
   id: string;
   packageId: string;
@@ -252,17 +288,19 @@ export type AgentPackageLifecycleRef = {
   packageRole: string;
   roleGroup: "agent" | "workflow" | "supporting" | "other";
   official: boolean;
+  displayNameI18n: AgentPackageLocalizedText;
+  descriptionI18n: AgentPackageLocalizedText;
+  sessionRoutingSummaryI18n: AgentPackageLocalizedText;
+  requiredSkillIds: string[];
+  optionalSkillRefs: string[];
   installed: boolean | null;
   activated: boolean | null;
+  readiness: AgentPackageReadinessRef;
   version?: string;
   currentness: string;
   sourceMode: string;
   automaticUpdate: boolean | null;
-  homeShortcuts: {
-    shortcutId: string;
-    visible: boolean;
-    sortOrder: number;
-  }[];
+  homeShortcuts: AgentPackageShortcutRef[];
   recommendedActionId?: string;
   status: string;
   summary: string;
@@ -274,6 +312,25 @@ export type AgentPackageLifecycleRef = {
   statusAxes: PackageLifecycleStatusAxis[];
   actions: PackageLifecycleActionRef[];
   authorityBoundary: string;
+};
+
+export type AgentPackageSelectionIntent = {
+  kind: "agent_package_selection";
+  selectionId: string;
+  packageId: string;
+  label: string;
+  description: string;
+  publisher: string;
+  displayNameI18n: AgentPackageLocalizedText;
+  descriptionI18n: AgentPackageLocalizedText;
+  sessionRoutingSummaryI18n: AgentPackageLocalizedText;
+  requiredSkillIds: string[];
+  optionalSkillRefs: string[];
+  readiness: AgentPackageReadinessRef;
+  route?: AgentPackageRouteRef & { shortcutId: string };
+  actions: PackageLifecycleActionRef[];
+  recommendedActionId?: string;
+  sourceRef: string;
 };
 
 export type RuntimeMaintenanceActionRef = {
@@ -490,8 +547,23 @@ export const initialWorkbenchModel: WorkbenchModel = {
       packageRole: "unknown",
       roleGroup: "other",
       official: false,
+      displayNameI18n: {},
+      descriptionI18n: {},
+      sessionRoutingSummaryI18n: {},
+      requiredSkillIds: [],
+      optionalSkillRefs: [],
       installed: null,
       activated: null,
+      readiness: {
+        status: "unknown",
+        operationalReady: null,
+        launchAllowed: null,
+        verificationDeferred: null,
+        present: null,
+        callable: null,
+        selectionStatus: "checking",
+        selectable: false
+      },
       currentness: "unknown",
       sourceMode: "unknown",
       automaticUpdate: null,
@@ -532,7 +604,7 @@ export const initialWorkbenchModel: WorkbenchModel = {
         { label: "Codex surface", value: "missing_bridge", source: "missing_bridge" }
       ],
       actions: [],
-      authorityBoundary: "OPL Studio displays App/root package refs only; it cannot infer installed, ready, synced, or release state."
+      authorityBoundary: "One Person Lab displays App/root package refs only; it cannot infer installed, ready, synced, or release state."
     }
   ],
   starters: [
@@ -642,6 +714,16 @@ function asFiniteNumber(value: unknown): number | null {
 
 function asRecordArray(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? value.map(asRecord).filter((item): item is Record<string, unknown> => Boolean(item)) : [];
+}
+
+function asLocalizedText(value: unknown): AgentPackageLocalizedText {
+  const record = asRecord(value);
+  const zh = firstString(record, ["zh-CN", "zh_CN", "zh"]);
+  const en = firstString(record, ["en-US", "en_US", "en"]);
+  return {
+    ...(zh ? { zh } : {}),
+    ...(en ? { en } : {})
+  };
 }
 
 function firstString(record: Record<string, unknown> | null, keys: string[]): string | null {
@@ -1197,8 +1279,9 @@ function packageRowsFromCanonicalProjection(agentPackages: Record<string, unknow
     const id = packageIdentity(row, byId.size);
     byId.set(id, { ...(byId.get(id) ?? {}), ...row, package_id: id });
   };
-  for (const row of directoryRows) mergeRow(row);
   for (const row of statusRows) mergeRow(row);
+  // Directory entries own lifecycle, presentation, readiness, and exact actions.
+  for (const row of directoryRows) mergeRow(row);
   for (const row of homeRows) {
     const id = packageIdentity(row, byId.size);
     const current = byId.get(id) ?? { package_id: id };
@@ -1282,6 +1365,84 @@ function packageSourceMode(record: Record<string, unknown>): string {
 
 function packageAutomaticUpdate(record: Record<string, unknown>): boolean | null {
   return asOptionalBoolean(packageEffectiveSourcePolicy(record)?.package_channel_auto_update);
+}
+
+function packageCapabilityMetadata(record: Record<string, unknown>): {
+  requiredSkillIds: string[];
+  optionalSkillRefs: string[];
+} {
+  const metadata = asRecord(record.capability_metadata);
+  return {
+    requiredSkillIds: asStringArray(metadata?.required_skill_ids),
+    optionalSkillRefs: asStringArray(metadata?.optional_skill_refs)
+  };
+}
+
+function packageReadiness(record: Record<string, unknown>, installed: boolean | null): AgentPackageReadinessRef {
+  const readiness = asRecord(record.readiness);
+  const presence = asRecord(record.presence);
+  const present = asOptionalBoolean(presence?.present);
+  const callable = asOptionalBoolean(presence?.callable);
+  const unavailable = installed === false || present === false || callable === false;
+  const available = installed === true && present === true && callable === true;
+  return {
+    status: asString(readiness?.status) ?? "unknown",
+    operationalReady: asOptionalBoolean(readiness?.operational_ready),
+    launchAllowed: asOptionalBoolean(readiness?.launch_allowed),
+    verificationDeferred: asOptionalBoolean(readiness?.verification_deferred),
+    ...(asString(readiness?.reason) ? { reason: asString(readiness?.reason) as string } : {}),
+    ...(asString(readiness?.detail_surface) ? { detailSurface: asString(readiness?.detail_surface) as string } : {}),
+    ...(asString(readiness?.status_read_error) ? { statusReadError: asString(readiness?.status_read_error) as string } : {}),
+    present,
+    callable,
+    selectionStatus: unavailable ? "unavailable" : available ? "available" : "checking",
+    // Unknown launch readiness does not block an ordinary new-conversation selection.
+    selectable: !unavailable
+  };
+}
+
+function packageHomeShortcuts(record: Record<string, unknown>): AgentPackageShortcutRef[] {
+  const preferences = new Map(asRecordArray(record.home_shortcut_preferences).flatMap((preference) => {
+    const shortcutId = firstStringField(preference, ["shortcut_id"]);
+    return shortcutId ? [[shortcutId, preference] as const] : [];
+  }));
+  const shortcuts = asRecordArray(record.home_shortcuts);
+  const projected = shortcuts.flatMap((shortcut, index): AgentPackageShortcutRef[] => {
+    const shortcutId = firstStringField(shortcut, ["shortcut_id"]);
+    if (!shortcutId) return [];
+    const preference = preferences.get(shortcutId);
+    const route = asRecord(shortcut.route);
+    const routeKind = asString(route?.route_kind);
+    const executor = asString(route?.executor);
+    const codexVisibleEntry = asString(route?.codex_visible_entry);
+    preferences.delete(shortcutId);
+    return [{
+      shortcutId,
+      labelI18n: asLocalizedText(shortcut.label_i18n),
+      defaultVisible: asOptionalBoolean(shortcut.default_visible),
+      userConfigurable: asOptionalBoolean(shortcut.user_configurable),
+      visible: asOptionalBoolean(preference?.visible) ?? asOptionalBoolean(shortcut.default_visible) ?? false,
+      sortOrder: asFiniteNumber(preference?.sort_order) ?? asFiniteNumber(shortcut.sort_order) ?? index,
+      ...(routeKind && executor && codexVisibleEntry
+        ? { route: { routeKind, executor, codexVisibleEntry } }
+        : {})
+    }];
+  });
+  const preferenceOnly = Array.from(preferences.values()).flatMap((preference): AgentPackageShortcutRef[] => {
+    const shortcutId = firstStringField(preference, ["shortcut_id"]);
+    const visible = asOptionalBoolean(preference.visible);
+    const sortOrder = asFiniteNumber(preference.sort_order);
+    if (!shortcutId || visible === null || sortOrder === null) return [];
+    return [{
+      shortcutId,
+      labelI18n: {},
+      defaultVisible: null,
+      userConfigurable: null,
+      visible,
+      sortOrder
+    }];
+  });
+  return [...projected, ...preferenceOnly];
 }
 
 function packageManifestUrl(record: Record<string, unknown>): string | null {
@@ -1468,6 +1629,7 @@ function packageLifecycleActions(
     return [{
       kind,
       semantic,
+      ...(asString(projectedAction.surface) ? { surface: asString(projectedAction.surface) as string } : {}),
       label: packageActionLabel(kind, action?.label ?? actionId),
       status,
       actionId,
@@ -1495,9 +1657,8 @@ function packageLifecycleItem(
   const packageId = packageIdentity(record, 0);
   const publisher = firstStringField(record, ["publisher"]) ?? "unknown";
   const packageRole = firstStringField(record, ["package_role"]) ?? "unknown";
-  const sourceExplanation = asRecord(record.source_explanation);
-  const official = publisher.toLowerCase() === "one-person-lab"
-    || asString(sourceExplanation?.kind) === "first_party_framework_projection";
+  const official = asOptionalBoolean(record.official)
+    ?? publisher.toLowerCase() === "one-person-lab";
   const roleGroup: AgentPackageLifecycleRef["roleGroup"] = packageRole === "standard_agent"
     ? (official ? "agent" : "other")
     : packageRole === "workflow_profile"
@@ -1505,7 +1666,9 @@ function packageLifecycleItem(
       : official
         ? "supporting"
         : "other";
-  const readiness = asRecord(record.readiness);
+  const installed = asOptionalBoolean(record.installed ?? asRecord(record.installed_readiness)?.installed);
+  const readiness = packageReadiness(record, installed);
+  const capabilityMetadata = packageCapabilityMetadata(record);
   const packageCurrentness = asRecord(record.package_currentness);
   const sourceRef = source === "canonical_agent_packages"
     ? "opl app state --profile fast --json#app_state.agent_packages.directory + app_state.agent_packages.status_index"
@@ -1518,14 +1681,7 @@ function packageLifecycleItem(
     packageDisplayRef("Exposure", firstStringField(record, ["home_shortcut_ref", "shortcut_id", "codex_visible_entry", "display_policy"]), "Codex/App exposure ref supplied by App/root."),
     packageDisplayRef("Shortcut preferences", packageFileRef(record, "home_shortcut_preferences_file"), "Physical exposure preferences file surfaced as a ref only.")
   ].filter((item): item is PackageLifecycleDisplayRef => Boolean(item));
-  const homeShortcutRows = asRecordArray(record.home_shortcut_preferences);
-  const homeShortcuts = (homeShortcutRows.length ? homeShortcutRows : [record]).flatMap((shortcut) => {
-    const shortcutId = firstStringField(shortcut, ["shortcut_id"]);
-    const visible = asOptionalBoolean(shortcut.visible);
-    const sortOrder = asFiniteNumber(shortcut.sort_order);
-    if (!shortcutId || visible === null || sortOrder === null) return [];
-    return [{ shortcutId, visible, sortOrder }];
-  });
+  const homeShortcuts = packageHomeShortcuts(record);
   return {
     id: `package-lifecycle-${packageId}`,
     packageId,
@@ -1535,8 +1691,13 @@ function packageLifecycleItem(
     packageRole,
     roleGroup,
     official,
-    installed: asOptionalBoolean(record.installed ?? asRecord(record.installed_readiness)?.installed),
+    displayNameI18n: asLocalizedText(record.display_name_i18n),
+    descriptionI18n: asLocalizedText(record.description_i18n),
+    sessionRoutingSummaryI18n: asLocalizedText(record.session_routing_summary_i18n),
+    ...capabilityMetadata,
+    installed,
     activated: asOptionalBoolean(record.activated),
+    readiness,
     ...(firstStringField(record, ["selected_version", "installed_version", "stable_version"])
       ? { version: firstStringField(record, ["selected_version", "installed_version", "stable_version"]) as string }
       : {}),
@@ -1549,9 +1710,10 @@ function packageLifecycleItem(
       : {}),
     status: source === "legacy_modules_fallback"
       ? "preview_legacy_modules_fallback"
-      : asString(readiness?.status)
-        ?? firstStringField(record, ["lifecycle_status", "status", "install_state", "health_status"])
-        ?? "app_state_projection",
+      : readiness.status !== "unknown"
+        ? readiness.status
+        : firstStringField(record, ["lifecycle_status", "status", "install_state", "health_status"])
+          ?? "app_state_projection",
     summary: source === "canonical_agent_packages"
       ? "Canonical package lifecycle projection from App/root; Workbench only renders refs and action availability."
       : source === "legacy_modules_fallback"
@@ -1564,7 +1726,33 @@ function packageLifecycleItem(
     details: packageLifecycleDetails(record, source),
     statusAxes: packageStatusAxes(record, source),
     actions: packageLifecycleActions(record, actionMap, source),
-    authorityBoundary: "OPL Studio consumes App/root package lifecycle refs and actions only; no executor, package truth, readiness, or release authority is created here."
+    authorityBoundary: "One Person Lab consumes App/root package lifecycle refs and actions only; no executor, package truth, readiness, or release authority is created here."
+  };
+}
+
+export function agentPackageSelectionIntent(agent: AgentPackageLifecycleRef): AgentPackageSelectionIntent {
+  const shortcut = agent.homeShortcuts.find((candidate) => candidate.route);
+  return {
+    kind: "agent_package_selection",
+    selectionId: `agent-package:${agent.packageId}`,
+    packageId: agent.packageId,
+    label: agent.label,
+    description: agent.description,
+    publisher: agent.publisher,
+    displayNameI18n: { ...agent.displayNameI18n },
+    descriptionI18n: { ...agent.descriptionI18n },
+    sessionRoutingSummaryI18n: { ...agent.sessionRoutingSummaryI18n },
+    requiredSkillIds: [...agent.requiredSkillIds],
+    optionalSkillRefs: [...agent.optionalSkillRefs],
+    readiness: { ...agent.readiness },
+    ...(shortcut?.route ? { route: { shortcutId: shortcut.shortcutId, ...shortcut.route } } : {}),
+    actions: agent.actions.map((action) => ({
+      ...action,
+      payload: { ...action.payload },
+      requiredPayloadFields: [...action.requiredPayloadFields]
+    })),
+    ...(agent.recommendedActionId ? { recommendedActionId: agent.recommendedActionId } : {}),
+    sourceRef: agent.sourceRef
   };
 }
 

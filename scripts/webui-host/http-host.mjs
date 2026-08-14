@@ -4,6 +4,8 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CodexAppServerTransport } from "./app-server-transport.mjs";
+import { createGatewayAccountLogin } from "./gateway-account-login.mjs";
+import { unsupportedNativeAppUpdate } from "./native-app-updater.mjs";
 import { createOplPassthrough } from "./opl-passthrough.mjs";
 import { CodexThreadAdapter, ThreadAdapterError } from "./thread-adapter.mjs";
 
@@ -63,7 +65,7 @@ async function serveStatic(url, res, webRoot) {
       await access(file);
     } catch {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      res.end("<main id=\"root\">OPL Studio WebUI build is unavailable.</main>");
+      res.end("<main id=\"root\">One Person Lab WebUI build is unavailable.</main>");
       return;
     }
   }
@@ -74,6 +76,7 @@ async function serveStatic(url, res, webRoot) {
 export async function createWebUiHost({
   transport = new CodexAppServerTransport({ cwd: process.env.OPL_STUDIO_CODEX_CWD ?? repositoryRoot }),
   opl = createOplPassthrough({ cwd: process.env.OPL_STUDIO_CODEX_CWD ?? repositoryRoot }),
+  gatewayAccountLogin = createGatewayAccountLogin({ cwd: process.env.OPL_STUDIO_CODEX_CWD ?? repositoryRoot }),
   webRoot = path.join(repositoryRoot, "dist", "webui")
 } = {}) {
   const threads = new CodexThreadAdapter(transport);
@@ -154,6 +157,32 @@ export async function createWebUiHost({
         const request = await body(req);
         const response = await transport.sendMessage(request);
         json(res, 200, response);
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/turns/steer") {
+        json(res, 200, await transport.steerMessage(await body(req)));
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/turns/interrupt") {
+        json(res, 200, await transport.interruptMessage(await body(req)));
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/opl-runtime/gateway-account-login") {
+        json(res, 200, await gatewayAccountLogin(await body(req)));
+        return;
+      }
+      if (req.method === "GET" && url.pathname === "/api/native-app-update/status") {
+        json(res, 200, unsupportedNativeAppUpdate("status"));
+        return;
+      }
+      const nativeUpdaterOperation = new Map([
+        ["/api/native-app-update/check", "check"],
+        ["/api/native-app-update/apply", "apply"],
+        ["/api/native-app-update/restart", "restart"]
+      ]).get(url.pathname);
+      if (req.method === "POST" && nativeUpdaterOperation) {
+        await body(req);
+        json(res, 200, unsupportedNativeAppUpdate(nativeUpdaterOperation));
         return;
       }
 

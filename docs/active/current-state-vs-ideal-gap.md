@@ -10,16 +10,24 @@ authority, release adoption, or production readiness.
 
 ## Target State
 
-Studio is the thin, maintainable first-party implementation of the lightweight
-OPL GUI direction: one React renderer, Swift/AppKit +
-WKWebView on macOS, and a Node HTTP/SSE OPL Workspace host. Both start Codex CLI
-App Server directly and consume Framework state/action contracts without
-AionUI/AionCore, a multi-backend abstraction, or a second thread/session store.
+Studio is the internal repository and development codename for the thin,
+maintainable first-party implementation of the One Person Lab Native GUI. The
+product UI presents only `One Person Lab`. It directly reuses the pinned
+DeepSeek Harness App frame, navigation, conversation, composer, Settings,
+theme, and queue source as its visual and interaction baseline, then composes
+OPL-owned capabilities through typed contribution boundaries.
 
-Studio development is required against the App-owned minimum-complete product
-contract. It is not a full AionUI parity program, scheduled workstream, release
-blocker, or cross-platform delivery owner. AionUI remains the active release
-shell. Release adoption still requires separate App-owner qualification.
+The implementation has one React renderer, Swift/AppKit + WKWebView on macOS,
+and a Node HTTP/SSE OPL Workspace host. Both start Codex CLI App Server directly
+and consume Framework state/action contracts without AionUI/AionCore, a
+multi-backend abstraction, or a second thread/session store.
+
+Native development is required against the App-owned minimum-complete product
+contract. It must preserve the necessary user outcomes of the current AionUI
+mainline, but inherited AionUI provider, Team, AionCore, second scheduler, and
+custom assistant-catalog surfaces are not parity targets. AionUI remains the
+active release shell until Native is complete, passes separate App-owner
+release admission, and is explicitly adopted.
 
 ## Current State Summary
 
@@ -30,7 +38,9 @@ shell. Release adoption still requires separate App-owner qualification.
 | Product work policy | `active_product_development_release_admission_separate` | Minimum-complete OPL outcomes are required; full AionUI parity and implicit release are not |
 | Current mainline | `false` | AionUI remains the only mainline until Studio completes and passes separate release qualification |
 | Product completion obligation | `true` | Minimum-complete Native gaps enter the App development backlog without blocking the current AionUI release |
-| Renderer/hosts | `source_implemented_candidate_evidence` | Native macOS and Workspace evaluate one OPL renderer/bridge shape; live equivalence is not proven |
+| DSH GUI baseline | `pinned_source_reuse_implemented` | App frame, navigation, conversation, composer, Settings, theme, and queue are reused from the pinned MIT upstream source; OPL features enter through composition/adapters |
+| Product brand | `one_person_lab_only` | `OPL Studio` remains an internal repo/codename and is not a user-facing product brand or logo |
+| Renderer/hosts | `source_implemented_candidate_evidence` | Native macOS and Workspace evaluate one OPL renderer/bridge shape; packaged and Web smoke pass, but release-cohort equivalence is not proven |
 | macOS host | `swift_appkit_wkwebview` | Electron is not required or packaged for the candidate |
 | Workspace host | `node_http_sse` | Candidate WebUI starts Codex App Server directly; no Electron/AionCore or Desktop database |
 | Cross-platform delivery | `not_candidate_obligation` | Electron/Tauri selection and Windows/Linux acceptance require a future owner decision |
@@ -42,6 +52,12 @@ shell. Release adoption still requires separate App-owner qualification.
 | Codex subagents | `read_only_app_server_projection` | Lineage, role, nickname, source kind, tool-call, and activity items are displayed without owning scheduling |
 | Private cross-thread layer | `removed_non_goal` | No proposal/dispatch/wait protocol, host queue, ledger, bilateral receipt, or dynamic-tool bridge remains |
 | OPL state/actions | `app_framework_consumer` | Reads App state and dispatches owner action refs; no internal-state or package-truth ownership |
+| Conversation | `chat_first_with_on_demand_detail` | Primary surface is the DSH conversation; run status, roadmap/detail contributions, files, and results open on demand instead of becoming static home cards |
+| Standard Agents | `typed_dynamic_selection` | Composer separates OPL-owned `standard_agent` packages from skills/plugins/connections and requires selectable readiness plus a real Codex route |
+| Active turn | `direct_steer_with_renderer_queue` | Active submissions use Codex `turn/steer`; the DSH queue is temporary renderer state and is not a second persistent scheduler or queue |
+| Settings | `minimum_complete_control_plane_wired` | Account/Gateway, model, resources, working directory, storage, Agents, capabilities, instructions, services, updates, diagnostics, preferences, and About consume typed owner actions |
+| Updates | `separate_app_base_packages_model` | Base and Packages use Framework managed-update actions; App update uses the native-host updater ABI and currently reports truthful carrier unavailability |
+| Run detail | `identity_scoped_composition` | Agent activity, work status, runtime detail, files, and results are scoped to the active thread/work item; unknown modules degrade locally |
 | Local launcher | `implemented_candidate_path` | Isolated bundle; actions dry-run-only by default |
 | Validation | `repo_native_structural_gates_present` | Tests/build/package/smoke prove only their exact candidate layers |
 | Adoption and readiness | `false` | No active-shell adoption, release, clean-VM, domain, owner-acceptance, or production claim |
@@ -51,7 +67,9 @@ shell. Release adoption still requires separate App-owner qualification.
 | Gap | Class | Owner route | Stop condition |
 | --- | --- | --- | --- |
 | App contract currentness must be re-read before any change | `structural_currentness_gate` | App contracts and GUI docs | Stop if the candidate write set conflicts with a newer App decision or active owner lane |
-| Minimum-complete Settings/update closure | `product_completion_gate` | App profile and Studio implementation | Close Agent management plus separate App/Base/Packages update state, actions, and readback before Native release admission |
+| Native App update carrier is not packaged | `release_admission_p0` | App release producer plus Native host/package owner | Produce a dedicated signed/notarized Native artifact and signed feed, integrate one native updater engine, and prove check/download/apply/restart/version readback; do not consume the active AionUI `latest-mac.yml` |
+| Framework producer must reach canonical SSOT | `cross_repo_integration_gate` | Framework UI contribution and managed-update producer | Fresh-replay Base check/apply, `runtime.detail`, disabled-package filtering, and standard-Agent route projection, then pass producer-consumer conformance |
+| App product SSOT must absorb the final baseline | `cross_repo_integration_gate` | App contracts/docs/tests | Keep necessary-outcome parity, Agent admission, Settings destinations, update ownership, and AionUI-to-Native adoption conditions aligned with the tested candidate |
 | Windows/Linux wrapper is not selected | `future_product_decision_not_candidate_gap` | Future cross-platform carrier owner | Do not add Electron/Tauri or claim support in this candidate task |
 | Adoption, clean-VM, same-cohort live parity, and release proof are absent | `non_blocking_candidate_evidence_gap` | App release owner and owning runtime/release surfaces | Do not promote docs/tests/package/local smoke to readiness; absence does not block App mainline |
 
@@ -66,10 +84,12 @@ does not depend on Team mode.
 
 ### Goal
 
-For Native product development, close the smallest remaining minimum-complete
-outcome against current App contracts while preserving the Codex-only
-thin-consumer boundary. Do not create an AionUI parity program, speculative
-multi-backend framework, or cross-platform delivery workstream.
+For Native product development, close the native updater release-admission
+slice and the remaining cross-repository producer/consumer admission against
+current App contracts while preserving the Codex-only thin-consumer boundary.
+Do not reproduce AionUI-only inherited surfaces, create a speculative
+multi-backend framework, or start an unrelated cross-platform delivery
+workstream.
 
 ### Write Scope
 
@@ -109,16 +129,18 @@ multi-backend framework, or cross-platform delivery workstream.
 
 ### Required Actions
 
-1. Select one minimum-complete user outcome and its focused acceptance surface;
-   release adoption or a new platform additionally requires its App contract delta.
-2. Classify the requested delta as App product truth, Framework contract,
-   candidate implementation, or evidence-only work.
-3. Update the owner surface first, then the smallest candidate implementation
-   and focused tests.
-4. Preserve App state/action, Codex thread, package, domain, and false-ready
-   boundaries.
-5. Remove or rewrite any closed gap here and keep historical implementation
-   detail out of active docs.
+1. Land Framework Base update, `runtime.detail`, disabled-package filtering,
+   and standard-Agent route projection on fresh canonical `main`.
+2. Run Framework-to-Native producer-consumer conformance and verify that only
+   selectable OPL standard Agents with a real Codex route enter the dedicated
+   composer group.
+3. Absorb the tested Native and App contract bytes to their canonical `main`
+   branches and read back exact remote commits/trees.
+4. Treat the Native signed updater carrier as the only remaining release-
+   admission implementation slice; keep `native_updater_not_packaged` truthful
+   until that carrier and post-restart version proof exist.
+5. Preserve App state/action, Codex thread, package, domain, and false-ready
+   boundaries, and keep AionUI active until explicit adoption.
 
 ### Verification Commands
 

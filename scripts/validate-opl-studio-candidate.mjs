@@ -338,11 +338,21 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
     ["SidebarRoot", "@opl-vendor/dsh-sidebar-root"],
     ["ConversationRoot", "@opl-vendor/dsh-conversation-root"],
     ["InputBar", "@opl-vendor/dsh-input-bar"],
+    ["QueueDock", "@opl-vendor/dsh-queue-dock"],
     ["SettingsRoot", "@opl-vendor/dsh-settings-root"]
   ]) {
     assert(slotHost.includes(`import { ${component} } from "${moduleName}"`), `missing direct ${component} vendor import`);
     assert(slotHost.includes(`<${component}`), `missing live ${component} render`);
   }
+  assert(slotHost.includes("updateQueue={studio.updateQueue}"), "DSH QueueDock must use the Studio queue update surface");
+  assert(
+    slotHost.includes('register({ name: "conversation.input.dock", id: "queue", order: 20, registrant: "dsh-ui-conversation" }, QueueDockSlot)'),
+    "DSH QueueDock must occupy the ordered conversation input dock slot"
+  );
+  assert(
+    /bridge\.steerTurn\(\{\s*threadId: active\.threadId,\s*expectedTurnId: active\.turnId,/s.test(appSource),
+    "queued follow-ups must steer the exact active Codex thread and turn"
+  );
   for (const marker of ["return renderShell({", "workspaceRail: studioWorkspaceRail", "conversationBody: studioConversationBody", "renderSettings: renderStudioSettings", "detailsRequestRevision"]) {
     assert(appSource.includes(marker), `missing App-to-DSH surface handoff marker ${marker}`);
   }
@@ -466,7 +476,12 @@ function assertCodexModelControls(evidence, app, rendererSource) {
   assert(app.includes("resolveCodexModelOptions(codexCatalog)"), "renderer must filter fixed alternatives through the app-server catalog");
   assert(app.includes("setCodexCatalog(catalog.models)") && app.includes("setCodexCatalog([])"), "renderer must retain the App default route when model catalog discovery is empty or unavailable");
   assert(policySource.includes("available: isAppDefault"), "model/list must not veto the App default route");
-  assert(app.includes('if ((!text && !pendingSelections.length) || sendState === "running" || !resolvedModel) return;'), "composer must require text or selected inputs and block unavailable fixed selections before turn/start");
+  assert(app.includes('if ((!text && !pendingSelections.length) || !resolvedModel) return;'), "composer must require text or selected inputs and block unavailable fixed selections before turn/start");
+  assert(
+    app.includes('if (sendState === "running")')
+      && app.includes("replaceEphemeralQueue(ephemeralQueueRef.current.concat(item))"),
+    "composer submissions during an active turn must enter the DSH queue"
+  );
   assert(app.includes("conversationModelLabel(") && app.includes("resolvedConversationModelLabel"), "composer model control must use the tested resolved-label policy");
   assert(app.includes('<option value="__auto">{resolvedConversationModelLabel}</option>'), "composer Auto must display the resolved model without an Auto prefix");
   assert(app.includes('value="__auto"'), "Settings must expose Auto model restoration");

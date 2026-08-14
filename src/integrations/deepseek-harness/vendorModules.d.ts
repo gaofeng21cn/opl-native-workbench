@@ -14,6 +14,10 @@ declare module "@opl-vendor/dsh-input-bar" {
   export const InputBar: (props: any) => JSX.Element;
 }
 
+declare module "@opl-vendor/dsh-queue-dock" {
+  export const QueueDock: (props: any) => JSX.Element;
+}
+
 declare module "@opl-vendor/dsh-settings-root" {
   export const SettingsRoot: (props: any) => JSX.Element;
 }

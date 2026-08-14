@@ -16,7 +16,7 @@ import {
 } from "./opl-studio-gates.mjs";
 
 const root = path.resolve(new URL("..", import.meta.url).pathname);
-const appName = "One Person Lab Studio Preview";
+const appName = "One Person Lab Preview";
 const appRoot = path.join(root, "out", `${appName}.app`);
 const macOsDir = path.join(appRoot, "Contents", "MacOS");
 const contentsDir = path.join(appRoot, "Contents");
@@ -110,7 +110,7 @@ const manifest = {
   bundle_identity: {
     display_name: appName,
     bundle_id: "cn.gflab.opl.studio.preview",
-    installed_app_path: "/Applications/One Person Lab Studio Preview.app",
+    installed_app_path: "/Applications/One Person Lab Preview.app",
     isolated_from_active_mainline_bundle_id: "cn.onepersonlab.opl",
     active_mainline_installed_app_path: "/Applications/One Person Lab.app"
   },

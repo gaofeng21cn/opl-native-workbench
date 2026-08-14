@@ -3,7 +3,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const root = path.resolve(new URL("..", import.meta.url).pathname);
-const appName = "One Person Lab Studio Preview";
+const appName = "One Person Lab Preview";
 const appPath = path.resolve(process.env.OPL_STUDIO_APP_PATH ?? path.join(root, "out", `${appName}.app`));
 const executablePath = path.join(appPath, "Contents", "MacOS", appName);
 const plistPath = path.join(appPath, "Contents", "Info.plist");
@@ -130,12 +130,12 @@ function waitForWindow(pid) {
   const startedAt = Date.now();
   const deadline = startedAt + 20_000;
   let evidence = windowEvidence(pid);
-  let coreGraphicsWindowId = evidence.status === "checked" ? null : windowIdForProcess(pid);
+  let coreGraphicsWindowId = evidence.window_count > 0 ? null : windowIdForProcess(pid);
   while (Date.now() < deadline && evidence.window_count < 1) {
     if (coreGraphicsWindowId) break;
     run("/bin/sleep", ["0.25"]);
     evidence = windowEvidence(pid);
-    if (evidence.status !== "checked") coreGraphicsWindowId = windowIdForProcess(pid);
+    if (evidence.window_count < 1) coreGraphicsWindowId = windowIdForProcess(pid);
   }
   return {
     ...evidence,
@@ -178,8 +178,8 @@ function readScreenshotMarkers() {
     "request.usesLanguageCorrection = false",
     "try VNImageRequestHandler(cgImage: cgImage).perform([request])",
     "let text = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: \" \" )",
-    "let hasBrand = text.localizedCaseInsensitiveContains(\"OPL Studio\")",
-    "let hasModel = text.localizedCaseInsensitiveContains(\"5.6 Sol\")",
+    "let hasBrand = text.localizedCaseInsensitiveContains(\"One Person Lab\")",
+    "let hasModel = text.localizedCaseInsensitiveContains(\"5.6\")",
     "print(\"brand=\\(hasBrand ? 1 : 0);model=\\(hasModel ? 1 : 0)\")"
   ].join("\n");
   const result = run("/usr/bin/swift", ["-e", source, screenshotPath]);
@@ -219,7 +219,7 @@ function captureScreenshot(pid) {
           screenshot_path: path.relative(root, screenshotPath),
           screenshot_bytes: fs.statSync(screenshotPath).size,
           screenshot_window_id: windowId,
-          screenshot_markers: ["OPL Studio", "5.6 Sol"],
+          screenshot_markers: ["One Person Lab", "5.6"],
           screenshot_semantics: "global Codex project names are allowed because the directory shares the canonical state DB overview"
         };
       }

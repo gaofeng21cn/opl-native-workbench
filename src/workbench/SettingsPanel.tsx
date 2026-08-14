@@ -29,7 +29,18 @@ import {
   type ResolvedCodexModelOption
 } from "./modelPolicy";
 import type { SettingKey, WorkbenchSettings } from "./settingsModel";
+import {
+  actionPayloadComplete,
+  buildSettingsActionViewModel,
+  type GatewayActionViewModel,
+  type SettingsExecutableIntent,
+  type SettingsActionRequest,
+  type SettingsHostActionIntent,
+  type SettingsActionViewModel
+} from "./settingsActions";
 import { AppearanceRow } from "../vendor/deepseek-harness/packages/client/ui-theme/src/client/AppearanceRow";
+
+export type { SettingsActionRequest } from "./settingsActions";
 
 declare module "@deepseek-ai/dsh-client-ui-slots" {
   interface LocaleNamespaceMap {
@@ -65,6 +76,7 @@ type SettingsGroupId =
 type SettingsPanelProps = {
   model: WorkbenchModel;
   managedUpdate: ManagedUpdateProjection | null;
+  actionViewModel?: SettingsActionViewModel;
   settings: WorkbenchSettings;
   modelOptions: ResolvedCodexModelOption[];
   resolvedModel?: ResolvedCodexModelOption;
@@ -77,20 +89,14 @@ type SettingsPanelProps = {
   onSettingChange: <Key extends keyof WorkbenchSettings>(key: Key, value: WorkbenchSettings[Key]) => void;
   onReasoningChange: (reasoning: WorkbenchSettings["reasoningLevel"]) => void;
   onAction: (request: SettingsActionRequest) => void;
+  onHostAction?: (intent: SettingsHostActionIntent) => void;
+  onGatewayLogin?: (credentials: { email: string; password: string; deviceLabel?: string }) => Promise<boolean>;
   actionBusyKey: string | null;
   actionFeedback: SettingsActionFeedback | null;
   pendingConfirmation: SettingsActionConfirmation | null;
   onConfirmAction: () => void;
   onCancelAction: () => void;
   contributions?: ReactNode;
-};
-
-export type SettingsActionRequest = {
-  key: string;
-  actionId: string;
-  label: string;
-  payload: Record<string, unknown>;
-  confirmationRequired: boolean;
 };
 
 export type SettingsActionFeedback = {
@@ -354,13 +360,6 @@ function packageActionLabel(action: PackageLifecycleActionRef, locale: Workbench
     other: [action.label, action.label]
   };
   return labels[action.kind][locale === "zh" ? 0 : 1];
-}
-
-function actionPayloadComplete(payload: Record<string, unknown>, requiredFields: string[]): boolean {
-  return requiredFields.every((field) => {
-    const alternatives = field.split(/\s+or\s+/i).map((item) => item.trim()).filter(Boolean);
-    return alternatives.some((key) => payload[key] !== undefined && payload[key] !== null && payload[key] !== "");
-  });
 }
 
 function PackageCatalog({
@@ -627,23 +626,72 @@ function RuntimeActionButton({
   );
 }
 
+function settingsIntentLabel(intent: SettingsExecutableIntent, locale: WorkbenchSettings["locale"]): string {
+  if (intent.transport !== "app_action") return intent.label;
+  const semanticLabels: Record<string, [string, string]> = {
+    refresh: ["刷新", "Refresh"],
+    disconnect: ["断开连接", "Disconnect"],
+    repair: ["修复", "Repair"],
+    complete_setup: ["完成设置", "Complete setup"],
+    use_for_model_access: ["设为模型访问方式", "Use for model access"]
+  };
+  return (intent.semantic ? semanticLabels[intent.semantic]?.[locale === "zh" ? 0 : 1] : undefined) ?? intent.label;
+}
+
+function SettingsIntentButton({
+  intent,
+  locale,
+  busyKey,
+  onAction,
+  onHostAction,
+  primary = false
+}: {
+  intent?: SettingsExecutableIntent;
+  locale: WorkbenchSettings["locale"];
+  busyKey: string | null;
+  onAction: (request: SettingsActionRequest) => void;
+  onHostAction?: (intent: SettingsHostActionIntent) => void;
+  primary?: boolean;
+}) {
+  if (!intent || intent.availability !== "ready" || (intent.transport !== "app_action" && !onHostAction)) return null;
+  const label = settingsIntentLabel(intent, locale);
+  const isRefresh = intent.transport === "app_action"
+    ? intent.semantic === "refresh" || intent.semantic === "status" || intent.semantic === "check"
+    : intent.operation === "status" || intent.operation === "check";
+  return (
+    <button
+      className={`settings-action-button ${primary ? "primary" : ""}`}
+      type="button"
+      disabled={busyKey !== null}
+      onClick={() => intent.transport === "app_action" ? onAction(intent) : onHostAction?.(intent)}
+    >
+      {busyKey === intent.key
+        ? <LoaderCircle className="spin" aria-hidden="true" size={13} />
+        : isRefresh ? <RefreshCw aria-hidden="true" size={13} /> : <Play aria-hidden="true" size={13} />}
+      {label}
+    </button>
+  );
+}
+
 function ManagedUpdateGroup({
   component,
   fallbackLabel,
   managedChannel,
-  action,
+  actions,
   locale,
   busyKey,
   onAction,
+  onHostAction,
   unavailableActionLabel
 }: {
   component?: ManagedUpdateComponentRef;
   fallbackLabel: string;
   managedChannel?: string;
-  action?: RuntimeMaintenanceActionRef;
+  actions: SettingsExecutableIntent[];
   locale: WorkbenchSettings["locale"];
   busyKey: string | null;
   onAction: (request: SettingsActionRequest) => void;
+  onHostAction?: (intent: SettingsHostActionIntent) => void;
   unavailableActionLabel?: string;
 }) {
   const version = component?.installedVersion
@@ -654,12 +702,17 @@ function ManagedUpdateGroup({
   const autoPolicy = component?.autoApplyMode
     ?? (component?.autoApplyEligible === true ? (locale === "zh" ? "符合自动更新条件" : "Eligible")
       : component?.autoApplyEligible === false ? (locale === "zh" ? "手动" : "Manual") : "--");
+  const renderableActions = actions.filter((intent) => (
+    intent.availability === "ready" && (intent.transport === "app_action" || Boolean(onHostAction))
+  ));
   return (
     <SettingsGroup title={component?.label ?? fallbackLabel}>
       <SettingRow label={locale === "zh" ? "状态" : "Status"} detail={component?.guidance ?? component?.summary}>
         <span className="runtime-setting-control">
           <StatusValue status={component?.state} locale={locale} />
-          {action ? <RuntimeActionButton action={action} locale={locale} busyKey={busyKey} onAction={onAction} /> : <span className="settings-muted">{unavailableActionLabel ?? "--"}</span>}
+          {renderableActions.length
+            ? renderableActions.map((intent) => <SettingsIntentButton key={intent.key} intent={intent} locale={locale} busyKey={busyKey} onAction={onAction} onHostAction={onHostAction} />)
+            : <span className="settings-muted">{unavailableActionLabel ?? "--"}</span>}
         </span>
       </SettingRow>
       <SettingRow label={locale === "zh" ? "版本" : "Version"}><span>{version}</span></SettingRow>
@@ -672,6 +725,7 @@ function ManagedUpdateGroup({
 export function SettingsPanel({
   model,
   managedUpdate,
+  actionViewModel: projectedActionViewModel,
   settings,
   modelOptions,
   resolvedModel,
@@ -684,6 +738,8 @@ export function SettingsPanel({
   onSettingChange,
   onReasoningChange,
   onAction,
+  onHostAction,
+  onGatewayLogin,
   actionBusyKey,
   actionFeedback,
   pendingConfirmation,
@@ -698,6 +754,11 @@ export function SettingsPanel({
   const projection = model.settingsProjection;
   const runtime = model.runtimeOverview;
   const gateway = model.gatewayAccount;
+  const [gatewayEmail, setGatewayEmail] = useState("");
+  const [gatewayPassword, setGatewayPassword] = useState("");
+  const [gatewayDeviceLabel, setGatewayDeviceLabel] = useState("");
+  const derivedActionViewModel = useMemo(() => buildSettingsActionViewModel(model, managedUpdate), [managedUpdate, model]);
+  const actionViewModel = projectedActionViewModel ?? derivedActionViewModel;
   const availableStarters = model.starters.filter((starter) => starter.available).length;
   const unavailableFixedModel = settings.modelAccess !== "__auto" && !resolvedModel;
   const stateLoading = stateStatus === "loading";
@@ -716,6 +777,7 @@ export function SettingsPanel({
       ? (settings.locale === "zh" ? "请刷新状态后重试" : "Refresh state to retry")
       : "OPL Gateway";
   const readbackStatus = stateLoading ? "loading" : stateFailed ? "attention_needed" : "ready";
+  const gatewayAction = (kind: GatewayActionViewModel["kind"]) => actionViewModel.gatewayActions.find((action) => action.kind === kind);
 
   function settingValueLabel(key: SettingKey, value: WorkbenchSettings[SettingKey]): string {
     if (key === "modelAccess") return value === "__auto" ? (settings.locale === "zh" ? "自动" : "Auto") : modelLabel(value as string, settings.locale);
@@ -812,15 +874,63 @@ export function SettingsPanel({
     }
 
     if (activeDestination === "account") {
+      const refreshAction = gatewayAction("refresh");
+      const disconnectAction = gatewayAction("disconnect");
+      const exceptionActions = actionViewModel.gatewayActions.filter((action) => (
+        action.availability === "ready" && action.kind !== "refresh" && action.kind !== "disconnect"
+      ));
+      const gatewayLoginVisible = Boolean(onGatewayLogin) && (!gateway || gateway.status === "reauth_required" || gateway.status === "setup_required");
       return (
         <>
+          {gatewayLoginVisible ? (
+            <form
+              className="gateway-login-form"
+              data-testid="opl-settings-gateway-login"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!onGatewayLogin || !gatewayEmail.trim() || !gatewayPassword) return;
+                const password = gatewayPassword;
+                setGatewayPassword("");
+                void onGatewayLogin({
+                  email: gatewayEmail.trim(),
+                  password,
+                  ...(gatewayDeviceLabel.trim() ? { deviceLabel: gatewayDeviceLabel.trim() } : {})
+                }).then((ok) => {
+                  if (ok) {
+                    setGatewayEmail("");
+                    setGatewayDeviceLabel("");
+                  }
+                });
+              }}
+            >
+              <label>
+                <span>{settings.locale === "zh" ? "邮箱" : "Email"}</span>
+                <input type="email" autoComplete="username" value={gatewayEmail} onChange={(event) => setGatewayEmail(event.currentTarget.value)} required />
+              </label>
+              <label>
+                <span>{settings.locale === "zh" ? "密码" : "Password"}</span>
+                <input type="password" autoComplete="current-password" value={gatewayPassword} onChange={(event) => setGatewayPassword(event.currentTarget.value)} required />
+              </label>
+              <label>
+                <span>{settings.locale === "zh" ? "设备名称" : "Device name"}</span>
+                <input value={gatewayDeviceLabel} onChange={(event) => setGatewayDeviceLabel(event.currentTarget.value)} />
+              </label>
+              <button className="settings-action-button primary" type="submit" disabled={actionBusyKey !== null || !gatewayEmail.trim() || !gatewayPassword}>
+                {actionBusyKey === "gateway:login" ? <LoaderCircle className="spin" aria-hidden="true" size={13} /> : <Play aria-hidden="true" size={13} />}
+                {settings.locale === "zh" ? "登录" : "Sign in"}
+              </button>
+            </form>
+          ) : null}
           <div className="gateway-identity">
             <span className="settings-avatar large" aria-hidden="true">{gatewayAccountInitials(gateway?.displayName)}</span>
             <span>
               <strong data-testid="opl-settings-gateway-username">{gateway?.displayName ?? missingGatewayLabel}</strong>
               <small>{gateway?.email ?? missingGatewayDetail}</small>
             </span>
-            <StatusValue status={gateway?.status ?? (stateLoading ? "loading" : stateFailed ? "attention_needed" : undefined)} locale={settings.locale} />
+            <span className="runtime-setting-control">
+              <StatusValue status={gateway?.status ?? (stateLoading ? "loading" : stateFailed ? "attention_needed" : undefined)} locale={settings.locale} />
+              <SettingsIntentButton intent={disconnectAction} locale={settings.locale} busyKey={actionBusyKey} onAction={onAction} />
+            </span>
           </div>
           <SettingsGroup title={settings.locale === "zh" ? "账户" : "Account"}>
             <SettingRow label={settings.locale === "zh" ? "账户状态" : "Account status"}><StatusValue status={gateway?.accountStatus ?? gateway?.status} locale={settings.locale} /></SettingRow>
@@ -831,9 +941,21 @@ export function SettingsPanel({
           <SettingsGroup title={settings.locale === "zh" ? "此设备" : "This device"}>
             <SettingRow label={settings.locale === "zh" ? "设备" : "Device"}><span>{gateway?.installation?.deviceLabel ?? "--"}{gateway?.installation?.shortId ? ` · ${gateway.installation.shortId}` : ""}</span></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "托管 Key" : "Managed key"}><span>{gateway?.managedKey?.name ?? "--"}{gateway?.managedKey?.status ? ` · ${formatStatus(gateway.managedKey.status, settings.locale)}` : ""}</span></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "最近刷新" : "Last refresh"} detail={gateway?.freshness?.stale ? (settings.locale === "zh" ? "数据可能已过期" : "Data may be stale") : undefined}><span>{formatDate(gateway?.freshness?.observedAt, locale)}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "最近刷新" : "Last refresh"} detail={gateway?.freshness?.stale ? (settings.locale === "zh" ? "数据可能已过期" : "Data may be stale") : undefined}>
+              <span className="runtime-setting-control">
+                <span>{formatDate(gateway?.freshness?.observedAt, locale)}</span>
+                <SettingsIntentButton intent={refreshAction} locale={settings.locale} busyKey={actionBusyKey} onAction={onAction} />
+              </span>
+            </SettingRow>
+            {exceptionActions.length ? (
+              <SettingRow label={settings.locale === "zh" ? "账户操作" : "Account actions"}>
+                <span className="runtime-setting-control">
+                  {exceptionActions.map((intent) => <SettingsIntentButton key={intent.key} intent={intent} locale={settings.locale} busyKey={actionBusyKey} onAction={onAction} primary />)}
+                </span>
+              </SettingRow>
+            ) : null}
           </SettingsGroup>
-          <button className="settings-command" type="button" onClick={onRefresh}><RefreshCw aria-hidden="true" size={14} />{settings.locale === "zh" ? "刷新状态" : "Refresh status"}</button>
+          {!refreshAction ? <button className="settings-command" type="button" onClick={onRefresh}><RefreshCw aria-hidden="true" size={14} />{settings.locale === "zh" ? "刷新状态" : "Refresh status"}</button> : null}
         </>
       );
     }
@@ -975,14 +1097,9 @@ export function SettingsPanel({
     }
 
     if (activeDestination === "updates") {
-      const runtimeActions = runtime?.maintenanceActions ?? [];
-      const appAction = runtimeActions.find((action) => action.actionId === "settings_check_app_update");
-      const packagesAction = runtimeActions.find((action) => action.actionId === "settings_apply_opl_packages");
-      const component = (componentId: string) => managedUpdate?.components.find((item) => item.componentId === componentId);
-      const additionalActions = runtimeActions.filter((action) => ![
-        "settings_check_app_update",
-        "settings_apply_opl_packages"
-      ].includes(action.actionId) && !action.actionId.startsWith("provider_") && actionPayloadComplete(action.payload, action.requiredPayloadFields));
+      const component = (componentId: "opl_app" | "opl_base" | "opl_packages") => (
+        actionViewModel.managedUpdates.find((item) => item.componentId === componentId)
+      );
       return (
         <>
           <div className="settings-page-summary">
@@ -990,38 +1107,44 @@ export function SettingsPanel({
             <span>{formatDate(model.stateGeneratedAt, locale)}</span>
           </div>
           <ManagedUpdateGroup
-            component={component("opl_app")}
+            component={component("opl_app")?.component}
             fallbackLabel="OPL App"
             managedChannel={managedUpdate?.channel ?? projection?.localEnvironment.releaseChannel ?? projection?.statusSummary.releaseChannel}
-            action={appAction}
+            actions={component("opl_app")?.actions ?? []}
             locale={settings.locale}
             busyKey={actionBusyKey}
             onAction={onAction}
+            onHostAction={onHostAction}
             unavailableActionLabel={settings.locale === "zh" ? "检查动作尚未投影" : "Check action not projected"}
           />
           <ManagedUpdateGroup
-            component={component("opl_base")}
+            component={component("opl_base")?.component}
             fallbackLabel="OPL Base"
             managedChannel={managedUpdate?.channel}
+            actions={component("opl_base")?.actions ?? []}
             locale={settings.locale}
             busyKey={actionBusyKey}
             onAction={onAction}
+            onHostAction={onHostAction}
             unavailableActionLabel={settings.locale === "zh" ? "owner 尚未提供可执行动作" : "Owner action not yet projected"}
           />
           <ManagedUpdateGroup
-            component={component("opl_packages")}
+            component={component("opl_packages")?.component}
             fallbackLabel={settings.locale === "zh" ? "OPL 能力包" : "OPL Packages"}
             managedChannel={managedUpdate?.channel}
-            action={packagesAction}
+            actions={component("opl_packages")?.actions ?? []}
             locale={settings.locale}
             busyKey={actionBusyKey}
             onAction={onAction}
+            onHostAction={onHostAction}
             unavailableActionLabel={settings.locale === "zh" ? "更新动作尚未投影" : "Update action not projected"}
           />
-          {additionalActions.length ? (
+          {actionViewModel.additionalMaintenanceActions.some((intent) => (
+            intent.availability === "ready" && (intent.transport === "app_action" || Boolean(onHostAction))
+          )) ? (
             <details className="settings-advanced-actions">
               <summary>{settings.locale === "zh" ? "更多维护操作" : "More maintenance actions"}<ChevronDown aria-hidden="true" size={14} /></summary>
-              <div>{additionalActions.map((action) => <RuntimeActionButton key={action.actionId} action={action} locale={settings.locale} busyKey={actionBusyKey} onAction={onAction} />)}</div>
+              <div>{actionViewModel.additionalMaintenanceActions.map((intent) => <SettingsIntentButton key={intent.key} intent={intent} locale={settings.locale} busyKey={actionBusyKey} onAction={onAction} onHostAction={onHostAction} />)}</div>
             </details>
           ) : null}
         </>

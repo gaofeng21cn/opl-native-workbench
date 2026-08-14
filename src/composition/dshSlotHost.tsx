@@ -11,6 +11,7 @@ import { AppFrame } from "@opl-vendor/dsh-app-frame";
 import { SidebarRoot } from "@opl-vendor/dsh-sidebar-root";
 import { ConversationRoot } from "@opl-vendor/dsh-conversation-root";
 import { InputBar } from "@opl-vendor/dsh-input-bar";
+import { QueueDock } from "@opl-vendor/dsh-queue-dock";
 import { SettingsRoot } from "@opl-vendor/dsh-settings-root";
 import App from "../workbench/App";
 import { settingsDestinations, type SettingsDestinationId } from "../workbench/SettingsPanel";
@@ -96,6 +97,12 @@ function translate(locale: "zh" | "en", key: string, params?: Record<string, unk
     "context.used": ["上下文用量", "Context usage"], "context.system": ["系统", "System"], "context.tools": ["工具", "Tools"], "context.messages": ["消息", "Messages"],
     "access.confirm.title": ["启用完整权限", "Enable full access"], "access.confirm.description": ["完整权限允许任务修改本机文件。", "Full access allows the task to modify local files."],
     "access.confirm.acknowledge": ["我了解此权限", "I understand this access"], "access.confirm.cancel": ["取消", "Cancel"], "access.confirm.enable": ["启用", "Enable"]
+    , "queue.count": ["{n} 条排队消息", "{n} queued messages"], "queue.edit": ["编辑排队消息", "Edit queued message"],
+    "queue.edit.unsupported": ["包含非文本内容，暂不支持编辑", "Contains non-text content; editing is not supported yet"],
+    "queue.save": ["保存", "Save"], "queue.cancelEdit": ["取消编辑", "Cancel editing"], "queue.remove": ["删除排队消息", "Remove queued message"],
+    "queue.steer": ["插话发送", "Steer queued message"], "queue.steer.unavailable": ["仅运行中可插话发送", "Steering is available only while the agent is running"],
+    "queue.editFailed": ["编辑失败，请重试。", "Editing failed. Try again."], "queue.removeFailed": ["删除失败，请重试。", "Removal failed. Try again."],
+    "queue.steerFailed": ["插话发送失败，请重试。", "Steering failed. Try again."]
   };
   let value = copy[key]?.[locale === "zh" ? 0 : 1] ?? key;
   for (const [name, replacement] of Object.entries(params ?? {})) value = value.replaceAll(`{${name}}`, String(replacement));
@@ -162,7 +169,7 @@ function ConversationSlot({ renderSlot }: { renderSlot: any }) {
   const session = { openState: "open", composerPhase: studio.conversationBlank ? "blank" : "active", pending: [], promptError: null, running: studio.sending, subagent: null, removed: false };
   const sessions = { phase: "ready", current: sessionId, byId: { [sessionId]: { blank: studio.conversationBlank, cwd: studio.workspacePath } } };
   const workspaces = { phase: "ready", items: [{ workspaceId: "opl-workspace", title: studio.projectTitle, sessionIds: [sessionId] }] };
-  const input = { draft: studio.prompt, imageIds: [], draftRev: studio.promptRevision, phase: "plain", occurrences: [], queue: [] };
+  const input = { draft: studio.prompt, imageIds: [], draftRev: studio.promptRevision, phase: "plain", occurrences: [], queue: studio.queue };
   return <ConversationRoot sessionId={sessionId} useSession={(selector: any) => selector(session)} useSessions={(selector: any) => selector(sessions)} useWorkspaces={(selector: any) => selector(workspaces)} useInput={(selector: any) => selector(input)} useComposerBlock={(selector: any) => selector(undefined)} renderSlot={renderSlot} renderSlotChain={(_key: string, _owner: unknown, options: { fallback: ReactNode }) => options.fallback} selectWorkspace={async () => undefined} t={(key: string, params?: Record<string, unknown>) => translate(studio.locale, key, params)} />;
 }
 
@@ -179,14 +186,25 @@ function ComposerModelSlot() { return <>{useStudio().composerModelControls}</>; 
 
 function InputBarSlot({ renderSlot, ...owner }: Record<string, any>) {
   const studio = useStudio();
-  const input = { draft: studio.prompt, imageIds: [], draftRev: studio.promptRevision, phase: "plain", occurrences: [], queue: [] };
+  const input = { draft: studio.prompt, imageIds: [], draftRev: studio.promptRevision, phase: "plain", occurrences: [], queue: studio.queue };
   const keyboard = {
-    snapshot: input, setDraft: studio.updatePrompt, submit: studio.submitPrompt, steerQueue: () => undefined,
+    snapshot: input, setDraft: studio.updatePrompt, submit: studio.submitPrompt, steerQueue: studio.steerQueue,
     undo: () => undefined, redo: () => undefined,
     pasteBegin: (text: string, selection: { start: number; end: number }) => studio.updatePrompt(`${studio.prompt.slice(0, selection.start)}${text}${studio.prompt.slice(selection.end)}`),
     invalidatePaste: () => undefined, track: () => undefined, arbitrate: () => "pass", space: () => false, dismissPopup: () => undefined
   };
-  return <InputBar {...owner} sessionId="opl-current" useSession={(selector: any) => selector({ promptError: null, running: studio.sending, subagent: null, removed: false })} useInput={(selector: any) => selector(input)} inputActions={{ setDraft: studio.updatePrompt, addImages: () => false, removeImage: () => undefined, pruneImages: () => undefined, submit: studio.submitPrompt }} keyboard={keyboard} draftImages={() => []} resolveSubmitMode={() => "append"} toggleCommandMenu={studio.openComposerPalette} stop={studio.stopTurn} t={(key: string, params?: Record<string, unknown>) => translate(studio.locale, key, params)} renderSlot={renderSlot} useNotices={(selector: any) => selector(null)} useLexicon={(selector: any) => selector(new Map())} useMenuLauncher={(selector: any) => selector(undefined)} useProjection={(_key: string, selector?: (value: undefined) => unknown) => selector ? selector(undefined) : undefined} accessory={studio.composerAccessory} />;
+  return <InputBar {...owner} sessionId="opl-current" useSession={(selector: any) => selector({ promptError: null, running: studio.sending, subagent: null, removed: false })} useInput={(selector: any) => selector(input)} inputActions={{ setDraft: studio.updatePrompt, addImages: () => false, removeImage: () => undefined, pruneImages: () => undefined, submit: studio.submitPrompt }} keyboard={keyboard} draftImages={() => []} resolveSubmitMode={(running: boolean, gesture: string) => running && gesture === "accelerated" ? "steer" : "queue"} toggleCommandMenu={studio.openComposerPalette} stop={studio.stopTurn} t={(key: string, params?: Record<string, unknown>) => translate(studio.locale, key, params)} renderSlot={renderSlot} useNotices={(selector: any) => selector(null)} useLexicon={(selector: any) => selector(new Map())} useMenuLauncher={(selector: any) => selector(undefined)} useProjection={(_key: string, selector?: (value: undefined) => unknown) => selector ? selector(undefined) : undefined} accessory={studio.composerAccessory} />;
+}
+
+function QueueDockSlot() {
+  const studio = useStudio();
+  const session = { queue: studio.queue, running: studio.sending, subagent: null };
+  return <QueueDock
+    useSession={(selector: any) => selector(session)}
+    updateQueue={studio.updateQueue}
+    notify={studio.notifyQueue}
+    t={(key: string, params?: Record<string, unknown>) => translate(studio.locale, key, params)}
+  />;
 }
 
 function DetailsSlot() {
@@ -278,6 +296,7 @@ export class OplStudioDshSlotHost {
     register({ name: "conversation.input.overlay", registrant: "opl-studio" }, ComposerOverlaySlot);
     register({ name: "conversation.composer.bar", registrant: "dsh-ui-conversation", children: { "conversation.input.plan": { kind: "single", scope: "root" }, "conversation.input.model": { kind: "single", scope: "root" } } }, InputBarSlot);
     register({ name: "conversation.input.model", registrant: "opl-studio" }, ComposerModelSlot);
+    register({ name: "conversation.input.dock", id: "queue", order: 20, registrant: "dsh-ui-conversation" }, QueueDockSlot);
     register({ name: "conversation.hero.agentPreset", registrant: "opl-studio" }, HeroActionsSlot);
     register({ name: "details", registrant: "opl-studio", children: { "runtime.detail": { kind: "list", scope: "root" } } }, DetailsSlot);
     register({ name: "shell.overlay", id: "opl-studio-overlay", order: 0, registrant: "opl-studio" }, ShellOverlaySlot);

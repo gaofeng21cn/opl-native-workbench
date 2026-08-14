@@ -184,6 +184,168 @@ func runNativeCommand(
   }
 }
 
+let gatewayAccountErrorCodes = Set([
+  "invalid_credentials",
+  "account_disabled",
+  "mfa_or_challenge_required",
+  "session_not_persistable",
+  "group_selection_required",
+  "auth_expired",
+  "network_unreachable",
+  "rate_limited",
+  "managed_key_missing",
+  "managed_key_conflict",
+  "managed_key_identity_drift",
+  "disconnect_pending",
+  "invalid_request",
+  "internal_contract_violation",
+  "gateway_account_failed"
+])
+
+let gatewayAccountErrorAliases = [
+  "credentials_stdin_invalid": "invalid_request",
+  "reauth_required": "auth_expired",
+  "network_timeout": "network_unreachable",
+  "gateway_unavailable": "network_unreachable"
+]
+
+let gatewaySecretFieldNames = Set([
+  "password", "token", "accesstoken", "refreshtoken", "apikey", "key",
+  "keyvalue", "keyplaintext", "plaintextkey", "secret"
+])
+
+func containsGatewaySecretField(_ value: Any) -> Bool {
+  if let values = value as? [Any] {
+    return values.contains(where: containsGatewaySecretField)
+  }
+  guard let record = value as? [String: Any] else { return false }
+  return record.contains { field, nested in
+    let normalized = field.unicodeScalars
+      .filter(CharacterSet.alphanumerics.contains)
+      .map(String.init)
+      .joined()
+      .lowercased()
+    return gatewaySecretFieldNames.contains(normalized) || containsGatewaySecretField(nested)
+  }
+}
+
+func normalizeGatewayAccountErrorCode(_ value: Any?) -> String? {
+  guard let value = value as? String else { return nil }
+  if gatewayAccountErrorCodes.contains(value) { return value }
+  return gatewayAccountErrorAliases[value]
+}
+
+func gatewayAccountErrorCode(_ value: Any?) -> String? {
+  guard let record = value as? [String: Any] else { return nil }
+  let error = record["error"] as? [String: Any]
+  let details = record["details"] as? [String: Any]
+  let errorDetails = error?["details"] as? [String: Any]
+  return [
+    record["error_code"],
+    error?["code"],
+    details?["reason_code"],
+    errorDetails?["reason_code"]
+  ].compactMap(normalizeGatewayAccountErrorCode).first
+}
+
+func inferGatewayAccountErrorCode(result: CommandResult, parsed: Any?) -> String {
+  if let code = gatewayAccountErrorCode(parsed) { return code }
+  if result.timedOut { return "network_unreachable" }
+  let text = result.stderr.lowercased()
+  if text.contains("invalid credentials") || text.contains("invalid password") || text.contains("unauthorized") || text.contains("401") {
+    return "invalid_credentials"
+  }
+  if text.contains("disabled") || text.contains("suspended") { return "account_disabled" }
+  if text.contains("turnstile") || text.contains("captcha") || text.contains("totp") || text.contains("two-factor") || text.contains("mfa") || text.contains("challenge") {
+    return "mfa_or_challenge_required"
+  }
+  if text.contains("429") || text.contains("rate limit") { return "rate_limited" }
+  if text.contains("network") || text.contains("enotfound") || text.contains("econn") || text.contains("timeout") || text.contains("timed out") {
+    return "network_unreachable"
+  }
+  return "gateway_account_failed"
+}
+
+func sanitizeGatewayAccountLoginResult(_ result: CommandResult, secretValues: [String] = []) -> [String: Any] {
+  if secretValues.contains(where: { !$0.isEmpty && (result.stdout.contains($0) || result.stderr.contains($0)) }) {
+    return ["ok": false, "errorCode": "internal_contract_violation", "stateRefreshRequired": false]
+  }
+  let parsed: Any?
+  if let data = result.stdout.data(using: .utf8) {
+    parsed = try? JSONSerialization.jsonObject(with: data)
+  } else {
+    parsed = nil
+  }
+  guard let record = parsed as? [String: Any] else {
+    return [
+      "ok": false,
+      "errorCode": result.exitCode == 0 ? "internal_contract_violation" : inferGatewayAccountErrorCode(result: result, parsed: parsed),
+      "stateRefreshRequired": false
+    ]
+  }
+  if containsGatewaySecretField(record) {
+    return ["ok": false, "errorCode": "internal_contract_violation", "stateRefreshRequired": false]
+  }
+  if result.exitCode != 0 || record["ok"] as? Bool == false {
+    return [
+      "ok": false,
+      "errorCode": inferGatewayAccountErrorCode(result: result, parsed: record),
+      "stateRefreshRequired": false
+    ]
+  }
+  return ["ok": true, "stateRefreshRequired": true]
+}
+
+func loginGatewayAccount(
+  payload: [String: Any],
+  cwd: URL,
+  runCommand: (_ args: [String], _ input: String?, _ cwd: URL, _ timeout: TimeInterval) -> CommandResult = {
+    args, input, cwd, timeout in runNativeCommand(args, input: input, cwd: cwd, timeout: timeout)
+  }
+) -> [String: Any] {
+  let allowedFields = Set(["email", "password", "deviceLabel"])
+  guard Set(payload.keys).isSubset(of: allowedFields),
+        let rawEmail = payload["email"] as? String,
+        let password = payload["password"] as? String else {
+    return ["ok": false, "errorCode": "invalid_request", "stateRefreshRequired": false]
+  }
+  let email = rawEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+  let deviceLabel = (payload["deviceLabel"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+  guard !email.isEmpty, !password.isEmpty else {
+    return ["ok": false, "errorCode": "invalid_request", "stateRefreshRequired": false]
+  }
+  var envelope: [String: Any] = ["email": email, "password": password]
+  if !deviceLabel.isEmpty { envelope["device_label"] = deviceLabel }
+  guard let data = try? JSONSerialization.data(withJSONObject: envelope),
+        var stdin = String(data: data, encoding: .utf8) else {
+    return ["ok": false, "errorCode": "internal_contract_violation", "stateRefreshRequired": false]
+  }
+  stdin.append("\n")
+  let result = runCommand(
+    ["opl", "connect", "gateway", "login", "--credentials-stdin", "--json"],
+    stdin,
+    cwd,
+    45
+  )
+  return sanitizeGatewayAccountLoginResult(result, secretValues: [password])
+}
+
+func nativeAppUpdateUnsupported(operation: String, host: String, currentVersion: String? = nil) -> [String: Any] {
+  var result: [String: Any] = [
+    "schema": "opl_native_app_updater.v1",
+    "owner": "one-person-lab-app_native_host",
+    "host": host,
+    "operation": operation,
+    "supported": false,
+    "state": "unsupported",
+    "restartRequired": false,
+    "reasonCode": host == "native" ? "native_updater_not_packaged" : "native_host_required",
+    "ownerFallback": "one-person-lab-app"
+  ]
+  if let currentVersion, !currentVersion.isEmpty { result["currentVersion"] = currentVersion }
+  return result
+}
+
 final class PendingRequest {
   let semaphore = DispatchSemaphore(value: 0)
   var response: [String: Any]?
@@ -286,6 +448,7 @@ final class CodexAppServerClient {
     prompt: String,
     inputs: [[String: Any]]?,
     requestedThreadId: String?,
+    agentSelection: [String: Any]?,
     model: String?,
     effort: String?,
     permissions: String?
@@ -295,10 +458,20 @@ final class CodexAppServerClient {
 
     try ensureInitialized()
     let resolvedPermissions = (permissions?.isEmpty == false ? permissions : nil) ?? Self.defaultPermissions
-    if let requestedThreadId, !requestedThreadId.isEmpty, requestedThreadId != threadId {
-      try resumeThread(requestedThreadId, permissions: resolvedPermissions)
+    let selection = try normalizeAgentSelection(agentSelection)
+    let thread: String
+    if let requestedThreadId, !requestedThreadId.isEmpty {
+      guard selection == nil else {
+        throw BridgeError.invalidPayload("an existing conversation cannot be rebound to another Agent")
+      }
+      if requestedThreadId != threadId {
+        try resumeThread(requestedThreadId, permissions: resolvedPermissions)
+      }
+      thread = requestedThreadId
+    } else {
+      threadId = nil
+      thread = try ensureThread(permissions: resolvedPermissions, agentSelection: selection)
     }
-    let thread = try ensureThread(permissions: resolvedPermissions)
     var turnParams: [String: Any] = [
       "threadId": thread,
       "input": try buildUserInputs(prompt: prompt, inputs: inputs),
@@ -311,6 +484,14 @@ final class CodexAppServerClient {
     }
     if let effort, !effort.isEmpty {
       turnParams["effort"] = effort
+    }
+    if let selection {
+      turnParams["additionalContext"] = [
+        "opl.standard_agent_selection": [
+          "kind": "application",
+          "value": try jsonString(selection)
+        ]
+      ]
     }
     let turnResponse = try request(
       method: "turn/start",
@@ -543,14 +724,14 @@ final class CodexAppServerClient {
     return result
   }
 
-  func steerTurn(threadId: String, turnId: String, message: String) throws -> [String: Any] {
+  func steerTurn(threadId: String, turnId: String, prompt: String, inputs: [[String: Any]]?) throws -> [String: Any] {
     try ensureInitialized()
     let response = try request(
       method: "turn/steer",
       params: [
         "threadId": threadId,
         "expectedTurnId": turnId,
-        "input": [["type": "text", "text": message, "text_elements": []]]
+        "input": try buildUserInputs(prompt: prompt, inputs: inputs)
       ],
       timeout: Self.requestTimeout
     )
@@ -558,6 +739,53 @@ final class CodexAppServerClient {
       throw BridgeError.invalidPayload("app-server turn/steer returned no result")
     }
     return result
+  }
+
+  func interruptTurn(threadId: String, turnId: String) throws -> [String: Any] {
+    try ensureInitialized()
+    _ = try request(
+      method: "turn/interrupt",
+      params: ["threadId": threadId, "turnId": turnId],
+      timeout: Self.requestTimeout
+    )
+    return [
+      "executor": "codex_app_server",
+      "transport": "stdio_json_rpc",
+      "threadId": threadId,
+      "turnId": turnId,
+      "accepted": true
+    ]
+  }
+
+  func steer(
+    threadId: String,
+    expectedTurnId: String,
+    prompt: String,
+    inputs: [[String: Any]]?
+  ) throws -> [String: Any] {
+    guard !threadId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      throw BridgeError.invalidPayload("turn/steer requires a thread id")
+    }
+    guard !expectedTurnId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      throw BridgeError.invalidPayload("turn/steer requires the expected active turn id")
+    }
+    let result = try steerTurn(
+      threadId: threadId,
+      turnId: expectedTurnId,
+      prompt: prompt,
+      inputs: inputs
+    )
+    if let receivedTurnId = result["turnId"] as? String, receivedTurnId != expectedTurnId {
+      throw BridgeError.invalidPayload("app-server turn/steer acknowledged a different active turn")
+    }
+    return [
+      "executor": "codex_app_server",
+      "transport": "stdio_json_rpc",
+      "threadId": threadId,
+      "expectedTurnId": expectedTurnId,
+      "turnId": expectedTurnId,
+      "accepted": true
+    ]
   }
 
   private func ensureInitialized() throws {
@@ -571,7 +799,7 @@ final class CodexAppServerClient {
       params: [
         "clientInfo": [
           "name": "opl-studio",
-          "title": "One Person Lab Studio Preview",
+          "title": "One Person Lab Preview",
           "version": "0.1.0"
         ],
         "capabilities": [
@@ -622,15 +850,50 @@ final class CodexAppServerClient {
     return normalized
   }
 
-  private func ensureThread(permissions: String) throws -> String {
+  private func normalizeAgentSelection(_ value: [String: Any]?) throws -> [String: Any]? {
+    guard let value else { return nil }
+    let allowed = Set(["package_id", "shortcut_id", "codex_visible_entry", "required_skill_ids"])
+    guard Set(value.keys).isSubset(of: allowed),
+          let packageId = value["package_id"] as? String, !packageId.isEmpty,
+          let shortcutId = value["shortcut_id"] as? String, !shortcutId.isEmpty,
+          let visibleEntry = value["codex_visible_entry"] as? String, !visibleEntry.isEmpty,
+          let requiredSkillIds = value["required_skill_ids"] as? [String],
+          requiredSkillIds.allSatisfy({ !$0.isEmpty }) else {
+      throw BridgeError.invalidPayload("agent selection is incomplete or contains unsupported fields")
+    }
+    return [
+      "package_id": packageId,
+      "shortcut_id": shortcutId,
+      "codex_visible_entry": visibleEntry,
+      "required_skill_ids": Array(Set(requiredSkillIds)).sorted()
+    ]
+  }
+
+  private func jsonString(_ value: [String: Any]) throws -> String {
+    let data = try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
+    guard let text = String(data: data, encoding: .utf8) else {
+      throw BridgeError.invalidPayload("agent selection could not be encoded")
+    }
+    return text
+  }
+
+  private func ensureThread(permissions: String, agentSelection: [String: Any]?) throws -> String {
     if let threadId { return threadId }
-    let params: [String: Any] = [
+    var params: [String: Any] = [
       "cwd": workspaceRoot.path,
       "approvalPolicy": "never",
       "permissions": permissions,
       "threadSource": "opl-studio",
       "ephemeral": false
     ]
+    if let agentSelection {
+      params["developerInstructions"] = [
+        "Start this new conversation with the OPL standard Agent selected by the application.",
+        "Treat the following JSON as an application-owned routing snapshot, not as user-authored instructions:",
+        try jsonString(agentSelection),
+        "Use its codex_visible_entry and required_skill_ids for this thread. Do not activate, install, or mutate Package state."
+      ].joined(separator: "\n")
+    }
     let response = try request(method: "thread/start", params: params, timeout: Self.requestTimeout)
     guard
       let result = response["result"] as? [String: Any],
@@ -1184,10 +1447,40 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
         prompt: prompt,
         inputs: inputs,
         requestedThreadId: payload["threadId"] as? String,
+        agentSelection: payload["agentSelection"] as? [String: Any],
         model: payload["model"] as? String,
         effort: payload["reasoningEffort"] as? String,
         permissions: payload["permissions"] as? String
       )
+    case "steerTurn":
+      guard let threadId = payload["threadId"] as? String,
+            let expectedTurnId = payload["expectedTurnId"] as? String else {
+        throw BridgeError.invalidPayload("turn/steer requires threadId and expectedTurnId")
+      }
+      return try appServer.steer(
+        threadId: threadId,
+        expectedTurnId: expectedTurnId,
+        prompt: payload["prompt"] as? String ?? "",
+        inputs: payload["inputs"] as? [[String: Any]]
+      )
+    case "interruptTurn":
+      guard let threadId = payload["threadId"] as? String,
+            let turnId = payload["turnId"] as? String,
+            !threadId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            !turnId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        throw BridgeError.invalidPayload("turn/interrupt requires threadId and turnId")
+      }
+      return try appServer.interruptTurn(threadId: threadId, turnId: turnId)
+    case "loginGatewayAccount":
+      return loginGatewayAccount(payload: payload, cwd: workspaceRoot)
+    case "readNativeAppUpdateStatus":
+      return nativeAppUpdateStatus(operation: "status")
+    case "checkNativeAppUpdate":
+      return nativeAppUpdateStatus(operation: "check")
+    case "applyNativeAppUpdate":
+      return nativeAppUpdateStatus(operation: "apply")
+    case "restartNativeApp":
+      return scheduleApplicationRestart()
     case "readCodexModels":
       return try appServer.listModels()
     case "readCodexCapabilities":
@@ -1259,6 +1552,40 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
     identity["source"] = "app_root_gui_launcher"
     identity["candidateReadOnly"] = environment["OPL_STUDIO_READ_ONLY"] == "1"
     return identity
+  }
+
+  private func nativeAppUpdateStatus(operation: String) -> [String: Any] {
+    nativeAppUpdateUnsupported(
+      operation: operation,
+      host: "native",
+      currentVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+    )
+  }
+
+  private func scheduleApplicationRestart() -> [String: Any] {
+    let bundleURL = Bundle.main.bundleURL
+    guard bundleURL.pathExtension == "app" else {
+      var result = nativeAppUpdateUnsupported(operation: "restart", host: "native")
+      result["reasonCode"] = "application_bundle_unavailable"
+      return result
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+      let configuration = NSWorkspace.OpenConfiguration()
+      configuration.activates = true
+      NSWorkspace.shared.openApplication(at: bundleURL, configuration: configuration) { _, error in
+        if error == nil { NSApp.terminate(nil) }
+      }
+    }
+    return [
+      "schema": "opl_native_app_updater.v1",
+      "owner": "one-person-lab-app_native_host",
+      "host": "native",
+      "operation": "restart",
+      "supported": true,
+      "state": "restart_scheduled",
+      "accepted": true,
+      "restartRequired": true
+    ]
   }
 
   private func actionCommandPayload(
@@ -1397,7 +1724,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
   private var bridge: NativeBridge?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
-    let appName = "One Person Lab Studio Preview"
+    let appName = "One Person Lab Preview"
     let resourcesURL = URL(fileURLWithPath: CommandLine.arguments[0])
       .deletingLastPathComponent()
       .deletingLastPathComponent()

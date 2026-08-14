@@ -6,7 +6,11 @@ import type {
   CodexComposerInput,
   CodexSkillCapability
 } from "../bridge/oplBridge";
-import type { AgentPackageLifecycleRef } from "./workbenchModel";
+import {
+  agentPackageSelectionIntent,
+  type AgentPackageLifecycleRef,
+  type AgentPackageSelectionIntent
+} from "./workbenchModel";
 
 export type ComposerSelection = {
   id: string;
@@ -24,12 +28,22 @@ type ComposerCapabilityPaletteProps = {
   error?: string;
   selections: ComposerSelection[];
   standardAgents: AgentPackageLifecycleRef[];
+  selectedAgentPackageId?: string;
   contributions?: ReactNode;
   onClose(): void;
   onPickFiles(): void;
   onPickDirectory(): void;
   onToggleSkill(skill: CodexSkillCapability): void;
+  onSelectAgent?(intent: AgentPackageSelectionIntent): void;
 };
+
+function localizedAgentText(
+  value: AgentPackageLifecycleRef["displayNameI18n"],
+  locale: "zh" | "en",
+  fallback: string
+): string {
+  return (locale === "zh" ? value.zh : value.en) ?? fallback;
+}
 
 export function ComposerCapabilityPalette({
   open,
@@ -39,11 +53,13 @@ export function ComposerCapabilityPalette({
   error,
   selections,
   standardAgents,
+  selectedAgentPackageId,
   contributions,
   onClose,
   onPickFiles,
   onPickDirectory,
-  onToggleSkill
+  onToggleSkill,
+  onSelectAgent
 }: ComposerCapabilityPaletteProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState("");
@@ -57,8 +73,8 @@ export function ComposerCapabilityPalette({
     folderHelp: "将文件夹作为上下文",
     agents: "OPL 标准智能体",
     agentReady: "可用",
-    agentInactive: "未启用",
-    agentMissing: "未安装",
+    agentChecking: "检查中",
+    agentUnavailable: "暂不可用",
     skills: "Skills",
     connections: "应用与连接",
     loaded: "已加载",
@@ -74,8 +90,8 @@ export function ComposerCapabilityPalette({
     folderHelp: "Use a folder as context",
     agents: "OPL standard agents",
     agentReady: "Available",
-    agentInactive: "Inactive",
-    agentMissing: "Not installed",
+    agentChecking: "Checking",
+    agentUnavailable: "Unavailable",
     skills: "Skills",
     connections: "Apps and connections",
     loaded: "Loaded",
@@ -104,19 +120,28 @@ export function ComposerCapabilityPalette({
 
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const agents = useMemo(() => standardAgents
-    .filter((agent) => [agent.label, agent.description, agent.packageId]
-      .some((value) => value.toLocaleLowerCase().includes(normalizedQuery))), [normalizedQuery, standardAgents]);
+    .map((agent) => ({
+      agent,
+      label: localizedAgentText(agent.displayNameI18n, locale, agent.label),
+      description: localizedAgentText(agent.descriptionI18n, locale, agent.description)
+    }))
+    .filter(({ agent, label, description }) => [label, description, agent.packageId]
+      .some((value) => value.toLocaleLowerCase().includes(normalizedQuery))), [locale, normalizedQuery, standardAgents]);
+  const agentOwnedSkills = useMemo(() => new Set(standardAgents.flatMap((agent) => [
+    ...agent.requiredSkillIds,
+    ...(agent.homeShortcuts.flatMap((shortcut) => shortcut.route?.codexVisibleEntry ?? []))
+  ]).map((value) => value.toLocaleLowerCase())), [standardAgents]);
   const skills = useMemo(() => {
     const seenSkillNames = new Set<string>();
     return catalog.skills.filter((skill) => {
       const key = skill.name.toLocaleLowerCase();
-      if (!skill.enabled || seenSkillNames.has(key)) return false;
+      if (!skill.enabled || agentOwnedSkills.has(key) || seenSkillNames.has(key)) return false;
       const matches = [skill.name, skill.description]
         .some((value) => value.toLocaleLowerCase().includes(normalizedQuery));
       if (matches) seenSkillNames.add(key);
       return matches;
     });
-  }, [catalog.skills, normalizedQuery]);
+  }, [agentOwnedSkills, catalog.skills, normalizedQuery]);
   const connections = useMemo(() => [...catalog.plugins, ...catalog.apps]
     .filter((item, index, items) => item.enabled && items.findIndex((candidate) => candidate.id === item.id) === index)
     .filter((item) => [item.name, item.description].some((value) => value.toLocaleLowerCase().includes(normalizedQuery))), [catalog.apps, catalog.plugins, normalizedQuery]);
@@ -163,15 +188,33 @@ export function ComposerCapabilityPalette({
         {agents.length ? (
           <section data-testid="opl-standard-agents">
             <strong className="composer-palette-group">{copy.agents}</strong>
-            {agents.map((agent) => (
-              <div key={agent.packageId} className="composer-palette-row loaded">
-                <span className="composer-palette-icon"><Bot aria-hidden="true" size={16} /></span>
-                <span><strong>{agent.label}</strong><small>{agent.description || agent.packageId}</small></span>
-                <small className="composer-palette-loaded">
-                  {agent.activated ? copy.agentReady : agent.installed ? copy.agentInactive : copy.agentMissing}
-                </small>
-              </div>
-            ))}
+            {agents.map(({ agent, label, description }) => {
+              const selected = selectedAgentPackageId === agent.packageId;
+              const routeAvailable = agent.homeShortcuts.some((shortcut) => shortcut.route);
+              const statusLabel = agent.readiness.selectionStatus === "available" && routeAvailable
+                ? copy.agentReady
+                : agent.readiness.selectionStatus === "unavailable"
+                  ? copy.agentUnavailable
+                  : copy.agentChecking;
+              return (
+                <Button
+                  key={agent.packageId}
+                  variant="ghost"
+                  className="composer-palette-row"
+                  aria-pressed={selected}
+                  disabled={!onSelectAgent || !agent.readiness.selectable || !routeAvailable}
+                  onClick={() => {
+                    if (!onSelectAgent) return;
+                    onSelectAgent(agentPackageSelectionIntent(agent));
+                    onClose();
+                  }}
+                >
+                  <span className="composer-palette-icon"><Bot aria-hidden="true" size={16} /></span>
+                  <span><strong>{label}</strong><small>{description || agent.packageId}</small></span>
+                  {selected ? <Check aria-hidden="true" size={15} /> : <small className="composer-palette-loaded">{statusLabel}</small>}
+                </Button>
+              );
+            })}
           </section>
         ) : null}
         {skills.length ? (

@@ -17,6 +17,7 @@ import {
 
 const { normalizeContributionReadback } = await import("../../src/bridge/oplBridge.ts");
 const { OplStudioDshSlotHost } = await import("../../src/composition/dshSlotHost.tsx");
+const { resolveCodexModelOptions } = await import("../../src/workbench/modelPolicy.ts");
 
 const projectionState = {
   app_state: {
@@ -77,6 +78,12 @@ describe("OPL Studio DSH contribution composition", () => {
     const host = new OplStudioDshSlotHost();
     expect(host.core.entries("shell.overlay")).toHaveLength(1);
     expect(host.core.snapshot("shell.overlay")[0]?.occupants[0]?.id).toBe("opl-studio-overlay");
+    expect(host.core.entries("conversation.input.dock")).toHaveLength(1);
+    expect(host.core.snapshot("conversation.input.dock")[0]?.occupants[0]).toMatchObject({
+      id: "queue",
+      order: 20,
+      registrant: "dsh-ui-conversation"
+    });
   });
 
   test("normalizes Framework projection without importing executable plugin fields", () => {
@@ -127,6 +134,27 @@ describe("OPL Studio DSH contribution composition", () => {
   test("keeps malformed or absent projections unavailable", () => {
     const unavailable: OplUiContributionsProjection = readUiContributionsProjection({ app_state: {} });
     expect(unavailable).toEqual({ surfaceKind: "unavailable", entries: [] });
+  });
+
+  test("collapses alias-linked catalog rows into one App-owned model option", () => {
+    const options = resolveCodexModelOptions([{
+      id: "codex-fixture",
+      model: "codex-fixture-canonical",
+      displayName: "Legacy alias",
+      isDefault: false,
+      defaultReasoningEffort: "high",
+      supportedReasoningEfforts: ["high"]
+    }, {
+      id: "codex-fixture-canonical",
+      model: "codex-fixture-current",
+      displayName: "Current catalog default",
+      isDefault: true,
+      defaultReasoningEffort: "high",
+      supportedReasoningEfforts: ["high"]
+    }]);
+
+    expect(options.map((option) => option.id)).toEqual(["codex-fixture"]);
+    expect(options[0]).toMatchObject({ known: true, isCatalogDefault: true, available: true });
   });
 
   test("accepts only the current Framework contribution read identity", () => {

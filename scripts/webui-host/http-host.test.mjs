@@ -101,6 +101,21 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
   const unarchived = await post(baseUrl, "/api/threads/unarchive", { threadId: "thread-idle" });
   assert.equal(unarchived.body.archived, false);
 
+  const steered = await post(baseUrl, "/api/turns/steer", {
+    threadId: "thread-running",
+    expectedTurnId: "turn-running",
+    prompt: "Keep the active turn on the accepted route."
+  });
+  assert.equal(steered.status, 200);
+  assert.deepEqual(steered.body, {
+    executor: "codex_app_server",
+    transport: "stdio_json_rpc",
+    threadId: "thread-running",
+    expectedTurnId: "turn-running",
+    turnId: "turn-running",
+    accepted: true
+  });
+
   const retiredEndpoint = await post(baseUrl, "/api/coordination/prepare", {});
   assert.equal(retiredEndpoint.status, 404);
   assert.equal(retiredEndpoint.body.error.code, "endpoint_not_found");
@@ -111,6 +126,18 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
   assert.deepEqual(contribution.body.result.hypotheses, ["fixture"]);
   const action = await post(baseUrl, "/api/opl/action", { actionId: "preview.test", dryRun: true });
   assert.equal(action.body.authorityBoundary, "app_bridge_no_domain_authority");
+
+  const nativeUpdateStatus = await fetch(`${baseUrl}/api/native-app-update/status`).then((response) => response.json());
+  assert.equal(nativeUpdateStatus.supported, false);
+  assert.equal(nativeUpdateStatus.reasonCode, "native_host_required");
+  assert.equal(nativeUpdateStatus.ownerFallback, "one-person-lab-app");
+  for (const operation of ["check", "apply", "restart"]) {
+    const updateResult = await post(baseUrl, `/api/native-app-update/${operation}`, {});
+    assert.equal(updateResult.status, 200);
+    assert.equal(updateResult.body.operation, operation);
+    assert.equal(updateResult.body.supported, false);
+    assert.equal(updateResult.body.state, "unsupported");
+  }
 
   const models = await fetch(`${baseUrl}/api/codex/models`).then((response) => response.json());
   assert.equal(models.data[0].id, "gpt-test");
@@ -138,6 +165,51 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
   assert.equal(chat.body.finalMessage.startsWith("completed turn-created-"), true);
   const frames = (await readFile(appServerLog, "utf8")).trim().split("\n").map(JSON.parse);
   const turnStart = frames.find((frame) => frame.method === "turn/start");
+  const turnSteer = frames.find((frame) => frame.method === "turn/steer");
   assert.deepEqual(turnStart.params.input.map((input) => input.type), ["text", "localImage", "mention", "skill"]);
   assert.equal(turnStart.params.permissions, ":danger-full-access");
+  assert.equal(turnSteer.params.expectedTurnId, "turn-running");
+  assert.equal(turnSteer.params.input[0].text, "Keep the active turn on the accepted route.");
+});
+
+test("loopback HTTP host exposes the dedicated Gateway secret route without generic action payloads", async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "opl-webui-gateway-test-"));
+  const transport = new CodexAppServerTransport({
+    command: process.execPath,
+    args: [fixture],
+    cwd: directory,
+    env: process.env,
+    requestTimeoutMs: 2_000,
+    turnTimeoutMs: 2_000
+  });
+  const calls = [];
+  const host = await createWebUiHost({
+    transport,
+    opl: {
+      readState: async () => ({}),
+      readFullDrilldown: async () => ({}),
+      readContribution: async () => ({}),
+      executeAction: async () => { throw new Error("generic action must not receive Gateway credentials"); }
+    },
+    gatewayAccountLogin: async (request) => {
+      calls.push(request);
+      return { ok: true, stateRefreshRequired: true };
+    },
+    webRoot: directory
+  });
+  t.after(async () => {
+    host.server.closeAllConnections();
+    await host.close();
+  });
+  await new Promise((resolve, reject) => {
+    host.server.once("error", reject);
+    host.server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = host.server.address();
+  const result = await post(`http://127.0.0.1:${address.port}`, "/api/opl-runtime/gateway-account-login", {
+    email: "user@example.com",
+    password: "route-secret"
+  });
+  assert.deepEqual(result, { status: 200, body: { ok: true, stateRefreshRequired: true } });
+  assert.deepEqual(calls, [{ email: "user@example.com", password: "route-secret" }]);
 });

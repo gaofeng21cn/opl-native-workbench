@@ -21,10 +21,13 @@ import {
 } from "react";
 import {
   createBrowserBridge,
+  type CodexAgentSelectionSnapshot,
   type CodexCapabilityCatalog,
+  type CodexComposerInput,
   type CodexModelCatalogEntry,
   type CodexPickedInput,
   type CodexSkillCapability,
+  type NativeAppUpdateResult,
   type OplActionReceipt
 } from "../bridge/oplBridge";
 import type { CodexThread } from "../threads/types";
@@ -37,6 +40,8 @@ import {
   mergeManagedUpdateProjections,
   readManagedUpdateProjection,
   type ManagedUpdateProjection,
+  type AgentPackageSelectionIntent,
+  type WorkbenchArtifactRef,
   type WorkbenchProjectGroup,
   type WorkbenchActionRef,
   type WorkbenchThreadItem,
@@ -65,6 +70,12 @@ import {
   type SettingsActionRequest,
   type SettingsDestinationId
 } from "./SettingsPanel";
+import {
+  buildSettingsActionViewModel,
+  readGatewayActionsFromState,
+  type ProjectedGatewayAction,
+  type SettingsHostActionIntent
+} from "./settingsActions";
 import { ThreadDetailPopover } from "./threads/ThreadDetailPopover";
 import { ThreadLifecycleConfirmationDialog } from "./threads/ThreadLifecycleConfirmationDialog";
 import type { ThreadLifecycleAction } from "./threads/ThreadLifecycleConfirmationDialog";
@@ -74,6 +85,10 @@ import {
   ComposerCapabilityPalette,
   type ComposerSelection
 } from "./ComposerCapabilityPalette";
+import {
+  buildRunDetailViewModel,
+  type ScopedRunDetailItem
+} from "./runDetailModel";
 import { ThreadSearchDialog } from "./ThreadSearchDialog";
 import type {
   OplContributionAction,
@@ -393,6 +408,32 @@ function createIntroMessages(): ChatMessage[] {
 
 type ChatMessage = WorkbenchThreadMessage;
 
+type ComposerSubmitMode = "queue" | "steer";
+
+type EphemeralQueueItem = {
+  id: string;
+  placement: "queued";
+  preview: string;
+  text: string | null;
+  prompt: string;
+  inputs: CodexComposerInput[];
+  selections: ComposerSelection[];
+};
+
+function composerSelectionArtifact(selection: ComposerSelection): WorkbenchArtifactRef {
+  return {
+    id: selection.id,
+    title: selection.label,
+    kind: "file",
+    status: "ready",
+    previewKind: "code",
+    ref: selection.detail,
+    summary: selection.detail,
+    provenance: [selection.detail],
+    actions: []
+  };
+}
+
 function localizedSessionTitle(title: string, locale: WorkbenchSettings["locale"]): string {
   if (locale !== "zh") return title;
   if (title === "Current project") return "当前项目";
@@ -501,9 +542,14 @@ export function App({
   const persistedUi = useMemo(() => readPersistedWorkbenchUi(), []);
   const conversationRef = useRef<HTMLElement | null>(null);
   const pendingAssistantIdRef = useRef<string | null>(null);
+  const interruptRequestedForRef = useRef<string | null>(null);
   const messagesRef = useRef<ChatMessage[]>(createIntroMessages());
+  const activeTurnRef = useRef<{ threadId: string; turnId: string } | null>(null);
+  const ephemeralQueueRef = useRef<EphemeralQueueItem[]>([]);
   const [model, setModel] = useState(initialWorkbenchModel);
   const [managedUpdate, setManagedUpdate] = useState<ManagedUpdateProjection | null>(null);
+  const [nativeAppUpdate, setNativeAppUpdate] = useState<NativeAppUpdateResult | null>(null);
+  const [projectedGatewayActions, setProjectedGatewayActions] = useState<ProjectedGatewayAction[]>([]);
   const [stateStatus, setStateStatus] = useState<"loading" | "ready" | "error">("loading");
   const [stateError, setStateError] = useState("");
   const [detailsRequestRevision, setDetailsRequestRevision] = useState(0);
@@ -534,6 +580,12 @@ export function App({
   const [capabilityQuery, setCapabilityQuery] = useState("");
   const [composerPaletteOpen, setComposerPaletteOpen] = useState(false);
   const [composerSelections, setComposerSelections] = useState<ComposerSelection[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<AgentPackageSelectionIntent | null>(null);
+  const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
+  const [ephemeralQueue, setEphemeralQueue] = useState<EphemeralQueueItem[]>([]);
+  const [composerSubmissionError, setComposerSubmissionError] = useState("");
+  const [threadInputFiles, setThreadInputFiles] = useState<Record<string, WorkbenchArtifactRef[]>>({});
+  const [pendingInputFiles, setPendingInputFiles] = useState<WorkbenchArtifactRef[]>([]);
   const [threadSearchOpen, setThreadSearchOpen] = useState(false);
   const [activeContextTab, setActiveContextTab] = useState<ContextTabId>("opl-runtime-status-panel");
   const t = uiCopy[settings.locale];
@@ -581,21 +633,34 @@ export function App({
     ? archivedThreadProjects
     : threadProjects;
   const currentProject = selectedProject?.label ?? settings.defaultWorkspace ?? "Current project";
-  const previewItems = useMemo(() => [...model.artifactPreviews].sort((left, right) => {
+  const selectedWorkItemId = model.activeProjectLines.find((line) => line.status === "running")?.activeRunId
+    ?? model.activeProjectLines[0]?.activeRunId
+    ?? undefined;
+  const runDetail = useMemo(() => buildRunDetailViewModel({
+    thread: currentSession,
+    workItemId: selectedWorkItemId,
+    running: sendState === "running",
+    activeLines: model.activeProjectLines,
+    files: [
+      ...Object.entries(threadInputFiles).flatMap(([threadId, files]) => files.map((value): ScopedRunDetailItem<WorkbenchArtifactRef> => ({ scope: "thread", threadId, value }))),
+      ...pendingInputFiles.map((value): ScopedRunDetailItem<WorkbenchArtifactRef> => codexThreadId
+        ? { scope: "thread", threadId: codexThreadId, value }
+        : { scope: "root", value })
+    ],
+    results: model.artifactPreviews.map((value) => ({ scope: "root" as const, value })),
+    contributions: model.uiContributions
+  }), [codexThreadId, currentSession, model.activeProjectLines, model.artifactPreviews, model.uiContributions, pendingInputFiles, selectedWorkItemId, sendState, threadInputFiles]);
+  const previewItems = useMemo(() => [...runDetail.results].sort((left, right) => {
     if (left.previewKind === right.previewKind) return 0;
     if (left.previewKind === "markdown") return -1;
     if (right.previewKind === "markdown") return 1;
     if (left.previewKind === "pdf") return -1;
     if (right.previewKind === "pdf") return 1;
     return 0;
-  }), [model.artifactPreviews]);
+  }), [runDetail.results]);
   const [selectedPreviewId, setSelectedPreviewId] = useState<string | undefined>(previewItems[0]?.id);
   const selectedPreview = previewItems.find((preview) => preview.id === selectedPreviewId) ?? previewItems[0];
-  const sidebarSources = composerSelections.filter((selection) => selection.kind !== "skill").map((selection) => ({
-    id: selection.id,
-    label: selection.label,
-    summary: selection.detail
-  }));
+  const sidebarSources = runDetail.files.map((file) => ({ id: file.id, label: file.title, summary: file.summary }));
   const modelOptions = useMemo(() => resolveCodexModelOptions(codexCatalog), [codexCatalog]);
   const {
     model: resolvedModel,
@@ -609,9 +674,48 @@ export function App({
     resolvedModel?.id,
     settings.locale
   );
+  const settingsActionViewModel = useMemo(() => buildSettingsActionViewModel(model, managedUpdate, {
+    gatewayActions: projectedGatewayActions,
+    managedUpdateActions: [
+      {
+        transport: "native_app_updater",
+        key: "native-app-update:check",
+        label: settings.locale === "zh" ? "检查更新" : "Check for updates",
+        operation: "check",
+        componentIds: ["opl_app"],
+        confirmationRequired: false,
+        availability: nativeAppUpdate?.supported === false ? "unavailable" : "ready",
+        sourceRef: "one-person-lab-app native updater"
+      },
+      {
+        transport: "native_app_updater",
+        key: "native-app-update:apply",
+        label: settings.locale === "zh" ? "安装更新" : "Install update",
+        operation: "apply",
+        componentIds: ["opl_app"],
+        confirmationRequired: true,
+        availability: nativeAppUpdate?.supported === true ? "ready" : "unavailable",
+        sourceRef: "one-person-lab-app native updater"
+      },
+      {
+        transport: "native_app_updater",
+        key: "native-app-update:restart",
+        label: settings.locale === "zh" ? "重新启动" : "Restart",
+        operation: "restart",
+        componentIds: ["opl_app"],
+        confirmationRequired: false,
+        availability: nativeAppUpdate?.host === "native" ? "ready" : "unavailable",
+        sourceRef: "one-person-lab-app native host"
+      }
+    ]
+  }), [managedUpdate, model, nativeAppUpdate, projectedGatewayActions, settings.locale]);
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  useEffect(() => {
+    ephemeralQueueRef.current = ephemeralQueue;
+  }, [ephemeralQueue]);
 
   useEffect(() => {
     const media = globalThis.matchMedia?.("(prefers-color-scheme: dark)");
@@ -663,6 +767,7 @@ export function App({
       .readState(profile)
       .then((state) => {
         setModel(deriveWorkbenchModelFromState(state));
+        setProjectedGatewayActions(readGatewayActionsFromState(state));
         const updateProjection = readManagedUpdateProjection(state);
         if (updateProjection) {
           setManagedUpdate((current) => mergeManagedUpdateProjections(current, updateProjection));
@@ -750,6 +855,62 @@ export function App({
       setSettingsActionConfirmation(null);
     } catch (error) {
       setSettingsActionFeedback({ tone: "attention", message: String(error) });
+    } finally {
+      setSettingsActionBusyKey(null);
+    }
+  }
+
+  async function runSettingsHostAction(intent: SettingsHostActionIntent) {
+    setSettingsActionBusyKey(intent.key);
+    setSettingsActionFeedback(null);
+    try {
+      if (intent.transport !== "native_app_updater") {
+        throw new Error(settings.locale === "zh" ? "Framework 尚未投影此更新操作。" : "Framework has not projected this update operation.");
+      }
+      const result = intent.operation === "check"
+        ? await bridge.checkNativeAppUpdate()
+        : intent.operation === "apply"
+          ? await bridge.applyNativeAppUpdate()
+          : intent.operation === "restart"
+            ? await bridge.restartNativeApp()
+            : await bridge.readNativeAppUpdateStatus();
+      setNativeAppUpdate(result);
+      setSettingsActionFeedback({
+        tone: result.supported || result.accepted ? "success" : "attention",
+        message: result.supported || result.accepted
+          ? (settings.locale === "zh" ? "操作已由 Native App 接受。" : "The Native App accepted the operation.")
+          : (result.reasonCode ?? (settings.locale === "zh" ? "当前载体不支持此操作。" : "This carrier does not support the operation."))
+      });
+      await loadState(settings.runtimeProfile);
+    } catch (error) {
+      setSettingsActionFeedback({ tone: "attention", message: String(error) });
+    } finally {
+      setSettingsActionBusyKey(null);
+    }
+  }
+
+  async function loginGatewayAccount(credentials: { email: string; password: string; deviceLabel?: string }) {
+    const key = "gateway:login";
+    setSettingsActionBusyKey(key);
+    setSettingsActionFeedback(null);
+    try {
+      const result = await bridge.loginGatewayAccount(credentials);
+      if (result.ok) {
+        await loadState(settings.runtimeProfile);
+        setSettingsActionFeedback({
+          tone: "success",
+          message: settings.locale === "zh" ? "OPL Gateway 已连接。" : "OPL Gateway is connected."
+        });
+        return true;
+      }
+      setSettingsActionFeedback({
+        tone: "attention",
+        message: result.errorCode ?? (settings.locale === "zh" ? "登录失败。" : "Login failed.")
+      });
+      return false;
+    } catch (error) {
+      setSettingsActionFeedback({ tone: "attention", message: String(error) });
+      return false;
     } finally {
       setSettingsActionBusyKey(null);
     }
@@ -856,9 +1017,36 @@ export function App({
       .catch(() => setCodexCatalog([]));
   }, [bridge]);
 
+  useEffect(() => {
+    void bridge.readNativeAppUpdateStatus().then(setNativeAppUpdate).catch(() => setNativeAppUpdate(null));
+  }, [bridge]);
+
   useEffect(() => bridge.subscribeEvents((event) => {
     const method = eventMethod(event);
+    const params = eventParams(event);
     setEventFeed((items) => [formatEvent(event), ...items].slice(0, 8));
+    if (method === "turn/started" && pendingAssistantIdRef.current) {
+      const turn = typeof params.turn === "object" && params.turn ? params.turn as Record<string, unknown> : {};
+      const threadId = typeof params.threadId === "string" ? params.threadId : "";
+      const turnId = typeof turn.id === "string" ? turn.id : typeof params.turnId === "string" ? params.turnId : "";
+      if (threadId && turnId) {
+        activeTurnRef.current = { threadId, turnId };
+        setActiveTurnId(turnId);
+        setCodexThreadId(threadId);
+        updateUiMetadata({ selectedThreadId: threadId });
+      }
+    }
+    if (method === "turn/completed") {
+      const completedTurnId = typeof params.turnId === "string"
+        ? params.turnId
+        : typeof params.turn === "object" && params.turn && "id" in params.turn
+          ? String((params.turn as { id?: unknown }).id ?? "")
+          : "";
+      if (!completedTurnId || activeTurnRef.current?.turnId === completedTurnId) {
+        activeTurnRef.current = null;
+        setActiveTurnId(null);
+      }
+    }
     if (!pendingAssistantIdRef.current) return;
     if (method === "item/agentMessage/delta") {
       const delta = eventDelta(event);
@@ -966,11 +1154,121 @@ export function App({
     }
   }
 
-  function sendCodexMessage(event?: FormEvent) {
-    event?.preventDefault();
+  function replaceEphemeralQueue(next: EphemeralQueueItem[]) {
+    ephemeralQueueRef.current = next;
+    setEphemeralQueue(next);
+  }
+
+  function queuedItemFromComposer(text: string, selections: ComposerSelection[]): EphemeralQueueItem {
+    return {
+      id: `queue-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      placement: "queued",
+      preview: text || selections.map((selection) => selection.label).join(", "),
+      text: text || null,
+      prompt: text,
+      inputs: selections.map((selection) => selection.input),
+      selections
+    };
+  }
+
+  async function steerQueuedItem(item: EphemeralQueueItem) {
+    const active = activeTurnRef.current;
+    if (!active) throw new Error(settings.locale === "zh" ? "当前运行尚未提供可插话的 Turn。" : "The current run has not exposed a steerable turn yet.");
+    await bridge.steerTurn({
+      threadId: active.threadId,
+      expectedTurnId: active.turnId,
+      prompt: item.prompt,
+      inputs: item.inputs
+    });
+    replaceEphemeralQueue(ephemeralQueueRef.current.filter((candidate) => candidate.id !== item.id));
+    const acceptedMessage: ChatMessage = {
+      id: `user-steer-${Date.now()}`,
+      role: "user",
+      text: item.preview
+    };
+    messagesRef.current = messagesRef.current.concat(acceptedMessage);
+    setMessages(messagesRef.current);
+  }
+
+  async function updateEphemeralQueue(itemId: string, action: { kind: string; content?: Array<{ type?: string; text?: string }> }) {
+    const item = ephemeralQueueRef.current.find((candidate) => candidate.id === itemId);
+    if (!item) return;
+    if (action.kind === "remove") {
+      replaceEphemeralQueue(ephemeralQueueRef.current.filter((candidate) => candidate.id !== itemId));
+      return;
+    }
+    if (action.kind === "edit") {
+      const text = action.content?.find((part) => part.type === "text")?.text?.trim();
+      if (!text) throw new Error("Queued message text is required");
+      replaceEphemeralQueue(ephemeralQueueRef.current.map((candidate) => candidate.id === itemId
+        ? { ...candidate, text, prompt: text, preview: text }
+        : candidate));
+      return;
+    }
+    if (action.kind === "steer") await steerQueuedItem(item);
+  }
+
+  async function steerAllQueuedItems() {
+    setComposerSubmissionError("");
+    try {
+      for (const item of [...ephemeralQueueRef.current]) await steerQueuedItem(item);
+    } catch (error) {
+      setComposerSubmissionError(String(error));
+    }
+  }
+
+  async function stopActiveTurn() {
+    const active = activeTurnRef.current;
+    const pendingId = pendingAssistantIdRef.current;
+    if (!active || !pendingId || interruptRequestedForRef.current === pendingId) return;
+    interruptRequestedForRef.current = pendingId;
+    setComposerSubmissionError(settings.locale === "zh" ? "正在停止当前运行…" : "Stopping the current run…");
+    try {
+      await bridge.interruptTurn(active);
+    } catch (error) {
+      interruptRequestedForRef.current = null;
+      setComposerSubmissionError(String(error));
+    }
+  }
+
+  function selectedAgentSnapshot(): CodexAgentSelectionSnapshot | undefined {
+    if (!selectedAgent?.route) return undefined;
+    return {
+      package_id: selectedAgent.packageId,
+      shortcut_id: selectedAgent.route.shortcutId,
+      codex_visible_entry: selectedAgent.route.codexVisibleEntry,
+      required_skill_ids: selectedAgent.requiredSkillIds
+    };
+  }
+
+  function selectedAgentInputs(): CodexComposerInput[] {
+    if (!selectedAgent?.route) return [];
+    const requested = new Set([...selectedAgent.requiredSkillIds, selectedAgent.route.codexVisibleEntry].map((value) => value.toLowerCase()));
+    return capabilityCatalog.skills
+      .filter((skill) => skill.enabled && requested.has(skill.name.toLowerCase()))
+      .map((skill) => ({ type: "skill" as const, name: skill.name, path: skill.path }));
+  }
+
+  function sendCodexMessage(modeOrEvent?: ComposerSubmitMode | FormEvent) {
+    const mode = typeof modeOrEvent === "string" ? modeOrEvent : "queue";
+    if (typeof modeOrEvent === "object") modeOrEvent.preventDefault();
     const text = prompt.trim();
     const pendingSelections = composerSelections;
-    if ((!text && !pendingSelections.length) || sendState === "running" || !resolvedModel) return;
+    if ((!text && !pendingSelections.length) || !resolvedModel) return;
+    setComposerSubmissionError("");
+    if (sendState === "running") {
+      const item = queuedItemFromComposer(text, pendingSelections);
+      replaceEphemeralQueue(ephemeralQueueRef.current.concat(item));
+      updatePrompt("");
+      setComposerSelections([]);
+      setComposerPaletteOpen(false);
+      if (mode === "steer") {
+        void steerQueuedItem(item).catch((error) => {
+          setComposerSubmissionError(String(error));
+        });
+      }
+      return;
+    }
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: "user",
@@ -984,18 +1282,24 @@ export function App({
     setMessages(pendingMessages);
     updatePrompt("");
     setComposerSelections([]);
+    setPendingInputFiles(pendingSelections.filter((selection) => selection.kind !== "skill").map(composerSelectionArtifact));
     setComposerPaletteOpen(false);
     setSendState("running");
     void bridge
       .sendMessage({
         prompt: text,
-        inputs: pendingSelections.map((selection) => selection.input),
+        inputs: [
+          ...pendingSelections.map((selection) => selection.input),
+          ...(codexThreadId ? [] : selectedAgentInputs())
+        ].filter((input, index, inputs) => inputs.findIndex((candidate) => candidate.type === input.type && "path" in candidate && "path" in input && candidate.path === input.path) === index),
         threadId: codexThreadId,
+        agentSelection: codexThreadId ? undefined : selectedAgentSnapshot(),
         model: resolvedModel.id,
         reasoningEffort: resolvedReasoning,
         permissions: settings.agentPermissions
       })
       .then((reply) => {
+        const wasInterrupted = interruptRequestedForRef.current === pendingId;
         const nextThreadId = typeof reply === "object" && reply && "threadId" in reply
           ? String((reply as { threadId?: unknown }).threadId ?? "")
           : "";
@@ -1003,7 +1307,7 @@ export function App({
           ? String((reply as { finalMessage?: unknown }).finalMessage ?? "")
           : "";
         const nextMessages = messagesRef.current.map((item) => item.id === pendingId
-          ? { id: pendingId, role: "assistant" as const, text: finalMessage || formatReceipt(reply) }
+          ? { id: pendingId, role: wasInterrupted ? "system" as const : "assistant" as const, text: wasInterrupted ? (item.text || (settings.locale === "zh" ? "运行已停止。" : "Run stopped.")) : finalMessage || formatReceipt(reply) }
           : item);
         messagesRef.current = nextMessages;
         setMessages(nextMessages);
@@ -1011,16 +1315,50 @@ export function App({
         setCodexThreadId(resolvedThreadId);
         updateUiMetadata({ selectedThreadId: resolvedThreadId });
         if (resolvedThreadId) {
+          const acceptedFiles = pendingSelections.filter((selection) => selection.kind !== "skill").map(composerSelectionArtifact);
+          if (acceptedFiles.length) setThreadInputFiles((current) => ({
+            ...current,
+            [resolvedThreadId]: [
+              ...(current[resolvedThreadId] ?? []),
+              ...acceptedFiles.filter((file) => !(current[resolvedThreadId] ?? []).some((candidate) => candidate.id === file.id))
+            ]
+          }));
           updateDrafts((current) => ({ ...current, prompts: { ...current.prompts, [resolvedThreadId]: "" } }));
         }
+        setPendingInputFiles([]);
+        setSelectedAgent(null);
+        activeTurnRef.current = null;
+        setActiveTurnId(null);
         pendingAssistantIdRef.current = null;
+        interruptRequestedForRef.current = null;
+        setComposerSubmissionError("");
         setSendState("idle");
         void loadThreadDirectory(false);
       })
       .catch(() => {
+        const wasInterrupted = interruptRequestedForRef.current === pendingId;
+        if (wasInterrupted) {
+          setPendingInputFiles([]);
+          activeTurnRef.current = null;
+          setActiveTurnId(null);
+          setSendState("idle");
+          const nextMessages = messagesRef.current.map((item) => item.id === pendingId
+            ? { id: pendingId, role: "system" as const, text: item.text || (settings.locale === "zh" ? "运行已停止。" : "Run stopped.") }
+            : item);
+          messagesRef.current = nextMessages;
+          setMessages(nextMessages);
+          pendingAssistantIdRef.current = null;
+          interruptRequestedForRef.current = null;
+          setComposerSubmissionError("");
+          void loadThreadDirectory(false);
+          return;
+        }
         const message = t.sendFailed;
         updatePrompt(text);
         setComposerSelections(pendingSelections);
+        setPendingInputFiles([]);
+        activeTurnRef.current = null;
+        setActiveTurnId(null);
         setSendState("error");
         const errorMessage: ChatMessage = { id: pendingId, role: "system", text: message };
         const nextMessages = messagesRef.current.map((item) => item.id === pendingId ? errorMessage : item);
@@ -1045,6 +1383,12 @@ export function App({
     setThreadActionError("");
     setSendState("idle");
     setComposerSelections([]);
+    setSelectedAgent(null);
+    setPendingInputFiles([]);
+    replaceEphemeralQueue([]);
+    activeTurnRef.current = null;
+    interruptRequestedForRef.current = null;
+    setActiveTurnId(null);
     setComposerPaletteOpen(false);
   }
 
@@ -1193,12 +1537,21 @@ export function App({
           {composerSelections.map((selection) => <span key={selection.id} className="composer-selection" title={selection.detail}><FileText aria-hidden="true" size={13} /><span>{selection.label}</span><button type="button" aria-label={`${settings.locale === "zh" ? "移除" : "Remove"} ${selection.label}`} onClick={() => setComposerSelections((current) => current.filter((item) => item.id !== selection.id))}><X aria-hidden="true" size={12} /></button></span>)}
         </div>
       ) : null}
+      {selectedAgent ? (
+        <div className="composer-selections" aria-label={settings.locale === "zh" ? "已选择的标准智能体" : "Selected standard Agent"}>
+          <span className="composer-selection" title={selectedAgent.description}>
+            <Puzzle aria-hidden="true" size={13} />
+            <span>{settings.locale === "zh" ? selectedAgent.displayNameI18n.zh ?? selectedAgent.label : selectedAgent.displayNameI18n.en ?? selectedAgent.label}</span>
+            <button type="button" aria-label={settings.locale === "zh" ? "移除智能体" : "Remove Agent"} onClick={() => setSelectedAgent(null)}><X aria-hidden="true" size={12} /></button>
+          </span>
+        </div>
+      ) : null}
       <span
         className={`composer-status ${sendState === "error" || unavailableFixedModel ? "error" : sendState}`}
         data-testid="opl-composer-run-state"
         aria-live="polite"
       >
-        {sendState === "running" ? t.working : sendState === "error" ? t.sendFailed : unavailableFixedModel ? t.modelSelectionUnavailable : ""}
+        {composerSubmissionError || (sendState === "running" ? t.working : sendState === "error" ? t.sendFailed : unavailableFixedModel ? t.modelSelectionUnavailable : "")}
       </span>
     </>
   );
@@ -1211,11 +1564,18 @@ export function App({
       status={capabilityStatus}
       error={capabilityError}
       selections={composerSelections}
-      standardAgents={model.packageLifecycle.filter((item) => item.official && item.roleGroup === "agent")}
+      standardAgents={codexThreadId ? [] : model.packageLifecycle.filter((item) => (
+        item.packageRole === "standard_agent"
+        && item.official
+        && item.readiness.selectable
+        && item.homeShortcuts.some((shortcut) => Boolean(shortcut.route))
+      ))}
+      selectedAgentPackageId={selectedAgent?.packageId}
       onClose={() => setComposerPaletteOpen(false)}
       onPickFiles={() => void pickComposerFiles()}
       onPickDirectory={() => void pickComposerDirectory()}
       onToggleSkill={toggleComposerSkill}
+      onSelectAgent={setSelectedAgent}
       contributions={hasContribution("composer.palette") ? renderContributionSlot?.("composer.palette", contributionOwner) : null}
     />
   );
@@ -1248,13 +1608,13 @@ export function App({
             <strong>{settings.locale === "zh" ? "当前运行" : "Current run"}</strong>
             <button type="button" aria-label={t.refresh} title={t.refresh} onClick={() => void loadState(settings.runtimeProfile)}><Activity aria-hidden="true" size={14} /></button>
           </div>
-          <div className="runtime-current-agent" data-testid="opl-agent-run-status" data-status={sendState === "running" ? "running" : currentSession?.status ?? "idle"}>
+          <div className="runtime-current-agent" data-testid="opl-agent-run-status" data-status={runDetail.status.state}>
             <span className="runtime-status-dot" aria-hidden="true" />
-            <div><strong>{currentSession?.agentNickname ?? currentSession?.agentRole ?? "Codex"}</strong><span>{currentAgentStatus}</span></div>
+            <div><strong>{runDetail.status.agentLabel}</strong><span>{activeTurnId ? currentAgentStatus : threadRuntimeStatusLabel(runDetail.status.sourceStatus, settings.locale)}</span></div>
           </div>
-          {model.activeProjectLines.length ? (
+          {runDetail.status.activeLines.length ? (
             <div className="runtime-line-list">
-              {model.activeProjectLines.map((line, index) => (
+              {runDetail.status.activeLines.map((line, index) => (
                 <article className="runtime-line" key={`${line.activeRunId ?? "project"}-${index}`} data-testid="opl-active-project-line">
                   <header><strong>{line.activeRunId ?? (settings.locale === "zh" ? `任务 ${index + 1}` : `Task ${index + 1}`)}</strong><Pill>{line.status}</Pill></header>
                   <p>{line.nextVisibleStep}</p>
@@ -1340,7 +1700,7 @@ export function App({
         </section>
         <section data-testid="opl-runtime-contributions" className="context-block runtime-contributions" hidden={activeContextTab !== "opl-runtime-status-panel"}>
           <h3>{settings.locale === "zh" ? "研究与任务模块" : "Research and task modules"}</h3>
-          {hasContribution("runtime.detail")
+          {runDetail.runtimeDetails.some((module) => module.state === "ready")
             ? renderContributionSlot?.("runtime.detail", contributionOwner)
             : <p className="context-empty">{settings.locale === "zh" ? "当前智能体未提供假设、路线图或其他任务模块。" : "The current agent has not provided hypotheses, a roadmap, or another task module."}</p>}
         </section>
@@ -1353,6 +1713,7 @@ export function App({
     <SettingsPanel
       model={model}
       managedUpdate={managedUpdate}
+      actionViewModel={settingsActionViewModel}
       settings={settings}
       modelOptions={modelOptions}
       resolvedModel={resolvedModel}
@@ -1365,6 +1726,8 @@ export function App({
       onSettingChange={updateSetting}
       onReasoningChange={updateReasoning}
       onAction={(request) => void runSettingsAction(request)}
+      onHostAction={(intent) => void runSettingsHostAction(intent)}
+      onGatewayLogin={loginGatewayAccount}
       actionBusyKey={settingsActionBusyKey}
       actionFeedback={settingsActionFeedback}
       pendingConfirmation={settingsActionConfirmation}
@@ -1382,6 +1745,7 @@ export function App({
     promptRevision: prompt.length,
     conversationBlank: messages.length === 0,
     sending: sendState === "running",
+    queue: ephemeralQueue,
     contributionOwner,
     uiContributions: model.uiContributions,
     workspaceRail: studioWorkspaceRail,
@@ -1398,7 +1762,11 @@ export function App({
     startSession: startNewChat,
     updatePrompt,
     submitPrompt: sendCodexMessage,
-    openComposerPalette
+    steerQueue: () => void steerAllQueuedItems(),
+    updateQueue: updateEphemeralQueue,
+    notifyQueue: (_level, text) => setComposerSubmissionError(text),
+    openComposerPalette,
+    stopTurn: () => void stopActiveTurn()
   });
 
 }

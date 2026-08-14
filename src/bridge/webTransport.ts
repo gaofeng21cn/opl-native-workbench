@@ -7,6 +7,12 @@ import {
 
 type WebSurface = OplStudioSurface;
 
+declare global {
+  interface Window {
+    oplStudio?: OplStudioSurface;
+  }
+}
+
 class WebTransportError extends Error {
   code: string;
   details: Record<string, unknown>;
@@ -76,6 +82,13 @@ export function installWebTransport(): void {
     pickFiles: () => Promise.reject(new WebTransportError("native_picker_unavailable", "The local WebUI cannot expose native file paths")),
     pickDirectory: () => Promise.reject(new WebTransportError("native_picker_unavailable", "The local WebUI cannot expose native folder paths")),
     sendMessage: (request) => postJson("/api/send-message", request),
+    steerTurn: (request) => postJson("/api/turns/steer", request),
+    interruptTurn: (request) => postJson("/api/turns/interrupt", request),
+    loginGatewayAccount: (request) => postJson("/api/opl-runtime/gateway-account-login", request),
+    readNativeAppUpdateStatus: () => requestJson("/api/native-app-update/status"),
+    checkNativeAppUpdate: () => postJson("/api/native-app-update/check", {}),
+    applyNativeAppUpdate: () => postJson("/api/native-app-update/apply", {}),
+    restartNativeApp: () => postJson("/api/native-app-update/restart", {}),
     listThreads: (request = {}) => postJson("/api/threads/list", request),
     readThread: (request) => postJson("/api/threads/read", request),
     resumeThread: (request) => postJson("/api/threads/resume", request),

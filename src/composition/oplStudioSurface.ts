@@ -11,6 +11,12 @@ export type OplStudioSurface = {
   promptRevision: number;
   conversationBlank: boolean;
   sending: boolean;
+  queue: Array<{
+    id: string;
+    placement: "queued";
+    preview: string;
+    text: string | null;
+  }>;
   contributionOwner: OplContributionSlotOwner;
   uiContributions: OplUiContributionsProjection;
   workspaceRail: ReactNode;
@@ -26,7 +32,10 @@ export type OplStudioSurface = {
   detailsRequestRevision: number;
   startSession(): void;
   updatePrompt(value: string): void;
-  submitPrompt(): void;
+  submitPrompt(mode?: "queue" | "steer"): void;
+  steerQueue(): void;
+  updateQueue(itemId: string, action: { kind: string; content?: Array<{ type?: string; text?: string }> }): Promise<void>;
+  notifyQueue(level: "info" | "error", text: string): void;
   openComposerPalette(): void;
   stopTurn?(): void;
 };

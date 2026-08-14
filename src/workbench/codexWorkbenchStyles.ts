@@ -1635,6 +1635,35 @@ export const codexWorkbenchStyles = `
     border-bottom: 1px solid var(--opl-border);
   }
 
+  .gateway-login-form {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    gap: 10px;
+    align-items: end;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--dsh-border-muted, rgba(127, 127, 127, 0.18));
+  }
+
+  .gateway-login-form label {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+    color: var(--dsh-text-secondary, #666);
+    font-size: 12px;
+  }
+
+  .gateway-login-form input {
+    width: 100%;
+    min-width: 0;
+    height: 32px;
+    padding: 0 9px;
+    border: 1px solid var(--dsh-border-default, rgba(127, 127, 127, 0.28));
+    border-radius: 6px;
+    background: var(--dsh-surface-primary, transparent);
+    color: inherit;
+    font: inherit;
+  }
+
   .settings-status {
     display: inline-flex;
     align-items: center;

@@ -6,10 +6,14 @@ import type {
   CodexTurn,
   SetArchivedRequest,
   ThreadForkRequest,
+  ThreadInterruptRequest,
+  ThreadInterruptResult,
   ThreadListRequest,
   ThreadListResult,
   ThreadReadRequest,
-  ThreadResumeRequest
+  ThreadResumeRequest,
+  ThreadSteerRequest,
+  ThreadSteerResult
 } from "../threads/types";
 
 export type OplStateProfile = "fast" | "full";
@@ -175,9 +179,17 @@ export type CodexMessageRequest = {
   prompt: string;
   inputs?: CodexComposerInput[];
   threadId?: string;
+  agentSelection?: CodexAgentSelectionSnapshot;
   model?: string;
   reasoningEffort?: string;
   permissions?: string;
+};
+
+export type CodexAgentSelectionSnapshot = {
+  package_id: string;
+  shortcut_id: string;
+  codex_visible_entry: string;
+  required_skill_ids: string[];
 };
 
 export type CodexComposerInput =
@@ -240,6 +252,48 @@ export type CodexMessageResponse = {
   simulated?: boolean;
 };
 
+export type GatewayAccountLoginRequest = {
+  email: string;
+  password: string;
+  deviceLabel?: string;
+};
+
+export type GatewayAccountLoginErrorCode =
+  | "invalid_credentials"
+  | "account_disabled"
+  | "mfa_or_challenge_required"
+  | "session_not_persistable"
+  | "group_selection_required"
+  | "auth_expired"
+  | "network_unreachable"
+  | "rate_limited"
+  | "managed_key_missing"
+  | "managed_key_conflict"
+  | "managed_key_identity_drift"
+  | "disconnect_pending"
+  | "invalid_request"
+  | "internal_contract_violation"
+  | "gateway_account_failed";
+
+export type GatewayAccountLoginResult =
+  | { ok: true; stateRefreshRequired: true }
+  | { ok: false; errorCode: GatewayAccountLoginErrorCode; stateRefreshRequired: false };
+
+export type NativeAppUpdateOperation = "status" | "check" | "apply" | "restart";
+export type NativeAppUpdateResult = {
+  schema: "opl_native_app_updater.v1";
+  owner: "one-person-lab-app_native_host";
+  host: "native" | "web" | "browser_placeholder";
+  operation: NativeAppUpdateOperation;
+  supported: boolean;
+  state: "unsupported" | "restart_scheduled";
+  currentVersion?: string;
+  accepted?: true;
+  restartRequired: boolean;
+  reasonCode?: "native_updater_not_packaged" | "native_host_required" | "application_bundle_unavailable";
+  ownerFallback?: "one-person-lab-app";
+};
+
 export type CodexModelCatalogEntry = {
   id: string;
   model: string;
@@ -278,7 +332,7 @@ export type OplBridgeEvent = OplBridgeTypeEvent | OplBridgeMethodEvent;
 
 export type OplStudioSurface = Pick<
   OplBridge,
-  "beginWindowDrag" | "readState" | "readFullDrilldown" | "readContribution" | "executeAction" | "readCodexModels" | "readCodexCapabilities" | "readCodexPermissionProfiles" | "pickFiles" | "pickDirectory" | "sendMessage" | "subscribeEvents"
+  "beginWindowDrag" | "readState" | "readFullDrilldown" | "readContribution" | "executeAction" | "readCodexModels" | "readCodexCapabilities" | "readCodexPermissionProfiles" | "pickFiles" | "pickDirectory" | "sendMessage" | "steerTurn" | "interruptTurn" | "loginGatewayAccount" | "readNativeAppUpdateStatus" | "checkNativeAppUpdate" | "applyNativeAppUpdate" | "restartNativeApp" | "subscribeEvents"
 > & Partial<CodexThreadAdapterBridge> & {
   eventSourceUrl?: string;
   connectEvents?: (onEvent: (event: OplBridgeEvent) => void) => () => void;
@@ -303,6 +357,7 @@ export const CODEX_APP_SERVER = {
   threadArchive: "thread/archive",
   threadUnarchive: "thread/unarchive",
   turnSteer: "turn/steer",
+  turnInterrupt: "turn/interrupt",
   turnStarted: "turn/started",
   streamEvent: "item/agentMessage/delta",
   itemCompleted: "item/completed",
@@ -325,6 +380,13 @@ export type OplBridge = CodexThreadAdapterBridge & {
   pickFiles(): Promise<CodexPickedInput[]>;
   pickDirectory(): Promise<CodexPickedInput[]>;
   sendMessage(request: CodexMessageRequest): Promise<CodexMessageResponse>;
+  steerTurn(request: ThreadSteerRequest): Promise<ThreadSteerResult>;
+  interruptTurn(request: ThreadInterruptRequest): Promise<ThreadInterruptResult>;
+  loginGatewayAccount(request: GatewayAccountLoginRequest): Promise<GatewayAccountLoginResult>;
+  readNativeAppUpdateStatus(): Promise<NativeAppUpdateResult>;
+  checkNativeAppUpdate(): Promise<NativeAppUpdateResult>;
+  applyNativeAppUpdate(): Promise<NativeAppUpdateResult>;
+  restartNativeApp(): Promise<NativeAppUpdateResult>;
   subscribeEvents(onEvent: (event: OplBridgeEvent) => void): () => void;
 };
 
@@ -1149,6 +1211,36 @@ export function createBrowserBridge(): OplBridge {
       });
       return Promise.resolve(promise).then((value) => normalizeSendMessageResponse(value, request));
     },
+    steerTurn(request) {
+      if (!candidate?.steerTurn) {
+        return Promise.reject(new Error("Codex turn/steer is unavailable in this host"));
+      }
+      return candidate.steerTurn(request);
+    },
+    interruptTurn(request) {
+      if (!candidate?.interruptTurn) {
+        return Promise.reject(new Error("Codex turn/interrupt is unavailable in this host"));
+      }
+      return candidate.interruptTurn(request);
+    },
+    loginGatewayAccount(request) {
+      if (!candidate?.loginGatewayAccount) {
+        return Promise.resolve({ ok: false, errorCode: "gateway_account_failed", stateRefreshRequired: false });
+      }
+      return candidate.loginGatewayAccount(request);
+    },
+    readNativeAppUpdateStatus() {
+      return candidate?.readNativeAppUpdateStatus?.() ?? Promise.resolve(nativeUpdaterPlaceholder("status"));
+    },
+    checkNativeAppUpdate() {
+      return candidate?.checkNativeAppUpdate?.() ?? Promise.resolve(nativeUpdaterPlaceholder("check"));
+    },
+    applyNativeAppUpdate() {
+      return candidate?.applyNativeAppUpdate?.() ?? Promise.resolve(nativeUpdaterPlaceholder("apply"));
+    },
+    restartNativeApp() {
+      return candidate?.restartNativeApp?.() ?? Promise.resolve(nativeUpdaterPlaceholder("restart"));
+    },
     listThreads(request: ThreadListRequest = {}) {
       const promise = candidate?.listThreads?.(request) ?? Promise.resolve({ data: [], nextCursor: null });
       return Promise.resolve(promise).then(normalizeThreadListResult);
@@ -1215,5 +1307,19 @@ export function createBrowserBridge(): OplBridge {
       onEvent(normalizeBridgeEvent({ type: "bridge.preview_only", source: "browser-placeholder" }, "browser-placeholder"));
       return () => undefined;
     }
+  };
+}
+
+function nativeUpdaterPlaceholder(operation: NativeAppUpdateOperation): NativeAppUpdateResult {
+  return {
+    schema: "opl_native_app_updater.v1",
+    owner: "one-person-lab-app_native_host",
+    host: "browser_placeholder",
+    operation,
+    supported: false,
+    state: "unsupported",
+    restartRequired: false,
+    reasonCode: "native_host_required",
+    ownerFallback: "one-person-lab-app"
   };
 }

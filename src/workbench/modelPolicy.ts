@@ -124,11 +124,38 @@ export const codexModelPolicy = {
   reasoningOptions
 };
 
+function catalogModelGroup(
+  catalog: CodexCatalogCapability[],
+  modelId: CodexModelId
+): CodexCatalogCapability[] {
+  const aliases = new Set([modelId]);
+  let previousSize = -1;
+  while (aliases.size !== previousSize) {
+    previousSize = aliases.size;
+    for (const item of catalog) {
+      const itemAliases = [item.id, item.model].filter(isModelId);
+      if (!itemAliases.some((alias) => aliases.has(alias))) continue;
+      for (const alias of itemAliases) aliases.add(alias);
+    }
+  }
+  return catalog.filter((item) => [item.id, item.model]
+    .filter(isModelId)
+    .some((alias) => aliases.has(alias)));
+}
+
 export function resolveCodexModelOptions(catalog: CodexCatalogCapability[]): ResolvedCodexModelOption[] {
-  const knownOptions = codexModelPolicy.modelOptions.map((option) => {
-    const runtime = catalog.find((item) => item.id === option.id || item.model === option.id);
-    const supportedReasoningEfforts = runtime?.supportedReasoningEfforts
-      .filter(isReasoningEffort) ?? [];
+  const knownGroups = codexModelPolicy.modelOptions.map((option) => ({
+    option,
+    runtimes: catalogModelGroup(catalog, option.id)
+  }));
+  const knownOptions = knownGroups.map(({ option, runtimes }) => {
+    const catalogDefault = runtimes.find((item) => item.isDefault === true);
+    const runtime = catalogDefault
+      ?? runtimes.find((item) => item.id === option.id || item.model === option.id)
+      ?? runtimes[0];
+    const supportedReasoningEfforts = [...new Set(runtimes
+      .flatMap((item) => item.supportedReasoningEfforts)
+      .filter(isReasoningEffort))];
     const isAppDefault = option.id === codexModelPolicy.defaultModel;
     const configuredReasoningEffort = codexModelPolicy.knownModelReasoningEffortOverrides[option.id]
       ?? (isAppDefault ? codexModelPolicy.defaultReasoningEffort : undefined);
@@ -136,7 +163,7 @@ export function resolveCodexModelOptions(catalog: CodexCatalogCapability[]): Res
       ...option,
       available: isAppDefault || supportedReasoningEfforts.length > 0,
       known: true,
-      isCatalogDefault: runtime?.isDefault === true,
+      isCatalogDefault: Boolean(catalogDefault),
       defaultReasoningEffort: configuredReasoningEffort
         ? configuredReasoningEffort
         : isReasoningEffort(runtime?.defaultReasoningEffort)
@@ -153,7 +180,7 @@ export function resolveCodexModelOptions(catalog: CodexCatalogCapability[]): Res
 
   const unknownCatalogDefault = catalog.find((item) =>
     item.isDefault === true
-    && !knownOptions.some((option) => option.id === item.id || option.id === item.model)
+    && !knownGroups.some(({ runtimes }) => runtimes.includes(item))
   );
   if (!unknownCatalogDefault || !codexModelPolicy.acceptUnknownCatalogDefault) return knownOptions;
 

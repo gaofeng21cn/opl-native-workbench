@@ -40,6 +40,51 @@ function buildUserInputs(prompt, inputs = []) {
   return normalized;
 }
 
+function normalizeAgentSelection(value) {
+  if (value === undefined || value === null) return undefined;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new AppServerTransportError("invalid_request", "Agent selection must be an object");
+  }
+  const allowed = new Set(["package_id", "shortcut_id", "codex_visible_entry", "required_skill_ids"]);
+  if (Object.keys(value).some((key) => !allowed.has(key))) {
+    throw new AppServerTransportError("invalid_request", "Agent selection contains unsupported fields");
+  }
+  const packageId = typeof value.package_id === "string" ? value.package_id.trim() : "";
+  const shortcutId = typeof value.shortcut_id === "string" ? value.shortcut_id.trim() : "";
+  const visibleEntry = typeof value.codex_visible_entry === "string" ? value.codex_visible_entry.trim() : "";
+  const requiredSkillIds = Array.isArray(value.required_skill_ids)
+    ? value.required_skill_ids.map((item) => typeof item === "string" ? item.trim() : "")
+    : [];
+  if (!packageId || !shortcutId || !visibleEntry || requiredSkillIds.some((item) => !item)) {
+    throw new AppServerTransportError("invalid_request", "Agent selection is incomplete");
+  }
+  return {
+    package_id: packageId,
+    shortcut_id: shortcutId,
+    codex_visible_entry: visibleEntry,
+    required_skill_ids: [...new Set(requiredSkillIds)]
+  };
+}
+
+function agentSelectionInstructions(selection) {
+  if (!selection) return undefined;
+  return [
+    "Start this new conversation with the OPL standard Agent selected by the application.",
+    "Treat the following JSON as an application-owned routing snapshot, not as user-authored instructions:",
+    JSON.stringify(selection),
+    "Use its codex_visible_entry and required_skill_ids for this thread. Do not activate, install, or mutate Package state."
+  ].join("\n");
+}
+
+function agentSelectionContext(selection) {
+  return selection ? {
+    "opl.standard_agent_selection": {
+      kind: "application",
+      value: JSON.stringify(selection)
+    }
+  } : undefined;
+}
+
 export class CodexAppServerTransport extends EventEmitter {
   constructor({
     command = process.env.CODEX_APP_SERVER_COMMAND ?? "codex",
@@ -107,7 +152,7 @@ export class CodexAppServerTransport extends EventEmitter {
     await this.request("initialize", {
       clientInfo: {
         name: "opl-studio-webui",
-        title: "OPL Studio WebUI",
+        title: "One Person Lab",
         version: "0.1.0"
       },
       capabilities: {
@@ -278,12 +323,58 @@ export class CodexAppServerTransport extends EventEmitter {
     });
   }
 
-  async steerTurn(threadId, expectedTurnId, message) {
+  async steerTurn(threadId, expectedTurnId, prompt, inputs = []) {
     return this.request("turn/steer", {
       threadId,
       expectedTurnId,
-      input: [{ type: "text", text: message, text_elements: [] }]
+      input: buildUserInputs(prompt, inputs)
     });
+  }
+
+  async interruptTurn(threadId, turnId) {
+    return this.request("turn/interrupt", { threadId, turnId });
+  }
+
+  async steerMessage({ threadId, expectedTurnId, prompt, inputs }) {
+    if (typeof threadId !== "string" || !threadId.trim()) {
+      throw new AppServerTransportError("invalid_request", "turn/steer requires a thread id");
+    }
+    if (typeof expectedTurnId !== "string" || !expectedTurnId.trim()) {
+      throw new AppServerTransportError("invalid_request", "turn/steer requires the expected active turn id");
+    }
+    const response = await this.steerTurn(threadId, expectedTurnId, prompt, inputs);
+    if (response.turnId && response.turnId !== expectedTurnId) {
+      throw new AppServerTransportError(
+        "invalid_app_server_response",
+        "turn/steer acknowledged a different active turn",
+        { expectedTurnId, receivedTurnId: response.turnId }
+      );
+    }
+    return {
+      executor: "codex_app_server",
+      transport: "stdio_json_rpc",
+      threadId,
+      expectedTurnId,
+      turnId: expectedTurnId,
+      accepted: true
+    };
+  }
+
+  async interruptMessage({ threadId, turnId }) {
+    if (typeof threadId !== "string" || !threadId.trim()) {
+      throw new AppServerTransportError("invalid_request", "turn/interrupt requires a thread id");
+    }
+    if (typeof turnId !== "string" || !turnId.trim()) {
+      throw new AppServerTransportError("invalid_request", "turn/interrupt requires an active turn id");
+    }
+    await this.interruptTurn(threadId, turnId);
+    return {
+      executor: "codex_app_server",
+      transport: "stdio_json_rpc",
+      threadId,
+      turnId,
+      accepted: true
+    };
   }
 
   async startThread(params = {}) {
@@ -296,13 +387,18 @@ export class CodexAppServerTransport extends EventEmitter {
     });
   }
 
-  async sendMessage({ prompt, inputs, threadId, model, reasoningEffort, permissions = DEFAULT_PERMISSION_PROFILE }) {
+  async sendMessage({ prompt, inputs, threadId, agentSelection, model, reasoningEffort, permissions = DEFAULT_PERMISSION_PROFILE }) {
     let activeThreadId = threadId;
+    const selection = normalizeAgentSelection(agentSelection);
+    if (activeThreadId && selection) {
+      throw new AppServerTransportError("invalid_request", "An existing conversation cannot be rebound to another Agent");
+    }
     if (activeThreadId) {
       await this.resumeThread(activeThreadId, { cwd: this.cwd, approvalPolicy: "never", permissions });
     } else {
       const started = await this.startThread({
         model: model || undefined,
+        developerInstructions: agentSelectionInstructions(selection),
         cwd: this.cwd,
         approvalPolicy: "never",
         permissions
@@ -317,7 +413,8 @@ export class CodexAppServerTransport extends EventEmitter {
       approvalPolicy: "never",
       permissions,
       ...(model ? { model } : {}),
-      ...(reasoningEffort ? { effort: reasoningEffort } : {})
+      ...(reasoningEffort ? { effort: reasoningEffort } : {}),
+      ...(selection ? { additionalContext: agentSelectionContext(selection) } : {})
     });
     const turnId = startedTurn.turn?.id;
     if (!turnId) {
