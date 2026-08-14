@@ -37,6 +37,12 @@ try {
   docker(
     "run", "--detach", "--name", container,
     "--publish", "127.0.0.1::4178",
+    "--read-only",
+    "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=256m",
+    "--cap-drop", "ALL",
+    "--security-opt", "no-new-privileges",
+    "--pids-limit", "512",
+    "--user", "1000:1000",
     "--mount", `type=volume,src=${dataVolume},dst=/data`,
     "--mount", `type=volume,src=${projectsVolume},dst=/projects`,
     image
@@ -59,6 +65,9 @@ try {
   assert.notEqual(appState.app_state, null);
   assert.equal(docker("exec", container, "id", "-u"), "1000");
   assert.equal(docker("exec", container, "cat", "/proc/1/comm"), "node");
+  assert.equal(docker("inspect", container, "--format", "{{.HostConfig.ReadonlyRootfs}}"), "true");
+  assert.match(docker("inspect", container, "--format", "{{json .HostConfig.SecurityOpt}}"), /no-new-privileges/);
+  assert.match(docker("inspect", container, "--format", "{{json .HostConfig.CapDrop}}"), /ALL/);
   const oplVersion = docker("exec", container, "opl", "--version");
   const codexVersion = docker("exec", container, "codex", "--version");
   assert.ok(oplVersion, "opl --version returned no output");
