@@ -614,6 +614,19 @@ export function App({
   }, [messages]);
 
   useEffect(() => {
+    const media = globalThis.matchMedia?.("(prefers-color-scheme: dark)");
+    const applyTheme = () => {
+      const dark = settings.theme === "dark" || (settings.theme === "system" && media?.matches === true);
+      document.documentElement.style.colorScheme = dark ? "dark" : "light";
+      document.body.toggleAttribute("data-ds-dark-theme", dark);
+    };
+    applyTheme();
+    if (settings.theme !== "system" || !media) return;
+    media.addEventListener("change", applyTheme);
+    return () => media.removeEventListener("change", applyTheme);
+  }, [settings.theme]);
+
+  useEffect(() => {
     if (!codexThreadId || !messages.length) return;
     globalThis.requestAnimationFrame?.(() => {
       const conversation = conversationRef.current;
@@ -1198,6 +1211,7 @@ export function App({
       status={capabilityStatus}
       error={capabilityError}
       selections={composerSelections}
+      standardAgents={model.packageLifecycle.filter((item) => item.official && item.roleGroup === "agent")}
       onClose={() => setComposerPaletteOpen(false)}
       onPickFiles={() => void pickComposerFiles()}
       onPickDirectory={() => void pickComposerDirectory()}
@@ -1213,7 +1227,7 @@ export function App({
         {modelOptions.map((option) => <option key={option.id} value={option.id} disabled={!option.available}>{modelLabel(option.id, settings.locale)}</option>)}
       </select>
       <select aria-label={settings.locale === "zh" ? "推理强度" : "Reasoning effort"} value={resolvedReasoning} disabled={!resolvedModel} onChange={(event) => updateReasoning(event.currentTarget.value as WorkbenchSettings["reasoningLevel"])}>
-        {codexModelPolicy.reasoningOptions.map((effort) => <option key={effort} value={effort} disabled={!resolvedReasoningOptions.includes(effort)}>{reasoningLabel(effort, settings.locale)}</option>)}
+        {codexModelPolicy.reasoningOptions.map((effort) => <option key={effort} value={effort} disabled={!resolvedReasoningOptions.includes(effort)}>{reasoningLabel(effort, settings.locale, true)}</option>)}
       </select>
     </span>
   );

@@ -29,6 +29,13 @@ import {
   type ResolvedCodexModelOption
 } from "./modelPolicy";
 import type { SettingKey, WorkbenchSettings } from "./settingsModel";
+import { AppearanceRow } from "../vendor/deepseek-harness/packages/client/ui-theme/src/client/AppearanceRow";
+
+declare module "@deepseek-ai/dsh-client-ui-slots" {
+  interface LocaleNamespaceMap {
+    "settings.theme": "appearance.title" | "appearance.light" | "appearance.dark" | "appearance.system";
+  }
+}
 
 export type SettingsDestinationId =
   | "overview"
@@ -712,11 +719,14 @@ export function SettingsPanel({
 
   function settingValueLabel(key: SettingKey, value: WorkbenchSettings[SettingKey]): string {
     if (key === "modelAccess") return value === "__auto" ? (settings.locale === "zh" ? "自动" : "Auto") : modelLabel(value as string, settings.locale);
-    if (key === "reasoningLevel") return reasoningLabel(value as string, settings.locale);
+    if (key === "reasoningLevel") return reasoningLabel(value as string, settings.locale, true);
     if (key === "defaultWorkspace") return settings.locale === "zh" ? "OPL App 工作区" : "OPL App workspace";
     if (key === "runtimeProfile") return value === "fast" ? (settings.locale === "zh" ? "快速" : "Fast") : (settings.locale === "zh" ? "完整" : "Full");
     if (key === "professionalStarterDefaults") return settings.locale === "zh" ? "科研、基金与演示" : "Research, grant, and presentation";
-    if (key === "theme") return value === "system" ? (settings.locale === "zh" ? "跟随系统" : "System") : (settings.locale === "zh" ? "浅色" : "Light");
+    if (key === "theme") {
+      if (value === "system") return settings.locale === "zh" ? "跟随系统" : "System";
+      return value === "dark" ? (settings.locale === "zh" ? "深色" : "Dark") : (settings.locale === "zh" ? "浅色" : "Light");
+    }
     if (key === "artifactPreviewMode") return settings.locale === "zh" ? "丰富预览（仅引用）" : "Rich preview (refs only)";
     if (typeof value === "boolean") return value ? (settings.locale === "zh" ? "开" : "On") : (settings.locale === "zh" ? "关" : "Off");
     return String(value);
@@ -744,7 +754,7 @@ export function SettingsPanel({
       return (
         <select className="setting-select" data-testid="opl-settings-reasoning" value={resolvedReasoning} disabled={!resolvedModel} onChange={(event) => onReasoningChange(event.currentTarget.value)}>
           {codexModelPolicy.reasoningOptions.map((effort) => (
-            <option key={effort} value={effort} disabled={!resolvedReasoningOptions.includes(effort)}>{reasoningLabel(effort, settings.locale)}</option>
+            <option key={effort} value={effort} disabled={!resolvedReasoningOptions.includes(effort)}>{reasoningLabel(effort, settings.locale, true)}</option>
           ))}
         </select>
       );
@@ -752,7 +762,13 @@ export function SettingsPanel({
     if (key === "modelAccess") {
       return (
         <select className="setting-select" data-testid="opl-model-access-entry" value={value} onChange={(event) => onSettingChange("modelAccess", event.currentTarget.value)}>
-          <option value="__auto">{settings.locale === "zh" ? "自动" : "Auto"}</option>
+          <option value="__auto">
+            {resolvedModel
+              ? settings.locale === "zh"
+                ? `自动（当前 ${modelLabel(resolvedModel.id, settings.locale)}）`
+                : `Auto (current: ${modelLabel(resolvedModel.id, settings.locale)})`
+              : settings.locale === "zh" ? "自动（推荐）" : "Auto (recommended)"}
+          </option>
           {value !== "__auto" && !modelOptions.some((option) => option.id === value) ? (
             <option value={value} disabled>{modelLabel(value, settings.locale)} ({settings.locale === "zh" ? "不可用" : "Unavailable"})</option>
           ) : null}
@@ -766,9 +782,6 @@ export function SettingsPanel({
     }
     if (key === "runtimeProfile") {
       return <button className="setting-toggle" type="button" onClick={() => onSettingChange("runtimeProfile", value === "fast" ? "full" : "fast")}>{settingValueLabel(key, value)}</button>;
-    }
-    if (key === "theme") {
-      return <button className="setting-toggle" type="button" onClick={() => onSettingChange("theme", value === "system" ? "light" : "system")}>{settingValueLabel(key, value)}</button>;
     }
     return <span>{settingValueLabel(key, value)}</span>;
   }
@@ -830,11 +843,11 @@ export function SettingsPanel({
         <>
           <SettingsGroup title={settings.locale === "zh" ? "会话配置" : "Session configuration"}>
             <SettingRow label={settings.locale === "zh" ? "模型" : "Model"} detail={unavailableFixedModel ? (settings.locale === "zh" ? "所选模型当前不可用" : "Selected model is unavailable") : undefined}>{renderSettingControl("modelAccess")}</SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "推理强度" : "Reasoning effort"}>{renderSettingControl("reasoningLevel")}</SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "强度" : "Effort"}>{renderSettingControl("reasoningLevel")}</SettingRow>
           </SettingsGroup>
           <SettingsGroup title={settings.locale === "zh" ? "Codex 读取状态" : "Codex readback"}>
             <SettingRow label={settings.locale === "zh" ? "当前模型" : "Current model"}><code>{projection?.codex.model ?? "--"}</code></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "当前推理强度" : "Current reasoning"}><span>{projection?.codex.reasoningEffort ?? "--"}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "当前强度" : "Current effort"}><span>{projection?.codex.reasoningEffort ?? "--"}</span></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "提供方" : "Provider"}><span>{projection?.codex.providerName ?? "--"}</span></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "模型访问" : "Model access"}><StatusValue status={projection?.codex.accessStatus} locale={settings.locale} /></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "配置文件" : "Configuration"}><code>{projection?.codex.configPath ?? "--"}</code></SettingRow>
@@ -1041,7 +1054,17 @@ export function SettingsPanel({
         <>
           <SettingsGroup title={settings.locale === "zh" ? "界面" : "Interface"}>
             <SettingRow label={settings.locale === "zh" ? "语言" : "Language"}>{renderSettingControl("locale")}</SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "外观" : "Appearance"}>{renderSettingControl("theme")}</SettingRow>
+            <AppearanceRow
+              t={(key) => ({
+                "appearance.title": settings.locale === "zh" ? "外观" : "Appearance",
+                "appearance.light": settings.locale === "zh" ? "浅色" : "Light",
+                "appearance.dark": settings.locale === "zh" ? "深色" : "Dark",
+                "appearance.system": settings.locale === "zh" ? "跟随系统" : "System"
+              })[key] ?? key}
+              setTheme={(theme) => onSettingChange("theme", theme)}
+              useStore={(selector) => selector({ preference: settings.theme, revision: 0 })}
+              actions={{ sync: () => undefined }}
+            />
             <SettingRow label={settings.locale === "zh" ? "预览模式" : "Preview mode"}>{renderSettingControl("artifactPreviewMode")}</SettingRow>
           </SettingsGroup>
           <SettingsGroup title={settings.locale === "zh" ? "执行" : "Execution"}>
@@ -1054,8 +1077,7 @@ export function SettingsPanel({
 
     return (
       <>
-        <div className="about-mark"><Boxes aria-hidden="true" size={24} /></div>
-        <SettingsGroup title="One Person Lab Studio Preview">
+        <SettingsGroup title="One Person Lab">
           <SettingRow label={settings.locale === "zh" ? "版本" : "Version"}><span>0.1.0</span></SettingRow>
           <SettingRow label={settings.locale === "zh" ? "定位" : "Channel"}><span>{settings.locale === "zh" ? "技术评估候选" : "Technical evaluation candidate"}</span></SettingRow>
           <SettingRow label="Codex CLI"><span>{projection?.codex.version ?? "--"}</span></SettingRow>

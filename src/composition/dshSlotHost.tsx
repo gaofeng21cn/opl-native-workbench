@@ -51,6 +51,7 @@ declare module "@deepseek-ai/dsh-client-ui-slots" {
     "settings.action": { kind: "list"; scope: "root"; owner: object };
     "settings.close": { kind: "single"; scope: "root"; owner: object };
     "settings.section": { kind: "list"; scope: "root"; owner: object };
+    "settings.general.item": { kind: "list"; scope: "root"; owner: object };
     "settings.onboarding": { kind: "list"; scope: "root"; owner: object };
     "composer.palette": { kind: "list"; scope: "root"; owner: object };
     "runtime.detail": { kind: "list"; scope: "root"; owner: object };
@@ -85,7 +86,7 @@ function translate(locale: "zh" | "en", key: string, params?: Record<string, unk
   const copy: Record<string, [string, string]> = {
     "session.new.label": ["新建任务", "New task"], "session.new": ["新建任务", "New task"],
     "toggle.open": ["展开侧栏", "Expand sidebar"], "toggle.collapse": ["收起侧栏", "Collapse sidebar"],
-    "hero.headline": ["今天要推进什么？", "What will you move forward today?"], "hero.preview": ["OPL Studio", "OPL Studio"],
+    "hero.headline": ["今天要推进什么？", "What will you move forward today?"], "hero.preview": ["One Person Lab", "One Person Lab"],
     "hero.chooseWorkspace": ["选择工作区", "Choose workspace"], "placeholder.workspace": ["先选择工作区", "Choose a workspace first"],
     "placeholder.hero": ["向 OPL 描述你的目标", "Describe your goal to OPL"], "placeholder.default": ["向 OPL 描述你的目标", "Describe your goal to OPL"],
     "placeholder.unavailable": ["当前不可输入", "Input unavailable"], "placeholder.parentOffline": ["父任务当前离线", "Parent task is offline"],
@@ -228,7 +229,7 @@ function SettingsTriggerSlot({ wide }: { wide: boolean }) {
   return <><SettingsIcon aria-hidden="true" size={16} />{wide ? <span>{studio.locale === "zh" ? "设置" : "Settings"}</span> : null}</>;
 }
 
-function SettingsHeaderSlot() { return <>OPL Studio</>; }
+function SettingsHeaderSlot() { return <>One Person Lab</>; }
 function SettingsCloseSlot() { return <>{useStudio().locale === "zh" ? "关闭" : "Close"}</>; }
 function settingsSectionId(destination: SettingsDestinationId): string {
   return `opl-studio-settings-${destination}`;

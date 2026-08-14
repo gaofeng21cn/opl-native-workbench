@@ -253,7 +253,9 @@ test("DSH controls resolve to the complete pinned upstream primitives tree while
   assert.match(adapterStyles, /svg\[viewBox="0 0 182 24"\]/);
   assert.match(adapterStyles, /svg\[viewBox="0 0 23\.16 17\.04"\]/);
   assert.match(adapterStyles, /display: none/);
-  assert.match(adapterStyles, /content: "OPL Studio"/);
+  assert.match(adapterStyles, /content: "One Person Lab"/);
+  assert.match(slotHost, /"hero.preview": \["One Person Lab", "One Person Lab"\]/);
+  assert.match(slotHost, /function SettingsHeaderSlot\(\) \{ return <>One Person Lab<\/>; \}/);
   assert.doesNotMatch(main, /--opl-brand-logo/);
   assert.doesNotMatch(main, /branding\/opl-app-logo\.png/);
 });
@@ -331,6 +333,23 @@ test("Settings uses the App-owned navigation groups and one shared read model", 
   assert.doesNotMatch(settingsPanel, /useState<SettingsDestinationId>/);
   assert.doesNotMatch(styles, /grid-template-columns: 220px minmax\(0, 1fr\)/);
   assert.doesNotMatch(styles, /\.settings-mobile-navigation/);
+});
+
+test("Settings directly reuses DSH appearance controls and applies the selected palette", () => {
+  assert.match(settingsPanel, /from "\.\.\/vendor\/deepseek-harness\/packages\/client\/ui-theme\/src\/client\/AppearanceRow"/);
+  assert.match(settingsPanel, /<AppearanceRow/);
+  assert.match(app, /document\.body\.toggleAttribute\("data-ds-dark-theme", dark\)/);
+  assert.match(app, /matchMedia\?\.\("\(prefers-color-scheme: dark\)"\)/);
+  assert.match(settings, /theme: "system" \| "light" \| "dark"/);
+  assert.match(styles, /--opl-text: var\(--dsw-alias-label-primary\)/);
+  assert.match(styles, /--opl-canvas: var\(--dsw-alias-bg-base\)/);
+});
+
+test("composer separates OPL standard agents from Skills, connections, and other modules", () => {
+  assert.match(app, /standardAgents=\{model\.packageLifecycle\.filter\(\(item\) => item\.official && item\.roleGroup === "agent"\)\}/);
+  assert.match(composerPalette, /data-testid="opl-standard-agents"/);
+  assert.match(composerPalette, /OPL 标准智能体/);
+  assert.match(composerPalette, /其他模块/);
 });
 
 test("desktop uses DSH columns and mobile keeps full-height thread dialogs", () => {

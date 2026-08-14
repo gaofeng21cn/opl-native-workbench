@@ -17,3 +17,16 @@ declare module "@opl-vendor/dsh-input-bar" {
 declare module "@opl-vendor/dsh-settings-root" {
   export const SettingsRoot: (props: any) => JSX.Element;
 }
+
+declare module "@deepseek-ai/dsh-client-ui-settings/client" {}
+
+declare module "@deepseek-ai/dsh-client-runtime/client" {
+  import type {
+    ActionsDecl,
+    StoreHandle,
+    StoreSpec
+  } from "@deepseek-ai/dsh-client-ui-slots";
+
+  export type EngineStoreHandle<T, A extends ActionsDecl<T>> = StoreHandle<T, A>;
+  export function defineStore<T, A extends ActionsDecl<T>>(spec: StoreSpec<T, A>): StoreHandle<T, A>;
+}

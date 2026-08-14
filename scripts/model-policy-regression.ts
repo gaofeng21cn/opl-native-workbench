@@ -86,7 +86,7 @@ assert.equal(runtimeAuto.reasoningEffort, "max");
 assert.equal(reasoningLabel("max", "zh"), "推理最大");
 assert.equal(reasoningLabel("max", "en", true), "Max");
 assert.equal(runtimeAuto.effectiveSelection, "__auto");
-assert.equal(conversationModelLabel("__auto", runtimeAuto.model?.id, "en"), "Future primary");
+assert.equal(conversationModelLabel("__auto", runtimeAuto.model?.id, "en"), "Auto (current: Future primary)");
 assert.equal(conversationModelLabel("__auto", undefined, "en"), "Auto (recommended)");
 const pinnedSecondary = resolveCodexSelection(runtimeOptions, "codex-future-secondary", "low");
 assert.equal(pinnedSecondary.model.id, "codex-future-secondary");

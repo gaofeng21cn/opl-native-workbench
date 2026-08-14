@@ -34,7 +34,7 @@ select {
 }
 
 .opl-studio-dsh-root button:has(> svg[viewBox="0 0 182 24"])::after {
-  content: "OPL Studio";
+  content: "One Person Lab";
   overflow: hidden;
   color: var(--dsw-alias-label-primary);
   font-size: 15px;

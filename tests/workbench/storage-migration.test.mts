@@ -51,3 +51,11 @@ test("preserves an existing OPL Studio value over a stale legacy value", () => {
   )).toBe("current");
   expect(storage.values.get("opl.nativeWorkbench.uiMetadata.v2")).toBe("legacy");
 });
+
+test("preserves the directly reused DSH dark appearance preference", () => {
+  const storage = memoryStorage({
+    [SETTINGS_STORAGE_KEY]: JSON.stringify({ theme: "dark" })
+  });
+
+  expect(readSettings(storage).theme).toBe("dark");
+});

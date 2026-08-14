@@ -39,7 +39,7 @@ export type WorkbenchSettings = {
   confirmBeforeExecute: boolean;
   artifactPreviewMode: "rich_refs_only";
   professionalStarterDefaults: "research_grant_presentation";
-  theme: "system" | "light";
+  theme: "system" | "light" | "dark";
   developerDetails: boolean;
 };
 
@@ -85,7 +85,7 @@ const allowedSettingsValues = {
   confirmBeforeExecute: [true, false],
   artifactPreviewMode: ["rich_refs_only"],
   professionalStarterDefaults: ["research_grant_presentation"],
-  theme: ["system", "light"],
+  theme: ["system", "light", "dark"],
   developerDetails: [true, false]
 } as const;
 

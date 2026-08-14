@@ -231,7 +231,11 @@ export function conversationModelLabel(
   locale: WorkbenchLocale
 ): string {
   return selection === "__auto"
-    ? resolvedModel ? modelLabel(resolvedModel, locale) : autoModelLabel(locale)
+    ? resolvedModel
+      ? locale === "zh"
+        ? `自动（当前 ${modelLabel(resolvedModel, locale)}）`
+        : `Auto (current: ${modelLabel(resolvedModel, locale)})`
+      : autoModelLabel(locale)
     : modelLabel(selection, locale);
 }
 

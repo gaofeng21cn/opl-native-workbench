@@ -1,4 +1,4 @@
-import { Check, FilePlus2, FolderPlus, Plug, Search, Sparkles, X } from "lucide-react";
+import { Bot, Check, FilePlus2, FolderPlus, Plug, Search, Sparkles, X } from "lucide-react";
 import { Button, Input } from "@deepseek-ai/dsh-client-ui-primitives";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type {
@@ -6,6 +6,7 @@ import type {
   CodexComposerInput,
   CodexSkillCapability
 } from "../bridge/oplBridge";
+import type { AgentPackageLifecycleRef } from "./workbenchModel";
 
 export type ComposerSelection = {
   id: string;
@@ -22,6 +23,7 @@ type ComposerCapabilityPaletteProps = {
   status: "idle" | "loading" | "ready" | "error";
   error?: string;
   selections: ComposerSelection[];
+  standardAgents: AgentPackageLifecycleRef[];
   contributions?: ReactNode;
   onClose(): void;
   onPickFiles(): void;
@@ -36,6 +38,7 @@ export function ComposerCapabilityPalette({
   status,
   error,
   selections,
+  standardAgents,
   contributions,
   onClose,
   onPickFiles,
@@ -46,12 +49,16 @@ export function ComposerCapabilityPalette({
   const [query, setQuery] = useState("");
   const copy = locale === "zh" ? {
     title: "添加到对话",
-    search: "搜索文件、Skill 和连接",
+    search: "搜索文件、智能体、Skill 和连接",
     local: "本地输入",
     files: "添加文件",
     filesHelp: "图片和文件",
     folder: "添加文件夹",
     folderHelp: "将文件夹作为上下文",
+    agents: "OPL 标准智能体",
+    agentReady: "可用",
+    agentInactive: "未启用",
+    agentMissing: "未安装",
     skills: "Skills",
     connections: "应用与连接",
     loaded: "已加载",
@@ -59,12 +66,16 @@ export function ComposerCapabilityPalette({
     empty: "没有匹配的能力"
   } : {
     title: "Add to conversation",
-    search: "Search files, Skills, and connections",
+    search: "Search files, agents, Skills, and connections",
     local: "Local input",
     files: "Add files",
     filesHelp: "Images and files",
     folder: "Add folder",
     folderHelp: "Use a folder as context",
+    agents: "OPL standard agents",
+    agentReady: "Available",
+    agentInactive: "Inactive",
+    agentMissing: "Not installed",
     skills: "Skills",
     connections: "Apps and connections",
     loaded: "Loaded",
@@ -92,6 +103,9 @@ export function ComposerCapabilityPalette({
   }, [open, onClose]);
 
   const normalizedQuery = query.trim().toLocaleLowerCase();
+  const agents = useMemo(() => standardAgents
+    .filter((agent) => [agent.label, agent.description, agent.packageId]
+      .some((value) => value.toLocaleLowerCase().includes(normalizedQuery))), [normalizedQuery, standardAgents]);
   const skills = useMemo(() => {
     const seenSkillNames = new Set<string>();
     return catalog.skills.filter((skill) => {
@@ -146,6 +160,20 @@ export function ComposerCapabilityPalette({
           </section>
         ) : null}
         {status === "loading" ? <p className="composer-palette-state">{copy.loading}</p> : null}
+        {agents.length ? (
+          <section data-testid="opl-standard-agents">
+            <strong className="composer-palette-group">{copy.agents}</strong>
+            {agents.map((agent) => (
+              <div key={agent.packageId} className="composer-palette-row loaded">
+                <span className="composer-palette-icon"><Bot aria-hidden="true" size={16} /></span>
+                <span><strong>{agent.label}</strong><small>{agent.description || agent.packageId}</small></span>
+                <small className="composer-palette-loaded">
+                  {agent.activated ? copy.agentReady : agent.installed ? copy.agentInactive : copy.agentMissing}
+                </small>
+              </div>
+            ))}
+          </section>
+        ) : null}
         {skills.length ? (
           <section>
             <strong className="composer-palette-group">{copy.skills}</strong>
@@ -176,13 +204,13 @@ export function ComposerCapabilityPalette({
         {contributions ? (
           <section data-testid="opl-composer-contributions">
             <strong className="composer-palette-group">
-              {locale === "zh" ? "已安装模块" : "Installed modules"}
+              {locale === "zh" ? "其他模块" : "Other modules"}
             </strong>
             <div className="opl-contribution-slot">{contributions}</div>
           </section>
         ) : null}
         {status === "error" ? <p className="composer-palette-state error">{error}</p> : null}
-        {status !== "loading" && !localVisible && !skills.length && !connections.length ? <p className="composer-palette-state">{copy.empty}</p> : null}
+        {status !== "loading" && !localVisible && !agents.length && !skills.length && !connections.length ? <p className="composer-palette-state">{copy.empty}</p> : null}
       </div>
     </div>
   );

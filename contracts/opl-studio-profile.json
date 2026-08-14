@@ -16,7 +16,7 @@
     "renderer_technology": "react",
     "macos_host": "swift_appkit_wkwebview",
     "workspace_host": "node_http_sse",
-    "workspace_product_name": "OPL Studio",
+    "workspace_product_name": "One Person Lab",
     "shared_renderer_and_bridge_shape_required": true,
     "runtime_backend_scope": "codex_cli_only",
     "aionui_runtime_dependency_allowed": false,

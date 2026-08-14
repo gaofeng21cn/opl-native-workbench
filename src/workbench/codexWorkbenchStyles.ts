@@ -7,23 +7,6 @@ export const codexWorkbenchStyles = `
     --opl-sidebar-width: 236px;
     --opl-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --opl-font-mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-    --opl-canvas: #fff;
-    --opl-sidebar: #f7f7f8;
-    --opl-surface-secondary: #f4f4f4;
-    --opl-text: #202123;
-    --opl-muted: color-mix(in oklab, var(--opl-text) 70%, transparent);
-    --opl-faint: color-mix(in oklab, var(--opl-text) 50%, transparent);
-    --opl-hover: color-mix(in oklab, var(--opl-text) 5%, transparent);
-    --opl-selected: color-mix(in oklab, var(--opl-text) 5%, transparent);
-    --opl-border-light: color-mix(in oklab, var(--opl-text) 5%, transparent);
-    --opl-border: color-mix(in oklab, var(--opl-text) 8%, transparent);
-    --opl-border-heavy: color-mix(in oklab, var(--opl-text) 12%, transparent);
-    --opl-accent: var(--opl-text);
-    --opl-accent-soft: var(--opl-hover);
-    --opl-success: #00a240;
-    --opl-warning: #e25507;
-    --opl-warning-soft: #ffe7d9;
-    --opl-danger: #e02e2a;
 
     /* Selected from DeepSeek Harness ui-theme/design-platform.css at
        47f943859bef60e4160492346772ded9b24f765a for the reused primitives. */
@@ -60,6 +43,26 @@ export const codexWorkbenchStyles = `
 
   :root[data-opl-host="native"] {
     --opl-native-titlebar-inset: 34px;
+  }
+
+  body {
+    --opl-canvas: var(--dsw-alias-bg-base);
+    --opl-sidebar: var(--dsw-specific-sidebar-fill);
+    --opl-surface-secondary: var(--dsw-alias-bg-module-platform);
+    --opl-text: var(--dsw-alias-label-primary);
+    --opl-muted: var(--dsw-alias-label-secondary);
+    --opl-faint: var(--dsw-alias-label-tertiary);
+    --opl-hover: var(--dsw-alias-interactive-bg-hover);
+    --opl-selected: var(--dsw-alias-interactive-bg-active);
+    --opl-border-light: var(--dsw-alias-border-l1);
+    --opl-border: var(--dsw-alias-border-l2);
+    --opl-border-heavy: var(--dsw-alias-border-l3);
+    --opl-accent: var(--dsw-alias-brand-primary);
+    --opl-accent-soft: var(--opl-hover);
+    --opl-success: var(--dsw-alias-state-success-primary);
+    --opl-warning: var(--dsw-alias-state-warn-primary);
+    --opl-warning-soft: color-mix(in oklab, var(--opl-warning) 16%, transparent);
+    --opl-danger: var(--dsw-alias-state-error-primary);
   }
 
   :root[data-opl-sidebar-resizing="true"],

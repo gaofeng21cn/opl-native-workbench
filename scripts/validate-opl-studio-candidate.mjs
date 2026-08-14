@@ -165,7 +165,7 @@ const expectedDeliveryEvaluation = {
   renderer_technology: "react",
   macos_host: "swift_appkit_wkwebview",
   workspace_host: "node_http_sse",
-  workspace_product_name: "OPL Studio",
+  workspace_product_name: "One Person Lab",
   shared_renderer_and_bridge_shape_required: true,
   runtime_backend_scope: "codex_cli_only",
   aionui_runtime_dependency_allowed: false,
@@ -370,7 +370,7 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
     assert(source.includes('from "@deepseek-ai/dsh-client-ui-primitives"'), "OPL primitive consumers must import the upstream DSH package specifier directly");
     for (const name of names) assert(primitiveIndex.includes(`export { ${name} }`), `vendored DSH primitive index must export ${name}`);
   }
-  for (const marker of ['svg[viewBox="0 0 182 24"]', 'svg[viewBox="0 0 23.16 17.04"]', "display: none", 'content: "OPL Studio"']) {
+  for (const marker of ['svg[viewBox="0 0 182 24"]', 'svg[viewBox="0 0 23.16 17.04"]', "display: none", 'content: "One Person Lab"']) {
     assert(adapterStyles.includes(marker), `vendor-external text-only OPL identity must preserve ${marker}`);
   }
   assert(!mainSource.includes("--opl-brand-logo") && !mainSource.includes("branding/opl-app-logo.png"), "renderer must keep OPL identity text-only without a Logo asset");
@@ -503,7 +503,7 @@ function assertCodexModelControls(evidence, app, rendererSource) {
   assert(alignment.runtime_detail_slot === "ui_contributions.runtime.detail", "hypotheses and roadmaps must use runtime.detail contribution readback");
   assert(alignment.files_input_policy === "user_selected_files_and_directories_only" && alignment.results_policy === "owner_projected_artifacts_only_no_action_json", "files and results must preserve their real owner boundaries");
   assert(alignment.package_lifecycle_surface === "settings", "Agent Package lifecycle must remain in Settings");
-  assert(JSON.stringify(alignment.product_identity?.visible_text) === JSON.stringify(["OPL Studio", "One Person Lab"]) && alignment.product_identity.logo_visible === false && alignment.product_identity.bundle_icon_allowed === true, "product identity must be text-only while preserving the bundle icon");
+  assert(JSON.stringify(alignment.product_identity?.visible_text) === JSON.stringify(["One Person Lab"]) && alignment.product_identity.logo_visible === false && alignment.product_identity.bundle_icon_allowed === true, "product identity must be text-only One Person Lab while preserving the bundle icon");
   assert(
     !("codex_2026_07_11_alignment" in (evidence.default_home_layout ?? {})),
     "candidate evidence must not restore the retired dated Codex authority key"
