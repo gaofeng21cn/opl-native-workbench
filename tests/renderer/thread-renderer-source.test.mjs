@@ -290,6 +290,20 @@ test("App update restart follows the carrier result instead of a host-name speci
   assert.doesNotMatch(app, /nativeAppUpdate\?\.host === "native"/);
 });
 
+test("Framework managed updates reuse the projected App action bus", () => {
+  const settingsActionFlow = app.match(/async function runSettingsAction\([\s\S]*?\n  async function runSettingsHostAction/)?.[0] ?? "";
+  assert.match(app, /readProjectedManagedUpdateActions\(state\)/);
+  assert.match(app, /setProjectedManagedUpdateActions/);
+  assert.match(app, /managedUpdateActions: \[[\s\S]*\.\.\.projectedManagedUpdateHostActions/);
+  assert.match(app, /runSettingsAction\(\{[\s\S]*actionId: projectedAction\.actionId/);
+  assert.match(settingsActionFlow, /dryRun: true/);
+  assert.match(settingsActionFlow, /payload: \{ \.\.\.request\.payload, confirmed: true \}[\s\S]*dryRun: false/);
+  assert.match(settingsActionFlow, /payload: \{ \.\.\.confirmation\.request\.payload, confirmed: true \}[\s\S]*dryRun: false/);
+  assert.match(settingsActionFlow, /captureManagedUpdateReceipt\(receipt\)/);
+  assert.match(settingsActionFlow, /await loadState\(settings\.runtimeProfile\)/);
+  assert.doesNotMatch(app, /Framework 尚未投影此更新操作|Framework has not projected this update operation/);
+});
+
 test("search, composer attachments, and Agent permissions route to real renderer and bridge behavior", () => {
   assert.match(app, /data-testid="opl-workspace-rail"/);
   assert.match(app, /setThreadSearchOpen\(true\)/);

@@ -11,6 +11,72 @@ function modelWith(overrides: Partial<WorkbenchModel>): WorkbenchModel {
   return { ...initialWorkbenchModel, ...overrides };
 }
 
+test("managed update host actions come only from the App-projected action catalog", async () => {
+  Object.assign(globalThis, {
+    __OPL_CODEX_MODEL_POLICY__: {
+      source: "test App policy",
+      defaultModel: "test-model",
+      defaultReasoningEffort: "high",
+      visibleModels: [{ id: "test-model" }],
+      reasoningEfforts: ["high"],
+      knownModelReasoningEffortOverrides: {},
+      acceptUnknownCatalogDefault: true,
+      useHighestSupportedReasoningForUnknown: true
+    }
+  });
+  const { readProjectedManagedUpdateActions } = await import("../../src/workbench/App.tsx");
+  const actions = readProjectedManagedUpdateActions({
+    app_state: {
+      app_state: {
+        actions: [{
+          action_id: "settings_check_opl_base_update",
+          label: "Check OPL Base update",
+          payload_fields: [],
+          dry_run_supported: true,
+          confirmation_required: false
+        }, {
+          action_id: "settings_apply_opl_base_update",
+          label: "Apply OPL Base update",
+          payload_fields: [],
+          dry_run_supported: true
+        }, {
+          action_id: "settings_apply_opl_packages",
+          label: "Apply OPL packages",
+          payload_fields: [],
+          dry_run_supported: true
+        }, {
+          action_id: "unprojected_update",
+          label: "Must not become executable",
+          payload_fields: [],
+          dry_run_supported: true,
+          confirmation_required: false
+        }],
+        settings_control_center: { task_entries: [] }
+      }
+    }
+  });
+
+  assert.deepEqual(actions, [{
+    actionId: "settings_check_opl_base_update",
+    label: "Check OPL Base update",
+    payloadFields: [],
+    confirmationRequired: false,
+    dryRunSupported: true
+  }, {
+    actionId: "settings_apply_opl_base_update",
+    label: "Apply OPL Base update",
+    payloadFields: [],
+    confirmationRequired: true,
+    dryRunSupported: true
+  }, {
+    actionId: "settings_apply_opl_packages",
+    label: "Apply OPL packages",
+    payloadFields: [],
+    confirmationRequired: true,
+    dryRunSupported: true
+  }]);
+});
+
 test("settings actions consume projected Gateway actions without creating a credential transport", () => {
   const refreshAction = {
       id: "gateway_account_refresh",

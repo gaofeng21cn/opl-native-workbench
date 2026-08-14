@@ -104,6 +104,68 @@ const contextTabs = [
 ] as const;
 type ContextTabId = (typeof contextTabs)[number];
 
+const managedUpdateActionSpecs = [
+  {
+    actionId: "settings_check_opl_base_update",
+    operation: "check",
+    componentIds: ["opl_base"],
+    confirmationRequired: false,
+    labels: ["检查 OPL Base 更新", "Check OPL Base update"]
+  },
+  {
+    actionId: "settings_apply_opl_base_update",
+    operation: "apply",
+    componentIds: ["opl_base"],
+    confirmationRequired: true,
+    labels: ["更新 OPL Base", "Update OPL Base"]
+  },
+  {
+    actionId: "settings_apply_opl_packages",
+    operation: "apply",
+    componentIds: ["opl_packages"],
+    confirmationRequired: true,
+    labels: ["更新能力包", "Update packages"]
+  }
+] as const;
+
+type ProjectedManagedUpdateAction = {
+  actionId: string;
+  label: string;
+  payloadFields: string[];
+  confirmationRequired: boolean;
+  dryRunSupported: boolean;
+};
+
+export function readProjectedManagedUpdateActions(state: unknown): ProjectedManagedUpdateAction[] {
+  const root = typeof state === "object" && state !== null && !Array.isArray(state)
+    ? state as Record<string, unknown>
+    : null;
+  const first = typeof root?.app_state === "object" && root.app_state !== null && !Array.isArray(root.app_state)
+    ? root.app_state as Record<string, unknown>
+    : root;
+  const appState = typeof first?.app_state === "object" && first.app_state !== null && !Array.isArray(first.app_state)
+    ? first.app_state as Record<string, unknown>
+    : first;
+  const actions = Array.isArray(appState?.actions) ? appState.actions : [];
+  return actions.flatMap((value): ProjectedManagedUpdateAction[] => {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return [];
+    const action = value as Record<string, unknown>;
+    const actionId = typeof action.action_id === "string" ? action.action_id.trim() : "";
+    const spec = managedUpdateActionSpecs.find((candidate) => candidate.actionId === actionId);
+    if (!spec) return [];
+    const payloadFields = Array.isArray(action.payload_fields)
+      ? action.payload_fields.filter((field): field is string => typeof field === "string" && Boolean(field.trim()))
+      : [];
+    return [{
+      actionId,
+      label: typeof action.label === "string" && action.label.trim() ? action.label : actionId,
+      payloadFields,
+      confirmationRequired: spec.confirmationRequired || action.confirmation_required === true,
+      dryRunSupported: action.dry_run_supported === true
+    }];
+  });
+}
+
 const assistantMarkdownLinkSafety = { enabled: false } as const;
 const assistantMarkdownControls = {
   code: { copy: true, download: false },
@@ -549,6 +611,7 @@ export function App({
   const [model, setModel] = useState(initialWorkbenchModel);
   const [managedUpdate, setManagedUpdate] = useState<ManagedUpdateProjection | null>(null);
   const [nativeAppUpdate, setNativeAppUpdate] = useState<NativeAppUpdateResult | null>(null);
+  const [projectedManagedUpdateActions, setProjectedManagedUpdateActions] = useState<ProjectedManagedUpdateAction[]>([]);
   const [projectedGatewayActions, setProjectedGatewayActions] = useState<ProjectedGatewayAction[]>([]);
   const [stateStatus, setStateStatus] = useState<"loading" | "ready" | "error">("loading");
   const [stateError, setStateError] = useState("");
@@ -674,6 +737,31 @@ export function App({
     resolvedModel?.id,
     settings.locale
   );
+  const projectedManagedUpdateHostActions = useMemo(() => {
+    const projectedActions = new Map(projectedManagedUpdateActions.map((action) => [action.actionId, action]));
+    return managedUpdateActionSpecs.flatMap((spec) => {
+      const projectedAction = projectedActions.get(spec.actionId);
+      if (!projectedAction) return [];
+      const availability = projectedAction.payloadFields.length
+        ? "payload_required"
+        : projectedAction.confirmationRequired && !projectedAction.dryRunSupported
+          ? "unavailable"
+          : "ready";
+      return [{
+        projectedAction,
+        intent: {
+          transport: "managed_update_host" as const,
+          key: `managed-update:${projectedAction.actionId}`,
+          label: spec.labels[settings.locale === "zh" ? 0 : 1],
+          operation: spec.operation,
+          componentIds: [...spec.componentIds],
+          confirmationRequired: projectedAction.confirmationRequired,
+          availability,
+          sourceRef: `app_state.actions#${projectedAction.actionId}`
+        } satisfies SettingsHostActionIntent
+      }];
+    });
+  }, [projectedManagedUpdateActions, settings.locale]);
   const settingsActionViewModel = useMemo(() => buildSettingsActionViewModel(model, managedUpdate, {
     gatewayActions: projectedGatewayActions,
     managedUpdateActions: [
@@ -706,9 +794,10 @@ export function App({
         confirmationRequired: false,
         availability: nativeAppUpdate?.supported === true && nativeAppUpdate.restartRequired === true ? "ready" : "unavailable",
         sourceRef: "one-person-lab-app native host"
-      }
+      },
+      ...projectedManagedUpdateHostActions.map(({ intent }) => intent)
     ]
-  }), [managedUpdate, model, nativeAppUpdate, projectedGatewayActions, settings.locale]);
+  }), [managedUpdate, model, nativeAppUpdate, projectedGatewayActions, projectedManagedUpdateHostActions, settings.locale]);
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
@@ -767,6 +856,7 @@ export function App({
       .readState(profile)
       .then((state) => {
         setModel(deriveWorkbenchModelFromState(state));
+        setProjectedManagedUpdateActions(readProjectedManagedUpdateActions(state));
         setProjectedGatewayActions(readGatewayActionsFromState(state));
         const updateProjection = readManagedUpdateProjection(state);
         if (updateProjection) {
@@ -861,12 +951,27 @@ export function App({
   }
 
   async function runSettingsHostAction(intent: SettingsHostActionIntent) {
+    if (intent.transport === "managed_update_host") {
+      const projectedAction = projectedManagedUpdateHostActions.find((entry) => entry.intent.key === intent.key)?.projectedAction;
+      if (!projectedAction) {
+        setSettingsActionFeedback({
+          tone: "attention",
+          message: settings.locale === "zh" ? "此更新操作已不在最新状态中。" : "This update operation is no longer present in the latest state."
+        });
+        return;
+      }
+      await runSettingsAction({
+        key: intent.key,
+        actionId: projectedAction.actionId,
+        label: intent.label,
+        payload: {},
+        confirmationRequired: projectedAction.confirmationRequired
+      });
+      return;
+    }
     setSettingsActionBusyKey(intent.key);
     setSettingsActionFeedback(null);
     try {
-      if (intent.transport !== "native_app_updater") {
-        throw new Error(settings.locale === "zh" ? "Framework 尚未投影此更新操作。" : "Framework has not projected this update operation.");
-      }
       const result = intent.operation === "check"
         ? await bridge.checkNativeAppUpdate()
         : intent.operation === "apply"
