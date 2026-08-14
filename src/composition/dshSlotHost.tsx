@@ -61,6 +61,13 @@ declare module "@deepseek-ai/dsh-client-ui-slots" {
 
 const emptyArraySnapshot = Object.freeze([]) as readonly unknown[];
 const noSessionSnapshot: SessionMaybeProvideInfo = Object.freeze({ sessionId: undefined, hooks: Object.freeze({}), props: Object.freeze({}) });
+const focusableSelector = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function focusableElements(root: HTMLElement | null): HTMLElement[] {
+  if (!root) return [];
+  return Array.from(root.querySelectorAll<HTMLElement>(focusableSelector))
+    .filter((element) => !element.closest('[hidden], [aria-hidden="true"]') && element.getClientRects().length > 0);
+}
 
 function constantObservable<T>(snapshot: T): HostObservable<T> {
   return { getSnapshot: () => snapshot, subscribe: () => () => undefined };
@@ -111,6 +118,7 @@ function translate(locale: "zh" | "en", key: string, params?: Record<string, unk
 
 function StudioFrame({ surface, renderSlot }: { surface: OplStudioSurface; renderSlot: any }) {
   const [panels, setPanels] = useState({ sidebar: 280, details: 0, narrow: false, narrowExpanded: false });
+  const frameRootRef = useRef<HTMLElement | null>(null);
   const actions = useMemo(() => ({
     setSidebar: (px: number) => setPanels((current) => ({ ...current, sidebar: Math.min(420, Math.max(264, px)) })),
     setDetails: (px: number) => setPanels((current) => ({ ...current, details: Math.min(520, Math.max(300, px)) })),
@@ -134,9 +142,48 @@ function StudioFrame({ surface, renderSlot }: { surface: OplStudioSurface; rende
     lastDetailsRequest.current = surface.detailsRequestRevision;
     actions.openDetails();
   }, [actions, surface.detailsRequestRevision]);
+  useEffect(() => {
+    const root = frameRootRef.current;
+    if (!root) return;
+    const frame = root.firstElementChild;
+    if (!(frame instanceof HTMLElement)) return;
+    const handles = Array.from(frame.children).filter((child): child is HTMLElement =>
+      child instanceof HTMLElement && (child.dataset.side === "sidebar" || child.dataset.side === "details")
+    );
+    const cleanups = handles.map((handle) => {
+      const side = handle.dataset.side === "details" ? "details" : "sidebar";
+      const min = side === "sidebar" ? 264 : 300;
+      const max = side === "sidebar" ? 420 : 520;
+      const value = side === "sidebar" ? panels.sidebar : panels.details;
+      handle.setAttribute("role", "separator");
+      handle.setAttribute("aria-orientation", "vertical");
+      handle.setAttribute("aria-label", surface.locale === "zh"
+        ? (side === "sidebar" ? "调整项目侧栏宽度" : "调整任务详情宽度")
+        : (side === "sidebar" ? "Resize project sidebar" : "Resize task details"));
+      handle.setAttribute("aria-valuemin", String(min));
+      handle.setAttribute("aria-valuemax", String(max));
+      handle.setAttribute("aria-valuenow", String(value));
+      handle.tabIndex = 0;
+
+      const onKeyDown = (event: globalThis.KeyboardEvent) => {
+        let next: number | null = null;
+        if (event.key === "Home") next = min;
+        else if (event.key === "End") next = max;
+        else if (event.key === "ArrowLeft") next = value + (side === "details" ? 16 : -16);
+        else if (event.key === "ArrowRight") next = value + (side === "details" ? -16 : 16);
+        if (next === null) return;
+        event.preventDefault();
+        if (side === "sidebar") actions.setSidebar(next);
+        else actions.setDetails(next);
+      };
+      handle.addEventListener("keydown", onKeyDown);
+      return () => handle.removeEventListener("keydown", onKeyDown);
+    });
+    return () => cleanups.forEach((cleanup) => cleanup());
+  }, [actions, panels.details, panels.narrow, panels.sidebar, surface.locale]);
   return (
     <StudioContext.Provider value={value}>
-      <main data-testid="opl-studio-root" className="opl-studio-dsh-root codex-sidebar-chat with-rail without-inspector">
+      <main ref={frameRootRef} data-testid="opl-studio-root" className="opl-studio-dsh-root codex-sidebar-chat with-rail without-inspector">
         <AppFrame
           useStore={(selector: (state: typeof panels) => unknown) => selector(panels)}
           useSessions={(selector: (state: typeof sessions) => unknown) => selector(sessions)}
@@ -215,13 +262,58 @@ function DetailsSlot() {
 
 function ShellOverlaySlot() {
   const studio = useStudio();
+  const detailsDialogRef = useRef<HTMLElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const detailsOpen = studio.narrow && studio.detailsOpen;
+  useEffect(() => {
+    if (!detailsOpen) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeButtonRef.current?.focus({ preventScroll: true });
+    return () => {
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [detailsOpen]);
   return <>
     {studio.overlay}
-    {studio.narrow && studio.detailsOpen ? (
-      <section className="opl-mobile-details-overlay" aria-label={studio.locale === "zh" ? "任务详情" : "Task details"}>
+    {detailsOpen ? (
+      <section
+        ref={detailsDialogRef}
+        className="opl-mobile-details-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="opl-mobile-details-title"
+        tabIndex={-1}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            event.stopPropagation();
+            studio.closeDetails();
+            return;
+          }
+          if (event.key !== "Tab") return;
+          const focusable = focusableElements(detailsDialogRef.current);
+          if (focusable.length === 0) {
+            event.preventDefault();
+            detailsDialogRef.current?.focus();
+            return;
+          }
+          const first = focusable[0]!;
+          const last = focusable[focusable.length - 1]!;
+          if (!detailsDialogRef.current?.contains(document.activeElement)) {
+            event.preventDefault();
+            (event.shiftKey ? last : first).focus();
+          } else if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+          }
+        }}
+      >
         <header>
-          <strong>{studio.locale === "zh" ? "任务详情" : "Task details"}</strong>
-          <button type="button" aria-label={studio.locale === "zh" ? "关闭详情" : "Close details"} onClick={studio.closeDetails}><X aria-hidden="true" size={18} /></button>
+          <strong id="opl-mobile-details-title">{studio.locale === "zh" ? "任务详情" : "Task details"}</strong>
+          <button ref={closeButtonRef} type="button" aria-label={studio.locale === "zh" ? "关闭详情" : "Close details"} onClick={studio.closeDetails}><X aria-hidden="true" size={18} /></button>
         </header>
         <div className="opl-mobile-details-body">{studio.details}</div>
       </section>

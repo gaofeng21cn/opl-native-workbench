@@ -12,6 +12,13 @@ import {
   type AgentPackageSelectionIntent
 } from "./workbenchModel";
 
+function focusableElements(root: HTMLElement | null): HTMLElement[] {
+  if (!root) return [];
+  return Array.from(root.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )).filter((element) => !element.closest('[hidden], [aria-hidden="true"]') && element.getClientRects().length > 0);
+}
+
 export type ComposerSelection = {
   id: string;
   kind: "file" | "folder" | "image" | "skill";
@@ -104,16 +111,50 @@ export function ComposerCapabilityPalette({
       setQuery("");
       return;
     }
-    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    rootRef.current?.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true });
+    return () => {
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOrTrapFocus = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+        return;
+      }
+      if (event.key === "Tab") {
+        const focusable = focusableElements(rootRef.current);
+        if (focusable.length === 0) {
+          event.preventDefault();
+          rootRef.current?.focus();
+          return;
+        }
+        const first = focusable[0]!;
+        const last = focusable[focusable.length - 1]!;
+        if (!rootRef.current?.contains(document.activeElement)) {
+          event.preventDefault();
+          (event.shiftKey ? last : first).focus();
+        } else if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
     };
     const closeOutside = (event: MouseEvent) => {
       if (event.target instanceof Node && !rootRef.current?.contains(event.target)) onClose();
     };
-    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("keydown", closeOrTrapFocus);
     document.addEventListener("pointerdown", closeOutside);
     return () => {
-      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("keydown", closeOrTrapFocus);
       document.removeEventListener("pointerdown", closeOutside);
     };
   }, [open, onClose]);
@@ -150,7 +191,7 @@ export function ComposerCapabilityPalette({
 
   if (!open) return null;
   return (
-    <div ref={rootRef} className="composer-palette" role="dialog" aria-label={copy.title}>
+    <div ref={rootRef} className="composer-palette" role="dialog" aria-modal="true" aria-label={copy.title} tabIndex={-1}>
       <header>
         <strong>{copy.title}</strong>
         <Button
@@ -164,7 +205,6 @@ export function ComposerCapabilityPalette({
       <Input
         className="composer-palette-search"
         icon={<Search aria-hidden="true" size={14} />}
-        autoFocus
         value={query}
         placeholder={copy.search}
         aria-label={copy.search}

@@ -414,6 +414,39 @@ test("DSH AppFrame owns bounded sidebar/details resize and responsive collapse",
   assert.doesNotMatch(app, /data-testid="opl-sidebar-resizer"/);
 });
 
+test("OPL overlays and DSH resize handles expose complete keyboard accessibility", () => {
+  assert.match(settingsPanel, /confirmationDialogRef/);
+  assert.match(settingsPanel, /trapDialogFocus\(event, confirmationDialogRef\.current\)/);
+  assert.match(settingsPanel, /const focusable = focusableElements\(root\)/);
+  assert.match(settingsPanel, /event\.key === "Escape"/);
+  assert.match(settingsPanel, /previousFocus\.focus\(\)/);
+
+  assert.match(composerPalette, /aria-modal="true"/);
+  assert.match(composerPalette, /focusableElements\(rootRef\.current\)/);
+  assert.match(composerPalette, /event\.key === "Tab"/);
+  assert.match(composerPalette, /previousFocus\.focus\(\)/);
+  assert.doesNotMatch(composerPalette, /autoFocus/);
+  assert.ok(
+    composerPalette.indexOf("const previousFocus") < composerPalette.indexOf('querySelector<HTMLInputElement>("input")?.focus'),
+    "composer must capture the trigger before moving focus to search"
+  );
+
+  assert.match(slotHost, /className="opl-mobile-details-overlay"\s*role="dialog"\s*aria-modal="true"\s*aria-labelledby=/);
+  assert.match(slotHost, /focusableElements\(detailsDialogRef\.current\)/);
+  assert.match(slotHost, /closeButtonRef\.current\?\.focus/);
+  assert.match(slotHost, /previousFocus\.focus\(\)/);
+
+  assert.match(slotHost, /handle\.setAttribute\("role", "separator"\)/);
+  assert.match(slotHost, /handle\.setAttribute\("aria-orientation", "vertical"\)/);
+  assert.match(slotHost, /handle\.setAttribute\("aria-valuenow"/);
+  assert.match(slotHost, /event\.key === "ArrowLeft"/);
+  assert.match(slotHost, /event\.key === "ArrowRight"/);
+  assert.match(slotHost, /actions\.setSidebar/);
+  assert.match(slotHost, /actions\.setDetails/);
+  assert.doesNotMatch(appFrame, /role="separator"|aria-valuenow|onKeyDown/);
+  for (const source of [settingsPanel, composerPalette, slotHost]) assert.match(source, /getClientRects\(\)\.length > 0/);
+});
+
 test("DSH Settings content consumes the canonical Gateway account read model", () => {
   assert.match(model, /app_settings_read_model/);
   assert.match(model, /opl_gateway_account_read_model\.v1/);

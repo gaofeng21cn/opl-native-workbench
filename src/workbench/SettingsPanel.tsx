@@ -15,7 +15,7 @@ import {
   Workflow,
   Wrench
 } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { CarrierDiagnosticsReadback } from "../bridge/oplBridge";
 import type {
   ManagedUpdateComponentRef,
@@ -112,6 +112,35 @@ export type SettingsActionConfirmation = {
   request: SettingsActionRequest;
   previewStatus: string;
 };
+
+function focusableElements(root: HTMLElement | null): HTMLElement[] {
+  if (!root) return [];
+  return Array.from(root.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )).filter((element) => !element.closest('[hidden], [aria-hidden="true"]') && element.getClientRects().length > 0);
+}
+
+function trapDialogFocus(event: KeyboardEvent<HTMLElement>, root: HTMLElement | null): void {
+  if (event.key !== "Tab") return;
+  const focusable = focusableElements(root);
+  if (focusable.length === 0) {
+    event.preventDefault();
+    root?.focus();
+    return;
+  }
+  const first = focusable[0]!;
+  const last = focusable[focusable.length - 1]!;
+  if (!root?.contains(document.activeElement)) {
+    event.preventDefault();
+    (event.shiftKey ? last : first).focus();
+  } else if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
 
 type NavigationDestination = {
   id: SettingsDestinationId;
@@ -775,6 +804,9 @@ export function SettingsPanel({
   const [gatewayEmail, setGatewayEmail] = useState("");
   const [gatewayPassword, setGatewayPassword] = useState("");
   const [gatewayDeviceLabel, setGatewayDeviceLabel] = useState("");
+  const confirmationDialogRef = useRef<HTMLElement | null>(null);
+  const confirmationCancelRef = useRef<HTMLButtonElement | null>(null);
+  const confirmationOpen = pendingConfirmation !== null;
   const derivedActionViewModel = useMemo(() => buildSettingsActionViewModel(model, managedUpdate), [managedUpdate, model]);
   const actionViewModel = projectedActionViewModel ?? derivedActionViewModel;
   const availableStarters = model.starters.filter((starter) => starter.available).length;
@@ -796,6 +828,15 @@ export function SettingsPanel({
       : "OPL Gateway";
   const readbackStatus = stateLoading ? "loading" : stateFailed ? "attention_needed" : "ready";
   const gatewayAction = (kind: GatewayActionViewModel["kind"]) => actionViewModel.gatewayActions.find((action) => action.kind === kind);
+
+  useEffect(() => {
+    if (!confirmationOpen) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    confirmationCancelRef.current?.focus({ preventScroll: true });
+    return () => {
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [confirmationOpen]);
 
   function settingValueLabel(key: SettingKey, value: WorkbenchSettings[SettingKey]): string {
     if (key === "modelAccess") return value === "__auto" ? (settings.locale === "zh" ? "自动" : "Auto") : modelLabel(value as string, settings.locale);
@@ -1273,7 +1314,24 @@ export function SettingsPanel({
       </div>
       {pendingConfirmation ? (
         <div className="settings-action-dialog-backdrop" role="presentation">
-          <section className="settings-action-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-action-dialog-title" data-testid="opl-settings-action-confirmation">
+          <section
+            ref={confirmationDialogRef}
+            className="settings-action-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-action-dialog-title"
+            data-testid="opl-settings-action-confirmation"
+            tabIndex={-1}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                onCancelAction();
+                return;
+              }
+              trapDialogFocus(event, confirmationDialogRef.current);
+            }}
+          >
             <div className="settings-action-dialog-icon"><Wrench aria-hidden="true" size={18} /></div>
             <div>
               <h2 id="settings-action-dialog-title">{pendingConfirmation.request.label}</h2>
@@ -1281,7 +1339,7 @@ export function SettingsPanel({
               <small>{settings.locale === "zh" ? "预检查" : "Preview"}: {formatStatus(pendingConfirmation.previewStatus, settings.locale)}</small>
             </div>
             <div className="settings-action-dialog-actions">
-              <button type="button" onClick={onCancelAction}>{settings.locale === "zh" ? "取消" : "Cancel"}</button>
+              <button ref={confirmationCancelRef} type="button" onClick={onCancelAction}>{settings.locale === "zh" ? "取消" : "Cancel"}</button>
               <button className="primary" type="button" onClick={onConfirmAction} disabled={actionBusyKey !== null}>
                 {actionBusyKey ? <LoaderCircle className="spin" aria-hidden="true" size={13} /> : null}
                 {settings.locale === "zh" ? "确认执行" : "Confirm"}
