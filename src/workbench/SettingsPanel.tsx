@@ -1,27 +1,27 @@
 import {
   AlertCircle,
-  ArrowLeft,
+  ArrowDown,
+  ArrowUp,
   Bot,
   Boxes,
   CheckCircle2,
   ChevronDown,
-  CircleUserRound,
-  FolderCog,
-  Gauge,
-  Info,
-  Link2,
   LoaderCircle,
   PackageOpen,
   Play,
   RefreshCw,
   Search,
-  SlidersHorizontal,
   Workflow,
-  Wrench,
-  X
+  Wrench
 } from "lucide-react";
-import { useMemo, useState, type PointerEventHandler, type ReactNode } from "react";
-import type { PackageLifecycleActionRef, RuntimeMaintenanceActionRef, WorkbenchModel } from "./workbenchModel";
+import { useMemo, useState, type ReactNode } from "react";
+import type {
+  ManagedUpdateComponentRef,
+  ManagedUpdateProjection,
+  PackageLifecycleActionRef,
+  RuntimeMaintenanceActionRef,
+  WorkbenchModel
+} from "./workbenchModel";
 import {
   codexModelPolicy,
   modelLabel,
@@ -57,6 +57,7 @@ type SettingsGroupId =
 
 type SettingsPanelProps = {
   model: WorkbenchModel;
+  managedUpdate: ManagedUpdateProjection | null;
   settings: WorkbenchSettings;
   modelOptions: ResolvedCodexModelOption[];
   resolvedModel?: ResolvedCodexModelOption;
@@ -65,7 +66,6 @@ type SettingsPanelProps = {
   stateStatus: "loading" | "ready" | "error";
   stateError: string;
   activeDestination: SettingsDestinationId;
-  onDestinationChange: (destination: SettingsDestinationId) => void;
   onRefresh: () => void;
   onSettingChange: <Key extends keyof WorkbenchSettings>(key: Key, value: WorkbenchSettings[Key]) => void;
   onReasoningChange: (reasoning: WorkbenchSettings["reasoningLevel"]) => void;
@@ -96,15 +96,6 @@ export type SettingsActionConfirmation = {
   previewStatus: string;
 };
 
-type SettingsSidebarProps = {
-  locale: WorkbenchSettings["locale"];
-  activeDestination: SettingsDestinationId;
-  onDestinationChange: (destination: SettingsDestinationId) => void;
-  onBack: () => void;
-  onWindowDrag: PointerEventHandler<HTMLElement>;
-  onMobileClose: () => void;
-};
-
 type NavigationDestination = {
   id: SettingsDestinationId;
   label: string;
@@ -113,7 +104,6 @@ type NavigationDestination = {
 type NavigationGroup = {
   id: SettingsGroupId;
   label: string;
-  icon: typeof Gauge;
   destinations: NavigationDestination[];
 };
 
@@ -177,11 +167,10 @@ const navigationCopy = {
 function navigationGroups(locale: WorkbenchSettings["locale"]): NavigationGroup[] {
   const copy = navigationCopy[locale];
   return [
-    { id: "overview", label: copy.groups.overview, icon: Gauge, destinations: [{ id: "overview", label: copy.destinations.overview }] },
+    { id: "overview", label: copy.groups.overview, destinations: [{ id: "overview", label: copy.destinations.overview }] },
     {
       id: "account_models",
       label: copy.groups.account_models,
-      icon: CircleUserRound,
       destinations: [
         { id: "account", label: copy.destinations.account },
         { id: "models", label: copy.destinations.models }
@@ -190,13 +179,11 @@ function navigationGroups(locale: WorkbenchSettings["locale"]): NavigationGroup[
     {
       id: "connections_deployment",
       label: copy.groups.connections_deployment,
-      icon: Link2,
       destinations: [{ id: "resources", label: copy.destinations.resources }]
     },
     {
       id: "workspace",
       label: copy.groups.workspace,
-      icon: FolderCog,
       destinations: [
         { id: "workspace", label: copy.destinations.workspace },
         { id: "storage", label: copy.destinations.storage }
@@ -205,7 +192,6 @@ function navigationGroups(locale: WorkbenchSettings["locale"]): NavigationGroup[
     {
       id: "agents_capabilities",
       label: copy.groups.agents_capabilities,
-      icon: Bot,
       destinations: [
         { id: "agents", label: copy.destinations.agents },
         { id: "capabilities", label: copy.destinations.capabilities },
@@ -215,7 +201,6 @@ function navigationGroups(locale: WorkbenchSettings["locale"]): NavigationGroup[
     {
       id: "runtime_maintenance",
       label: copy.groups.runtime_maintenance,
-      icon: Wrench,
       destinations: [
         { id: "services", label: copy.destinations.services },
         { id: "updates", label: copy.destinations.updates },
@@ -225,9 +210,16 @@ function navigationGroups(locale: WorkbenchSettings["locale"]): NavigationGroup[
     {
       id: "preferences",
       label: copy.groups.preferences,
-      icon: SlidersHorizontal,
       destinations: [{ id: "preferences", label: copy.destinations.preferences }]
     }
+  ];
+}
+
+export function settingsDestinations(locale: WorkbenchSettings["locale"]): NavigationDestination[] {
+  const groups = navigationGroups(locale);
+  return [
+    ...groups.flatMap((group) => group.destinations),
+    { id: "about", label: navigationCopy[locale].destinations.about }
   ];
 }
 
@@ -303,57 +295,6 @@ export function gatewayAccountInitials(name: string | undefined): string {
   const characters = Array.from(name.trim());
   if (characters.some((character) => /\p{Script=Han}/u.test(character))) return characters.find((character) => /\p{Script=Han}/u.test(character)) ?? "OP";
   return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "OP";
-}
-
-export function SettingsSidebar({
-  locale,
-  activeDestination,
-  onDestinationChange,
-  onBack,
-  onWindowDrag,
-  onMobileClose
-}: SettingsSidebarProps) {
-  const groups = useMemo(() => navigationGroups(locale), [locale]);
-  const activeGroup = groups.find((group) => group.destinations.some((destination) => destination.id === activeDestination));
-  const copy = navigationCopy[locale].destinations;
-
-  return (
-    <>
-      <header className="brand-row settings-back-row" onPointerDown={onWindowDrag}>
-        <button data-testid="opl-settings-back-to-app" className="settings-back-to-app" type="button" onClick={onBack}>
-          <ArrowLeft aria-hidden="true" size={15} />
-          <span>{locale === "zh" ? "返回应用" : "Back to app"}</span>
-        </button>
-        <button className="icon-button sidebar-close-mobile" type="button" aria-label={locale === "zh" ? "隐藏侧边栏" : "Hide sidebar"} onClick={onMobileClose}>
-          <X aria-hidden="true" size={16} />
-        </button>
-      </header>
-      <div className="settings-navigation" aria-label={locale === "zh" ? "设置导航" : "Settings navigation"}>
-        <nav>
-          {groups.map((group) => {
-            const Icon = group.icon;
-            const active = activeGroup?.id === group.id;
-            return (
-              <div className="settings-nav-group" key={group.id} data-active={active}>
-                <button type="button" aria-expanded={group.destinations.length > 1 ? active : undefined} aria-current={group.destinations.some((item) => item.id === activeDestination) && group.destinations.length === 1 ? "page" : undefined} onClick={() => onDestinationChange(group.destinations[0].id)}>
-                  <Icon aria-hidden="true" size={15} />
-                  <span>{group.label}</span>
-                </button>
-                {active && group.destinations.length > 1 ? (
-                  <div className="settings-subnav">
-                    {group.destinations.map((destination) => (
-                      <button key={destination.id} type="button" aria-current={destination.id === activeDestination ? "page" : undefined} onClick={() => onDestinationChange(destination.id)}>{destination.label}</button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </nav>
-        <button className="settings-about-link" type="button" aria-current={activeDestination === "about" ? "page" : undefined} onClick={() => onDestinationChange("about")}><Info aria-hidden="true" size={15} /><span>{copy.about}</span></button>
-      </div>
-    </>
-  );
 }
 
 function SettingRow({ label, detail, children }: { label: string; detail?: string; children: ReactNode }) {
@@ -436,6 +377,10 @@ function PackageCatalog({
   const roleOptions = [...new Set(packages.map((item) => item.packageRole))].sort();
   const statusOptions = [...new Set(packages.map((item) => item.status))].sort();
   const sourceOptions = [...new Set(packages.map((item) => item.publisher))].sort();
+  const homeShortcutOrder = model.packageLifecycle.flatMap((item) => item.homeShortcuts.map((shortcut) => ({
+    packageId: item.packageId,
+    ...shortcut
+  }))).sort((left, right) => left.sortOrder - right.sortOrder || left.shortcutId.localeCompare(right.shortcutId));
   const normalizedQuery = query.trim().toLowerCase();
   const visible = packages.filter((item) => {
     if (scope === "official" && !item.official) return false;
@@ -485,6 +430,7 @@ function PackageCatalog({
           <div className="agent-package-list">
             {group.items.map((item) => {
               const executableActions = item.actions.filter((action) => action.status === "available" && actionPayloadComplete(action.payload, action.requiredPayloadFields));
+              const preferenceAction = item.actions.find((action) => action.kind === "preferences" && action.status === "available");
               const primaryAction = executableActions.find((action) => action.actionId === item.recommendedActionId)
                 ?? (item.installed === false ? executableActions.find((action) => action.kind === "install") : undefined)
                 ?? (statusTone(item.status) === "attention" ? executableActions.find((action) => action.kind === "repair") : undefined);
@@ -530,7 +476,65 @@ function PackageCatalog({
                       <div><dt>{locale === "zh" ? "安装" : "Installation"}</dt><dd>{item.installed === null ? "--" : item.installed ? (locale === "zh" ? "已安装" : "Installed") : (locale === "zh" ? "未安装" : "Not installed")}</dd></div>
                       <div><dt>{locale === "zh" ? "启用" : "Active"}</dt><dd>{item.activated === null ? "--" : item.activated ? (locale === "zh" ? "已启用" : "Active") : (locale === "zh" ? "未启用" : "Inactive")}</dd></div>
                       <div><dt>{locale === "zh" ? "版本状态" : "Version status"}</dt><dd>{formatStatus(item.currentness, locale)}</dd></div>
+                      <div><dt>{locale === "zh" ? "来源模式" : "Source mode"}</dt><dd>{formatStatus(item.sourceMode, locale)}</dd></div>
+                      <div><dt>{locale === "zh" ? "自动更新" : "Automatic updates"}</dt><dd>{item.automaticUpdate === null ? "--" : item.automaticUpdate ? (locale === "zh" ? "已启用" : "Enabled") : (locale === "zh" ? "手动" : "Manual")}</dd></div>
                     </dl>
+                    {item.homeShortcuts.length ? (
+                      <div className="home-shortcut-preferences">
+                        {item.homeShortcuts.map((shortcut) => {
+                          const orderIndex = homeShortcutOrder.findIndex((entry) => entry.packageId === item.packageId && entry.shortcutId === shortcut.shortcutId);
+                          const previous = orderIndex > 0 ? homeShortcutOrder[orderIndex - 1] : undefined;
+                          const next = orderIndex >= 0 && orderIndex < homeShortcutOrder.length - 1 ? homeShortcutOrder[orderIndex + 1] : undefined;
+                          const submitPreference = (key: string, visible: boolean, sortOrder: number) => {
+                            if (!preferenceAction) return;
+                            onAction({
+                              key,
+                              actionId: preferenceAction.actionId,
+                              label: locale === "zh" ? `更新 ${item.label} 的首页入口` : `Update ${item.label} Home shortcut`,
+                              payload: {
+                                ...preferenceAction.payload,
+                                shortcut_id: shortcut.shortcutId,
+                                visible,
+                                sort_order: sortOrder
+                              },
+                              confirmationRequired: preferenceAction.confirmationRequired
+                            });
+                          };
+                          const visibilityKey = `home:${item.packageId}:${shortcut.shortcutId}:visibility`;
+                          const orderKey = `home:${item.packageId}:${shortcut.shortcutId}:order`;
+                          return (
+                            <div key={`${item.packageId}:${shortcut.shortcutId}`} className="home-shortcut-preference">
+                              <label>
+                                <input
+                                  type="checkbox"
+                                  checked={shortcut.visible}
+                                  disabled={!preferenceAction || actionBusyKey !== null}
+                                  onChange={(event) => submitPreference(visibilityKey, event.currentTarget.checked, shortcut.sortOrder)}
+                                />
+                                <span>{locale === "zh" ? "显示在首页" : "Show on Home"}</span>
+                              </label>
+                              <span className="home-shortcut-id">{shortcut.shortcutId}</span>
+                              <span className="home-shortcut-order-actions">
+                                <button
+                                  type="button"
+                                  aria-label={locale === "zh" ? "向前移动" : "Move earlier"}
+                                  title={locale === "zh" ? "向前移动" : "Move earlier"}
+                                  disabled={!preferenceAction || !previous || actionBusyKey !== null}
+                                  onClick={() => previous && submitPreference(orderKey, shortcut.visible, previous.sortOrder - 1)}
+                                ><ArrowUp aria-hidden="true" size={13} /></button>
+                                <button
+                                  type="button"
+                                  aria-label={locale === "zh" ? "向后移动" : "Move later"}
+                                  title={locale === "zh" ? "向后移动" : "Move later"}
+                                  disabled={!preferenceAction || !next || actionBusyKey !== null}
+                                  onClick={() => next && submitPreference(orderKey, shortcut.visible, next.sortOrder + 1)}
+                                ><ArrowDown aria-hidden="true" size={13} /></button>
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
                     {executableActions.length ? (
                       <div className="agent-package-actions">
                         {executableActions.map((action) => (
@@ -589,6 +593,8 @@ function RuntimeActionButton({
   const key = `runtime:${action.actionId}`;
   const labels: Record<string, [string, string]> = {
     settings_check_app_update: ["检查更新", "Check for updates"],
+    settings_apply_opl_packages: ["更新能力包", "Update packages"],
+    settings_sync_capabilities: ["同步能力", "Sync capabilities"],
     settings_prune_runtime_roots_dry_run: ["检查可清理内容", "Check reclaimable data"],
     provider_service_status: ["检查服务", "Check service"],
     provider_service_start: ["启动服务", "Start service"],
@@ -614,8 +620,51 @@ function RuntimeActionButton({
   );
 }
 
+function ManagedUpdateGroup({
+  component,
+  fallbackLabel,
+  managedChannel,
+  action,
+  locale,
+  busyKey,
+  onAction,
+  unavailableActionLabel
+}: {
+  component?: ManagedUpdateComponentRef;
+  fallbackLabel: string;
+  managedChannel?: string;
+  action?: RuntimeMaintenanceActionRef;
+  locale: WorkbenchSettings["locale"];
+  busyKey: string | null;
+  onAction: (request: SettingsActionRequest) => void;
+  unavailableActionLabel?: string;
+}) {
+  const version = component?.installedVersion
+    ? component.latestVersion && component.latestVersion !== component.installedVersion
+      ? `${component.installedVersion} -> ${component.latestVersion}`
+      : component.installedVersion
+    : component?.latestVersion ?? "--";
+  const autoPolicy = component?.autoApplyMode
+    ?? (component?.autoApplyEligible === true ? (locale === "zh" ? "符合自动更新条件" : "Eligible")
+      : component?.autoApplyEligible === false ? (locale === "zh" ? "手动" : "Manual") : "--");
+  return (
+    <SettingsGroup title={component?.label ?? fallbackLabel}>
+      <SettingRow label={locale === "zh" ? "状态" : "Status"} detail={component?.guidance ?? component?.summary}>
+        <span className="runtime-setting-control">
+          <StatusValue status={component?.state} locale={locale} />
+          {action ? <RuntimeActionButton action={action} locale={locale} busyKey={busyKey} onAction={onAction} /> : <span className="settings-muted">{unavailableActionLabel ?? "--"}</span>}
+        </span>
+      </SettingRow>
+      <SettingRow label={locale === "zh" ? "版本" : "Version"}><span>{version}</span></SettingRow>
+      <SettingRow label={locale === "zh" ? "通道" : "Channel"}><span>{component?.channel ?? managedChannel ?? "--"}</span></SettingRow>
+      <SettingRow label={locale === "zh" ? "自动更新" : "Automatic updates"}><span>{autoPolicy}</span></SettingRow>
+    </SettingsGroup>
+  );
+}
+
 export function SettingsPanel({
   model,
+  managedUpdate,
   settings,
   modelOptions,
   resolvedModel,
@@ -624,7 +673,6 @@ export function SettingsPanel({
   stateStatus,
   stateError,
   activeDestination,
-  onDestinationChange,
   onRefresh,
   onSettingChange,
   onReasoningChange,
@@ -915,20 +963,48 @@ export function SettingsPanel({
 
     if (activeDestination === "updates") {
       const runtimeActions = runtime?.maintenanceActions ?? [];
-      const recommendedAction = runtimeActions.find((action) => action.actionId === runtime?.recommendedActionId);
-      const additionalActions = runtimeActions.filter((action) => action.actionId !== runtime?.recommendedActionId && !action.actionId.startsWith("provider_") && actionPayloadComplete(action.payload, action.requiredPayloadFields));
+      const appAction = runtimeActions.find((action) => action.actionId === "settings_check_app_update");
+      const packagesAction = runtimeActions.find((action) => action.actionId === "settings_apply_opl_packages");
+      const component = (componentId: string) => managedUpdate?.components.find((item) => item.componentId === componentId);
+      const additionalActions = runtimeActions.filter((action) => ![
+        "settings_check_app_update",
+        "settings_apply_opl_packages"
+      ].includes(action.actionId) && !action.actionId.startsWith("provider_") && actionPayloadComplete(action.payload, action.requiredPayloadFields));
       return (
         <>
-          <SettingsGroup title={settings.locale === "zh" ? "建议操作" : "Recommended action"}>
-            <SettingRow label={statusTone(runtime?.temporal.schedulerStatus) === "attention" ? (settings.locale === "zh" ? "运行状态需要检查" : "Runtime needs attention") : (settings.locale === "zh" ? "应用更新" : "App updates")} detail={settings.locale === "zh" ? "操作完成后会自动刷新状态" : "State refreshes after completion"}>
-              {recommendedAction ? <RuntimeActionButton action={recommendedAction} locale={settings.locale} busyKey={actionBusyKey} onAction={onAction} primary /> : <span className="settings-muted">{settings.locale === "zh" ? "当前没有建议操作" : "No recommended action"}</span>}
-            </SettingRow>
-          </SettingsGroup>
-          <SettingsGroup title={settings.locale === "zh" ? "版本与通道" : "Version and channel"}>
-            <SettingRow label={settings.locale === "zh" ? "发布通道" : "Release channel"}><span>{formatStatus(projection?.localEnvironment.releaseChannel ?? projection?.statusSummary.releaseChannel, settings.locale)}</span></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "Codex 更新" : "Codex update"}><span>{projection?.codex.updateAvailable === null || projection?.codex.updateAvailable === undefined ? (settings.locale === "zh" ? "尚未检查" : "Not checked") : projection.codex.updateAvailable ? (settings.locale === "zh" ? "有可用更新" : "Update available") : (settings.locale === "zh" ? "已是当前版本" : "Up to date")}</span></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "最近读取" : "Last readback"}><span>{formatDate(model.stateGeneratedAt, locale)}</span></SettingRow>
-          </SettingsGroup>
+          <div className="settings-page-summary">
+            <span>{settings.locale === "zh" ? "三个软件对象，分别由各自 owner 管理" : "Three software objects, each managed by its owner"}</span>
+            <span>{formatDate(model.stateGeneratedAt, locale)}</span>
+          </div>
+          <ManagedUpdateGroup
+            component={component("opl_app")}
+            fallbackLabel="OPL App"
+            managedChannel={managedUpdate?.channel ?? projection?.localEnvironment.releaseChannel ?? projection?.statusSummary.releaseChannel}
+            action={appAction}
+            locale={settings.locale}
+            busyKey={actionBusyKey}
+            onAction={onAction}
+            unavailableActionLabel={settings.locale === "zh" ? "检查动作尚未投影" : "Check action not projected"}
+          />
+          <ManagedUpdateGroup
+            component={component("opl_base")}
+            fallbackLabel="OPL Base"
+            managedChannel={managedUpdate?.channel}
+            locale={settings.locale}
+            busyKey={actionBusyKey}
+            onAction={onAction}
+            unavailableActionLabel={settings.locale === "zh" ? "owner 尚未提供可执行动作" : "Owner action not yet projected"}
+          />
+          <ManagedUpdateGroup
+            component={component("opl_packages")}
+            fallbackLabel={settings.locale === "zh" ? "OPL 能力包" : "OPL Packages"}
+            managedChannel={managedUpdate?.channel}
+            action={packagesAction}
+            locale={settings.locale}
+            busyKey={actionBusyKey}
+            onAction={onAction}
+            unavailableActionLabel={settings.locale === "zh" ? "更新动作尚未投影" : "Update action not projected"}
+          />
           {additionalActions.length ? (
             <details className="settings-advanced-actions">
               <summary>{settings.locale === "zh" ? "更多维护操作" : "More maintenance actions"}<ChevronDown aria-hidden="true" size={14} /></summary>
@@ -990,16 +1066,8 @@ export function SettingsPanel({
     );
   }
 
-  const allDestinations = [...groups.flatMap((group) => group.destinations), { id: "about" as const, label: copy.about }];
-
   return (
     <section data-testid="opl-settings-panel" className="settings-page" aria-label="Settings">
-      <div className="settings-mobile-navigation">
-        <select aria-label={settings.locale === "zh" ? "设置页面" : "Settings page"} value={activeDestination} onChange={(event) => onDestinationChange(event.currentTarget.value as SettingsDestinationId)}>
-          {allDestinations.map((destination) => <option key={destination.id} value={destination.id}>{destination.label}</option>)}
-        </select>
-      </div>
-
       <div className="settings-detail">
         <header className="settings-detail-header">
           <span>{activeGroup?.label ?? copy.about}</span>

@@ -256,6 +256,13 @@ export type AgentPackageLifecycleRef = {
   activated: boolean | null;
   version?: string;
   currentness: string;
+  sourceMode: string;
+  automaticUpdate: boolean | null;
+  homeShortcuts: {
+    shortcutId: string;
+    visible: boolean;
+    sortOrder: number;
+  }[];
   recommendedActionId?: string;
   status: string;
   summary: string;
@@ -278,6 +285,27 @@ export type RuntimeMaintenanceActionRef = {
   dryRunSupported: boolean;
   mutates: string;
   dangerLevel?: string;
+};
+
+export type ManagedUpdateComponentRef = {
+  componentId: "opl_app" | "opl_base" | "opl_packages" | string;
+  lifecycleOwner: string;
+  label: string;
+  state: string;
+  channel?: string;
+  installedVersion?: string;
+  latestVersion?: string;
+  autoApplyMode?: string;
+  autoApplyEligible: boolean | null;
+  backgroundSafe: boolean | null;
+  summary?: string;
+  guidance?: string;
+};
+
+export type ManagedUpdateProjection = {
+  operation: string;
+  channel?: string;
+  components: ManagedUpdateComponentRef[];
 };
 
 export type RuntimeOverviewRef = {
@@ -465,6 +493,9 @@ export const initialWorkbenchModel: WorkbenchModel = {
       installed: null,
       activated: null,
       currentness: "unknown",
+      sourceMode: "unknown",
+      automaticUpdate: null,
+      homeShortcuts: [],
       status: "missing_bridge",
       summary: "No canonical App package lifecycle projection is available; fallback stays preview-only and unavailable.",
       sourceRef: "opl app state --profile fast --json#app_state.agent_packages.directory + app_state.agent_packages.status_index",
@@ -1168,7 +1199,16 @@ function packageRowsFromCanonicalProjection(agentPackages: Record<string, unknow
   };
   for (const row of directoryRows) mergeRow(row);
   for (const row of statusRows) mergeRow(row);
-  for (const row of homeRows) mergeRow(row);
+  for (const row of homeRows) {
+    const id = packageIdentity(row, byId.size);
+    const current = byId.get(id) ?? { package_id: id };
+    const preferences = asRecordArray(current.home_shortcut_preferences);
+    byId.set(id, {
+      ...current,
+      package_id: id,
+      home_shortcut_preferences: [...preferences, row]
+    });
+  }
   return Array.from(byId.values());
 }
 
@@ -1226,6 +1266,22 @@ function packageSourceKind(record: Record<string, unknown>): string {
     ?? asString(sourcePolicy?.effective_install_update_source)
     ?? asString(distributionPayload?.source_kind)
     ?? "unknown";
+}
+
+function packageEffectiveSourcePolicy(record: Record<string, unknown>): Record<string, unknown> | null {
+  const sourceExplanation = asRecord(record.source_explanation);
+  return asRecord(sourceExplanation?.effective_source_policy) ?? asRecord(record.source_policy);
+}
+
+function packageSourceMode(record: Record<string, unknown>): string {
+  const sourcePolicy = packageEffectiveSourcePolicy(record);
+  return asString(sourcePolicy?.effective_install_update_source)
+    ?? asString(sourcePolicy?.desired_source_kind)
+    ?? packageSourceKind(record);
+}
+
+function packageAutomaticUpdate(record: Record<string, unknown>): boolean | null {
+  return asOptionalBoolean(packageEffectiveSourcePolicy(record)?.package_channel_auto_update);
 }
 
 function packageManifestUrl(record: Record<string, unknown>): string | null {
@@ -1462,6 +1518,14 @@ function packageLifecycleItem(
     packageDisplayRef("Exposure", firstStringField(record, ["home_shortcut_ref", "shortcut_id", "codex_visible_entry", "display_policy"]), "Codex/App exposure ref supplied by App/root."),
     packageDisplayRef("Shortcut preferences", packageFileRef(record, "home_shortcut_preferences_file"), "Physical exposure preferences file surfaced as a ref only.")
   ].filter((item): item is PackageLifecycleDisplayRef => Boolean(item));
+  const homeShortcutRows = asRecordArray(record.home_shortcut_preferences);
+  const homeShortcuts = (homeShortcutRows.length ? homeShortcutRows : [record]).flatMap((shortcut) => {
+    const shortcutId = firstStringField(shortcut, ["shortcut_id"]);
+    const visible = asOptionalBoolean(shortcut.visible);
+    const sortOrder = asFiniteNumber(shortcut.sort_order);
+    if (!shortcutId || visible === null || sortOrder === null) return [];
+    return [{ shortcutId, visible, sortOrder }];
+  });
   return {
     id: `package-lifecycle-${packageId}`,
     packageId,
@@ -1477,6 +1541,9 @@ function packageLifecycleItem(
       ? { version: firstStringField(record, ["selected_version", "installed_version", "stable_version"]) as string }
       : {}),
     currentness: asString(packageCurrentness?.status) ?? "unknown",
+    sourceMode: packageSourceMode(record),
+    automaticUpdate: packageAutomaticUpdate(record),
+    homeShortcuts,
     ...(firstStringField(record, ["recommended_action", "recommendedAction"])
       ? { recommendedActionId: firstStringField(record, ["recommended_action", "recommendedAction"]) as string }
       : {}),
@@ -1947,6 +2014,9 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
 
   const runtimeMaintenanceActionIds = uniqueStrings([
     asString(localEnvironment?.app_update_action_id),
+    "settings_check_app_update",
+    "settings_apply_opl_packages",
+    "settings_sync_capabilities",
     asString(localEnvironment?.runtime_roots_cleanup_action_id),
     asString(localEnvironment?.runtime_substrate_rollback_action_id),
     ...asStringArray(temporalManagement?.actions)
@@ -2593,5 +2663,56 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     runtimeOverview,
     uiContributions: readUiContributionsProjection(state),
     stateGeneratedAt: asString(meta?.generated_at) ?? fallback.stateGeneratedAt
+  };
+}
+
+export function readManagedUpdateProjection(value: unknown): ManagedUpdateProjection | null {
+  const root = asRecord(value);
+  const execution = asRecord(root?.app_action_execution);
+  const result = asRecord(execution?.result) ?? asRecord(root?.result);
+  const managedUpdate = asRecord(result?.managed_update)
+    ?? asRecord(execution?.managed_update)
+    ?? asRecord(root?.managed_update);
+  if (!managedUpdate) return null;
+  const components = asRecordArray(managedUpdate.components).flatMap((component): ManagedUpdateComponentRef[] => {
+    const componentId = asString(component.component_id);
+    if (!componentId) return [];
+    const current = asRecord(component.current);
+    const autoApply = asRecord(component.auto_apply);
+    const plan = asRecord(component.plan);
+    return [{
+      componentId,
+      lifecycleOwner: asString(component.lifecycle_owner) ?? componentId,
+      label: asString(component.label) ?? componentId,
+      state: asString(component.state) ?? "unknown",
+      ...(asString(component.channel) ?? asString(managedUpdate.update_channel)
+        ? { channel: (asString(component.channel) ?? asString(managedUpdate.update_channel)) as string }
+        : {}),
+      ...(asString(current?.installed_version) ? { installedVersion: asString(current?.installed_version) as string } : {}),
+      ...(asString(current?.latest_version) ? { latestVersion: asString(current?.latest_version) as string } : {}),
+      ...(asString(autoApply?.mode) ? { autoApplyMode: asString(autoApply?.mode) as string } : {}),
+      autoApplyEligible: asOptionalBoolean(autoApply?.eligible),
+      backgroundSafe: asOptionalBoolean(autoApply?.app_background_safe),
+      ...(asString(plan?.summary) ? { summary: asString(plan?.summary) as string } : {}),
+      ...(asString(current?.manual_guidance) ? { guidance: asString(current?.manual_guidance) as string } : {})
+    }];
+  });
+  return {
+    operation: asString(managedUpdate.operation) ?? "status",
+    ...(asString(managedUpdate.update_channel) ? { channel: asString(managedUpdate.update_channel) as string } : {}),
+    components
+  };
+}
+
+export function mergeManagedUpdateProjections(
+  current: ManagedUpdateProjection | null,
+  incoming: ManagedUpdateProjection
+): ManagedUpdateProjection {
+  const components = new Map((current?.components ?? []).map((component) => [component.componentId, component]));
+  for (const component of incoming.components) components.set(component.componentId, component);
+  return {
+    operation: incoming.operation,
+    ...(incoming.channel ?? current?.channel ? { channel: (incoming.channel ?? current?.channel) as string } : {}),
+    components: Array.from(components.values())
   };
 }

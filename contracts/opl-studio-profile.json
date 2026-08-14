@@ -1,15 +1,18 @@
 {
-  "candidate_status_owner": "docs/active/current-state-vs-ideal-gap.md",
-  "candidate_operating_policy": {
-    "role": "manual_on_demand_non_periodic_technical_evaluation",
+  "product_status_owner": "docs/active/current-state-vs-ideal-gap.md",
+  "product_development_policy": {
+    "role": "first_party_native_successor_implementation",
     "automatic_or_scheduled_work_allowed": false,
-    "mainline_development_required": false,
-    "completion_or_parity_obligation": false,
+    "product_development_required": true,
+    "current_mainline": false,
+    "minimum_complete_product_obligation": true,
+    "aionui_feature_parity_obligation": false,
     "release_blocking": false
   },
   "delivery_evaluation": {
-    "role": "lightweight_opl_gui_architecture_reference",
-    "product_mainline_owner": false,
+    "role": "lightweight_opl_native_product_target",
+    "current_mainline": false,
+    "future_mainline_cutover_target": true,
     "renderer_technology": "react",
     "macos_host": "swift_appkit_wkwebview",
     "workspace_host": "node_http_sse",
@@ -20,7 +23,7 @@
     "aioncore_runtime_dependency_allowed": false,
     "cross_platform_wrapper_selection": "deferred_electron_or_tauri",
     "windows_linux_support_claim_allowed": false,
-    "adoption_requires_explicit_app_contract_change": true
+    "release_adoption_requires_separate_app_qualification": true
   },
   "canonical_docs": [
     {
@@ -78,7 +81,7 @@
     "thread_history": "thread/read includeTurns=true by canonical Codex thread id",
     "thread_store_owner": "codex_core_app_server"
   },
-  "schema": "opl_native_profile.v1",
+  "schema": "opl_studio_profile.v1",
   "taxonomy_dirs": [
     "docs/active",
     "docs/history"

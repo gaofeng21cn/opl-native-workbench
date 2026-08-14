@@ -339,38 +339,6 @@ export const codexWorkbenchStyles = `
     margin-left: 0;
   }
 
-  .settings-back-row {
-    gap: 4px;
-    padding-right: 8px;
-    padding-left: 8px;
-  }
-
-  .settings-back-to-app {
-    min-width: 0;
-    min-height: 32px;
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    padding: 0 8px;
-    overflow: hidden;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--opl-text);
-    text-align: left;
-  }
-
-  .settings-back-to-app:hover {
-    background: var(--opl-hover);
-  }
-
-  .settings-back-to-app span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   .sidebar-close-mobile {
     display: none;
   }
@@ -1501,85 +1469,9 @@ export const codexWorkbenchStyles = `
     display: none;
   }
 
-  .settings-navigation {
-    min-width: 0;
-    min-height: 0;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    overflow-y: auto;
-    padding: 17px 10px 12px;
-    background: transparent;
-    scrollbar-width: none;
-  }
-
-  .settings-navigation::-webkit-scrollbar,
   .settings-detail::-webkit-scrollbar {
     width: 0;
     height: 0;
-    display: none;
-  }
-
-  .settings-navigation nav {
-    display: grid;
-    gap: 2px;
-  }
-
-  .settings-nav-group > button,
-  .settings-about-link {
-    width: 100%;
-    min-height: 34px;
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    padding: 0 9px;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--opl-muted);
-    font-size: 12.5px;
-    text-align: left;
-  }
-
-  .settings-nav-group > button:hover,
-  .settings-about-link:hover,
-  .settings-nav-group[data-active="true"] > button,
-  .settings-about-link[aria-current="page"] {
-    background: var(--opl-hover);
-    color: var(--opl-text);
-  }
-
-  .settings-subnav {
-    display: grid;
-    gap: 1px;
-    margin: 2px 0 5px;
-    padding-left: 33px;
-  }
-
-  .settings-subnav button {
-    min-height: 28px;
-    padding: 0 8px;
-    border: 0;
-    border-radius: 5px;
-    background: transparent;
-    color: var(--opl-muted);
-    font-size: 11.5px;
-    text-align: left;
-  }
-
-  .settings-subnav button:hover,
-  .settings-subnav button[aria-current="page"] {
-    background: var(--opl-hover);
-    color: var(--opl-text);
-  }
-
-  .settings-about-link {
-    margin-top: auto;
-    flex: 0 0 auto;
-  }
-
-  .settings-mobile-navigation {
     display: none;
   }
 
@@ -2083,6 +1975,63 @@ export const codexWorkbenchStyles = `
     display: flex;
     flex-wrap: wrap;
     gap: 7px;
+  }
+
+  .home-shortcut-preferences {
+    display: grid;
+    gap: 7px;
+  }
+
+  .home-shortcut-preference {
+    min-height: 34px;
+    display: grid;
+    grid-template-columns: minmax(132px, auto) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 0 8px;
+    border: 1px solid var(--opl-border);
+    border-radius: 7px;
+  }
+
+  .home-shortcut-preference > label,
+  .home-shortcut-order-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .home-shortcut-preference input {
+    accent-color: var(--opl-text);
+  }
+
+  .home-shortcut-id {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--opl-faint);
+    font-size: 10.5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .home-shortcut-order-actions button {
+    width: 27px;
+    height: 27px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--opl-muted);
+  }
+
+  .home-shortcut-order-actions button:hover:not(:disabled) {
+    background: var(--opl-hover);
+    color: var(--opl-text);
+  }
+
+  .home-shortcut-order-actions button:disabled {
+    opacity: 0.35;
   }
 
   .settings-action-button {
@@ -3011,29 +2960,41 @@ export const codexWorkbenchStyles = `
       scrollbar-width: none;
     }
 
-    .settings-page::-webkit-scrollbar {
+    .opl-studio-dsh-root [role="dialog"][aria-labelledby]:has(> nav) {
+      flex-direction: column;
+    }
+
+    .opl-studio-dsh-root [role="dialog"][aria-labelledby]:has(> nav) > nav {
+      width: 100%;
+      height: 104px;
+      gap: 8px;
+      padding: 14px 12px 0;
+      overflow: hidden;
+    }
+
+    .opl-studio-dsh-root [role="dialog"][aria-labelledby]:has(> nav) > nav > div:last-child {
+      flex-direction: row;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      scrollbar-width: none;
+    }
+
+    .opl-studio-dsh-root [role="dialog"][aria-labelledby]:has(> nav) > nav > div:last-child::-webkit-scrollbar {
       display: none;
     }
 
-    .settings-mobile-navigation {
-      position: sticky;
-      top: 0;
-      z-index: 4;
-      display: block;
-      padding: 10px 16px;
-      border-bottom: 1px solid var(--opl-border-light);
-      background: color-mix(in srgb, var(--opl-canvas) 94%, transparent);
-      backdrop-filter: blur(12px);
+    .opl-studio-dsh-root [role="dialog"][aria-labelledby]:has(> nav) > nav button {
+      width: auto;
+      flex: none;
     }
 
-    .settings-mobile-navigation select {
+    .opl-studio-dsh-root [role="dialog"][aria-labelledby]:has(> nav) > nav + div {
       width: 100%;
-      min-height: 34px;
-      padding: 0 10px;
-      border: 1px solid var(--opl-border);
-      border-radius: 7px;
-      background: var(--opl-canvas);
-      color: var(--opl-text);
+      min-height: 0;
+    }
+
+    .settings-page::-webkit-scrollbar {
+      display: none;
     }
 
     .settings-detail {

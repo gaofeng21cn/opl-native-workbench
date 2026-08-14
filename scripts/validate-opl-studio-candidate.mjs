@@ -145,20 +145,23 @@ for (const script of requiredScripts) {
 }
 
 assert(
-  studioProfile.candidate_status_owner === "docs/active/current-state-vs-ideal-gap.md",
-  "candidate profile must identify the single current status owner"
+  studioProfile.product_status_owner === "docs/active/current-state-vs-ideal-gap.md",
+  "Studio profile must identify the single current product status owner"
 );
 assert(
-  studioProfile.candidate_operating_policy?.role === "manual_on_demand_non_periodic_technical_evaluation"
-    && studioProfile.candidate_operating_policy.automatic_or_scheduled_work_allowed === false
-    && studioProfile.candidate_operating_policy.mainline_development_required === false
-    && studioProfile.candidate_operating_policy.completion_or_parity_obligation === false
-    && studioProfile.candidate_operating_policy.release_blocking === false,
-  "candidate profile must keep Native manual, non-periodic, non-blocking, and without a completion obligation"
+  studioProfile.product_development_policy?.role === "first_party_native_successor_implementation"
+    && studioProfile.product_development_policy.automatic_or_scheduled_work_allowed === false
+    && studioProfile.product_development_policy.product_development_required === true
+    && studioProfile.product_development_policy.current_mainline === false
+    && studioProfile.product_development_policy.minimum_complete_product_obligation === true
+    && studioProfile.product_development_policy.aionui_feature_parity_obligation === false
+    && studioProfile.product_development_policy.release_blocking === false,
+  "Studio profile must require the OPL minimum-complete product without making release or AionUI parity implicit"
 );
 const expectedDeliveryEvaluation = {
-  role: "lightweight_opl_gui_architecture_reference",
-  product_mainline_owner: false,
+  role: "lightweight_opl_native_product_target",
+  current_mainline: false,
+  future_mainline_cutover_target: true,
   renderer_technology: "react",
   macos_host: "swift_appkit_wkwebview",
   workspace_host: "node_http_sse",
@@ -169,11 +172,11 @@ const expectedDeliveryEvaluation = {
   aioncore_runtime_dependency_allowed: false,
   cross_platform_wrapper_selection: "deferred_electron_or_tauri",
   windows_linux_support_claim_allowed: false,
-  adoption_requires_explicit_app_contract_change: true
+  release_adoption_requires_separate_app_qualification: true
 };
 assert(
   JSON.stringify(studioProfile.delivery_evaluation) === JSON.stringify(expectedDeliveryEvaluation),
-  "candidate profile must declare the bounded lightweight native macOS and OPL Studio WebUI evaluation role"
+  "Studio profile must declare the lightweight native macOS and OPL Studio WebUI product target"
 );
 assert(
   studioProfile.runtime_dependency_policy?.aioncore_required === false
@@ -340,7 +343,7 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
     assert(slotHost.includes(`import { ${component} } from "${moduleName}"`), `missing direct ${component} vendor import`);
     assert(slotHost.includes(`<${component}`), `missing live ${component} render`);
   }
-  for (const marker of ["return renderShell({", "workspaceRail: studioWorkspaceRail", "conversationBody: studioConversationBody", "settings: studioSettings", "detailsRequestRevision"]) {
+  for (const marker of ["return renderShell({", "workspaceRail: studioWorkspaceRail", "conversationBody: studioConversationBody", "renderSettings: renderStudioSettings", "detailsRequestRevision"]) {
     assert(appSource.includes(marker), `missing App-to-DSH surface handoff marker ${marker}`);
   }
   assert(mainSource.includes('import { renderOplStudioRoot } from "./composition/dshSlotHost"'), "main must import the DSH composition host");
@@ -377,11 +380,16 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
   assert(architecture.includes("AionUI is the current active release shell"), "architecture must preserve the active-shell boundary");
   assert(
     activePlan.includes("Purpose: `single_active_truth_plan`")
-      && activePlan.includes("State: `active_technical_evaluation_reference`")
-      && activePlan.includes("manual_on_demand_non_periodic_technical_evaluation"),
-    "Active Truth must preserve the manual, non-periodic evaluation policy"
+      && activePlan.includes("State: `active_product_development_reference`")
+      && activePlan.includes("active_product_development_release_admission_separate"),
+    "Active Truth must preserve product development and separate release admission"
   );
-  assert(publicEntry.includes("foreground alternative shell candidate") && publicEntry.includes("AionUI remains the active release shell"), "public entry must preserve candidate and adoption roles");
+  assert(
+    publicEntry.includes("first-party Native implementation target")
+      && publicEntry.includes("AionUI remains the active release shell")
+      && publicEntry.includes("minimum-complete"),
+    "public entry must preserve the Native successor, current-mainline, and minimum-complete boundaries"
+  );
   const legacyClaims = `${publicEntry}\n${architecture}\n${JSON.stringify(evidence)}`.toLowerCase();
   for (const claim of ["imagegen", "image-generated", "three-column", "chat_first_with_preview_inspector", "preview inspector default-open"]) {
     assert(!legacyClaims.includes(claim), `legacy visual baseline claim must be removed: ${claim}`);

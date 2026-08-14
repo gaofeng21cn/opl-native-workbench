@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { SettingsDestinationId } from "../workbench/SettingsPanel";
 import type { OplContributionSlotOwner, OplUiContributionsProjection } from "./contributionProjection";
 
 export type OplStudioSurface = {
@@ -20,7 +21,7 @@ export type OplStudioSurface = {
   composerOverlay: ReactNode;
   composerModelControls: ReactNode;
   details: ReactNode;
-  settings: ReactNode;
+  renderSettings(destination: SettingsDestinationId): ReactNode;
   overlay: ReactNode;
   detailsRequestRevision: number;
   startSession(): void;

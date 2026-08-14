@@ -2,8 +2,9 @@
   "owner": "one-person-lab-app",
   "shell": "opl-studio",
   "delivery_evaluation": {
-    "role": "lightweight_opl_gui_architecture_reference",
-    "product_mainline_owner": false,
+    "role": "lightweight_opl_native_product_target",
+    "current_mainline": false,
+    "future_mainline_cutover_target": true,
     "renderer_technology": "react",
     "macos_host": "swift_appkit_wkwebview",
     "workspace_host": "node_http_sse",
@@ -14,7 +15,7 @@
     "aioncore_runtime_dependency_allowed": false,
     "cross_platform_wrapper_selection": "deferred_electron_or_tauri",
     "windows_linux_support_claim_allowed": false,
-    "adoption_requires_explicit_app_contract_change": true
+    "release_adoption_requires_separate_app_qualification": true
   },
   "capabilities": [
     "codex_cli_fixed_executor_home",
@@ -303,9 +304,9 @@
         "file": "src/workbench/App.tsx",
         "contains": [
           "renderShell",
-          "studioSettings",
+          "renderStudioSettings",
           "SettingsPanel",
-          "settings: studioSettings"
+          "renderSettings: renderStudioSettings"
         ]
       },
       {
@@ -587,7 +588,7 @@
           "return renderShell({",
           "workspaceRail: studioWorkspaceRail",
           "conversationBody: studioConversationBody",
-          "settings: studioSettings"
+          "renderSettings: renderStudioSettings"
         ],
         "dynamic_contributions": [
           "replaceProjection",

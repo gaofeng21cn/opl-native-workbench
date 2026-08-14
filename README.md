@@ -2,24 +2,24 @@
 
 <!--
 Owner: `one-person-lab-app`
-Purpose: `public_candidate_entry`
-State: `foreground_alternative_candidate`
-Machine boundary: Human-readable candidate-shell entry. App product and adoption truth stays in one-person-lab-app contracts; runtime/package truth stays in OPL Framework; domain truth stays with domain owners. This page does not prove active-shell adoption, release readiness, owner acceptance, or production readiness.
+Purpose: `public_native_product_entry`
+State: `active_product_development_release_admission_separate`
+Machine boundary: Human-readable Native product entry. App product and adoption truth stays in one-person-lab-app contracts; runtime/package truth stays in OPL Framework; domain truth stays with domain owners. This page does not prove active-shell adoption, release readiness, owner acceptance, or production readiness.
 -->
 
-`opl-studio` is the foreground alternative shell candidate for One
-Person Lab App. It evaluates a lightweight OPL-owned React renderer, native
+`opl-studio` is the first-party Native implementation target for One
+Person Lab App. It develops a lightweight OPL-owned React renderer, native
 macOS Swift/AppKit + WKWebView host, lightweight OPL Workspace Node Web host,
 and their shared typed bridge.
 
-AionUI remains the active release shell. Selecting or launching Native is a
-local candidate choice only; it does not change the release adapter, updater
+AionUI remains the active release shell. Selecting or launching Studio is a
+local development choice only; it does not change the release adapter, updater
 channel, App product truth, installed App, or current platform support. AionUI
 and AionCore are not candidate renderer/runtime dependencies.
 
-Native remains a manual, non-periodic technical evaluation. It is not a required
-mainline task, parity program, scheduled workstream, release blocker, or product
-completion obligation. The packaged macOS host starts Codex App Server directly
+Studio is now required product development against the App-owned minimum-complete
+contract. It is not a full AionUI parity program, scheduled workstream, or release
+blocker. The packaged macOS host starts Codex App Server directly
 from `OPL_CODEX_BIN` or an exact external Codex executable, while OPL state and
 mutations remain behind Framework `opl app state/action` contracts. It does not
 package or read AionUI/AionCore manifests, sessions, or data.
@@ -82,10 +82,9 @@ App-managed launcher.
 | Professional truth, quality, artifacts, and delivery | Domain owners | Refs-only presentation |
 | Candidate source, bridge, renderer, packaging, and focused tests | This repository | Implementation evidence only |
 
-The App candidate registry keeps Native as the foreground alternative under a
-manual, non-periodic evaluation policy. Product expansion, mainline ownership,
-adoption, and release participation require a separate App owner decision and
-contract delta. Native does not maintain a private proposal,
+The App registry keeps Studio as the foreground alternative while its first-party
+product implementation is developed. Active-shell adoption and release
+participation still require separate App-owner qualification. Studio does not maintain a private proposal,
 dispatch, wait, queue, ledger, bilateral-receipt, or client-executed dynamic-tool
 layer. AionUI Team's multi-executor orchestration is a separate shell capability;
 it does not replace Codex-native subagents and is not implemented here.

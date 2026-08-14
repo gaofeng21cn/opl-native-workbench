@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { deriveWorkbenchModelFromState } from "../../src/workbench/workbenchModel.ts";
+import {
+  deriveWorkbenchModelFromState,
+  mergeManagedUpdateProjections,
+  readManagedUpdateProjection
+} from "../../src/workbench/workbenchModel.ts";
 
 test("runtime projection keeps component health, carriers, and only App-projected maintenance actions", () => {
   const model = deriveWorkbenchModelFromState({
@@ -131,6 +135,61 @@ test("actions do not masquerade as files or results", () => {
   });
   assert.deepEqual(model.artifactPreviews, []);
   assert.equal(model.contextActions[0]?.id, "workspace_ensure");
+});
+
+test("managed update action results preserve owner components across fresh actions", () => {
+  const app = readManagedUpdateProjection({
+    app_action_execution: {
+      result: {
+        managed_update: {
+          operation: "check",
+          update_channel: "stable",
+          components: [{
+            component_id: "opl_app",
+            lifecycle_owner: "one-person-lab-app",
+            label: "OPL App",
+            state: "current",
+            current: { installed_version: "1.2.0", latest_version: "1.2.0" },
+            auto_apply: { mode: "native_host", eligible: false, app_background_safe: false }
+          }]
+        }
+      }
+    }
+  });
+  assert.ok(app);
+  assert.deepEqual(app.components[0], {
+    componentId: "opl_app",
+    lifecycleOwner: "one-person-lab-app",
+    label: "OPL App",
+    state: "current",
+    channel: "stable",
+    installedVersion: "1.2.0",
+    latestVersion: "1.2.0",
+    autoApplyMode: "native_host",
+    autoApplyEligible: false,
+    backgroundSafe: false
+  });
+
+  const packages = readManagedUpdateProjection({
+    result: {
+      managed_update: {
+        operation: "apply",
+        components: [{
+          component_id: "opl_packages",
+          lifecycle_owner: "one-person-lab",
+          label: "OPL Packages",
+          state: "restart_needed",
+          current: { installed_version: "cohort-4", latest_version: "cohort-5" },
+          auto_apply: { mode: "eligible_native_packages", eligible: true, app_background_safe: true }
+        }]
+      }
+    }
+  });
+  assert.ok(packages);
+  const merged = mergeManagedUpdateProjections(app, packages);
+  assert.deepEqual(merged.components.map((component) => component.componentId), ["opl_app", "opl_packages"]);
+  assert.equal(merged.components[1]?.autoApplyEligible, true);
+  assert.equal(merged.channel, "stable");
 });
 
 test("browser bridge normalization preserves App-projected Temporal runtime details", async () => {

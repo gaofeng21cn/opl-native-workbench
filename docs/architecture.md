@@ -128,11 +128,12 @@ authority, export acceptance, or delivery readiness.
 
 ## Adoption Boundary
 
-AionUI is the current active release shell. Native remains a manual,
-non-periodic foreground alternative used to evaluate the approved lightweight
-architecture without acquiring mainline, parity, release, or cross-platform
-delivery obligations. Adoption requires an explicit App owner decision and a
-change to the App shell adapter after the relevant App-owned gates pass.
+AionUI is the current active release shell and only mainline. Studio is the
+first-party Native successor under active product development, but it does not
+acquire mainline, full-AionUI-parity, release, or cross-platform delivery status
+before its minimum-complete and release gates pass. Adoption requires an
+explicit App owner decision and a change to the App shell adapter after the
+relevant App-owned gates pass; only then may the AionUI mainline be retired.
 Candidate docs, tests, package artifacts, screenshots, or local live smoke
 cannot perform that transfer or prove release readiness. The current evaluation
 policy and next safe work route are maintained only in

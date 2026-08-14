@@ -13,6 +13,7 @@ import { ConversationRoot } from "@opl-vendor/dsh-conversation-root";
 import { InputBar } from "@opl-vendor/dsh-input-bar";
 import { SettingsRoot } from "@opl-vendor/dsh-settings-root";
 import App from "../workbench/App";
+import { settingsDestinations, type SettingsDestinationId } from "../workbench/SettingsPanel";
 import { ProjectedContribution } from "./contributionComponents";
 import {
   OPL_UI_CONTRIBUTION_SLOTS,
@@ -211,8 +212,13 @@ function ShellOverlaySlot() {
 
 function SettingsSlot({ wide, renderSlot }: { wide: boolean; renderSlot: any }) {
   const studio = useStudio();
+  const studioRows = settingsDestinations(studio.locale).map((destination, index) => ({
+    id: settingsSectionId(destination.id),
+    order: index * 10,
+    label: destination.label
+  }));
   const contributionRows = studio.uiContributions.entries.filter((entry) => entry.slot === "settings.section").map((entry) => ({ id: entry.contributionKey, order: entry.sortOrder, label: entry.view ? contributionLabel(entry.view.title, studio.locale, entry.contributionId) : entry.contributionId }));
-  const rows = [{ id: "opl-studio-settings", order: 0, label: studio.locale === "zh" ? "OPL 设置" : "OPL Settings" }, ...contributionRows];
+  const rows = [...studioRows, ...contributionRows];
   const sessions = { phase: "ready", current: "opl-current", byId: { "opl-current": { blank: false } } };
   return <SettingsRoot wide={wide} useSections={(selector: any) => selector(rows)} useOnboardingSteps={(selector: any) => selector([])} useSessions={(selector: any) => selector(sessions)} renderSlot={renderSlot} />;
 }
@@ -224,7 +230,13 @@ function SettingsTriggerSlot({ wide }: { wide: boolean }) {
 
 function SettingsHeaderSlot() { return <>OPL Studio</>; }
 function SettingsCloseSlot() { return <>{useStudio().locale === "zh" ? "关闭" : "Close"}</>; }
-function SettingsMainSlot() { return <>{useStudio().settings}</>; }
+function settingsSectionId(destination: SettingsDestinationId): string {
+  return `opl-studio-settings-${destination}`;
+}
+
+function SettingsMainSlot({ destination }: { destination: SettingsDestinationId }) {
+  return <>{useStudio().renderSettings(destination)}</>;
+}
 
 export class OplStudioDshSlotHost {
   readonly core = new SlotCore();
@@ -253,7 +265,12 @@ export class OplStudioDshSlotHost {
     register({ name: "settings.trigger", registrant: "opl-studio" }, SettingsTriggerSlot);
     register({ name: "settings.header", registrant: "opl-studio" }, SettingsHeaderSlot);
     register({ name: "settings.close", registrant: "opl-studio" }, SettingsCloseSlot);
-    register({ name: "settings.section", id: "opl-studio-settings", order: 0, label: "OPL Settings", registrant: "opl-studio" }, SettingsMainSlot);
+    for (const [order, destination] of settingsDestinations("en").entries()) {
+      register(
+        { name: "settings.section", id: settingsSectionId(destination.id), order: order * 10, label: destination.label, registrant: "opl-studio" },
+        () => <SettingsMainSlot destination={destination.id} />
+      );
+    }
     register({ name: "conversation", registrant: "dsh-ui-conversation", children: { "conversation.session.header": { kind: "single", scope: "root" }, "conversation.session": { kind: "single", scope: "root" }, "conversation.composer.bar": { kind: "single", scope: "root" }, "conversation.input.overlay": { kind: "single", scope: "root" }, "conversation.input.left": { kind: "list", scope: "root" }, "conversation.input.right": { kind: "list", scope: "root" }, "conversation.input.dock": { kind: "list", scope: "root" }, "conversation.composer.dock": { kind: "list", scope: "root" }, "conversation.hero.workspace": { kind: "single", scope: "root" }, "conversation.hero.agentPreset": { kind: "single", scope: "root" } } }, ConversationSlot);
     register({ name: "conversation.session.header", registrant: "opl-studio" }, ConversationHeaderSlot);
     register({ name: "conversation.session", registrant: "opl-studio" }, ConversationBodySlot);

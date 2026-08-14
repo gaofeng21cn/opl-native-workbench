@@ -7,7 +7,7 @@ Machine boundary: Human-readable navigation and ownership map. App contracts,
 Framework state/action output, Codex App Server, source/tests, and explicit owner
 decisions remain the corresponding machine and product truth.
 
-This repository is an implementation carrier for one App shell candidate. It
+This repository is the implementation carrier for the first-party Native App successor. It
 does not own App product requirements, OPL runtime/package truth, Codex thread
 truth, domain verdicts, release adoption, or production readiness.
 
@@ -33,9 +33,9 @@ Canonical filenames are mapped without creating duplicate truth:
 
 ## App Authority Inputs
 
-- [`app-shell-candidates.json`](https://github.com/gaofeng21cn/one-person-lab-app/blob/main/contracts/app-shell-candidates.json): Native is the foreground alternative candidate; AionUI remains active.
+- [`app-shell-candidates.json`](https://github.com/gaofeng21cn/one-person-lab-app/blob/main/contracts/app-shell-candidates.json): Studio is the active-development Native successor and current foreground alternative; AionUI remains active until cutover.
 - [`app-shell-adapter.json`](https://github.com/gaofeng21cn/one-person-lab-app/blob/main/contracts/app-shell-adapter.json): only this contract can change the active release shell.
-- [`opl-studio-plan.md`](https://github.com/gaofeng21cn/one-person-lab-app/blob/main/docs/product/gui/opl-studio-plan.md): Native remains a manual technical-evaluation option; product expansion or adoption requires a separate App owner decision.
+- [`opl-studio-plan.md`](https://github.com/gaofeng21cn/one-person-lab-app/blob/main/docs/product/gui/opl-studio-plan.md): Studio must complete the App-owned minimum product before separate release qualification and explicit mainline cutover.
 - [`app-gui-product-contract.json`](https://github.com/gaofeng21cn/one-person-lab-app/blob/main/contracts/app-gui-product-contract.json): product behavior and allowed state/action surfaces.
 
 These links are owner inputs, not copied truth. Read their current `main` bytes

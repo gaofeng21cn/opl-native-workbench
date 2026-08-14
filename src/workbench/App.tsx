@@ -34,6 +34,9 @@ import {
   deriveThreadDirectory,
   deriveThreadMessages,
   initialWorkbenchModel,
+  mergeManagedUpdateProjections,
+  readManagedUpdateProjection,
+  type ManagedUpdateProjection,
   type WorkbenchProjectGroup,
   type WorkbenchActionRef,
   type WorkbenchThreadItem,
@@ -500,9 +503,9 @@ export function App({
   const pendingAssistantIdRef = useRef<string | null>(null);
   const messagesRef = useRef<ChatMessage[]>(createIntroMessages());
   const [model, setModel] = useState(initialWorkbenchModel);
+  const [managedUpdate, setManagedUpdate] = useState<ManagedUpdateProjection | null>(null);
   const [stateStatus, setStateStatus] = useState<"loading" | "ready" | "error">("loading");
   const [stateError, setStateError] = useState("");
-  const [activeSettingsDestination, setActiveSettingsDestination] = useState<SettingsDestinationId>("overview");
   const [detailsRequestRevision, setDetailsRequestRevision] = useState(0);
   const [lastDryRun, setLastDryRun] = useState("");
   const [settingsActionBusyKey, setSettingsActionBusyKey] = useState<string | null>(null);
@@ -647,12 +650,23 @@ export function App({
       .readState(profile)
       .then((state) => {
         setModel(deriveWorkbenchModelFromState(state));
+        const updateProjection = readManagedUpdateProjection(state);
+        if (updateProjection) {
+          setManagedUpdate((current) => mergeManagedUpdateProjections(current, updateProjection));
+        }
         setStateStatus("ready");
       })
       .catch((error) => {
         setStateStatus("error");
         setStateError(String(error));
       });
+  }
+
+  function captureManagedUpdateReceipt(receipt: OplActionReceipt) {
+    const updateProjection = readManagedUpdateProjection(receipt.stdoutJson);
+    if (updateProjection) {
+      setManagedUpdate((current) => mergeManagedUpdateProjections(current, updateProjection));
+    }
   }
 
   function settingsReceiptFeedback(receipt: OplActionReceipt, label: string): SettingsActionFeedback {
@@ -692,7 +706,10 @@ export function App({
         payload: { ...request.payload, confirmed: true },
         dryRun: false
       });
-      if (receipt.status === "executed") await loadState(settings.runtimeProfile);
+      if (receipt.status === "executed") {
+        captureManagedUpdateReceipt(receipt);
+        await loadState(settings.runtimeProfile);
+      }
       setSettingsActionFeedback(settingsReceiptFeedback(receipt, request.label));
     } catch (error) {
       setSettingsActionFeedback({ tone: "attention", message: String(error) });
@@ -712,7 +729,10 @@ export function App({
         payload: { ...confirmation.request.payload, confirmed: true },
         dryRun: false
       });
-      if (receipt.status === "executed") await loadState(settings.runtimeProfile);
+      if (receipt.status === "executed") {
+        captureManagedUpdateReceipt(receipt);
+        await loadState(settings.runtimeProfile);
+      }
       setSettingsActionFeedback(settingsReceiptFeedback(receipt, confirmation.request.label));
       setSettingsActionConfirmation(null);
     } catch (error) {
@@ -1315,9 +1335,10 @@ export function App({
     </aside>
   );
 
-  const studioSettings = (
+  const renderStudioSettings = (activeDestination: SettingsDestinationId) => (
     <SettingsPanel
       model={model}
+      managedUpdate={managedUpdate}
       settings={settings}
       modelOptions={modelOptions}
       resolvedModel={resolvedModel}
@@ -1325,8 +1346,7 @@ export function App({
       resolvedReasoningOptions={resolvedReasoningOptions}
       stateStatus={stateStatus}
       stateError={stateError}
-      activeDestination={activeSettingsDestination}
-      onDestinationChange={setActiveSettingsDestination}
+      activeDestination={activeDestination}
       onRefresh={() => void loadState(settings.runtimeProfile)}
       onSettingChange={updateSetting}
       onReasoningChange={updateReasoning}
@@ -1358,7 +1378,7 @@ export function App({
     composerOverlay: studioComposerOverlay,
     composerModelControls: studioModelControls,
     details: studioDetails,
-    settings: studioSettings,
+    renderSettings: renderStudioSettings,
     overlay: <><style>{codexWorkbenchStyles}</style><ThreadSearchDialog open={threadSearchOpen} locale={settings.locale} projects={uiMetadata.threadScope === "archived" ? archivedThreadProjects : threadProjects} onOpenChange={setThreadSearchOpen} onSelect={(thread) => void openThread(thread)} /><ThreadDetailPopover thread={threadDetail} locale={settings.locale} busy={threadActionBusy} onClose={() => setThreadDetail(null)} onResume={(thread) => void resumeThreadAndOpen(thread)} onFork={(thread) => void forkThread(thread)} onRequestArchive={(thread, archived) => { setLifecycleConfirmation({ thread, action: archived ? "archive" : "unarchive" }); setThreadActionError(""); setThreadDetail(null); }} /><ThreadLifecycleConfirmationDialog thread={lifecycleConfirmation?.thread ?? null} action={lifecycleConfirmation?.action ?? "archive"} locale={settings.locale} busy={threadActionBusy} error={threadActionError} onClose={() => setLifecycleConfirmation(null)} onConfirm={() => void confirmThreadLifecycle()} /></>,
     detailsRequestRevision,
     startSession: startNewChat,

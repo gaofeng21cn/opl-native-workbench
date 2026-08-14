@@ -1,35 +1,35 @@
-# OPL Studio Current State And Manual Evaluation Policy
+# OPL Studio Current State And Pre-Adoption Development Policy
 
 Owner: `one-person-lab-app`
 Purpose: `single_active_truth_plan`
-State: `active_technical_evaluation_reference`
-Machine boundary: This document owns the candidate's current human-readable
+State: `active_product_development_reference`
+Machine boundary: This document owns the product implementation's current human-readable
 status, remaining owner/evidence gaps, and next Agent prompt. It does not own App
 product truth, Framework runtime/package truth, Codex thread truth, domain
 authority, release adoption, or production readiness.
 
 ## Target State
 
-Native remains a thin, maintainable foreground alternative shell used to
-evaluate the lightweight OPL GUI direction: one React renderer, Swift/AppKit +
+Studio is the thin, maintainable first-party implementation of the lightweight
+OPL GUI direction: one React renderer, Swift/AppKit +
 WKWebView on macOS, and a Node HTTP/SSE OPL Workspace host. Both start Codex CLI
 App Server directly and consume Framework state/action contracts without
 AionUI/AionCore, a multi-backend abstraction, or a second thread/session store.
 
-Native is available only for bounded manual experiments, improvements, and
-focused tests. It is not a required mainline task, parity program, scheduled
-workstream, release blocker, or cross-platform delivery owner. AionUI remains
-the active release shell. Adoption or mainline ownership requires a separate App
-owner decision and corresponding contract delta.
+Studio development is required against the App-owned minimum-complete product
+contract. It is not a full AionUI parity program, scheduled workstream, release
+blocker, or cross-platform delivery owner. AionUI remains the active release
+shell. Release adoption still requires separate App-owner qualification.
 
 ## Current State Summary
 
 | Theme | Current state | Boundary |
 | --- | --- | --- |
-| App role | `foreground_alternative_candidate` | App candidate registry owns the role; local selection does not imply adoption |
+| App role | `first_party_native_successor_implementation` | App product profile owns the role; local selection does not imply mainline or release adoption |
 | Active release shell | `aionui` | Only the App shell adapter can change this |
-| Candidate work policy | `manual_on_demand_non_periodic_technical_evaluation` | No mainline, schedule, parity, or completion obligation |
-| Mainline obligation | `false` | Native gaps do not enter the required App backlog or release gates |
+| Product work policy | `active_product_development_release_admission_separate` | Minimum-complete OPL outcomes are required; full AionUI parity and implicit release are not |
+| Current mainline | `false` | AionUI remains the only mainline until Studio completes and passes separate release qualification |
+| Product completion obligation | `true` | Minimum-complete Native gaps enter the App development backlog without blocking the current AionUI release |
 | Renderer/hosts | `source_implemented_candidate_evidence` | Native macOS and Workspace evaluate one OPL renderer/bridge shape; live equivalence is not proven |
 | macOS host | `swift_appkit_wkwebview` | Electron is not required or packaged for the candidate |
 | Workspace host | `node_http_sse` | Candidate WebUI starts Codex App Server directly; no Electron/AionCore or Desktop database |
@@ -51,7 +51,7 @@ owner decision and corresponding contract delta.
 | Gap | Class | Owner route | Stop condition |
 | --- | --- | --- | --- |
 | App contract currentness must be re-read before any change | `structural_currentness_gate` | App contracts and GUI docs | Stop if the candidate write set conflicts with a newer App decision or active owner lane |
-| Selected manual evaluation needs bounded acceptance | `evaluation_scope_gate` | Current manual task | Test only the selected hypothesis; do not turn all known gaps into a required backlog |
+| Minimum-complete Settings/update closure | `product_completion_gate` | App profile and Studio implementation | Close Agent management plus separate App/Base/Packages update state, actions, and readback before Native release admission |
 | Windows/Linux wrapper is not selected | `future_product_decision_not_candidate_gap` | Future cross-platform carrier owner | Do not add Electron/Tauri or claim support in this candidate task |
 | Adoption, clean-VM, same-cohort live parity, and release proof are absent | `non_blocking_candidate_evidence_gap` | App release owner and owning runtime/release surfaces | Do not promote docs/tests/package/local smoke to readiness; absence does not block App mainline |
 
@@ -66,8 +66,8 @@ does not depend on Team mode.
 
 ### Goal
 
-For a manual Native evaluation or improvement, reconcile only the smallest
-selected hypothesis to current App contracts while preserving the Codex-only
+For Native product development, close the smallest remaining minimum-complete
+outcome against current App contracts while preserving the Codex-only
 thin-consumer boundary. Do not create an AionUI parity program, speculative
 multi-backend framework, or cross-platform delivery workstream.
 
@@ -109,8 +109,8 @@ multi-backend framework, or cross-platform delivery workstream.
 
 ### Required Actions
 
-1. Confirm the manual task names a bounded technical hypothesis and focused
-   acceptance surface; adoption or a new platform additionally requires its App contract delta.
+1. Select one minimum-complete user outcome and its focused acceptance surface;
+   release adoption or a new platform additionally requires its App contract delta.
 2. Classify the requested delta as App product truth, Framework contract,
    candidate implementation, or evidence-only work.
 3. Update the owner surface first, then the smallest candidate implementation

@@ -165,8 +165,12 @@ for (const marker of ["PackageCatalog", "opl-settings-agent-catalog", "agent-pac
 for (const marker of ["actionPayloadComplete"]) {
   assert(settingsPanelSource.includes(marker), `Settings renderer missing package lifecycle detail marker ${marker}`);
 }
+const packageActionMappingStart = workbenchModelSource.indexOf("function packageLifecycleActions(");
+const packageActionMappingEnd = workbenchModelSource.indexOf("\nfunction packageLifecycleItem(", packageActionMappingStart);
+assert(packageActionMappingStart >= 0 && packageActionMappingEnd > packageActionMappingStart, "package lifecycle action mapping boundary missing");
+const packageActionMappingSource = workbenchModelSource.slice(packageActionMappingStart, packageActionMappingEnd);
 for (const forbidden of ["agent_package_home_shortcut_preferences_set", "agent_package_install", "module_update", "settings_apply_opl_packages", "module_reinstall", "module_remove"]) {
-  assert(!workbenchModelSource.includes(forbidden), `package lifecycle action mapping must not use legacy module action ${forbidden}`);
+  assert(!packageActionMappingSource.includes(forbidden), `package lifecycle action mapping must not use legacy module action ${forbidden}`);
 }
 for (const fakeActionId of fakePackageActionIds) {
   assert(!workbenchModelSource.includes(fakeActionId), `workbench model still constructs fake package action ${fakeActionId}`);

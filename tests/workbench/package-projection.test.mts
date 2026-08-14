@@ -22,6 +22,15 @@ test("current Package directory entries replace retired private lifecycle fields
           payload_fields: ["package_id"],
           mutates: "opl_packages",
           dry_run_supported: true
+        },
+        {
+          action_id: "agent_package_preferences_set",
+          label: "Set package preferences",
+          route: "opl app action execute --action agent_package_preferences_set",
+          payload_fields: ["package_id", "exposure_action", "shortcut_id", "visible", "sort_order"],
+          mutates: "opl_agent_package_preferences",
+          dry_run_supported: true,
+          confirmation_required: false
         }
       ],
       agent_packages: {
@@ -47,7 +56,11 @@ test("current Package directory entries replace retired private lifecycle fields
               source_explanation: {
                 kind: "installed_codex_plugin_descriptor",
                 source: "installed_descriptor",
-                version_source_ref: "private://source-explanation"
+                version_source_ref: "private://source-explanation",
+                effective_source_policy: {
+                  effective_install_update_source: "package_channel",
+                  package_channel_auto_update: true
+                }
               },
               manifest_url: "file:///private/manifest",
               source: "/private/source",
@@ -65,6 +78,14 @@ test("current Package directory entries replace retired private lifecycle fields
                   payload: { package_id: "future.agent" },
                   required_payload_fields: ["package_id"],
                   confirmation_required: true
+                },
+                {
+                  action_id: "agent_package_preferences_set",
+                  action_ref: "app_state.actions#agent_package_preferences_set",
+                  semantic: "preferences",
+                  payload: { package_id: "future.agent" },
+                  required_payload_fields: ["package_id", "exposure_action or shortcut_id"],
+                  confirmation_required: false
                 }
               ],
               lifecycle_receipts: [{ receipt_ref: "private://receipt" }],
@@ -98,7 +119,11 @@ test("current Package directory entries replace retired private lifecycle fields
                 recommended: null
               }
             }
-          }
+          },
+          home_shortcut_preferences: [
+            { package_id: "future.agent", shortcut_id: "research", visible: true, sort_order: 10 },
+            { package_id: "future.agent", shortcut_id: "review", visible: false, sort_order: 20 }
+          ]
         }
       }
     }
@@ -113,12 +138,20 @@ test("current Package directory entries replace retired private lifecycle fields
   assert.equal(item.searchMetadata.tags.includes("required_skill:future-agent"), true);
   assert.equal(item.statusAxes.find((axis) => axis.label === "Codex surface")?.value, "visible");
   assert.equal(item.details.find((detail) => detail.label === "Physical surface")?.value, "available");
-  assert.equal(item.actions.length, 1);
+  assert.equal(item.sourceMode, "package_channel");
+  assert.equal(item.automaticUpdate, true);
+  assert.deepEqual(item.homeShortcuts, [
+    { shortcutId: "research", visible: true, sortOrder: 10 },
+    { shortcutId: "review", visible: false, sortOrder: 20 }
+  ]);
+  assert.equal(item.actions.length, 2);
   assert.equal(item.actions[0]?.kind, "update");
   assert.equal(item.actions[0]?.status, "available");
   assert.deepEqual(item.actions[0]?.payload, { package_id: "future.agent" });
   assert.deepEqual(item.actions[0]?.requiredPayloadFields, ["package_id"]);
   assert.equal(item.actions[0]?.confirmationRequired, true);
+  assert.equal(item.actions[1]?.kind, "preferences");
+  assert.equal(item.actions[1]?.status, "available");
   assert.equal(item.refs.find((ref) => ref.label === "Source")?.ref, "future-agent@example");
   assert.equal(item.refs.some((ref) => ref.label === "Manifest"), false);
 

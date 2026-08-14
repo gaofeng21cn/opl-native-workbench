@@ -155,7 +155,7 @@ test("native window hosts the live DeepSeek Harness composition root", () => {
   assert.match(app, /return renderShell\(\{/);
   assert.match(app, /workspaceRail: studioWorkspaceRail/);
   assert.match(app, /conversationBody: studioConversationBody/);
-  assert.match(app, /settings: studioSettings/);
+  assert.match(app, /renderSettings: renderStudioSettings/);
   assert.match(main, /createRoot\(rootElement\)\.render\(renderOplStudioRoot\(\)\)/);
   assert.match(main, /document\.documentElement\.dataset\.oplHost = nativeTransportInstalled \? "native" : "web"/);
   assert.match(nativeWindow, /\.fullSizeContentView/);
@@ -288,7 +288,7 @@ test("DSH Settings content consumes the canonical Gateway account read model", (
   assert.match(model, /gatewayAccountProjection\.connection_mode === "account"/);
   assert.match(model, /gatewayConnectionMode/);
   assert.match(app, /<SettingsPanel/);
-  assert.match(app, /settings: studioSettings/);
+  assert.match(app, /renderSettings: renderStudioSettings/);
   assert.match(slotHost, /<SettingsRoot/);
   assert.match(settingsPanel, /opl-settings-gateway-username/);
   assert.match(settingsPanel, /gateway\?\.displayName/);
@@ -312,17 +312,32 @@ test("Settings uses the App-owned navigation groups and one shared read model", 
   assert.match(model, /codex_model_policy/);
   assert.match(model, /workspace_services/);
   assert.match(model, /storage_lifecycle/);
+  assert.match(model, /readManagedUpdateProjection/);
+  assert.match(model, /mergeManagedUpdateProjections/);
+  assert.match(app, /captureManagedUpdateReceipt\(receipt\)/);
+  assert.match(app, /managedUpdate=\{managedUpdate\}/);
+  for (const componentId of ["opl_app", "opl_base", "opl_packages"]) {
+    assert.match(settingsPanel, new RegExp(`component\\("${componentId}"\\)`));
+  }
+  assert.match(settingsPanel, /settings_apply_opl_packages/);
+  assert.match(settingsPanel, /shortcut_id: shortcut\.shortcutId/);
+  assert.match(settingsPanel, /visible,/);
+  assert.match(settingsPanel, /sort_order: sortOrder/);
   assert.match(settingsRoot, /renderSlot\('settings\.section'/);
-  assert.match(slotHost, /register\(\{ name: "settings\.section", id: "opl-studio-settings"/);
-  assert.match(settingsPanel, /onDestinationChange/);
+  assert.match(slotHost, /settingsDestinations\("en"\)\.entries\(\)/);
+  assert.match(slotHost, /id: settingsSectionId\(destination\.id\)/);
+  assert.match(slotHost, /renderSettings\(destination\)/);
+  assert.doesNotMatch(settingsPanel, /settings-mobile-navigation/);
   assert.doesNotMatch(settingsPanel, /useState<SettingsDestinationId>/);
   assert.doesNotMatch(styles, /grid-template-columns: 220px minmax\(0, 1fr\)/);
-  assert.match(styles, /\.settings-mobile-navigation/);
+  assert.doesNotMatch(styles, /\.settings-mobile-navigation/);
 });
 
 test("desktop uses DSH columns and mobile keeps full-height thread dialogs", () => {
   assert.match(appFrame, /gridTemplateColumns: `\$\{cols\.sidebar\}px minmax\(0, 1fr\) \$\{cols\.details\}px`/);
   assert.match(styles, /@media \(max-width: 760px\)/);
+  assert.match(styles, /\[role="dialog"\]\[aria-labelledby\]:has\(> nav\) > nav > div:last-child/);
+  assert.match(styles, /flex-direction: row/);
   assert.match(rail, /project\.threads\.slice\(0, 2\)/);
   assert.match(app, /conversation\.scrollTop = conversation\.scrollHeight/);
   assert.match(slotHost, /className="opl-dsh-rail-browser"/);
