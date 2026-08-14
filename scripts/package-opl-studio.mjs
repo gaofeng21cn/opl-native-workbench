@@ -75,7 +75,6 @@ if (rendererBuild.stylesheet) {
 }
 fs.copyFileSync(path.join(rendererOutDir, "renderer-build.json"), path.join(resourcesDir, "renderer-build.json"));
 fs.copyFileSync(path.join(root, "THIRD_PARTY_NOTICES.md"), path.join(resourcesDir, "THIRD_PARTY_NOTICES.md"));
-fs.cpSync(path.join(rendererOutDir, "branding"), path.join(resourcesDir, "branding"), { recursive: true });
 
 fs.writeFileSync(path.join(contentsDir, "Info.plist"), `<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0">
@@ -196,8 +195,8 @@ const manifest = {
   },
   default_home_layout: {
     project_rail_visible: true,
-    environment_details_default_open: false,
-    environment_details_presentation: "dsh_resizable_column"
+    details_default_open: false,
+    details_presentation: "dsh_resizable_column_with_mobile_overlay"
   },
   codex_model_policy: {
     source: rendererBuild.modelPolicySource,
@@ -206,35 +205,8 @@ const manifest = {
     visible_models: rendererBuild.visibleModels,
     reasoning_efforts: rendererBuild.reasoningEfforts
   },
-  external_layout_reference: {
-    repo: "https://github.com/K-Dense-AI/k-dense-byok",
-    inspected_commit: "dccc7ec4d034a00d7662eaabb3f5916bc3d00602",
-    companion_repo: "https://github.com/ai4s-research/open-science",
-    companion_inspected_commit: "ac80a9c833b792190109c2b375a24b8e5130cd1f",
-    source_paths: [
-      "web/src/app/page.tsx",
-      "web/src/components/chat-tab.tsx",
-      "web/src/components/chat-tabs-bar.tsx",
-      "web/src/components/file-preview-panel.tsx",
-      "apps/desktop/src/app/layout/AppShell.tsx",
-      "apps/desktop/src/app/routes/LiveSessionPage.tsx",
-      "apps/desktop/src/components/thread/Composer.tsx",
-      "apps/desktop/src/components/thread/ThreadView.tsx",
-      "apps/desktop/src/components/sidebar/Sidebar.tsx",
-      "apps/desktop/src/index.css"
-    ],
-    adapted_patterns: [
-      "persistent project and conversation rail with compact project context links",
-      "single conversation canvas with centered max-width thread and bottom composer",
-      "model and reasoning controls stay in the composer bottom row",
-      "attachments, outputs, preview, provenance, workflows, packages, and runtime live in the user-requested DSH details column",
-      "bottom composer is the primary interaction",
-      "environment details are closed by default and use the DSH frame concession layout when opened",
-      "workflow/export/interview surfaces are secondary, not dashboard cards",
-      "K-Dense and Open Science remain feature references rather than the visual shell baseline"
-    ]
-  },
   brand_owner: "one-person-lab-app",
+  ui_identity: "text_only_opl_studio_no_logo",
   functional_mvp: {
     codex_app_server_thread_turn: true,
     codex_command: "codex app-server --stdio",
@@ -253,19 +225,9 @@ const manifest = {
     acp_app_server_reuse_status: "implemented_with_codex_app_server_thread_turn_stream"
   },
   shared_renderer_entry: rendererBuild.entry,
-  brand_assets: {
-    icon_icns: {
-      package_path: "Contents/Resources/app.icns",
-      sha256: sha256(path.join(resourcesDir, "app.icns"))
-    },
-    logo_png: {
-      package_path: "Contents/Resources/branding/opl-app-logo.png",
-      sha256: sha256(path.join(resourcesDir, "branding", "opl-app-logo.png"))
-    },
-    banner_png: {
-      package_path: "Contents/Resources/branding/opl-banner.png",
-      sha256: sha256(path.join(resourcesDir, "branding", "opl-banner.png"))
-    }
+  application_icon: {
+    package_path: "Contents/Resources/app.icns",
+    sha256: sha256(path.join(resourcesDir, "app.icns"))
   },
   product_profile_owner: "one-person-lab-app",
   default_release_shell_unchanged: true,
@@ -276,8 +238,6 @@ const manifest = {
   implemented_capabilities: evidence.capabilities,
   context_testids: [
     "opl-workspace-rail",
-    "opl-project-inputs",
-    "opl-project-attachments",
     "opl-project-chats",
     "opl-topbar-model-config",
     "opl-selected-artifact-preview",
@@ -287,11 +247,14 @@ const manifest = {
     "opl-thread-detail-popover",
     "opl-thread-lifecycle-confirmation",
     "opl-context-tabs",
-    "opl-files-panel",
-    "opl-skills-panel",
-    "opl-routing-panel",
-    "opl-memory-panel",
-    "opl-always-on-panel",
+    "opl-runtime-status-panel",
+    "opl-agent-run-status",
+    "opl-runtime-contributions",
+    "opl-files-results-panel",
+    "opl-input-files-list",
+    "opl-agents-capabilities-panel",
+    "opl-current-agent-capabilities",
+    "opl-codex-capability-catalog",
     "opl-web-transport"
   ],
   source_ui_smoke_status: "passed",

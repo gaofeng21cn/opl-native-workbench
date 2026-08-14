@@ -384,6 +384,16 @@ export function createOplPassthrough({ cwd = process.cwd(), command = process.en
       return { detail: "full", drilldown: jsonValue(result.stdout), readback: commandReadback(args, result) };
     },
 
+    async readContribution(request = {}) {
+      const packageId = typeof request.packageId === "string" ? request.packageId.trim() : "";
+      const ref = typeof request.ref === "string" ? request.ref.trim() : "";
+      if (!packageId || !ref) throw Object.assign(new Error("missing packageId or ref"), { code: "invalid_request" });
+      const input = request.input && typeof request.input === "object" ? request.input : {};
+      const args = [command, "app", "contribution", "read", "--package-id", packageId, "--ref", ref, "--input", JSON.stringify(input), "--json"];
+      const result = await run(command, args.slice(1), { cwd, timeoutMs: 45_000 });
+      return { ...commandReadback(args, result), stdoutJson: jsonValue(result.stdout) };
+    },
+
     async executeAction(request = {}) {
       const actionId = typeof request.actionId === "string" ? request.actionId.trim() : "";
       if (!actionId) throw Object.assign(new Error("missing actionId"), { code: "invalid_request" });

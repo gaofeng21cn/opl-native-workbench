@@ -4,12 +4,11 @@ import path from "node:path";
 export const root = path.resolve(new URL("..", import.meta.url).pathname);
 
 export const requiredDeliverySurfaceKeys = [
+  "runtime_status",
+  "files_results",
+  "agents_capabilities",
+  "runtime_contributions",
   "artifact_preview_tabs",
-  "provenance_drawer",
-  "starter_forms",
-  "agent_package_lifecycle",
-  "confirmation_interview_cards",
-  "renderer_module_registry",
   "delivery_mode",
   "export_action"
 ];

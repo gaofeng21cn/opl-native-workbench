@@ -58,9 +58,10 @@ for (const marker of ["buildRenderer", "workbench.html", "renderer.js", "shared_
 for (const marker of ["messageHandlers?.oplStudio", "installWebTransport", 'document.getElementById("root")']) {
   assert(rendererEntry.includes(marker), `missing shared renderer entry marker ${marker}`);
 }
-for (const marker of ["branding/opl-app-logo.png", '<div id="root"></div>']) {
+for (const marker of ['<div id="root"></div>']) {
   assert(rendererShell.includes(marker), `missing renderer shell marker ${marker}`);
 }
+assert(!rendererShell.includes("branding/opl-app-logo.png"), "renderer shell must keep product identity text-only");
 assertNoFalseReadyFields({
   "src/workbench/App.tsx": app,
   "src/workbench/workbenchModel.ts": model,

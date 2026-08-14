@@ -119,9 +119,9 @@ export const rendererModuleRegistry: RendererModuleRegistration[] = [
   {
     id: "radix-dialog",
     packageName: "@radix-ui/react-dialog",
-    surface: "Provenance and confirmation drawer",
-    adapter: "Dialog.Content as always-visible inspector shell",
-    evidenceTestId: "opl-provenance-drawer",
+    surface: "Settings confirmations and thread lifecycle dialogs",
+    adapter: "Dialog.Content for explicit user-requested modal actions",
+    evidenceTestId: "opl-settings-action-confirmation",
     authorityBoundary: "No release or owner receipt authority"
   },
   {

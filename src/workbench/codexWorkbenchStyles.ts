@@ -145,19 +145,55 @@ export const codexWorkbenchStyles = `
     flex-wrap: wrap;
   }
 
-  .opl-contribution-view {
-    display: grid;
-    grid-template-columns: minmax(100px, 0.35fr) minmax(0, 1fr);
-    gap: 10px;
-    color: var(--opl-muted);
-    font-size: 12px;
+  .opl-contribution-result,
+  .opl-structured-fields,
+  .opl-structured-list {
+    min-width: 0;
   }
 
-  .opl-contribution-view code {
-    overflow: hidden;
-    color: var(--opl-faint);
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .opl-contribution-result {
+    padding: 2px 0;
+  }
+
+  .opl-structured-fields,
+  .opl-structured-list {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .opl-structured-list {
+    padding-left: 18px;
+  }
+
+  .opl-structured-fields > div {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(76px, 0.3fr) minmax(0, 1fr);
+    gap: 10px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--opl-border);
+  }
+
+  .opl-structured-fields > div:last-child {
+    border-bottom: 0;
+  }
+
+  .opl-structured-fields dt,
+  .opl-structured-fields dd {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .opl-structured-fields dt,
+  .opl-structured-empty {
+    color: var(--opl-muted);
+  }
+
+  .opl-structured-scalar {
+    color: var(--opl-text);
   }
 
   .opl-contribution-fallback {

@@ -130,6 +130,10 @@ export async function createWebUiHost({
         json(res, 200, await opl.readFullDrilldown());
         return;
       }
+      if (req.method === "POST" && url.pathname === "/api/opl/contribution/read") {
+        json(res, 200, await opl.readContribution(await body(req)));
+        return;
+      }
       if (req.method === "POST" && url.pathname === "/api/opl/action") {
         json(res, 200, await opl.executeAction(await body(req)));
         return;

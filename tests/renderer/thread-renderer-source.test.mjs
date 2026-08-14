@@ -182,9 +182,11 @@ test("native window hosts the live DeepSeek Harness composition root", () => {
 });
 
 test("search, composer attachments, and Agent permissions route to real renderer and bridge behavior", () => {
-  assert.match(app, /className="opl-dsh-rail-actions"/);
+  assert.match(app, /data-testid="opl-workspace-rail"/);
   assert.match(app, /setThreadSearchOpen\(true\)/);
   assert.match(app, /<ThreadSearchDialog/);
+  assert.match(slotHost, /<SidebarRoot/);
+  assert.match(slotHost, /name: "sidebar\.workspaces"/);
   assert.match(threadSearch, /!thread\.isTemporaryWorkspace && !project\.projectless/);
   assert.match(app, /<ComposerCapabilityPalette/);
   assert.match(app, /function openComposerPalette\(\)/);
@@ -227,7 +229,7 @@ test("native visual shell uses vendored DeepSeek Harness roots and theme tokens"
   assert.match(styles, /\[data-streamdown="code-block"\]/);
 });
 
-test("DSH controls resolve to the complete pinned upstream primitives tree while OPL branding stays external", () => {
+test("DSH controls resolve to the complete pinned upstream primitives tree while OPL identity stays text-only", () => {
   const primitiveAlias = ["src/vendor/deepseek-harness/packages/client/ui-primitives/src/index.ts"];
   assert.deepEqual(tsconfig.compilerOptions.paths["@deepseek-ai/dsh-client-ui-primitives"], primitiveAlias);
   assert.deepEqual(typecheckConfig.compilerOptions.paths["@deepseek-ai/dsh-client-ui-primitives"], primitiveAlias);
@@ -250,10 +252,10 @@ test("DSH controls resolve to the complete pinned upstream primitives tree while
 
   assert.match(adapterStyles, /svg\[viewBox="0 0 182 24"\]/);
   assert.match(adapterStyles, /svg\[viewBox="0 0 23\.16 17\.04"\]/);
-  assert.match(adapterStyles, /var\(--opl-brand-logo\)/);
+  assert.match(adapterStyles, /display: none/);
   assert.match(adapterStyles, /content: "OPL Studio"/);
-  assert.match(main, /--opl-brand-logo/);
-  assert.match(main, /branding\/opl-app-logo\.png/);
+  assert.doesNotMatch(main, /--opl-brand-logo/);
+  assert.doesNotMatch(main, /branding\/opl-app-logo\.png/);
 });
 
 test("primary canvas hides its scrollbar without disabling scrolling", () => {

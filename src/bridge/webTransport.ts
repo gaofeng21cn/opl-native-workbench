@@ -68,6 +68,7 @@ export function installWebTransport(): void {
     beginWindowDrag: () => undefined,
     readState: (profile = "fast") => requestJson(`/api/opl/state?profile=${encodeURIComponent(profile)}`),
     readFullDrilldown: () => requestJson("/api/opl/drilldown"),
+    readContribution: (request) => postJson("/api/opl/contribution/read", request),
     executeAction: (request) => postJson("/api/opl/action", request),
     readCodexModels: () => requestJson("/api/codex/models"),
     readCodexCapabilities: (threadId) => requestJson(`/api/codex/capabilities${threadId ? `?threadId=${encodeURIComponent(threadId)}` : ""}`),

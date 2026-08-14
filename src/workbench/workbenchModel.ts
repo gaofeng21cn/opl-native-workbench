@@ -888,10 +888,6 @@ function isReceiptAction(action: WorkbenchActionRef): boolean {
   return /receipt|preview|dry.?run|export|bundle/.test(actionText(action));
 }
 
-function inferPreviewKind(action: WorkbenchActionRef): WorkbenchPreviewKind {
-  return previewKindFromText(actionText(action));
-}
-
 function actionStatus(action: WorkbenchActionRef): ActionReceiptSummary["status"] {
   if (!action.dryRunSupported) return "unavailable";
   return action.payloadFields.length ? "payload_required" : "preview";
@@ -943,7 +939,7 @@ function pickActiveProjectLines(value: unknown, fallback: ActiveProjectLine[]): 
     deliverableProgressDelta: asString(line?.deliverable_progress_delta) ?? asString(line?.deliverableProgressDelta) ?? "refs visible",
     platformRepairDelta: asString(line?.platform_repair_delta) ?? asString(line?.platformRepairDelta) ?? "none",
     nextForcedDelta: asString(line?.next_forced_delta) ?? asString(line?.nextForcedDelta) ?? "owner adoption gate"
-  }));
+  })).filter((line) => line.status !== "candidate_preview_only" && !line.activeRunId?.startsWith("placeholder-"));
   return lines.length ? lines : fallback;
 }
 
@@ -1025,44 +1021,6 @@ function artifactPreviewFromItem(item: WorkbenchArtifactRef): ArtifactPreview {
     bullets: item.actions,
     sourceRefs: uniqueStrings([item.ref, ...item.provenance]),
     authorityBoundary: previewAuthorityBoundary(item.previewKind)
-  };
-}
-
-function actionPreviewFromAction(action: WorkbenchActionRef): ArtifactPreview {
-  const route = ensureDryRunJsonRoute(action.route);
-  return {
-    id: `preview-action-${action.id}`,
-    label: "Action",
-    previewKind: inferPreviewKind(action),
-    rendererModuleId: rendererModuleIdForPreviewKind(inferPreviewKind(action)),
-    title: action.label,
-    ref: route,
-    summary: `Dry-run route derived from ${action.owner ?? "OPL App"}; mutates ${action.mutates}.`,
-    content: JSON.stringify({
-      action_id: action.id,
-      label: action.label,
-      route,
-      payload_fields: action.payloadFields,
-      mutates: action.mutates,
-      delegated_surface: action.delegatedSurface,
-      owner: action.owner,
-      route_requires_payload: action.routeRequiresPayload ?? false,
-      dry_run_supported: action.dryRunSupported
-    }, null, 2),
-    fields: [
-      { label: "Action", value: action.id },
-      { label: "Owner", value: action.owner ?? "opl_app" },
-      { label: "Mutation", value: action.mutates },
-      { label: "Payload", value: action.payloadFields.length ? action.payloadFields.join(", ") : "none" }
-    ],
-    bullets: [
-      action.dryRunSupported
-        ? "Dry-run route can be inspected before any confirmed execute."
-        : "This route is not safe-action dry-run capable.",
-      action.delegatedSurface ? `Delegated surface: ${action.delegatedSurface}` : "No delegated surface readback."
-    ],
-    sourceRefs: uniqueStrings([route, action.delegatedSurface, action.owner]),
-    authorityBoundary: "Action preview only; no domain authority is expanded in the renderer."
   };
 }
 
@@ -2374,10 +2332,7 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
 
   const genericArtifactPreviews = uniqueByRef([
     ...deliverables.map(artifactPreviewFromItem),
-    ...receipts.map(artifactPreviewFromItem),
-    ...contextActions
-      .filter((action) => action.dryRunSupported)
-      .map(actionPreviewFromAction)
+    ...receipts.map(artifactPreviewFromItem)
   ]);
   const artifactPreviews = uniqueByRef([...leadPreviewCandidates, ...genericArtifactPreviews]).slice(0, 6);
 

@@ -99,17 +99,18 @@ const requiredScripts = [
 
 const requiredTestIds = [
   "opl-workspace-rail",
-  "opl-project-inputs",
-  "opl-project-attachments",
   "opl-project-chats",
   "opl-topbar-model-config",
   "opl-session-list",
   "opl-context-tabs",
-  "opl-files-panel",
-  "opl-skills-panel",
-  "opl-routing-panel",
-  "opl-memory-panel",
-  "opl-always-on-panel",
+  "opl-runtime-status-panel",
+  "opl-agent-run-status",
+  "opl-runtime-contributions",
+  "opl-files-results-panel",
+  "opl-input-files-list",
+  "opl-agents-capabilities-panel",
+  "opl-current-agent-capabilities",
+  "opl-codex-capability-catalog",
   "opl-web-transport",
   "opl-locale-toggle",
   "opl-real-thread-directory",
@@ -161,7 +162,7 @@ const expectedDeliveryEvaluation = {
   renderer_technology: "react",
   macos_host: "swift_appkit_wkwebview",
   workspace_host: "node_http_sse",
-  workspace_product_name: "OPL Workspace",
+  workspace_product_name: "OPL Studio",
   shared_renderer_and_bridge_shape_required: true,
   runtime_backend_scope: "codex_cli_only",
   aionui_runtime_dependency_allowed: false,
@@ -172,7 +173,7 @@ const expectedDeliveryEvaluation = {
 };
 assert(
   JSON.stringify(studioProfile.delivery_evaluation) === JSON.stringify(expectedDeliveryEvaluation),
-  "candidate profile must declare the bounded lightweight native macOS and OPL Workspace evaluation role"
+  "candidate profile must declare the bounded lightweight native macOS and OPL Studio WebUI evaluation role"
 );
 assert(
   studioProfile.runtime_dependency_policy?.aioncore_required === false
@@ -313,12 +314,12 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
   assert(alignment.reference_version === "47f943859bef60e4160492346772ded9b24f765a", "pinned DeepSeek Harness source ref must be recorded");
   assert(alignment.reference_date === "2026-08-14", "DeepSeek Harness inspection date must be recorded");
   assert(alignment.source_usage === "direct_mit_gui_source_reuse", "DeepSeek Harness use must be direct GUI source reuse");
-  assert(alignment.left_side === "persistent project and conversation rail", "project rail placement must be recorded");
+  assert(alignment.left_side === "persistent project and conversation rail with search and Settings only", "project rail placement must be recorded");
   assert(alignment.center === "single dominant conversation timeline with bottom composer", "conversation placement must be recorded");
   assert(alignment.model_controls === "composer_bottom_row", "model controls must stay in the composer");
-  assert(alignment.right_side === "user-requested DSH details column", "environment details must use the DSH details column");
+  assert(alignment.right_side === "on-demand DSH details column for run status, files and results, and agents and capabilities", "task details must use the DSH details column");
   assert(evidence.default_home_layout?.workspace_rail_default_open === true, "project rail must be visible by default");
-  assert(evidence.default_home_layout?.environment_details_default_open === false, "environment details must be closed by default");
+  assert(evidence.default_home_layout?.details_default_open === false, "task details must be closed by default");
   assert(evidence.webui_parity?.desktop_and_webui_default_home === "chat_first_default_collapsed", "desktop and WebUI must share the chat-first default-collapsed home");
   assert(visualStyle?.reference_version === alignment.reference_version, "visual tokens must bind to the same DeepSeek Harness source ref");
   assert(visualStyle?.scope === "six_pinned_gui_package_source_trees_with_vendor_external_opl_adapters", "visual source scope must cover all six pinned DSH GUI package trees");
@@ -366,10 +367,10 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
     assert(source.includes('from "@deepseek-ai/dsh-client-ui-primitives"'), "OPL primitive consumers must import the upstream DSH package specifier directly");
     for (const name of names) assert(primitiveIndex.includes(`export { ${name} }`), `vendored DSH primitive index must export ${name}`);
   }
-  for (const marker of ['svg[viewBox="0 0 182 24"]', 'svg[viewBox="0 0 23.16 17.04"]', "var(--opl-brand-logo)", 'content: "OPL Studio"']) {
-    assert(adapterStyles.includes(marker), `vendor-external OPL brand override must preserve ${marker}`);
+  for (const marker of ['svg[viewBox="0 0 182 24"]', 'svg[viewBox="0 0 23.16 17.04"]', "display: none", 'content: "OPL Studio"']) {
+    assert(adapterStyles.includes(marker), `vendor-external text-only OPL identity must preserve ${marker}`);
   }
-  assert(mainSource.includes("--opl-brand-logo") && mainSource.includes("branding/opl-app-logo.png"), "renderer must bind the OPL brand override to the packaged OPL asset");
+  assert(!mainSource.includes("--opl-brand-logo") && !mainSource.includes("branding/opl-app-logo.png"), "renderer must keep OPL identity text-only without a Logo asset");
   assert(notices.includes("47f943859bef60e4160492346772ded9b24f765a") && notices.includes("MIT License"), "third-party notices must preserve pinned DSH source and MIT license");
   assert(architecture.includes("Model And Settings Boundary") && architecture.includes("App product profile"), "architecture must route model and settings authority to App");
   assert(architecture.includes("Codex App Server owns canonical thread identity"), "architecture must route thread truth to Codex App Server");
@@ -488,6 +489,13 @@ function assertCodexModelControls(evidence, app, rendererSource) {
   const alignment = evidence.default_home_layout?.product_layout_contract;
   assert(alignment && typeof alignment === "object", "candidate evidence must define the App-owned product layout contract");
   assert(alignment.reference_product === "DeepSeek Harness Web client", "product layout contract must bind the DSH GUI baseline");
+  assert(JSON.stringify(alignment.left_rail_items) === JSON.stringify(["projects", "conversations", "search", "settings"]), "left rail must contain only projects, conversations, search, and Settings");
+  assert(JSON.stringify(alignment.right_context_modules) === JSON.stringify(["run_status", "files_results", "agents_capabilities"]), "right context must contain only run status, files and results, and agents and capabilities");
+  assert(alignment.runtime_status_sources?.includes("codex_app_server_current_thread") && alignment.runtime_status_sources.includes("opl_app_state_active_project_lines"), "run status must consume current thread and active project lines");
+  assert(alignment.runtime_detail_slot === "ui_contributions.runtime.detail", "hypotheses and roadmaps must use runtime.detail contribution readback");
+  assert(alignment.files_input_policy === "user_selected_files_and_directories_only" && alignment.results_policy === "owner_projected_artifacts_only_no_action_json", "files and results must preserve their real owner boundaries");
+  assert(alignment.package_lifecycle_surface === "settings", "Agent Package lifecycle must remain in Settings");
+  assert(JSON.stringify(alignment.product_identity?.visible_text) === JSON.stringify(["OPL Studio", "One Person Lab"]) && alignment.product_identity.logo_visible === false && alignment.product_identity.bundle_icon_allowed === true, "product identity must be text-only while preserving the bundle icon");
   assert(
     !("codex_2026_07_11_alignment" in (evidence.default_home_layout ?? {})),
     "candidate evidence must not restore the retired dated Codex authority key"
@@ -558,14 +566,14 @@ for (const capability of [
   "settings_persistence",
   "execute_confirmation",
   "artifact_preview_mvp",
-  "professional_starters_mvp",
   "source_visual_smoke",
   "artifact_preview_tabs",
-  "provenance_drawer",
-  "starter_forms",
-  "agent_package_lifecycle_display",
-  "confirmation_interview_cards",
-  "renderer_module_registry",
+  "runtime_status_panel",
+  "files_results_panel",
+  "agents_capabilities_panel",
+  "runtime_detail_contributions",
+  "mobile_details_overlay",
+  "text_only_product_brand",
   "delivery_mode_selection",
   "export_action"
 ]) {
@@ -585,7 +593,7 @@ assert(evidence.reused_oss_module_policy.ui_primitives_index === "packages/clien
 for (const primitive of ["Button", "Pill", "Input", "Tooltip", "StateDot", "MessageText", "icons"]) {
   assert(evidence.reused_oss_module_policy.direct_ui_primitives?.includes(primitive), `missing direct DeepSeek Harness primitive evidence ${primitive}`);
 }
-assert(evidence.reused_oss_module_policy.brand_override === "vendor_external_css_and_packaged_opl_asset", "OPL branding must stay outside vendored DSH source");
+assert(evidence.reused_oss_module_policy.brand_override === "vendor_external_text_only_branding", "OPL branding must stay text-only and outside vendored DSH source");
 for (const rootName of ["AppFrame", "SidebarRoot", "ConversationRoot", "InputBar", "SettingsRoot"]) {
   assert(evidence.reused_oss_module_policy.active_gui_roots.some((entry) => entry.includes(rootName)), `missing active DeepSeek Harness GUI root ${rootName}`);
 }

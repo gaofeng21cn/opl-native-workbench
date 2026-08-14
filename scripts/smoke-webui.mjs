@@ -53,9 +53,10 @@ const webuiRendererTestIds = [
 assertRendererTestIds(rendererSource, webuiRendererTestIds, "WebUI renderer");
 const html = read("dist/webui/index.html");
 const bundle = read("dist/webui/renderer.js");
-for (const marker of ['<div id="root"></div>', './renderer.js', 'branding/opl-app-logo.png']) {
+for (const marker of ['<div id="root"></div>', './renderer.js']) {
   assert(html.includes(marker), `missing WebUI HTML marker ${marker}`);
 }
+assert(!html.includes("branding/opl-app-logo.png"), "WebUI HTML must keep product identity text-only");
 for (const marker of ["opl-studio-root", "window.oplStudio", "/api/opl-events"]) {
   assert(bundle.includes(marker), `missing WebUI renderer marker ${marker}`);
 }

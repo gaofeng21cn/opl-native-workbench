@@ -33,19 +33,6 @@ select {
   display: none;
 }
 
-.opl-studio-dsh-root button:has(> svg[viewBox="0 0 182 24"])::before,
-.opl-studio-dsh-root button:has(> svg[viewBox="0 0 23.16 17.04"])::before,
-.opl-studio-dsh-root span:has(> svg[viewBox="0 0 23.16 17.04"])::before {
-  content: "";
-  flex: none;
-  background: var(--opl-brand-logo) center / contain no-repeat;
-}
-
-.opl-studio-dsh-root button:has(> svg[viewBox="0 0 182 24"])::before {
-  width: 24px;
-  height: 24px;
-}
-
 .opl-studio-dsh-root button:has(> svg[viewBox="0 0 182 24"])::after {
   content: "OPL Studio";
   overflow: hidden;
@@ -56,18 +43,12 @@ select {
   white-space: nowrap;
 }
 
-.opl-studio-dsh-root button:has(> svg[viewBox="0 0 23.16 17.04"])::before {
-  width: 24px;
-  height: 24px;
-}
-
-.opl-studio-dsh-root button:has(> svg[viewBox="0 0 23.16 17.04"]):hover::before {
+.opl-studio-dsh-root span:has(> svg[viewBox="0 0 23.16 17.04"]) {
   display: none;
 }
 
-.opl-studio-dsh-root span:has(> svg[viewBox="0 0 23.16 17.04"])::before {
-  width: 34px;
-  height: 25px;
+.opl-studio-dsh-root button:has(> svg[viewBox="0 0 23.16 17.04"]) > svg:not([viewBox="0 0 23.16 17.04"]) {
+  display: inline !important;
 }
 
 .opl-dsh-workspace-rail {
@@ -78,16 +59,7 @@ select {
   overflow: hidden;
 }
 
-.opl-dsh-rail-actions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  padding: 2px 8px 8px 4px;
-}
-
-.opl-dsh-rail-actions button,
 .opl-dsh-projects > header button,
-.opl-dsh-project-context button,
 .opl-dsh-conversation-header button,
 .opl-dsh-context-panel button {
   border: 0;
@@ -95,22 +67,7 @@ select {
   color: inherit;
 }
 
-.opl-dsh-rail-actions button {
-  min-width: 0;
-  min-height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 5px 4px;
-  border-radius: 9px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-}
-
-.opl-dsh-rail-actions button:hover,
 .opl-dsh-projects > header button:hover,
-.opl-dsh-project-context button:hover,
 .opl-dsh-conversation-header button:hover,
 .opl-dsh-context-panel button:hover {
   background: var(--dsw-alias-interactive-bg-hover);
@@ -144,38 +101,6 @@ select {
   min-height: 0;
   overflow-y: auto;
   scrollbar-gutter: stable;
-}
-
-.opl-dsh-project-context {
-  display: grid;
-  gap: 2px;
-  margin: 6px 8px 0 4px;
-  padding-top: 8px;
-  border-top: 1px solid var(--dsw-alias-border-l2);
-}
-
-.opl-dsh-project-context > strong,
-.opl-dsh-project-context button {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 32px;
-  padding: 5px 8px;
-  border-radius: 9px;
-  font-size: 12px;
-  text-align: left;
-}
-
-.opl-dsh-project-context > strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.opl-dsh-project-context button span {
-  margin-left: auto;
-  color: var(--dsw-alias-label-tertiary);
 }
 
 .opl-dsh-rail-browser {
@@ -225,9 +150,9 @@ select {
 }
 
 .opl-dsh-conversation-header > button:last-child {
-  width: auto;
-  padding: 0 10px;
-  border-radius: 9px;
+  width: 30px;
+  padding: 0;
+  border-radius: 50%;
   color: var(--dsw-alias-label-secondary);
 }
 
@@ -293,6 +218,43 @@ select {
   overflow: hidden;
 }
 
+.opl-mobile-details-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 52px minmax(0, 1fr);
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+}
+
+.opl-mobile-details-overlay > header {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+}
+
+.opl-mobile-details-overlay > header button {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.opl-mobile-details-body {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .opl-dsh-context-panel .environment-menu {
   flex: none;
   display: flex;
@@ -308,6 +270,9 @@ select {
 .opl-dsh-context-panel .environment-menu > button {
   flex: none;
   min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 5px 9px;
   border-radius: 8px;
   color: var(--dsw-alias-label-secondary);
@@ -348,6 +313,160 @@ select {
   font-size: 14px;
   font-weight: 600;
   line-height: 22px;
+}
+
+.opl-dsh-context-panel .context-section,
+.opl-dsh-context-panel .runtime-line-list,
+.opl-dsh-context-panel .capability-groups,
+.opl-dsh-context-panel .capability-group {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.opl-dsh-context-panel .context-ref-row,
+.opl-dsh-context-panel .capability-row,
+.opl-dsh-context-panel .runtime-current-agent {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.opl-dsh-context-panel .context-ref-row,
+.opl-dsh-context-panel .capability-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+}
+
+.opl-dsh-context-panel .context-ref-row:last-child,
+.opl-dsh-context-panel .capability-row:last-child {
+  border-bottom: 0;
+}
+
+.opl-dsh-context-panel .context-ref-row strong,
+.opl-dsh-context-panel .context-ref-row span,
+.opl-dsh-context-panel .capability-row strong,
+.opl-dsh-context-panel .capability-row span {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.opl-dsh-context-panel .context-ref-row span,
+.opl-dsh-context-panel .capability-row span,
+.opl-dsh-context-panel .runtime-current-agent span,
+.opl-dsh-context-panel .capability-group > header span {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
+.opl-dsh-context-panel .capability-row span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.opl-dsh-context-panel .capability-search {
+  min-width: 0;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.opl-dsh-context-panel .capability-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+}
+
+.opl-dsh-context-panel .runtime-current-agent {
+  align-items: center;
+  padding: 10px 0 12px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+}
+
+.opl-dsh-context-panel .runtime-current-agent > div,
+.opl-dsh-context-panel .capability-row > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.opl-dsh-context-panel .runtime-current-agent strong,
+.opl-dsh-context-panel .runtime-current-agent span {
+  display: block;
+}
+
+.opl-dsh-context-panel .runtime-status-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--dsw-alias-label-caption);
+}
+
+.opl-dsh-context-panel [data-status="running"] .runtime-status-dot,
+.opl-dsh-context-panel .capability-row[data-active="true"] .runtime-status-dot {
+  background: var(--dsw-alias-state-success-primary);
+}
+
+.opl-dsh-context-panel .runtime-line {
+  min-width: 0;
+  display: grid;
+  gap: 9px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+}
+
+.opl-dsh-context-panel .runtime-line header,
+.opl-dsh-context-panel .capability-group > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.opl-dsh-context-panel .runtime-line p {
+  color: var(--dsw-alias-label-primary);
+}
+
+.opl-dsh-context-panel .runtime-line dl {
+  display: grid;
+  gap: 7px;
+}
+
+.opl-dsh-context-panel .runtime-line dl > div {
+  display: grid;
+  grid-template-columns: minmax(70px, 0.35fr) minmax(0, 1fr);
+  gap: 9px;
+}
+
+.opl-dsh-context-panel .runtime-line dt,
+.opl-dsh-context-panel .runtime-line dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.opl-dsh-context-panel .runtime-line dt {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.opl-dsh-context-panel .runtime-contributions {
+  padding-top: 4px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
 }
 
 .opl-dsh-context-panel .context-block p,

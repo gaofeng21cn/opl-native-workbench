@@ -158,11 +158,12 @@ for (const marker of [
 ]) {
   assert(workbenchModelSource.includes(marker), `workbench model missing package lifecycle marker ${marker}`);
 }
-for (const marker of ["opl-package-lifecycle-panel", "opl-package-lifecycle-card", "opl-package-lifecycle-action"]) {
-  assert(appSource.includes(marker), `App renderer missing package lifecycle marker ${marker}`);
+const settingsPanelSource = fs.readFileSync(path.join(root, "src/workbench/SettingsPanel.tsx"), "utf8");
+for (const marker of ["PackageCatalog", "opl-settings-agent-catalog", "agent-package-list"]) {
+  assert(settingsPanelSource.includes(marker), `Settings renderer missing package lifecycle marker ${marker}`);
 }
-for (const marker of ["sourceExplanation", "searchMetadata", "package-detail-list", "package-filter-list", "action.reason"]) {
-  assert(appSource.includes(marker), `App renderer missing package lifecycle detail marker ${marker}`);
+for (const marker of ["actionPayloadComplete"]) {
+  assert(settingsPanelSource.includes(marker), `Settings renderer missing package lifecycle detail marker ${marker}`);
 }
 for (const forbidden of ["agent_package_home_shortcut_preferences_set", "agent_package_install", "module_update", "settings_apply_opl_packages", "module_reinstall", "module_remove"]) {
   assert(!workbenchModelSource.includes(forbidden), `package lifecycle action mapping must not use legacy module action ${forbidden}`);

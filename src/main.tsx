@@ -69,6 +69,7 @@ function installNativeTransport(): boolean {
     },
     readState: (profile) => post("readState", { profile }),
     readFullDrilldown: () => post("readFullDrilldown"),
+    readContribution: (request) => post("readContribution", request as Record<string, unknown>),
     executeAction: (request) => post("executeAction", request as Record<string, unknown>),
     readCodexModels: () => post("readCodexModels"),
     readCodexCapabilities: (threadId) => post("readCodexCapabilities", { threadId }),
@@ -89,7 +90,6 @@ function installNativeTransport(): boolean {
 
 const nativeTransportInstalled = installNativeTransport();
 document.documentElement.dataset.oplHost = nativeTransportInstalled ? "native" : "web";
-document.documentElement.style.setProperty("--opl-brand-logo", "url('branding/opl-app-logo.png')");
 
 if (!nativeTransportInstalled && window.location.protocol !== "file:") {
   installWebTransport();

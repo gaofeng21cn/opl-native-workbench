@@ -77,7 +77,6 @@ for (const marker of [
   '<div id="root"></div>',
   '<link rel="stylesheet" href="./renderer.css" />',
   './renderer.js',
-  'branding/opl-app-logo.png',
   '__OPL_CODEX_MODEL_POLICY__'
 ]) {
   assert(workbench.includes(marker), `missing packaged workbench marker ${marker}`);
@@ -115,26 +114,26 @@ assert(
 for (const marker of [
   'opl-studio-root',
   'opl-workspace-rail',
-  'opl-project-inputs',
-  'opl-project-attachments',
   'opl-project-chats',
   'opl-real-thread-directory',
   'opl-thread-scope-filter',
   'opl-thread-detail-popover',
   'opl-thread-lifecycle-confirmation',
   'opl-topbar-model-config',
-  'opl-selected-artifact-preview',
+  'opl-runtime-status-panel',
+  'opl-agent-run-status',
+  'opl-runtime-contributions',
+  'opl-files-results-panel',
   'opl-artifact-preview-tabs',
-  'opl-provenance-drawer',
-  'opl-confirmation-card',
-  'opl-renderer-module-registry',
+  'opl-agents-capabilities-panel',
+  'opl-current-agent-capabilities',
+  'opl-codex-capability-catalog',
   'codex-sidebar-chat',
   'messageHandlers?.oplStudio',
   'native://oplStudio',
   'codex app-server',
   'initialize',
-  '/api/opl-events',
-  'branding/opl-app-logo.png'
+  '/api/opl-events'
 ]) {
   assert(renderer.includes(marker), `missing packaged renderer marker ${marker}`);
 }
@@ -202,7 +201,8 @@ for (const marker of [
   "readFullDrilldown",
   "readCodexModels",
   "executeAction",
-  'opl-runtime-action-dry-run',
+  'opl-runtime-status-panel',
+  'opl-runtime-contributions',
   'opl-runtime-action-receipt',
   'opl-settings-panel',
   'opl-model-access-entry',
@@ -211,13 +211,12 @@ for (const marker of [
 ]) {
   assert(renderer.includes(marker), `missing packaged functional MVP marker ${marker}`);
 }
-assert(renderer.includes("context-inspector"), "environment detail surface must exist");
-assert(renderer.includes("useState(false)"), "environment details must stay closed until explicitly requested");
+assert(renderer.includes("opl-dsh-context-panel"), "on-demand details surface must exist");
+assert(renderer.includes("opl-mobile-details-overlay"), "narrow viewports must keep details accessible");
+assert(!renderer.includes("branding/opl-app-logo.png"), "renderer must keep product identity text-only");
 
 for (const asset of [
   "app.icns",
-  "branding/opl-app-logo.png",
-  "branding/opl-banner.png",
   "package-manifest.json",
   "renderer-build.json"
 ]) {
@@ -273,8 +272,9 @@ for (const rootName of ["AppFrame", "SidebarRoot", "ConversationRoot", "InputBar
 }
 assert(manifest.deepseek_harness_source_reuse?.excluded_authority?.includes("plugin_manager"), "manifest must keep the DeepSeek Harness plugin manager outside OPL authority");
 assert(manifest.default_home_layout?.project_rail_visible === true, "manifest must keep the project rail visible by default");
-assert(manifest.default_home_layout?.environment_details_default_open === false, "manifest must keep environment details closed by default");
-assert(manifest.default_home_layout?.environment_details_presentation === "dsh_resizable_column", "manifest must keep environment details in the DSH resizable column");
+assert(manifest.default_home_layout?.details_default_open === false, "manifest must keep details closed by default");
+assert(manifest.default_home_layout?.details_presentation === "dsh_resizable_column_with_mobile_overlay", "manifest must keep details available on desktop and mobile");
+assert(manifest.ui_identity === "text_only_opl_studio_no_logo", "manifest must record the text-only product identity");
 assert(manifest.codex_model_policy?.source === appModelPolicy.source, "manifest must bind model policy to the App product profile");
 assert(manifest.codex_model_policy?.default_model === appModelPolicy.defaultModel, "manifest default model must match the App product profile");
 assert(manifest.codex_model_policy?.default_reasoning_effort === appModelPolicy.defaultReasoningEffort, "manifest default reasoning effort must match the App product profile");
@@ -284,14 +284,7 @@ assertOrderedValues(
   "manifest visible models"
 );
 assertOrderedValues(manifest.codex_model_policy?.reasoning_efforts, appModelPolicy.reasoningEfforts, "manifest reasoning efforts");
-assert(manifest.external_layout_reference?.repo === "https://github.com/K-Dense-AI/k-dense-byok", "manifest must record the K-Dense layout reference");
-assert(manifest.external_layout_reference?.companion_repo === "https://github.com/ai4s-research/open-science", "manifest must record the Open Science visual reference");
-assert(manifest.external_layout_reference?.adapted_patterns?.includes("persistent project and conversation rail with compact project context links"), "manifest must record the Codex project rail adaptation");
-assert(manifest.external_layout_reference?.adapted_patterns?.includes("single conversation canvas with centered max-width thread and bottom composer"), "manifest must record the Codex-style conversation adaptation");
-assert(manifest.external_layout_reference?.adapted_patterns?.includes("model and reasoning controls stay in the composer bottom row"), "manifest must record composer model configuration");
-assert(manifest.external_layout_reference?.adapted_patterns?.includes("attachments, outputs, preview, provenance, workflows, packages, and runtime live in the user-requested DSH details column"), "manifest must record the DSH details column");
-assert(manifest.external_layout_reference?.adapted_patterns?.includes("environment details are closed by default and use the DSH frame concession layout when opened"), "manifest must record closed-by-default environment details");
-assert(manifest.external_layout_reference?.adapted_patterns?.includes("K-Dense and Open Science remain feature references rather than the visual shell baseline"), "manifest must demote external workbenches to feature references");
+assert(!("external_layout_reference" in manifest), "manifest must use the pinned DSH source reuse record as its only visual baseline");
 assert(manifest.functional_mvp?.codex_app_server_thread_turn === true, "manifest must record Codex app-server thread/turn MVP");
 assert(manifest.functional_mvp?.codex_protocol?.includes("model/list"), "manifest must record app-server model availability reads");
 assert(manifest.functional_mvp?.thread_lifecycle?.includes("archive"), "manifest must record standard thread lifecycle");

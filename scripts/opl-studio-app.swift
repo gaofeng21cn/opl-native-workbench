@@ -1104,6 +1104,19 @@ final class NativeBridge: NSObject, WKScriptMessageHandler {
       return try stateCommandPayload(profile: profile)
     case "readFullDrilldown":
       return commandPayload(command: ["opl", "runtime", "app-operator-drilldown", "--detail", "full", "--json"], input: nil, timeout: 45)
+    case "readContribution":
+      guard
+        let packageId = payload["packageId"] as? String, !packageId.isEmpty,
+        let ref = payload["ref"] as? String, !ref.isEmpty
+      else {
+        throw BridgeError.invalidPayload("missing packageId or ref")
+      }
+      let input = payload["input"] as? [String: Any] ?? [:]
+      return commandPayload(
+        command: ["opl", "app", "contribution", "read", "--package-id", packageId, "--ref", ref, "--input", jsonString(input), "--json"],
+        input: nil,
+        timeout: 45
+      )
     case "executeAction":
       guard let actionId = payload["actionId"] as? String, !actionId.isEmpty else {
         throw BridgeError.invalidPayload("missing actionId")

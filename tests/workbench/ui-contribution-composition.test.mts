@@ -15,6 +15,7 @@ import {
   useHighestSupportedReasoningForUnknown: true
 };
 
+const { normalizeContributionReadback } = await import("../../src/bridge/oplBridge.ts");
 const { OplStudioDshSlotHost } = await import("../../src/composition/dshSlotHost.tsx");
 
 const projectionState = {
@@ -126,5 +127,33 @@ describe("OPL Studio DSH contribution composition", () => {
   test("keeps malformed or absent projections unavailable", () => {
     const unavailable: OplUiContributionsProjection = readUiContributionsProjection({ app_state: {} });
     expect(unavailable).toEqual({ surfaceKind: "unavailable", entries: [] });
+  });
+
+  test("accepts only the current Framework contribution read identity", () => {
+    const request = { packageId: "mas", ref: "mas.research-roadmap.v1#current" };
+    const response = {
+      command: "opl app contribution read",
+      exitCode: 0,
+      stdout: JSON.stringify({
+        opl_app_contribution: {
+          surface_kind: "opl_app_package_contribution.v1",
+          package_id: request.packageId,
+          ref: request.ref,
+          operation: "read",
+          response: {
+            schema_version: "opl-package-app-contribution-response.v1",
+            ok: true,
+            ref: request.ref,
+            operation: "read",
+            result: { hypotheses: ["Current hypothesis"], roadmap: ["Validate"] }
+          }
+        }
+      })
+    };
+    expect(normalizeContributionReadback(response, request).result).toEqual({
+      hypotheses: ["Current hypothesis"],
+      roadmap: ["Validate"]
+    });
+    expect(() => normalizeContributionReadback(response, { ...request, ref: "mas.research-roadmap.v1#stale" })).toThrow(/stale or malformed/);
   });
 });

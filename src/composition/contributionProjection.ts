@@ -59,6 +59,7 @@ export type OplContributionAction = (entry: OplUiContribution, command: OplUiCon
 export type OplContributionSlotOwner = {
   locale: OplStudioLocale;
   actionAvailable: boolean;
+  readData(entry: OplUiContribution): Promise<unknown>;
   onAction: OplContributionAction;
 };
 export type RenderOplContributionSlot = (

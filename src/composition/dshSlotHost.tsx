@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Folder, Settings as SettingsIcon } from "lucide-react";
+import { Folder, PanelRight, Settings as SettingsIcon, X } from "lucide-react";
 import {
   SlotCore,
   type HostObservable,
@@ -64,7 +64,13 @@ function constantObservable<T>(snapshot: T): HostObservable<T> {
 }
 
 type ActiveRegistration = { fingerprint: string; dispose(): void };
-type StudioContextValue = OplStudioSurface & { toggleSidebar(): void; toggleDetails(): void };
+type StudioContextValue = OplStudioSurface & {
+  narrow: boolean;
+  detailsOpen: boolean;
+  toggleSidebar(): void;
+  toggleDetails(): void;
+  closeDetails(): void;
+};
 
 const StudioContext = createContext<StudioContextValue | null>(null);
 
@@ -107,9 +113,12 @@ function StudioFrame({ surface, renderSlot }: { surface: OplStudioSurface; rende
   const sessions = { phase: "ready", current: "opl-current", byId: { "opl-current": { blank: false, cwd: surface.workspacePath } } };
   const value = useMemo(() => ({
     ...surface,
+    narrow: panels.narrow,
+    detailsOpen: panels.details > 0,
     toggleSidebar: actions.toggleSidebar,
-    toggleDetails: () => setPanels((current) => ({ ...current, details: current.details === 0 ? 360 : 0 }))
-  }), [actions, surface]);
+    toggleDetails: () => setPanels((current) => ({ ...current, details: current.details === 0 ? 360 : 0 })),
+    closeDetails: actions.closeDetails
+  }), [actions, panels.details, panels.narrow, surface]);
   const lastDetailsRequest = useRef(surface.detailsRequestRevision);
   useEffect(() => {
     if (lastDetailsRequest.current === surface.detailsRequestRevision) return;
@@ -157,7 +166,8 @@ function ConversationSlot({ renderSlot }: { renderSlot: any }) {
 
 function ConversationHeaderSlot() {
   const studio = useStudio();
-  return <div className="opl-dsh-conversation-header">{studio.conversationHeader}<button type="button" onClick={studio.toggleDetails}>{studio.locale === "zh" ? "环境" : "Environment"}</button></div>;
+  const label = studio.locale === "zh" ? "打开详细信息" : "Open details";
+  return <div className="opl-dsh-conversation-header">{studio.conversationHeader}<button type="button" aria-label={label} title={label} onClick={studio.toggleDetails}><PanelRight aria-hidden="true" size={16} /></button></div>;
 }
 
 function ConversationBodySlot() { return <>{useStudio().conversationBody}</>; }
@@ -177,12 +187,27 @@ function InputBarSlot({ renderSlot, ...owner }: Record<string, any>) {
   return <InputBar {...owner} sessionId="opl-current" useSession={(selector: any) => selector({ promptError: null, running: studio.sending, subagent: null, removed: false })} useInput={(selector: any) => selector(input)} inputActions={{ setDraft: studio.updatePrompt, addImages: () => false, removeImage: () => undefined, pruneImages: () => undefined, submit: studio.submitPrompt }} keyboard={keyboard} draftImages={() => []} resolveSubmitMode={() => "append"} toggleCommandMenu={studio.openComposerPalette} stop={studio.stopTurn} t={(key: string, params?: Record<string, unknown>) => translate(studio.locale, key, params)} renderSlot={renderSlot} useNotices={(selector: any) => selector(null)} useLexicon={(selector: any) => selector(new Map())} useMenuLauncher={(selector: any) => selector(undefined)} useProjection={(_key: string, selector?: (value: undefined) => unknown) => selector ? selector(undefined) : undefined} accessory={studio.composerAccessory} />;
 }
 
-function DetailsSlot({ renderSlot }: { renderSlot: any }) {
+function DetailsSlot() {
   const studio = useStudio();
-  return <div className="opl-dsh-details">{studio.details}{renderSlot("runtime.detail", {})}</div>;
+  if (studio.narrow) return null;
+  return <div className="opl-dsh-details">{studio.details}</div>;
 }
 
-function ShellOverlaySlot() { return <>{useStudio().overlay}</>; }
+function ShellOverlaySlot() {
+  const studio = useStudio();
+  return <>
+    {studio.overlay}
+    {studio.narrow && studio.detailsOpen ? (
+      <section className="opl-mobile-details-overlay" aria-label={studio.locale === "zh" ? "任务详情" : "Task details"}>
+        <header>
+          <strong>{studio.locale === "zh" ? "任务详情" : "Task details"}</strong>
+          <button type="button" aria-label={studio.locale === "zh" ? "关闭详情" : "Close details"} onClick={studio.closeDetails}><X aria-hidden="true" size={18} /></button>
+        </header>
+        <div className="opl-mobile-details-body">{studio.details}</div>
+      </section>
+    ) : null}
+  </>;
+}
 
 function SettingsSlot({ wide, renderSlot }: { wide: boolean; renderSlot: any }) {
   const studio = useStudio();

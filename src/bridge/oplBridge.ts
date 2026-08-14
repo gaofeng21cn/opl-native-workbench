@@ -127,6 +127,19 @@ export type OplFullDrilldownReadback = {
   readback: OplCommandReadback;
 };
 
+export type OplContributionReadRequest = {
+  packageId: string;
+  ref: string;
+  input?: Record<string, unknown>;
+};
+
+export type OplContributionReadback = {
+  packageId: string;
+  ref: string;
+  result: unknown;
+  readback: OplCommandReadback;
+};
+
 export type OplActionRequest = {
   actionId: string;
   mode?: OplActionMode;
@@ -265,7 +278,7 @@ export type OplBridgeEvent = OplBridgeTypeEvent | OplBridgeMethodEvent;
 
 export type OplStudioSurface = Pick<
   OplBridge,
-  "beginWindowDrag" | "readState" | "readFullDrilldown" | "executeAction" | "readCodexModels" | "readCodexCapabilities" | "readCodexPermissionProfiles" | "pickFiles" | "pickDirectory" | "sendMessage" | "subscribeEvents"
+  "beginWindowDrag" | "readState" | "readFullDrilldown" | "readContribution" | "executeAction" | "readCodexModels" | "readCodexCapabilities" | "readCodexPermissionProfiles" | "pickFiles" | "pickDirectory" | "sendMessage" | "subscribeEvents"
 > & Partial<CodexThreadAdapterBridge> & {
   eventSourceUrl?: string;
   connectEvents?: (onEvent: (event: OplBridgeEvent) => void) => () => void;
@@ -304,6 +317,7 @@ export type OplBridge = CodexThreadAdapterBridge & {
   beginWindowDrag(): void;
   readState(profile?: OplStateProfile): Promise<OplStateReadback>;
   readFullDrilldown(): Promise<OplFullDrilldownReadback>;
+  readContribution(request: OplContributionReadRequest): Promise<OplContributionReadback>;
   executeAction(request: OplActionRequest): Promise<OplActionReceipt>;
   readCodexModels(): Promise<CodexModelCatalog>;
   readCodexCapabilities(threadId?: string): Promise<CodexCapabilityCatalog>;
@@ -473,6 +487,44 @@ function createCommandReadback(
   timedOut = false
 ): OplCommandReadback {
   return { command, commandArgs, exitCode, stdout, stderr, timedOut };
+}
+
+export function normalizeContributionReadback(
+  value: unknown,
+  request: OplContributionReadRequest
+): OplContributionReadback {
+  const raw = asRecord(value) ?? {};
+  const readback = createCommandReadback(
+    asString(raw.command) ?? "opl app contribution read",
+    Array.isArray(raw.commandArgs) ? raw.commandArgs.map(String) : [],
+    asNumber(raw.exitCode) ?? 0,
+    asString(raw.stdout) ?? "",
+    asString(raw.stderr) ?? "",
+    asBoolean(raw.timedOut) ?? false
+  );
+  if (readback.timedOut || readback.exitCode !== 0) {
+    throw new Error(readback.stderr || "OPL contribution read failed");
+  }
+  const root = asRecord(raw.parsed)
+    ?? asRecord(raw.stdoutJson)
+    ?? asRecord(parseJsonValue(readback.stdout))
+    ?? raw;
+  const envelope = asRecord(root.opl_app_contribution);
+  const response = asRecord(envelope?.response);
+  if (
+    envelope?.surface_kind !== "opl_app_package_contribution.v1"
+    || envelope.package_id !== request.packageId
+    || envelope.ref !== request.ref
+    || envelope.operation !== "read"
+    || response?.schema_version !== "opl-package-app-contribution-response.v1"
+    || response.ok !== true
+    || response.ref !== request.ref
+    || response.operation !== "read"
+    || !("result" in response)
+  ) {
+    throw new Error("OPL contribution read returned a stale or malformed response");
+  }
+  return { packageId: request.packageId, ref: request.ref, result: response.result, readback };
 }
 
 function defaultStateActions(): OplActionDescriptor[] {
@@ -955,11 +1007,20 @@ export function normalizeCodexCapabilityCatalog(value: unknown): CodexCapability
   const apps = Array.isArray(record?.apps)
     ? record.apps.flatMap((value) => normalizeInstalledCapability(value) ?? [])
     : [];
+  const uniqueBy = <Item,>(items: Item[], key: (item: Item) => string): Item[] => {
+    const seen = new Set<string>();
+    return items.filter((item) => {
+      const identity = key(item).trim().toLowerCase();
+      if (!identity || seen.has(identity)) return false;
+      seen.add(identity);
+      return true;
+    });
+  };
   return {
     source: record ? "codex_app_server" : "bridge_unavailable",
-    skills,
-    plugins,
-    apps,
+    skills: uniqueBy(skills, (item) => item.name),
+    plugins: uniqueBy(plugins, (item) => item.id),
+    apps: uniqueBy(apps, (item) => item.id),
     errors: Array.isArray(record?.errors) ? record.errors.map(String) : [],
     simulated: asBoolean(record?.simulated) ?? !record
   };
@@ -1021,6 +1082,12 @@ export function createBrowserBridge(): OplBridge {
     readFullDrilldown() {
       const promise = candidate?.readFullDrilldown?.() ?? Promise.resolve(defaultFullDrilldown());
       return Promise.resolve(promise).then(normalizeFullDrilldownReadback);
+    },
+    readContribution(request) {
+      if (!candidate?.readContribution) {
+        return Promise.reject(new Error("OPL contribution reads are unavailable in this host"));
+      }
+      return Promise.resolve(candidate.readContribution(request)).then((value) => normalizeContributionReadback(value, request));
     },
     executeAction(request) {
       const promise = candidate?.executeAction?.(request) ?? Promise.resolve(createPlaceholderActionReceipt(request));

@@ -1,5 +1,6 @@
 import { Button, Pill, StateDot, Tooltip, type StateDotState } from "@deepseek-ai/dsh-client-ui-primitives";
 import { Boxes, Play } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   contributionLabel,
   type OplContributionSlotOwner,
@@ -89,6 +90,101 @@ function ContributionActions({ entry, owner }: {
   );
 }
 
+function fieldLabel(value: string, locale: OplContributionSlotOwner["locale"]): string {
+  const labels: Record<string, [string, string]> = {
+    hypothesis: ["假设", "Hypothesis"],
+    hypotheses: ["假设", "Hypotheses"],
+    roadmap: ["路线图", "Roadmap"],
+    milestones: ["里程碑", "Milestones"],
+    status: ["状态", "Status"],
+    next_step: ["下一步", "Next step"],
+    next_steps: ["下一步", "Next steps"],
+    owner: ["负责人", "Owner"],
+    blockers: ["阻塞项", "Blockers"],
+    evidence: ["证据", "Evidence"],
+    updated_at: ["更新时间", "Updated"]
+  };
+  const localized = labels[value.toLowerCase()];
+  if (localized) return localized[locale === "zh" ? 0 : 1];
+  return value.replaceAll("_", " ");
+}
+
+function StructuredValue({ value, locale, depth = 0 }: {
+  value: unknown;
+  locale: OplContributionSlotOwner["locale"];
+  depth?: number;
+}): ReactNode {
+  if (value === null || value === undefined) return <span className="opl-structured-empty">-</span>;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return <span className="opl-structured-scalar">{String(value)}</span>;
+  }
+  if (depth >= 5) return <span className="opl-structured-empty">...</span>;
+  if (Array.isArray(value)) {
+    if (!value.length) return <span className="opl-structured-empty">{locale === "zh" ? "暂无内容" : "No items"}</span>;
+    return (
+      <ul className="opl-structured-list">
+        {value.slice(0, 100).map((item, index) => <li key={index}><StructuredValue value={item} locale={locale} depth={depth + 1} /></li>)}
+      </ul>
+    );
+  }
+  if (typeof value === "object") {
+    const fields = Object.entries(value as Record<string, unknown>).slice(0, 100);
+    if (!fields.length) return <span className="opl-structured-empty">{locale === "zh" ? "暂无内容" : "No fields"}</span>;
+    return (
+      <dl className="opl-structured-fields">
+        {fields.map(([key, item]) => (
+          <div key={key}>
+            <dt>{fieldLabel(key, locale)}</dt>
+            <dd><StructuredValue value={item} locale={locale} depth={depth + 1} /></dd>
+          </div>
+        ))}
+      </dl>
+    );
+  }
+  return <span className="opl-structured-scalar">{String(value)}</span>;
+}
+
+function ContributionView({ entry, owner }: {
+  entry: OplUiContribution;
+  owner: OplContributionSlotOwner;
+}) {
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [result, setResult] = useState<unknown>(null);
+  const [error, setError] = useState("");
+  const view = entry.view;
+
+  useEffect(() => {
+    if (!view) return;
+    let active = true;
+    setState("loading");
+    setError("");
+    void owner.readData(entry).then((value) => {
+      if (!active) return;
+      setResult(value);
+      setState("ready");
+    }).catch((reason) => {
+      if (!active) return;
+      setResult(null);
+      setError(String(reason));
+      setState("error");
+    });
+    return () => { active = false; };
+  }, [entry.packageId, owner.readData, view?.dataRef]);
+
+  if (!view) return null;
+  if (state === "loading") {
+    return <p className="opl-contribution-fallback" role="status"><StateDot state="ongoing" size={10} />{owner.locale === "zh" ? "正在读取模块数据" : "Loading module data"}</p>;
+  }
+  if (state === "error") {
+    return <p className="opl-contribution-fallback" role="status" title={error}><StateDot state="warning" size={10} />{view.emptyState ? contributionLabel(view.emptyState, owner.locale, "") : (owner.locale === "zh" ? "模块数据当前不可用" : "Module data is unavailable")}</p>;
+  }
+  return (
+    <div className="opl-contribution-result" data-view-type={view.viewType} data-testid={`opl-ui-contribution-result-${entry.contributionKey}`}>
+      <StructuredValue value={result} locale={owner.locale} />
+    </div>
+  );
+}
+
 export function ProjectedContribution({ entry, owner }: {
   entry: OplUiContribution;
   owner: OplContributionSlotOwner;
@@ -104,12 +200,7 @@ export function ProjectedContribution({ entry, owner }: {
       <ContributionHeader entry={entry} owner={owner} />
       {supported ? (
         <>
-          {entry.view ? (
-            <div className="opl-contribution-view">
-              <span>{entry.view.viewType.replaceAll("_", " ")}</span>
-              <code>{entry.view.dataRef}</code>
-            </div>
-          ) : null}
+          <ContributionView entry={entry} owner={owner} />
           <ContributionBadges entry={entry} owner={owner} />
           <ContributionActions entry={entry} owner={owner} />
         </>

@@ -31,6 +31,7 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
   const opl = {
     readState: async (profile) => ({ profile, app_state: { meta: { profile } }, readback: { exitCode: 0 } }),
     readFullDrilldown: async () => ({ detail: "full", drilldown: {}, readback: { exitCode: 0 } }),
+    readContribution: async (request) => ({ packageId: request.packageId, ref: request.ref, result: { hypotheses: ["fixture"] } }),
     executeAction: async (request) => ({
       actionId: request.actionId,
       authorityBoundary: "app_bridge_no_domain_authority",
@@ -106,6 +107,8 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
 
   const state = await fetch(`${baseUrl}/api/opl/state?profile=full`).then((response) => response.json());
   assert.equal(state.profile, "full");
+  const contribution = await post(baseUrl, "/api/opl/contribution/read", { packageId: "mas", ref: "mas.research-roadmap.v1#current" });
+  assert.deepEqual(contribution.body.result.hypotheses, ["fixture"]);
   const action = await post(baseUrl, "/api/opl/action", { actionId: "preview.test", dryRun: true });
   assert.equal(action.body.authorityBoundary, "app_bridge_no_domain_authority");
 

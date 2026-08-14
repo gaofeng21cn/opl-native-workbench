@@ -7,8 +7,6 @@ import { resolveAppRepoRoot } from "./resolve-app-repo-root.mjs";
 const root = path.resolve(new URL("..", import.meta.url).pathname);
 const templatePath = path.join(root, "src", "renderer-shell.html");
 const appRepoRoot = resolveAppRepoRoot(root);
-const appLogoPath = path.join(appRepoRoot, "assets", "branding", "opl-app-logo.png");
-const appBannerPath = path.join(appRepoRoot, "assets", "branding", "opl-banner.png");
 const appProductProfilePath = path.join(appRepoRoot, "contracts", "app-product-profile.json");
 const legacyModelPolicySource = "one-person-lab-app/contracts/app-product-profile.json#gui.home.codex_model_display_options";
 const autoModelPolicySource = "one-person-lab-app/contracts/app-product-profile.json#codex.auto_model_policy";
@@ -17,15 +15,6 @@ function assertAsset(filePath, label) {
   if (!fs.existsSync(filePath)) {
     throw new Error(`missing ${label}: ${filePath}`);
   }
-}
-
-function copyBranding(outDir) {
-  const brandingDir = path.join(outDir, "branding");
-  fs.mkdirSync(brandingDir, { recursive: true });
-  assertAsset(appLogoPath, "OPL App logo");
-  assertAsset(appBannerPath, "OPL App banner");
-  fs.copyFileSync(appLogoPath, path.join(brandingDir, "opl-app-logo.png"));
-  fs.copyFileSync(appBannerPath, path.join(brandingDir, "opl-banner.png"));
 }
 
 function requireObject(value, field) {
@@ -164,7 +153,6 @@ export function buildRenderer({
 } = {}) {
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
-  copyBranding(outDir);
   const modelPolicy = readCodexModelPolicy();
 
   const jsPath = path.join(outDir, jsName);

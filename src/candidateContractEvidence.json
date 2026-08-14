@@ -7,7 +7,7 @@
     "renderer_technology": "react",
     "macos_host": "swift_appkit_wkwebview",
     "workspace_host": "node_http_sse",
-    "workspace_product_name": "OPL Workspace",
+    "workspace_product_name": "OPL Studio",
     "shared_renderer_and_bridge_shape_required": true,
     "runtime_backend_scope": "codex_cli_only",
     "aionui_runtime_dependency_allowed": false,
@@ -57,7 +57,6 @@
     "opl_app_action_bridge",
     "page_state_matrix_mapping",
     "first_run_matrix_mapping",
-    "runtime_summary_detail_action_bridge",
     "foundry_agent_series_shared_progress_display",
     "app_owned_settings_information_architecture",
     "secondary_runtime_context_refs",
@@ -76,11 +75,15 @@
     "artifact_preview_mvp",
     "professional_starters_mvp",
     "artifact_preview_tabs",
-    "provenance_drawer",
-    "starter_forms",
     "agent_package_lifecycle_display",
     "confirmation_interview_cards",
     "renderer_module_registry",
+    "runtime_status_panel",
+    "files_results_panel",
+    "agents_capabilities_panel",
+    "runtime_detail_contributions",
+    "mobile_details_overlay",
+    "text_only_product_brand",
     "delivery_mode_selection",
     "export_action",
     "webui_renderer_parity",
@@ -127,8 +130,8 @@
     "typed_action_receipt_surface": "normalized action receipts with requested mode, command args, parsed stdout/stderr JSON, and receipt status",
     "typed_event_surface": "typed bridge events with process/tool/file/diff/receipt/user_input/permission classification across native bridge and web SSE",
     "artifact_preview_mvp": "rich refs-only preview adapters for markdown, math, mermaid, code, and pdf",
-    "professional_starters_mvp": "research, grant, presentation, and book starter forms route to real App state action refs; preview routes are not domain execution",
-    "agent_package_lifecycle_display": "package lifecycle rows consume app_state.agent_packages directory/status_index first, fall back to modules.items as preview-only, and expose only App/root action refs",
+    "professional_starters_mvp": "research, grant, presentation, and review shortcuts route to real App preview refs; they are not forms or domain execution",
+    "agent_package_lifecycle_display": "the Settings catalog consumes app_state.agent_packages directory/status_index first, falls back to modules.items as preview-only, and exposes only App/root action refs",
     "acp_app_server_reuse_status": "implemented_with_codex_app_server_thread_turn_stream",
     "thread_lifecycle": "one Desktop/WebUI adapter projects Codex App Server thread truth and routes list, read, resume, fork, archive, and unarchive without a second thread store",
     "codex_subagent_projection": "read-only parentThreadId, agentRole, agentNickname, source-kind, collabAgentToolCall, and subAgentActivity projection from Codex App Server thread and turn items",
@@ -158,7 +161,7 @@
   "functional_mvp_closeout": {
     "implemented": [
       "Codex app-server source path with initialize, model/list filtering for fixed alternatives, App-default Auto resolution independent of catalog advertisement, thread/start, turn/start model/effort overrides, streaming delta, turn/completed, and thread/resume markers",
-      "OPL App state context source path using fast state, full state, full drilldown, and secondary runtime context refs",
+      "OPL App state supplies active run lines while owner ui_contributions supply hypotheses, roadmaps, and other task modules",
       "OPL App action preview path using dry-run action commands and visible preview receipt markers",
       "Bridge helper layer normalizes runtime profile readback, action receipt shape, and typed event envelopes close to App state/action contracts",
       "Settings as a first-class route with a localStorage persistence model for model/account access, locale, runtime connection, project, and candidate-about controls",
@@ -172,7 +175,7 @@
       "WebUI parity is source/smoke evidence only until same-cohort live user-path evidence exists",
       "Settings persistence is localStorage-only candidate evidence and does not request system write permission",
       "Package lifecycle fallback may render legacy modules.items rows only as preview/unavailable when canonical agent_packages projection is absent",
-      "Artifact preview, provenance, starter, confirmation, and export surfaces are refs-only candidate UI, not artifact or owner authority",
+      "Files and results render user-selected inputs and owner-projected artifacts only; export remains a refs-only preview action",
       "Codex subagent projection is covered by source and App Server fixtures in this tranche; no live nested-agent execution claim is made"
     ],
     "local_candidate_live_smoke": {
@@ -255,9 +258,9 @@
       {
         "file": "src/workbench/App.tsx",
         "contains": [
-          "opl-secondary-runtime-context",
-          "opl-runtime-summary",
-          "opl-runtime-full-detail-button"
+          "opl-runtime-status-panel",
+          "opl-agent-run-status",
+          "opl-runtime-contributions"
         ]
       },
       {
@@ -282,9 +285,8 @@
         "file": "src/workbench/App.tsx",
         "contains": [
           "runDryRun",
-          "opl-runtime-action-dry-run",
-          "opl-runtime-action-receipt",
-          "Preview action"
+          "opl-export-action",
+          "opl-runtime-action-receipt"
         ]
       },
       {
@@ -385,9 +387,9 @@
       {
         "file": "src/workbench/App.tsx",
         "contains": [
-          "opl-starter-forms",
-          "opl-starter-form",
-          "starterPayload"
+          "opl-workbench-delivery-mode",
+          "opl-delivery-mode-option",
+          "purposePreviewAction"
         ]
       }
     ],
@@ -408,12 +410,12 @@
         ]
       },
       {
-        "file": "src/workbench/App.tsx",
+        "file": "src/workbench/SettingsPanel.tsx",
         "contains": [
-          "opl-package-lifecycle-panel",
-          "opl-package-lifecycle-card",
-          "opl-package-lifecycle-action",
-          "Package status and actions come from App/root contracts"
+          "PackageCatalog",
+          "opl-settings-agent-catalog",
+          "opl-settings-agent-row",
+          "actionPayloadComplete"
         ]
       }
     ],
@@ -512,14 +514,41 @@
     ],
     "workspace_rail_default_open": true,
     "inspector_default_open": false,
-    "environment_details_default_open": false,
+    "details_default_open": false,
     "product_layout_contract": {
       "reference_product": "DeepSeek Harness Web client",
       "project_rail": "persistent",
       "timeline": "single_conversation_timeline",
       "model_controls": "composer_bottom_row",
       "reasoning_controls": "composer_bottom_row",
-      "environment_details": "dsh_resizable_details_column_on_demand",
+      "details": "dsh_resizable_column_on_desktop_fullscreen_overlay_on_mobile",
+      "left_rail_items": [
+        "projects",
+        "conversations",
+        "search",
+        "settings"
+      ],
+      "right_context_modules": [
+        "run_status",
+        "files_results",
+        "agents_capabilities"
+      ],
+      "runtime_status_sources": [
+        "codex_app_server_current_thread",
+        "opl_app_state_active_project_lines"
+      ],
+      "runtime_detail_slot": "ui_contributions.runtime.detail",
+      "files_input_policy": "user_selected_files_and_directories_only",
+      "results_policy": "owner_projected_artifacts_only_no_action_json",
+      "package_lifecycle_surface": "settings",
+      "product_identity": {
+        "visible_text": [
+          "OPL Studio",
+          "One Person Lab"
+        ],
+        "logo_visible": false,
+        "bundle_icon_allowed": true
+      },
       "settings_locale_surface": "settings",
       "model_policy_source": "one-person-lab-app/contracts/app-product-profile.json#gui.home.codex_model_display_options",
       "model_policy_consumption": "dynamic_build_injection_with_minimal_offline_fallback",
@@ -528,7 +557,8 @@
         "single_conversation_timeline",
         "composer_model_and_reasoning_controls",
         "on_demand_dsh_details_column",
-        "settings_locale_surface"
+        "settings_locale_surface",
+        "text_only_opl_product_identity"
       ]
     },
     "primary_visual_reference": {
@@ -536,10 +566,10 @@
       "reference_version": "47f943859bef60e4160492346772ded9b24f765a",
       "reference_date": "2026-08-14",
       "source_usage": "direct_mit_gui_source_reuse",
-      "left_side": "persistent project and conversation rail",
+      "left_side": "persistent project and conversation rail with search and Settings only",
       "center": "single dominant conversation timeline with bottom composer",
       "model_controls": "composer_bottom_row",
-      "right_side": "user-requested DSH details column",
+      "right_side": "on-demand DSH details column for run status, files and results, and agents and capabilities",
       "implementation_markers": {
         "dsh_roots": [
           "AppFrame",
@@ -609,8 +639,6 @@
     "deepseek_harness_source_usage": "direct_mit_gui_source_reuse",
     "deepseek_harness_source_ref": "47f943859bef60e4160492346772ded9b24f765a",
     "deepseek_harness_ui_package_version": "0.1.0-rc.6",
-    "kdense_source_usage": "experience_reference_only",
-    "openclaudescience_source_usage": "experience_reference_only",
     "deepseek_harness_selected_source_reused": true,
     "other_external_gui_source_copied": false,
     "runtime_authority_transfer": false,
@@ -658,7 +686,7 @@
       "MessageText",
       "icons"
     ],
-    "brand_override": "vendor_external_css_and_packaged_opl_asset",
+    "brand_override": "vendor_external_text_only_branding",
     "active_gui_roots": [
       "packages/client/ui-layout/src/client/AppFrame.tsx#AppFrame",
       "packages/client/ui-sidebar/src/client/SidebarRoot.tsx#SidebarRoot",
@@ -666,13 +694,7 @@
       "packages/client/ui-conversation/src/client/skeleton/InputBar.tsx#InputBar",
       "packages/client/ui-settings-general/src/client/SettingsRoot.tsx#SettingsRoot"
     ],
-    "allowed_reference_modules": [
-      "K-Dense",
-      "OpenClaudeScience",
-      "AionUI",
-      "Hermes Desktop",
-      "AGUI"
-    ],
+    "other_gui_source_reuse": [],
     "deepseek_harness_selected_source_reused": true,
     "other_external_source_copied": false,
     "runtime_authority_transfer": false,
@@ -729,69 +751,59 @@
         "opl-artifact-preview-panel"
       ]
     },
-    "provenance_drawer": {
-      "capability": "provenance_drawer",
-      "status_field": "provenance_drawer_status",
+    "runtime_status": {
+      "capability": "runtime_status_panel",
+      "status_field": "runtime_status_panel_status",
       "live_evidence": false,
       "layout_markers": [
-        "opl-provenance-drawer"
+        "runtime-status-panel",
+        "runtime-current-agent",
+        "runtime-line-list"
       ],
       "renderer_testids": [
-        "opl-provenance-drawer",
-        "opl-provenance-ref"
+        "opl-runtime-status-panel",
+        "opl-agent-run-status"
       ]
     },
-    "starter_forms": {
-      "capability": "starter_forms",
-      "status_field": "starter_forms_status",
+    "files_results": {
+      "capability": "files_results_panel",
+      "status_field": "files_results_panel_status",
       "live_evidence": false,
       "layout_markers": [
-        "starter-forms",
-        "opl-starter-form-${starter.purpose}"
+        "artifact-preview-tabs",
+        "artifact-preview"
       ],
       "renderer_testids": [
-        "opl-starter-forms",
-        "opl-starter-form"
+        "opl-files-results-panel",
+        "opl-input-files-list",
+        "opl-artifact-preview-panel"
       ]
     },
-    "agent_package_lifecycle": {
-      "capability": "agent_package_lifecycle_display",
-      "status_field": "agent_package_lifecycle_status",
+    "agents_capabilities": {
+      "capability": "agents_capabilities_panel",
+      "status_field": "agents_capabilities_panel_status",
       "live_evidence": false,
       "layout_markers": [
-        "package-lifecycle-panel",
-        "package-lifecycle-card",
-        "packageLifecycle"
+        "capability-search",
+        "capability-groups",
+        "capability-row"
       ],
       "renderer_testids": [
-        "opl-package-lifecycle-panel",
-        "opl-package-lifecycle-card",
-        "opl-package-lifecycle-action"
+        "opl-agents-capabilities-panel",
+        "opl-current-agent-capabilities",
+        "opl-codex-capability-catalog"
       ]
     },
-    "confirmation_interview_cards": {
-      "capability": "confirmation_interview_cards",
-      "status_field": "confirmation_cards_status",
+    "runtime_contributions": {
+      "capability": "runtime_detail_contributions",
+      "status_field": "runtime_detail_contributions_status",
       "live_evidence": false,
       "layout_markers": [
-        "settings-action-dialog",
-        "thread-confirmation-dialog"
+        "runtime-contributions",
+        "renderContributionSlot"
       ],
       "renderer_testids": [
-        "opl-settings-action-confirmation",
-        "opl-thread-lifecycle-confirmation"
-      ]
-    },
-    "renderer_module_registry": {
-      "capability": "renderer_module_registry",
-      "status_field": "renderer_module_registry_status",
-      "live_evidence": false,
-      "layout_markers": [
-        "RendererModuleRegistryPanel"
-      ],
-      "renderer_testids": [
-        "opl-renderer-module-registry",
-        "opl-renderer-module-card"
+        "opl-runtime-contributions"
       ]
     },
     "delivery_mode": {
@@ -832,18 +844,16 @@
       "opl-workspace-rail",
       "opl-session-list",
       "opl-context-tabs",
-      "opl-files-panel",
-      "opl-skills-panel",
-      "opl-routing-panel",
-      "opl-memory-panel",
-      "opl-always-on-panel",
+      "opl-runtime-status-panel",
+      "opl-agent-run-status",
+      "opl-runtime-contributions",
+      "opl-files-results-panel",
+      "opl-input-files-list",
+      "opl-agents-capabilities-panel",
+      "opl-current-agent-capabilities",
+      "opl-codex-capability-catalog",
       "opl-web-transport",
-      "opl-runtime-summary",
-      "opl-runtime-full-detail-button",
-      "opl-runtime-action-dry-run",
-      "opl-runtime-action-receipt",
-      "opl-package-lifecycle-panel",
-      "opl-package-lifecycle-action"
+      "opl-artifact-preview-panel"
     ],
     "settings_testids": [
       "opl-settings-panel",
@@ -858,15 +868,13 @@
       "opl-skip-to-chat"
     ]
   },
-  "runtime_summary_detail_action_bridge": {
+  "runtime_status_and_contribution_bridge": {
     "renderer_testids": [
-      "opl-runtime-summary",
-      "opl-runtime-full-detail-button",
-      "opl-runtime-action-dry-run",
-      "opl-runtime-action-receipt"
+      "opl-runtime-status-panel",
+      "opl-agent-run-status",
+      "opl-runtime-contributions"
     ],
-    "full_detail_policy": "lazy_full_drilldown_only",
-    "action_policy": "dry_run_first_then_explicit_execute",
+    "detail_policy": "active_project_lines_plus_owner_ui_contributions",
     "typed_receipt_fields": [
       "requestedMode",
       "status",
@@ -965,10 +973,10 @@
       "provider implementation details"
     ],
     "renderer_testids": [
-      "opl-runtime-summary",
-      "opl-secondary-runtime-context",
-      "opl-runtime-context-group",
-      "opl-runtime-context-item"
+      "opl-runtime-status-panel",
+      "opl-agent-run-status",
+      "opl-active-project-line",
+      "opl-runtime-contributions"
     ]
   },
   "conversation_event_rendering": {
@@ -1094,9 +1102,8 @@
       "agent_package_preferences_set"
     ],
     "renderer_testids": [
-      "opl-package-lifecycle-panel",
-      "opl-package-lifecycle-card",
-      "opl-package-lifecycle-action"
+      "opl-settings-agent-catalog",
+      "opl-settings-agent-row"
     ],
     "forbidden_claims": [
       "package_ready",
