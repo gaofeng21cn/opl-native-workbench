@@ -58,14 +58,15 @@ function descendants(rootPid, rows = processRows()) {
   return rows.filter((row) => row.pid !== rootPid && selected.has(row.pid));
 }
 
-async function waitFor(predicate, timeoutMs, label) {
+async function waitFor(predicate, timeoutMs, label, timeoutDetails = () => "") {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const value = predicate();
     if (value) return value;
     await delay(250);
   }
-  throw new Error(`timed out waiting for ${label}`);
+  const details = timeoutDetails();
+  throw new Error(`timed out waiting for ${label}${details ? `\n${details}` : ""}`);
 }
 
 function lifecycleEvents(file) {
@@ -95,7 +96,7 @@ const oplBinary = process.platform === "win32"
   ? path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "where.exe")
   : "/usr/bin/true";
 
-const child = spawn(executable, ["--disable-gpu"], {
+const child = spawn(executable, ["--disable-gpu", "--enable-logging=stderr"], {
   cwd: root,
   env: {
     ...process.env,
@@ -108,19 +109,42 @@ const child = spawn(executable, ["--disable-gpu"], {
     OPL_NATIVE_WORKBENCH_CODEX_CWD: root,
     OPL_NATIVE_WORKBENCH_READ_ONLY: "1"
   },
-  stdio: ["ignore", "ignore", "ignore", "ipc"]
+  stdio: ["ignore", "pipe", "pipe", "ipc"]
 });
 
 let appServerPid;
 let readyReceipt;
+let spawnError;
+let stdoutTail = "";
+let stderrTail = "";
+child.stdout.setEncoding("utf8");
+child.stderr.setEncoding("utf8");
+child.stdout.on("data", (chunk) => { stdoutTail = `${stdoutTail}${chunk}`.slice(-8_000); });
+child.stderr.on("data", (chunk) => { stderrTail = `${stderrTail}${chunk}`.slice(-8_000); });
+child.once("error", (error) => { spawnError = error; });
 child.on("message", (message) => {
   if (message?.type === "opl-desktop-ready") readyReceipt = message;
 });
 try {
   const windowState = await waitFor(
-    () => readyReceipt?.visible === true && readyReceipt.windowCount > 0 ? readyReceipt : null,
+    () => {
+      if (spawnError) throw spawnError;
+      if (child.exitCode !== null || child.signalCode !== null) {
+        throw new Error([
+          `desktop process exited before ready (code=${child.exitCode ?? "null"}, signal=${child.signalCode ?? "null"})`,
+          `stdout tail:\n${stdoutTail || "<empty>"}`,
+          `stderr tail:\n${stderrTail || "<empty>"}`
+        ].join("\n"));
+      }
+      return readyReceipt?.visible === true && readyReceipt.windowCount > 0 ? readyReceipt : null;
+    },
     30_000,
-    "a visible One Person Lab window"
+    "a visible One Person Lab window",
+    () => [
+      `desktop process state: code=${child.exitCode ?? "null"}, signal=${child.signalCode ?? "null"}`,
+      `stdout tail:\n${stdoutTail || "<empty>"}`,
+      `stderr tail:\n${stderrTail || "<empty>"}`
+    ].join("\n")
   );
   assert.equal(
     windowState.accessibilityQualification?.status,
