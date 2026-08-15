@@ -208,7 +208,7 @@ assert(
   !Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).some((name) =>
     ["aioncore", "aionui", "tauri"].some((forbidden) => name.toLowerCase().includes(forbidden))
   ) && pkg.devDependencies?.electron === "37.10.3"
-    && pkg.devDependencies?.["electron-builder"] === "26.8.1"
+    && pkg.devDependencies?.["electron-builder"] === "26.15.3"
     && pkg.dependencies?.["electron-updater"] === "6.8.3",
   "candidate package must use the selected Electron carrier without AionUI, AionCore, or Tauri dependencies"
 );

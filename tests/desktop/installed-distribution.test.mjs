@@ -11,6 +11,14 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 const workflowPath = path.join(repositoryRoot, ".github", "workflows", "non-release-validation.yml");
 const smokePath = path.join(repositoryRoot, "scripts", "smoke-desktop-live.mjs");
 const builderPath = path.join(repositoryRoot, "electron-builder.yml");
+const nsisMultiUserTemplatePath = path.join(
+  repositoryRoot,
+  "node_modules",
+  "app-builder-lib",
+  "templates",
+  "nsis",
+  "multiUser.nsh"
+);
 const linuxAfterRemovePath = path.join(repositoryRoot, "scripts", "desktop", "linux-after-remove.sh");
 
 async function workflowSteps() {
@@ -73,6 +81,12 @@ test("Windows hosted qualification installs, updates, rolls back, and removes th
   assert.match(cleanup.run, /Uninstall One Person Lab Preview\.exe/);
   assert.match(cleanup.run, /left exact product files or registry identity behind/);
   assert.doesNotMatch(cleanup.run, /Get-ChildItem[^\n]+-Recurse/);
+});
+
+test("Windows per-user installer bounds the UserProgramFiles copy", async () => {
+  const template = await readFile(nsisMultiUserTemplatePath, "utf8");
+  assert.match(template, /FOLDERID_UserProgramFiles/);
+  assert.match(template, /lstrcpynW\(w \.r0, p r2, i \$\{NSIS_MAX_STRLEN\}\)/);
 });
 
 test("Linux hosted qualification installs, updates, rolls back, and purges the DEB package", async () => {
