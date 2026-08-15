@@ -120,11 +120,10 @@ jobs:
 
           payload_root="$inspect_root/squashfs-root"
           test -x "$payload_root/AppRun"
-          test "$(stat -c '%a' "$payload_root/chrome-sandbox")" = '4755'
           desktop_entries=("$payload_root"/*.desktop)
           test "${#desktop_entries[@]}" -eq 1
           grep -Fx 'Name=One Person Lab Preview' "${desktop_entries[0]}"
-          grep -Fx 'Exec=AppRun --enable-sandbox %U' "${desktop_entries[0]}"
+          grep -Fx 'Exec=AppRun --enable-sandbox --disable-setuid-sandbox %U' "${desktop_entries[0]}"
           grep -Eq '^Icon=.+$' "${desktop_entries[0]}"
           icon_name="$(sed -n 's/^Icon=//p' "${desktop_entries[0]}" | head -n 1)"
           test -n "$icon_name"
@@ -142,7 +141,7 @@ jobs:
           test -x "$OPL_DESKTOP_APPIMAGE"
           test -d "$OPL_DESKTOP_APPIMAGE_TMPDIR"
           OPL_DESKTOP_RUNTIME_TMPDIR="$OPL_DESKTOP_APPIMAGE_TMPDIR" \
-          OPL_DESKTOP_LAUNCH_ARGS_JSON='["--enable-sandbox"]' \
+          OPL_DESKTOP_LAUNCH_ARGS_JSON='["--enable-sandbox","--disable-setuid-sandbox"]' \
           OPL_DESKTOP_EXECUTABLE="$OPL_DESKTOP_APPIMAGE" \
           OPL_DESKTOP_APP_PATH="$OPL_DESKTOP_APPIMAGE" \
           xvfb-run --auto-servernum npm run smoke:desktop-live

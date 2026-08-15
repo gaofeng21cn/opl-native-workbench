@@ -2,7 +2,6 @@ appId: cn.gflab.opl.studio.preview
 productName: One Person Lab Preview
 asar: true
 npmRebuild: false
-afterPack: scripts/desktop/linux-sandbox-after-pack.cjs
 directories:
   output: out
 files:
@@ -38,6 +37,7 @@ linux:
 appImage:
   executableArgs:
     - --enable-sandbox
+    - --disable-setuid-sandbox
 deb:
   afterRemove: scripts/desktop/linux-after-remove.sh
 artifactName: one-person-lab-preview-${version}-${os}-${arch}.${ext}

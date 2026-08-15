@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { createRequire } from "node:module";
+import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -13,8 +12,6 @@ const workflowPath = path.join(repositoryRoot, ".github", "workflows", "non-rele
 const smokePath = path.join(repositoryRoot, "scripts", "smoke-desktop-live.mjs");
 const builderPath = path.join(repositoryRoot, "electron-builder.yml");
 const linuxAfterRemovePath = path.join(repositoryRoot, "scripts", "desktop", "linux-after-remove.sh");
-const linuxSandboxAfterPackPath = path.join(repositoryRoot, "scripts", "desktop", "linux-sandbox-after-pack.cjs");
-const require = createRequire(import.meta.url);
 
 async function workflowSteps() {
   const workflow = YAML.parse(await readFile(workflowPath, "utf8"));
@@ -92,45 +89,24 @@ test("Linux hosted qualification inspects, runs, and removes the AppImage portab
   const cleanup = stepByName(steps, "Remove AppImage portable candidate and verify cleanup");
 
   assert.equal(inspect.if, "matrix.distribution == 'linux'");
-  assert.deepEqual(builder.appImage.executableArgs, ["--enable-sandbox"]);
-  assert.equal(builder.afterPack, "scripts/desktop/linux-sandbox-after-pack.cjs");
+  assert.deepEqual(builder.appImage.executableArgs, ["--enable-sandbox", "--disable-setuid-sandbox"]);
+  assert.equal(builder.afterPack, undefined);
   assert.match(fuse.run, /libfuse2t64/);
   assert.match(inspect.run, /--appimage-extract/);
-  assert.match(inspect.run, /chrome-sandbox[^\n]+4755/);
   assert.match(inspect.run, /\.desktop/);
   assert.match(inspect.run, /Name=One Person Lab Preview/);
-  assert.match(inspect.run, /Exec=AppRun --enable-sandbox %U/);
+  assert.match(inspect.run, /Exec=AppRun --enable-sandbox --disable-setuid-sandbox %U/);
   assert.match(inspect.run, /Icon=/);
   assert.match(inspect.run, /OPL_DESKTOP_APPIMAGE=/);
   assert.doesNotMatch(smoke.run, /APPIMAGE_EXTRACT_AND_RUN/);
   assert.match(smoke.run, /OPL_DESKTOP_RUNTIME_TMPDIR=/);
-  assert.match(smoke.run, /OPL_DESKTOP_LAUNCH_ARGS_JSON='\["--enable-sandbox"\]'/);
+  assert.match(smoke.run, /OPL_DESKTOP_LAUNCH_ARGS_JSON='\["--enable-sandbox","--disable-setuid-sandbox"\]'/);
   assert.match(smoke.run, /OPL_DESKTOP_EXECUTABLE="\$OPL_DESKTOP_APPIMAGE"/);
   assert.match(smoke.run, /xvfb-run --auto-servernum npm run smoke:desktop-live/);
   assert.match(cleanup.if, /always\(\)/);
   assert.match(cleanup.run, /find "\$OPL_DESKTOP_APPIMAGE_TMPDIR" -mindepth 1/);
   assert.match(cleanup.run, /rm -- "\$appimage"/);
   assert.match(cleanup.run, /test ! -e "\$appimage"/);
-});
-
-test("Linux packaging preserves the setuid sandbox helper required by the AppImage launcher", async () => {
-  const fixtureRoot = await mkdtemp(path.join(os.tmpdir(), "opl-linux-after-pack-"));
-  const appOutDir = path.join(fixtureRoot, "linux-unpacked");
-  const sandboxPath = path.join(appOutDir, "chrome-sandbox");
-  const afterPack = require(linuxSandboxAfterPackPath).default;
-
-  try {
-    await mkdir(appOutDir, { recursive: true });
-    await writeFile(sandboxPath, "fixture", { mode: 0o755 });
-    await afterPack({ electronPlatformName: "linux", appOutDir });
-    assert.equal((await stat(sandboxPath)).mode & 0o7777, 0o4755);
-
-    await chmod(sandboxPath, 0o755);
-    await afterPack({ electronPlatformName: "darwin", appOutDir });
-    assert.equal((await stat(sandboxPath)).mode & 0o7777, 0o755);
-  } finally {
-    await rm(fixtureRoot, { recursive: true, force: true });
-  }
 });
 
 test("Linux DEB removal unregisters the installed alternative target", async () => {
@@ -152,4 +128,5 @@ test("desktop live smoke waits for forced process cleanup before installer remov
 test("installed lifecycle qualification never disables the Chromium sandbox", async () => {
   const source = await readFile(workflowPath, "utf8");
   assert.doesNotMatch(source, /--no-sandbox/);
+  assert.match(source, /--enable-sandbox/);
 });
