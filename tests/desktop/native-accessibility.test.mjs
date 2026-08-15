@@ -89,6 +89,10 @@ test("hosted installed lifecycle exercises native platform trees without disabli
     path.join(repositoryRoot, ".github", "workflows", "non-release-validation.yml"),
     "utf8"
   );
+  const smokeSource = await readFile(
+    path.join(repositoryRoot, "scripts", "smoke-desktop-live.mjs"),
+    "utf8"
+  );
   const workflow = YAML.parse(workflowSource);
   const steps = workflow.jobs["desktop-distribution"].steps;
   const named = (name) => {
@@ -123,4 +127,9 @@ test("hosted installed lifecycle exercises native platform trees without disabli
 
   assert.doesNotMatch(workflowSource, /--no-sandbox/);
   assert.doesNotMatch(workflowSource, /APPIMAGE_EXTRACT_AND_RUN/);
+  assert.match(
+    smokeSource,
+    /nativeAccessibilityRequired && process\.platform === "linux"[\s\S]+ACCESSIBILITY_ENABLED: "1"/,
+    "the Linux qualification launch must opt into Chromium's native AT-SPI bridge"
+  );
 });

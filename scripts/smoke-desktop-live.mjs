@@ -123,6 +123,9 @@ const child = spawn(executable, ["--disable-gpu", "--enable-logging=stderr"], {
   cwd: root,
   env: {
     ...process.env,
+    ...(nativeAccessibilityRequired && process.platform === "linux"
+      ? { ACCESSIBILITY_ENABLED: "1" }
+      : {}),
     OPL_CODEX_BIN: process.execPath,
     CODEX_APP_SERVER_ARGS: fakeAppServer,
     FAKE_APP_SERVER_LIFECYCLE_LOG: lifecycleLog,
