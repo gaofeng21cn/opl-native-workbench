@@ -492,9 +492,9 @@ jobs:
       - name: Install Studio dependencies
         run: npm ci
 
-      - name: Build pinned Framework Host
+      - name: Prepare pinned Framework runtime
         working-directory: framework
-        run: npm ci --ignore-scripts && npm run build
+        run: npm ci --ignore-scripts && npm run build:packages
 
       - name: Install pinned Codex CLI
         shell: bash

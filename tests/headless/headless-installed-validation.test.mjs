@@ -29,6 +29,7 @@ test("hosted macOS qualification installs pinned runtime inputs and reads owner 
 
   const cohort = named(job.steps, "Read pinned Framework/App cohort");
   const framework = named(job.steps, "Checkout Framework Host");
+  const frameworkRuntime = named(job.steps, "Prepare pinned Framework runtime");
   const app = named(job.steps, "Checkout App product authority");
   const codex = named(job.steps, "Install pinned Codex CLI");
   const install = named(job.steps, "Install headless macOS user service");
@@ -40,6 +41,11 @@ test("hosted macOS qualification installs pinned runtime inputs and reads owner 
   assert.match(cohort.run, /app_commit/);
   assert.equal(framework.with.repository, "gaofeng21cn/one-person-lab");
   assert.equal(framework.with.ref, "${{ steps.runtime-cohort.outputs.framework_sha }}");
+  assert.equal(job.env.OPL_APP_OPL_BIN, "${{ github.workspace }}/framework/bin/opl");
+  assert.equal(frameworkRuntime["working-directory"], "framework");
+  assert.match(frameworkRuntime.run, /npm ci --ignore-scripts/);
+  assert.match(frameworkRuntime.run, /npm run build:packages/);
+  assert.doesNotMatch(frameworkRuntime.run, /npm run build(?:\s|$)/);
   assert.equal(app.with.repository, "gaofeng21cn/one-person-lab-app");
   assert.equal(app.with.ref, "${{ steps.runtime-cohort.outputs.app_sha }}");
   assert.match(codex.run, /@openai\/codex@0\.147\.0/);

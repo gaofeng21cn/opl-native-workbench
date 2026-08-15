@@ -150,12 +150,13 @@ Stopping the process with SIGINT or SIGTERM must emit
 `headless_server_stopped` inside the configured shutdown bound.
 
 The hosted macOS Headless job reads the exact Framework and App commits from
-`src/candidateContractEvidence.json`, builds Framework and the shared WebUI,
-pins Codex CLI 0.147.0, then invokes the public `headless:install` and
-`headless:status` commands. Passing evidence requires a ready Codex App Server,
-successful Framework App-state command, `opl_app_state.v1`, a LaunchAgent whose
-program and runtime inputs point at the installed exact cohort, and an
-`always()` uninstall that leaves no loaded service, plist, or install root.
+`src/candidateContractEvidence.json`, prepares the Framework source CLI's
+workspace Packages, builds the shared WebUI, pins Codex CLI 0.147.0, then
+invokes the public `headless:install` and `headless:status` commands. Passing
+evidence requires a ready Codex App Server, successful Framework App-state
+command, `opl_app_state.v1`, a LaunchAgent whose program and runtime inputs
+point at the installed exact cohort, and an `always()` uninstall that leaves no
+loaded service, plist, or install root.
 This does not qualify a Linux user-service installation, headless update or
 rollback, remote binding, a public installer, signing, release, or production.
 
