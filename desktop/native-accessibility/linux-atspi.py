@@ -38,14 +38,34 @@ target_process_ids = {int(value) for value in args.process_ids.split(",") if val
 deadline = time.time() + 20
 application = None
 app_window = None
+observed_applications = []
 
 while app_window is None and time.time() < deadline:
     desktop = pyatspi.Registry.getDesktop(0)
+    observed_applications = []
     for candidate in children(desktop):
         candidate_process_id = process_id(candidate)
+        candidate_nodes = walk(candidate)
+        window_names = []
+        for node in candidate_nodes:
+            try:
+                if (node.getRoleName() or "").lower() in {"frame", "window"} and node.name:
+                    window_names.append(node.name)
+            except Exception:
+                continue
+        try:
+            application_name = candidate.name or ""
+        except Exception:
+            application_name = ""
+        observed_applications.append(
+            {
+                "processId": candidate_process_id,
+                "name": application_name,
+                "windows": window_names[:10],
+            }
+        )
         if candidate_process_id not in target_process_ids:
             continue
-        candidate_nodes = walk(candidate)
         for node in candidate_nodes:
             try:
                 name = node.name or ""
@@ -62,7 +82,9 @@ while app_window is None and time.time() < deadline:
 
 if app_window is None:
     raise RuntimeError(
-        f"AT-SPI did not expose {args.expected_window_name} for process tree {sorted(target_process_ids)}"
+        f"AT-SPI did not expose {args.expected_window_name} for process tree "
+        f"{sorted(target_process_ids)}; observed applications="
+        f"{json.dumps(observed_applications[:20], separators=(',', ':'))}"
     )
 
 interactive_roles = {

@@ -20,6 +20,10 @@ const rendererIndex = path.join(repositoryRoot, "dist", "desktop", "index.html")
 let hostCore;
 let installingUpdate = false;
 let updaterQualificationEnabled = false;
+const nativeAccessibilityQualificationEnabled = process.env.OPL_DESKTOP_NATIVE_ACCESSIBILITY_QUALIFICATION === "1";
+if (nativeAccessibilityQualificationEnabled) {
+  app.commandLine.appendSwitch("force-renderer-accessibility");
+}
 configureDesktopUpdaterQualificationState({
   electronApp: app,
   stateRoot: process.env.OPL_DESKTOP_UPDATE_QUALIFICATION_STATE_ROOT
@@ -156,7 +160,7 @@ async function createDesktopHost(appLogDirectory) {
 }
 
 app.whenReady().then(async () => {
-  if (process.env.OPL_DESKTOP_NATIVE_ACCESSIBILITY_QUALIFICATION === "1") {
+  if (nativeAccessibilityQualificationEnabled) {
     app.setAccessibilitySupportEnabled(true);
   }
   const appLogDirectory = createAppLogDirectoryController({ electronApp: app });

@@ -46,17 +46,28 @@ $interactiveTypes = @(
   'ControlType.TabItem',
   'ControlType.TreeItem'
 )
-$nodes = @($appWindow.FindAll(
-  [System.Windows.Automation.TreeScope]::Descendants,
-  [System.Windows.Automation.Condition]::TrueCondition
-))
-$interactive = @($nodes | Where-Object {
-  $_.Current.IsControlElement -and
-  $interactiveTypes -contains $_.Current.ControlType.ProgrammaticName
-})
-$unnamed = @($interactive | Where-Object { [string]::IsNullOrWhiteSpace($_.Current.Name) })
+$treeDeadline = (Get-Date).AddSeconds(20)
+$nodes = @()
+$interactive = @()
+$unnamed = @()
+do {
+  $nodes = @($appWindow.FindAll(
+    [System.Windows.Automation.TreeScope]::Descendants,
+    [System.Windows.Automation.Condition]::TrueCondition
+  ))
+  $interactive = @($nodes | Where-Object {
+    $_.Current.IsControlElement -and
+    $interactiveTypes -contains $_.Current.ControlType.ProgrammaticName
+  })
+  $unnamed = @($interactive | Where-Object { [string]::IsNullOrWhiteSpace($_.Current.Name) })
+  if ($interactive.Count -gt 0 -and $unnamed.Count -eq 0) {
+    break
+  }
+  Start-Sleep -Milliseconds 250
+} while ((Get-Date) -lt $treeDeadline)
+
 if ($interactive.Count -eq 0) {
-  throw 'UIAutomation exposed no interactive controls'
+  throw "UIAutomation exposed no interactive controls after provider synchronization; nodeCount=$($nodes.Count)"
 }
 if ($unnamed.Count -ne 0) {
   $roles = @($unnamed | ForEach-Object { $_.Current.ControlType.ProgrammaticName } | Sort-Object -Unique)
