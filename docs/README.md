@@ -22,6 +22,8 @@ can change `active_shell` or declare a release combination.
 Both Shells sit inside the same `OPL Base + OPL App + OPL Packages + optional
 OPL Cloud` ecology. Studio owns only candidate Shell implementation; it never
 promotes itself into Base, Package lifecycle, Cloud service, or App authority.
+The shared Host-projected Client graph remains a consumer target until Framework
+P7 lands its real producer/projection and producer-consumer conformance.
 
 ## Current Owners
 

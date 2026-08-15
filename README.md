@@ -32,9 +32,12 @@ Codex App Server stdio is the only enabled carrier; `pi` and `hermes` are
 reserved disabled interface names and add no current code path or dependency.
 
 Package-facing GUI composition uses the same App Client Contribution ABI,
-product profile, and slot policy as AionUI. The browser Client Cordis graph is
-derived only from the Framework Host projection; it does not discover Packages
-or own a second registry, currentness, state, session, or action plane. DSH owns
+product profile, typed RPC/events, product state semantics, and slot/action
+policy as AionUI. The browser Client Cordis graph is derived only from the
+Framework Host projection; it does not discover/install plugins, own a second
+registry/currentness/state/action plane, receive release-operation, or own task,
+Package, or product truth. Framework P7's real producer/projection is still
+pending, so this remains a consumer contract rather than live conformance. DSH owns
 the reused typography, spacing, layout, colors, component state, and interaction;
 OPL supplies only text identity, real projections, policy, and thin adapters.
 

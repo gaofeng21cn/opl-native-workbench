@@ -62,6 +62,14 @@ const projectionState = {
         trust_tier: "trusted_first_party_renderer",
         scope: "root",
         sort_order: 10,
+        plugin_discovery: "forbidden",
+        plugin_install: "forbidden",
+        registry: "forbidden",
+        currentness: "forbidden",
+        release_operation: "forbidden",
+        task_truth: "forbidden",
+        package_truth: "forbidden",
+        product_truth: "forbidden",
         commands: [{
           command_id: "start",
           label_i18n: { "en-US": "Start grant" },
@@ -122,7 +130,7 @@ describe("OPL Studio DSH contribution composition", () => {
       "label"
     ]);
     expect(projection.entries.some((entry) => entry.contributionKey === "hostile:overlay")).toBe(false);
-    expect(JSON.stringify(projection)).not.toMatch(/component|javascript|html|url/i);
+    expect(JSON.stringify(projection)).not.toMatch(/component|handler|javascript|html|url|plugin|registry|currentness|release_operation|task_truth|package_truth|product_truth/i);
   });
 
   test("uses DSH registration and disposer lifecycle for projection changes", () => {

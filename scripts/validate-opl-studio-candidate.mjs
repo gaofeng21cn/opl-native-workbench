@@ -627,6 +627,13 @@ assert(clientComposition?.host_projection_graph === "allowlisted_closed_graph_fr
 assert(clientComposition?.host_projection_allowlist_contract === "contracts/opl-app-contributions.schema.json", "Client graph allowlist must remain App-owned");
 assert(JSON.stringify(clientComposition?.typed_slots) === JSON.stringify(["settings.section", "runtime.detail", "composer.palette"]), "Client Cordis typed slots must match the App product profile");
 assert(clientComposition?.typed_action_policy === "action_refs_only_via_canonical_app_action_bridge", "Client actions must remain typed App action refs");
+assert(clientComposition?.framework_host_composition_authority === "one-person-lab-framework", "Framework must remain the only Host composition authority");
+assert(clientComposition?.app_authority_policy === "one-person-lab-app_owns_product_profile_gui_abi_active_shell_and_release", "App product authorities must remain App-owned");
+assert(clientComposition?.framework_projection_runtime_status === "framework_p7_pending_producer_landing_and_conformance", "candidate evidence must not claim Framework P7 producer completion");
+assert(clientComposition?.shared_transport_policy === "framework_host_projected_typed_rpc_reads_typed_events_and_canonical_app_actions", "shells must share typed RPC, event, and App action semantics");
+assert(clientComposition?.shared_product_state_semantics === true, "shells must share product state semantics");
+assert(clientComposition?.package_gui_contribution_policy === "app_schema_admitted_declarative_only_then_framework_host_projected", "Package GUI contributions must remain App-schema-admitted Host projections");
+assert(clientComposition?.client_authority_policy === "render_and_dispatch_only_no_plugin_discovery_install_registry_currentness_release_operation_task_package_or_product_truth", "Client Cordis must remain a render-and-dispatch consumer");
 assert(clientComposition?.client_cordis_graph === "derived_from_framework_host_graph", "Client Cordis must derive from the Framework Host graph");
 assert(clientComposition?.shared_product_profile_and_slot_policy === true, "shells must share the App product profile and slot policy");
 for (const field of ["independent_host_truth", "second_package_registry", "second_currentness_authority", "second_action_authority", "second_client_composition_graph"]) {

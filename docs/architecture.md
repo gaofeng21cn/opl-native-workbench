@@ -17,14 +17,12 @@ snapshot are frozen by the App release composition; candidate source or local
 validation cannot promote itself.
 
 ```text
-OPL Packages -> runtime/plugin contributions -> OPL Framework Host
-             -> declarative GUI contributions -----------+
-                                                         |
-one-person-lab-app product profile + App Client Contribution ABI + slot policy
+OPL Packages -> runtime capabilities + App-schema-admitted GUI descriptors
+                         |
+                         v
+OPL Framework authoritative Host graph and allowlisted RPC/event projection
                          +
-OPL Framework authoritative Host graph projection        |
-                         |                                |
-                         +--------------------------------+
+one-person-lab-app product profile + App Client Contribution ABI + slot policy
                          v
 Host-derived Client Cordis graph
                          |
@@ -46,28 +44,33 @@ thread truth, or domain authority.
 
 Both the current AionUI shell and this DSH-derived Native candidate consume the
 same App-owned Client Contribution ABI, product profile, slot vocabulary,
-trust/scope/order rules, and disposal policy. Their renderer and package carrier
-may differ; their Package graph and authority inputs may not.
+trust/scope/order rules, typed RPC reads/events, canonical App actions, product
+state semantics, and disposal policy. Their renderer and package carrier may
+differ; their Package graph and authority inputs may not.
 
 The Framework Host graph remains the only Package producer, identity, and
-lifecycle authority. `opl app state` projects its bounded declarative client
-graph as `opl_app_ui_contributions_projection.v1`.
+lifecycle authority. The target `opl app state` projection exposes its bounded
+declarative client graph as `opl_app_ui_contributions_projection.v1`.
 `readUiContributionsProjection()` normalizes that projection and
 `OplStudioDshSlotHost.replaceHostDerivedProjection()` registers or disposes the
 corresponding browser occupants. The local `SlotCore` is therefore the Client
-Cordis face of the authoritative Host graph, not an independent Host.
+Cordis face of the authoritative Host graph, not an independent Host. Framework
+P7 producer/projection landing and end-to-end producer-consumer conformance are
+still pending; this candidate contract does not claim that runtime path is live.
 
 The projected graph is closed and allowlisted by the App-owned
-`contracts/opl-app-contributions.schema.json`: Studio mounts only the three
-product-profile slots and retains commands only as typed action refs. All writes
-then enter the canonical App action bridge. Unknown slots, executable component
-fields, handlers, HTML, paths, URLs, and arbitrary plugin objects cannot become
-Client Cordis occupants.
+`contracts/opl-app-contributions.schema.json`: Package descriptors first pass
+that declarative schema, then the Framework Host projects them. Studio mounts
+only the three product-profile slots and retains commands only as typed action
+refs. All writes then enter the canonical App action bridge. Unknown slots,
+executable component fields, handlers, HTML, paths, URLs, and arbitrary plugin
+objects cannot become Client Cordis occupants.
 
 The renderer may register static DSH shell slots needed to draw the App, but it
-must not discover Packages, establish another Package registry, or own
-currentness, state, actions, sessions, or runtime truth. Cordis itself is not
-forbidden in a GUI; a second independent graph or authority plane is.
+must not discover or install Packages/plugins, establish another Package
+registry/currentness source, receive release-operation, or own task, Package,
+product, state, action, session, or runtime truth. Cordis itself is not forbidden
+in a GUI; a second independent graph or authority plane is.
 
 DSH GUI/runtime source reuse remains Native-only. AionUI can consume the same
 Host-derived Client Cordis inputs through its own thin renderer adapter without
