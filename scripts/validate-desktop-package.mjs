@@ -21,7 +21,14 @@ function requiredDistributionArtifacts({ platform, version, arch }) {
   const platformName = platform === "win32" ? "win" : platform === "darwin" ? "mac" : "linux";
   const base = `one-person-lab-preview-${version}-${platformName}-${arch}`;
   if (platform === "win32") return [`${base}.exe`, `${base}.zip`];
-  if (platform === "linux") return [`${base}.AppImage`, `${base}.deb`];
+  if (platform === "linux") {
+    const appImageArch = arch === "x64" ? "x86_64" : arch;
+    const debArch = arch === "x64" ? "amd64" : arch;
+    return [
+      `one-person-lab-preview-${version}-${platformName}-${appImageArch}.AppImage`,
+      `one-person-lab-preview-${version}-${platformName}-${debArch}.deb`
+    ];
+  }
   if (platform === "darwin") return [`${base}.dmg`, `${base}.zip`];
   throw new Error(`Unsupported desktop distribution platform: ${platform}`);
 }

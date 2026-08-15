@@ -25,8 +25,8 @@ async function fixture(platform) {
   } else {
     await artifact(path.join(outRoot, "linux-unpacked", "resources", "app.asar"));
     await artifact(path.join(outRoot, "linux-unpacked", "one-person-lab-preview"), { executable: true });
-    await artifact(path.join(outRoot, `one-person-lab-preview-${version}-linux-x64.AppImage`), { executable: true });
-    await artifact(path.join(outRoot, `one-person-lab-preview-${version}-linux-x64.deb`));
+    await artifact(path.join(outRoot, `one-person-lab-preview-${version}-linux-x86_64.AppImage`), { executable: true });
+    await artifact(path.join(outRoot, `one-person-lab-preview-${version}-linux-amd64.deb`));
   }
   return outRoot;
 }
@@ -46,8 +46,8 @@ test("Linux distribution qualification requires unpacked, AppImage, and DEB arti
   const receipt = validateDesktopPackage({ repositoryRoot, outRoot, platform: "linux", arch: "x64", requireDistribution: true });
   assert.equal(receipt.status, "desktop_package_validated");
   assert.deepEqual(receipt.distributionArtifacts.map((entry) => entry.name), [
-    `one-person-lab-preview-${version}-linux-x64.AppImage`,
-    `one-person-lab-preview-${version}-linux-x64.deb`
+    `one-person-lab-preview-${version}-linux-x86_64.AppImage`,
+    `one-person-lab-preview-${version}-linux-amd64.deb`
   ]);
 });
 
