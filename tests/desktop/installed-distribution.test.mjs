@@ -61,7 +61,7 @@ test("Linux hosted qualification installs, smokes, and always purges the DEB pac
   const cleanup = stepByName(steps, "Purge Linux DEB package and verify cleanup");
 
   assert.equal(install.if, "matrix.distribution == 'linux'");
-  assert.match(install.run, /sudo dpkg -i/);
+  assert.match(install.run, /sudo apt-get install --no-install-recommends --yes/);
   assert.match(install.run, /root:root 4755/);
   assert.match(install.run, /OPL_DESKTOP_EXECUTABLE=/);
   assert.match(smoke.run, /xvfb-run --auto-servernum npm run smoke:desktop-live/);

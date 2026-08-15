@@ -176,7 +176,8 @@ jobs:
           test -n "$package_name"
           echo "OPL_DESKTOP_DEB_PACKAGE=$package_name" >> "$GITHUB_ENV"
 
-          sudo dpkg -i "${debs[0]}"
+          deb_path="$(realpath "${debs[0]}")"
+          sudo apt-get install --no-install-recommends --yes "$deb_path"
           executable="$(command -v one-person-lab-preview)"
           test -n "$executable"
           real_executable="$(readlink -f "$executable")"
