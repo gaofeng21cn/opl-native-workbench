@@ -36,10 +36,17 @@ product profile, typed RPC/events, product state semantics, and slot/action
 policy as AionUI. The browser Client Cordis graph is derived only from the
 Framework Host projection; it does not discover/install plugins, own a second
 registry/currentness/state/action plane, receive release-operation, or own task,
-Package, or product truth. Framework P7's real producer/projection is still
-pending, so this remains a consumer contract rather than live conformance. DSH owns
-the reused typography, spacing, layout, colors, component state, and interaction;
+Package, or product truth. Framework's Host projection is active, and the
+candidate conformance gate now runs its canonical producer through the App
+profile into both Studio and AionUI parser semantics. This proves a compatible
+candidate Client path, not active-shell or release admission. DSH owns the
+reused typography, spacing, layout, colors, component state, and interaction;
 OPL supplies only text identity, real projections, policy, and thin adapters.
+
+Brand capability combinations are dynamic App/Host projections. Studio does
+not maintain a fixed roster of named OPL brands or Packages; it renders the
+current allowlisted graph and keeps the default general Agent as product shell
+behavior.
 
 OPL Workspace serves the same renderer through the shared Node host core and a
 lightweight HTTP/SSE adapter. Docker runs neither Electron nor AionCore. The
@@ -60,7 +67,7 @@ settings, and unsent drafts locally.
 - Codex App Server thread, turn, streaming, and history integration;
 - read-only Codex subagent lineage, role, source, and activity projection from
   native App Server thread/turn items;
-- App state readback and action preview through the typed OPL bridge;
+- App state readback plus typed preview and contribution execution through the OPL bridge;
 - Settings, artifact previews, professional starter forms, and package status
   projections that remain refs-only;
 - one OPL-owned renderer and host core across Electron desktop and OPL Workspace.
@@ -148,6 +155,7 @@ readiness.
 
 - [Documentation and owner map](docs/README.md)
 - [Implementation and authority architecture](docs/architecture.md)
+- [Candidate architecture whitepaper](docs/whitepaper.md)
 - [Current state, gaps, and next Agent prompt](docs/active/current-state-vs-ideal-gap.md)
 - [Verification and evidence boundaries](docs/verification.md)
 - [Historical candidate baseline](docs/history/README.md)

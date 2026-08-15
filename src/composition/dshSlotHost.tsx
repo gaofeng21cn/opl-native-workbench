@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { Folder, PanelRight, Settings as SettingsIcon, X } from "lucide-react";
 import {
   SlotCore,
@@ -30,6 +30,7 @@ import {
 import App from "../workbench/App";
 import { settingsDestinations, type SettingsDestinationId } from "../workbench/SettingsPanel";
 import { ProjectedContribution } from "./contributionComponents";
+import { createOplStudioClientCordisComposition } from "./clientCordis";
 import {
   OPL_UI_CONTRIBUTION_SLOTS,
   contributionLabel,
@@ -271,7 +272,45 @@ function StudioFrame({ surface, renderSlot }: { surface: OplStudioSurface; rende
 }
 
 function OplStudioRoot({ renderSlot }: { renderSlot: any }) {
-  return <App renderShell={(surface) => <StudioFrame surface={surface} renderSlot={renderSlot} />} renderContributionSlot={(slot, owner) => renderSlot(slot, owner)} onUiContributionsChange={(projection) => slotHost.replaceHostDerivedProjection(projection)} onUiContributionsDispose={() => slotHost.clearProjection()} />;
+  const latestHostState = useRef<unknown>(null);
+  const client = useRef<Awaited<ReturnType<typeof createOplStudioClientCordisComposition>> | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
+    let composition: Awaited<ReturnType<typeof createOplStudioClientCordisComposition>> | null = null;
+    void createOplStudioClientCordisComposition()
+      .then((next) => {
+        if (!active) return next.dispose();
+        composition = next;
+        client.current = next;
+        unsubscribe = next.contributions.subscribe((projection) => slotHost.replaceHostDerivedProjection(projection));
+        next.contributions.updateHostState(latestHostState.current);
+      })
+      .catch((error) => {
+        console.error("Failed to initialize OPL Studio Client Cordis", error);
+        slotHost.clearProjection();
+      });
+    return () => {
+      active = false;
+      unsubscribe?.();
+      client.current = null;
+      slotHost.clearProjection();
+      if (composition) void composition.dispose();
+    };
+  }, []);
+
+  const updateHostState = useCallback((state: unknown) => {
+    latestHostState.current = state;
+    client.current?.contributions.updateHostState(state);
+  }, []);
+  const clearHostState = useCallback(() => {
+    latestHostState.current = null;
+    client.current?.contributions.updateHostState(null);
+    slotHost.clearProjection();
+  }, []);
+
+  return <App renderShell={(surface) => <StudioFrame surface={surface} renderSlot={renderSlot} />} renderContributionSlot={(slot, owner) => renderSlot(slot, owner)} onHostStateChange={updateHostState} onHostStateDispose={clearHostState} />;
 }
 
 function SidebarSlot({ collapsed, width, renderSlot }: { collapsed: boolean; width: number; renderSlot: any }) {

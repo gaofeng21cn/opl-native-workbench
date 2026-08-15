@@ -78,6 +78,17 @@ const projectionState = {
         }],
         badges: []
       }, {
+        contribution_key: "forged:identity",
+        contribution_id: "grant-actions",
+        package_id: "mag",
+        slot: "settings.section",
+        contribution_kind: "command_group",
+        trust_tier: "declarative",
+        scope: "root",
+        sort_order: 15,
+        commands: [],
+        badges: []
+      }, {
         contribution_key: "hostile:overlay",
         contribution_id: "overlay",
         package_id: "hostile",
@@ -130,6 +141,7 @@ describe("OPL Studio DSH contribution composition", () => {
       "label"
     ]);
     expect(projection.entries.some((entry) => entry.contributionKey === "hostile:overlay")).toBe(false);
+    expect(projection.entries.some((entry) => entry.contributionKey === "forged:identity")).toBe(false);
     expect(JSON.stringify(projection)).not.toMatch(/component|handler|javascript|html|url|plugin|registry|currentness|release_operation|task_truth|package_truth|product_truth/i);
   });
 

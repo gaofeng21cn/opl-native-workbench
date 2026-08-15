@@ -70,8 +70,8 @@ function ContributionActions({ entry, owner }: {
             label={!owner.actionAvailable
               ? (owner.locale === "zh" ? "当前 App action catalog 未提供此操作" : "Unavailable in the current App action catalog")
               : command.confirmationRequired
-                ? (owner.locale === "zh" ? "先预览，再确认执行" : "Preview before confirmation")
-                : (owner.locale === "zh" ? "通过 OPL App 预览操作" : "Preview through OPL App")}
+                ? (owner.locale === "zh" ? "确认后通过 OPL App 执行" : "Confirm before execution through OPL App")
+                : (owner.locale === "zh" ? "通过 OPL App 执行" : "Execute through OPL App")}
             side="top"
           >
             <Button

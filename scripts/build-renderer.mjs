@@ -31,6 +31,120 @@ function requireNonEmptyString(value, field) {
   return value;
 }
 
+export function readAppProductProfile(profilePath = appProductProfilePath) {
+  assertAsset(profilePath, "OPL App product profile");
+  try {
+    return JSON.parse(fs.readFileSync(profilePath, "utf8"));
+  } catch (error) {
+    throw new Error(`invalid OPL App product profile JSON at ${profilePath}: ${error instanceof Error ? error.message : error}`);
+  }
+}
+
+export function createClientCompositionPolicy(profile) {
+  const root = requireObject(profile, "root");
+  const topology = requireObject(root.delivery_topology, "delivery_topology");
+  const minimumProduct = requireObject(topology.minimum_complete_product, "delivery_topology.minimum_complete_product");
+  const composition = requireObject(
+    minimumProduct.composition_model,
+    "delivery_topology.minimum_complete_product.composition_model"
+  );
+  const compatibility = requireObject(root.client_renderer_compatibility, "client_renderer_compatibility");
+  const required = {
+    app_client_contribution_abi: "opl_app_client_contributions.v1",
+    framework_host_graph_source: "app_state.ui_contributions",
+    framework_host_projection_schema: "opl_app_ui_contributions_projection.v1",
+    host_projection_graph_policy: "allowlisted_closed_graph_from_framework_projection_only",
+    host_projection_allowlist_contract: "contracts/opl-app-contributions.schema.json",
+    typed_slot_policy: "mount_only_app_product_profile_declared_slots",
+    typed_action_policy: "action_refs_only_via_canonical_app_action_bridge",
+    framework_host_composition_authority: "one-person-lab-framework",
+    app_authority_policy: "one-person-lab-app_owns_product_profile_gui_abi_active_shell_and_release",
+    framework_projection_runtime_status: "framework_host_projection_active",
+    shared_transport_policy: "framework_host_projected_typed_rpc_reads_typed_events_and_canonical_app_actions",
+    package_gui_contribution_policy: "app_schema_admitted_declarative_only_then_framework_host_projected",
+    client_authority_policy: "render_and_dispatch_only_no_plugin_discovery_install_registry_currentness_release_operation_task_package_or_product_truth",
+    client_cordis_graph: "derived_from_framework_host_graph_and_app_product_profile_slot_policy",
+    client_renderer_compatibility_profile: "client_renderer_compatibility",
+    client_renderer_switch_policy: "explicit_adapter_selection_after_compatibility_admission_never_unverified_hot_switch",
+    brand_capability_projection_policy: "dynamic_framework_host_projection_no_fixed_brand_or_domain_registry_in_app_or_client"
+  };
+  for (const [field, expected] of Object.entries(required)) {
+    if (composition[field] !== expected) {
+      throw new Error(`OPL App Client Cordis policy ${field} must equal ${expected}`);
+    }
+  }
+  const slots = composition.package_contribution_slots;
+  const expectedSlots = ["composer.palette", "runtime.detail", "settings.section"];
+  if (
+    !Array.isArray(slots)
+    || slots.length !== expectedSlots.length
+    || new Set(slots).size !== slots.length
+    || !expectedSlots.every((slot) => slots.includes(slot))
+  ) {
+    throw new Error("OPL App Client Cordis policy must expose exactly the three App-owned contribution slots");
+  }
+  for (const field of [
+    "independent_host_truth_allowed",
+    "second_client_composition_graph_allowed",
+    "second_package_registry_allowed",
+    "second_currentness_authority_allowed",
+    "second_state_or_action_truth_allowed"
+  ]) {
+    if (composition[field] !== false) throw new Error(`OPL App Client Cordis policy ${field} must remain false`);
+  }
+  if (composition.shared_product_state_semantics !== true) {
+    throw new Error("OPL App Client Cordis policy must share product state semantics");
+  }
+  if (
+    !Array.isArray(composition.shared_shell_consumers)
+    || !composition.shared_shell_consumers.includes("opl-aion-shell")
+    || !composition.shared_shell_consumers.includes("opl-studio")
+  ) {
+    throw new Error("OPL App Client Cordis policy must name both approved Shell consumers");
+  }
+  const compatibilityRequired = {
+    schema: "opl_app_client_renderer_compatibility.v1",
+    owner: "one-person-lab-app",
+    host_composition_authority: "one-person-lab-framework",
+    host_graph_source: composition.framework_host_graph_source,
+    host_projection_schema: composition.framework_host_projection_schema,
+    contribution_abi: composition.app_client_contribution_abi,
+    allowlist_contract: composition.host_projection_allowlist_contract,
+    typed_state_rpc: "opl app state --profile fast --json",
+    typed_action_rpc: "opl app action execute --action <action_id> [--payload json] [--dry-run] --json",
+    typed_client_event: "opl/app-client-contributions/updated",
+    state_semantics_contract: "contracts/app-runtime-bridge.json",
+    client_authority_policy: composition.client_authority_policy,
+    switch_policy: composition.client_renderer_switch_policy,
+    hot_switch_without_revalidation_allowed: false,
+    brand_capability_projection_policy: composition.brand_capability_projection_policy,
+    app_fixed_brand_registry_allowed: false,
+    client_fixed_brand_registry_allowed: false,
+    display_and_allowlist_owner: "one-person-lab-app"
+  };
+  for (const [field, expected] of Object.entries(compatibilityRequired)) {
+    if (compatibility[field] !== expected) {
+      throw new Error(`OPL App Client renderer compatibility ${field} must equal ${expected}`);
+    }
+  }
+  if (
+    !Array.isArray(compatibility.typed_slots)
+    || compatibility.typed_slots.length !== expectedSlots.length
+    || new Set(compatibility.typed_slots).size !== compatibility.typed_slots.length
+    || !expectedSlots.every((slot) => compatibility.typed_slots.includes(slot))
+  ) {
+    throw new Error("OPL App Client renderer compatibility must expose exactly the App-owned contribution slots");
+  }
+  return {
+    client_renderer_compatibility: compatibility,
+    delivery_topology: {
+      minimum_complete_product: {
+        composition_model: composition
+      }
+    }
+  };
+}
+
 export function createCodexModelPolicy(profile) {
   const profileObject = requireObject(profile, "root");
   const defaultSession = requireObject(profileObject.default_session_profile, "default_session_profile");
@@ -134,14 +248,7 @@ export function createCodexModelPolicy(profile) {
 }
 
 export function readCodexModelPolicy(profilePath = appProductProfilePath) {
-  assertAsset(profilePath, "OPL App product profile");
-  let profile;
-  try {
-    profile = JSON.parse(fs.readFileSync(profilePath, "utf8"));
-  } catch (error) {
-    throw new Error(`invalid OPL App product profile JSON at ${profilePath}: ${error instanceof Error ? error.message : error}`);
-  }
-  return createCodexModelPolicy(profile);
+  return createCodexModelPolicy(readAppProductProfile(profilePath));
 }
 
 export function buildRenderer({
@@ -153,7 +260,10 @@ export function buildRenderer({
 } = {}) {
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
-  const modelPolicy = readCodexModelPolicy();
+  const appProductProfile = readAppProductProfile();
+  const modelPolicy = createCodexModelPolicy(appProductProfile);
+  const clientCompositionProfile = createClientCompositionPolicy(appProductProfile);
+  const clientCompositionPolicy = clientCompositionProfile.delivery_topology.minimum_complete_product.composition_model;
 
   const jsPath = path.join(outDir, jsName);
   const cssName = jsName.replace(/\.[^.]+$/, ".css");
@@ -180,7 +290,7 @@ export function buildRenderer({
   const hasStylesheet = fs.existsSync(emittedCssPath);
   if (hasStylesheet) fs.renameSync(emittedCssPath, cssPath);
 
-  const policyScript = `<script>globalThis.__OPL_CODEX_MODEL_POLICY__=${JSON.stringify(modelPolicy).replaceAll("<", "\\u003c")};</script>`;
+  const policyScript = `<script>globalThis.__OPL_CODEX_MODEL_POLICY__=${JSON.stringify(modelPolicy).replaceAll("<", "\\u003c")};globalThis.__OPL_CLIENT_COMPOSITION_POLICY__=${JSON.stringify(clientCompositionProfile).replaceAll("<", "\\u003c")};</script>`;
   const html = fs.readFileSync(templatePath, "utf8")
     .replace("</head>", hasStylesheet ? `  <link rel="stylesheet" href="./${cssName}" />\n</head>` : "</head>")
     .replace("<body>", `<body>\n  ${policyScript}`)
@@ -204,7 +314,10 @@ export function buildRenderer({
     defaultModel: modelPolicy.defaultModel,
     defaultReasoningEffort: modelPolicy.defaultReasoningEffort,
     visibleModels: modelPolicy.visibleModels.map((option) => option.id),
-    reasoningEfforts: modelPolicy.reasoningEfforts
+    reasoningEfforts: modelPolicy.reasoningEfforts,
+    clientCompositionAbi: clientCompositionPolicy.app_client_contribution_abi,
+    clientProjectionSchema: clientCompositionPolicy.framework_host_projection_schema,
+    clientContributionSlots: clientCompositionPolicy.package_contribution_slots
   };
   fs.writeFileSync(path.join(outDir, "renderer-build.json"), JSON.stringify(metadata, null, 2));
   return metadata;

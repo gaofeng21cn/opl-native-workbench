@@ -56,6 +56,16 @@ export const emptyUiContributionsProjection: OplUiContributionsProjection = {
 };
 
 export type OplContributionAction = (entry: OplUiContribution, command: OplUiContributionCommand) => void;
+export type OplContributionActionRequest = {
+  actionId: "package_contribution_execute";
+  payload: {
+    package_id: string;
+    ref: string;
+    input: Record<string, unknown>;
+    confirmed: boolean;
+  };
+  dryRun: false;
+};
 export type OplContributionSlotOwner = {
   locale: OplStudioLocale;
   actionAvailable: boolean;
@@ -67,6 +77,23 @@ export type RenderOplContributionSlot = (
   owner: OplContributionSlotOwner
 ) => import("react").ReactNode;
 
+export function createOplContributionActionRequest(
+  entry: OplUiContribution,
+  command: OplUiContributionCommand,
+  confirmed: boolean
+): OplContributionActionRequest {
+  return {
+    actionId: "package_contribution_execute",
+    payload: {
+      package_id: entry.packageId,
+      ref: command.actionRef,
+      input: {},
+      confirmed
+    },
+    dryRun: false
+  };
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -74,15 +101,16 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 function asString(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value : null;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function localizedText(value: unknown): OplUiLocalizedText {
   const record = asRecord(value);
   if (!record) return {};
-  return Object.fromEntries(Object.entries(record).filter((entry): entry is [string, string] => (
-    typeof entry[1] === "string" && Boolean(entry[1].trim())
-  )));
+  return Object.fromEntries(Object.entries(record).flatMap(([locale, text]) => {
+    const normalized = asString(text);
+    return normalized ? [[locale, normalized]] : [];
+  }));
 }
 
 function parseCommand(value: unknown): OplUiContributionCommand | null {
@@ -137,10 +165,12 @@ function parseEntry(value: unknown): OplUiContribution | null {
     !contributionKey
     || !contributionId
     || !packageId
+    || contributionKey !== `${packageId}:${contributionId}`
     || !slot
     || !OPL_UI_CONTRIBUTION_SLOTS.includes(slot as OplUiContributionSlot)
   ) return null;
 
+  const view = parseView(entry?.view);
   return {
     contributionKey,
     contributionId,
@@ -152,7 +182,7 @@ function parseEntry(value: unknown): OplUiContribution | null {
     sortOrder: typeof entry?.sort_order === "number" && Number.isFinite(entry.sort_order)
       ? entry.sort_order
       : 0,
-    ...(parseView(entry?.view) ? { view: parseView(entry?.view) } : {}),
+    ...(view ? { view } : {}),
     commands: Array.isArray(entry?.commands)
       ? entry.commands.map(parseCommand).filter((command): command is OplUiContributionCommand => command !== null)
       : [],

@@ -1,4 +1,4 @@
-import { MessageText, Pill } from "@deepseek-ai/dsh-client-ui-primitives";
+import { Button, MessageText, Modal, Pill } from "@deepseek-ai/dsh-client-ui-primitives";
 import { Streamdown } from "streamdown";
 import {
   Activity,
@@ -95,9 +95,12 @@ import {
 } from "./runDetailModel";
 import type {
   OplContributionAction,
+  OplUiContribution,
+  OplUiContributionCommand,
   OplUiContributionsProjection,
   RenderOplContributionSlot
 } from "../composition/contributionProjection";
+import { createOplContributionActionRequest } from "../composition/contributionProjection";
 import type { RenderOplStudioShell } from "../composition/oplStudioSurface";
 
 const contextTabs = [
@@ -594,15 +597,15 @@ function eventCompletedText(event: unknown): string {
 type AppProps = {
   renderShell: RenderOplStudioShell;
   renderContributionSlot?: RenderOplContributionSlot;
-  onUiContributionsChange?: (projection: OplUiContributionsProjection) => void;
-  onUiContributionsDispose?: () => void;
+  onHostStateChange?: (state: unknown) => void;
+  onHostStateDispose?: () => void;
 };
 
 export function App({
   renderShell,
   renderContributionSlot,
-  onUiContributionsChange,
-  onUiContributionsDispose
+  onHostStateChange,
+  onHostStateDispose
 }: AppProps) {
   const bridge = useMemo(() => createBrowserBridge(), []);
   const persistedUi = useMemo(() => readPersistedWorkbenchUi(), []);
@@ -632,6 +635,11 @@ export function App({
   const [stateError, setStateError] = useState("");
   const [detailsRequestRevision, setDetailsRequestRevision] = useState(0);
   const [lastDryRun, setLastDryRun] = useState("");
+  const [contributionActionBusy, setContributionActionBusy] = useState(false);
+  const [contributionActionConfirmation, setContributionActionConfirmation] = useState<{
+    entry: OplUiContribution;
+    command: OplUiContributionCommand;
+  } | null>(null);
   const [settingsActionBusyKey, setSettingsActionBusyKey] = useState<string | null>(null);
   const [settingsActionFeedback, setSettingsActionFeedback] = useState<SettingsActionFeedback | null>(null);
   const [settingsActionConfirmation, setSettingsActionConfirmation] = useState<SettingsActionConfirmation | null>(null);
@@ -860,6 +868,7 @@ export function App({
       .readState(profile)
       .then((state) => {
         const nextModel = deriveWorkbenchModelFromState(state);
+        onHostStateChange?.(state);
         setModel(nextModel);
         writeGatewayAccountCache(nextModel.gatewayAccount);
         setProjectedManagedUpdateActions(readProjectedManagedUpdateActions(state));
@@ -1144,11 +1153,7 @@ export function App({
     void loadState(settings.runtimeProfile);
   }, [bridge, settings.runtimeProfile]);
 
-  useEffect(() => {
-    onUiContributionsChange?.(model.uiContributions);
-  }, [model.uiContributions, onUiContributionsChange]);
-
-  useEffect(() => () => onUiContributionsDispose?.(), [onUiContributionsDispose]);
+  useEffect(() => () => onHostStateDispose?.(), [onHostStateDispose]);
 
   useEffect(() => {
     void loadThreadDirectory(true);
@@ -1224,17 +1229,38 @@ export function App({
       .catch((error) => setLastDryRun(formatReceipt({ actionId, dryRun: true, error: String(error) })));
   }
 
-  const contributionActionAvailable = model.contextActions.some(
+  const contributionActionAvailable = !contributionActionBusy && model.contextActions.some(
     (action) => action.id === "package_contribution_execute"
   );
+  async function executeContributionAction(
+    entry: OplUiContribution,
+    command: OplUiContributionCommand,
+    confirmed: boolean
+  ) {
+    setContributionActionBusy(true);
+    setContributionActionConfirmation(null);
+    requestDetails("opl-files-results-panel");
+    try {
+      const receipt = await bridge.executeAction(createOplContributionActionRequest(entry, command, confirmed));
+      setLastDryRun(formatReceipt(receipt));
+      if (receipt.status === "executed") await loadState(settings.runtimeProfile);
+    } catch (error) {
+      setLastDryRun(formatReceipt({
+        actionId: "package_contribution_execute",
+        dryRun: false,
+        error: String(error)
+      }));
+    } finally {
+      setContributionActionBusy(false);
+    }
+  }
   const handleContributionAction: OplContributionAction = (entry, command) => {
     if (!contributionActionAvailable) return;
-    runDryRun("package_contribution_execute", {
-      package_id: entry.packageId,
-      ref: command.actionRef,
-      input: {},
-      confirmed: false
-    });
+    if (command.confirmationRequired) {
+      setContributionActionConfirmation({ entry, command });
+      return;
+    }
+    void executeContributionAction(entry, command, false);
   };
   const readContributionData = useCallback((entry: OplUiContributionsProjection["entries"][number]) => {
     if (!entry.view) return Promise.reject(new Error("Contribution view is unavailable"));
@@ -1916,7 +1942,7 @@ export function App({
     composerOverlay: studioComposerOverlay,
     details: studioDetails,
     renderSettings: renderStudioSettings,
-    overlay: <><style>{codexWorkbenchStyles}</style><ThreadDetailPopover thread={threadDetail} locale={settings.locale} busy={threadActionBusy} onClose={() => setThreadDetail(null)} onResume={(thread) => void resumeThreadAndOpen(thread)} onFork={(thread) => void forkThread(thread)} onRequestArchive={(thread, archived) => { setLifecycleConfirmation({ thread, action: archived ? "archive" : "unarchive" }); setThreadActionError(""); setThreadDetail(null); }} /><ThreadLifecycleConfirmationDialog thread={lifecycleConfirmation?.thread ?? null} action={lifecycleConfirmation?.action ?? "archive"} locale={settings.locale} busy={threadActionBusy} error={threadActionError} onClose={() => setLifecycleConfirmation(null)} onConfirm={() => void confirmThreadLifecycle()} /></>,
+    overlay: <><style>{codexWorkbenchStyles}</style><ThreadDetailPopover thread={threadDetail} locale={settings.locale} busy={threadActionBusy} onClose={() => setThreadDetail(null)} onResume={(thread) => void resumeThreadAndOpen(thread)} onFork={(thread) => void forkThread(thread)} onRequestArchive={(thread, archived) => { setLifecycleConfirmation({ thread, action: archived ? "archive" : "unarchive" }); setThreadActionError(""); setThreadDetail(null); }} /><ThreadLifecycleConfirmationDialog thread={lifecycleConfirmation?.thread ?? null} action={lifecycleConfirmation?.action ?? "archive"} locale={settings.locale} busy={threadActionBusy} error={threadActionError} onClose={() => setLifecycleConfirmation(null)} onConfirm={() => void confirmThreadLifecycle()} /><Modal open={contributionActionConfirmation !== null} onClose={() => setContributionActionConfirmation(null)} title={settings.locale === "zh" ? "确认执行能力操作" : "Confirm capability action"} description={contributionActionConfirmation ? (settings.locale === "zh" ? `此操作将由 ${contributionActionConfirmation.entry.packageId} 通过 OPL App 执行。` : `This action will be executed by ${contributionActionConfirmation.entry.packageId} through OPL App.`) : ""} footer={<><Button variant="outline" onClick={() => setContributionActionConfirmation(null)}>{settings.locale === "zh" ? "取消" : "Cancel"}</Button><Button variant="primary" disabled={contributionActionBusy || !contributionActionConfirmation} onClick={() => { const pending = contributionActionConfirmation; if (pending) void executeContributionAction(pending.entry, pending.command, true); }}>{settings.locale === "zh" ? "确认执行" : "Confirm"}</Button></>} /></>,
     detailsRequestRevision,
     startSession: startNewChat,
     startSessionInProject: startNewChatInProject,

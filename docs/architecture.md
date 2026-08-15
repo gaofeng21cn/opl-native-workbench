@@ -51,12 +51,20 @@ differ; their Package graph and authority inputs may not.
 The Framework Host graph remains the only Package producer, identity, and
 lifecycle authority. The target `opl app state` projection exposes its bounded
 declarative client graph as `opl_app_ui_contributions_projection.v1`.
-`readUiContributionsProjection()` normalizes that projection and
-`OplStudioDshSlotHost.replaceHostDerivedProjection()` registers or disposes the
-corresponding browser occupants. The local `SlotCore` is therefore the Client
-Cordis face of the authoritative Host graph, not an independent Host. Framework
-P7 producer/projection landing and end-to-end producer-consumer conformance are
-still pending; this candidate contract does not claim that runtime path is live.
+`readUiContributionsProjection()` normalizes that projection. The renderer
+creates one `@deepseek-ai/cordis` Client context, provides the typed
+`opl.app.client-contributions` face, publishes
+`opl/app-client-contributions/updated`, and lets
+`OplStudioDshSlotHost.replaceHostDerivedProjection()` register or dispose the
+corresponding browser occupants. The local `SlotCore` is therefore the renderer
+face of the authoritative Host graph, not an independent Host.
+
+Framework's canonical producer is active. `npm run
+validate:client-conformance` loads that exact producer, passes one Package
+fixture through Host projection, and proves equal Studio/AionUI parser output,
+equal App/AionUI composition policy, typed Client events and slots, canonical
+action payload shape, and fresh state readback. The resulting qualification is
+candidate compatibility evidence only.
 
 The projected graph is closed and allowlisted by the App-owned
 `contracts/opl-app-contributions.schema.json`: Package descriptors first pass
@@ -75,6 +83,11 @@ in a GUI; a second independent graph or authority plane is.
 DSH GUI/runtime source reuse remains Native-only. AionUI can consume the same
 Host-derived Client Cordis inputs through its own thin renderer adapter without
 importing DSH GUI/runtime source.
+
+Brand capabilities follow the same rule. The candidate reads the current
+App/Host projection and does not own a fixed list of OPL brands, standard
+Agents, or Package combinations. A renderer-local label fallback does not make
+an item part of the active graph.
 
 ## Renderer And Host Topology
 

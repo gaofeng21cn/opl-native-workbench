@@ -22,8 +22,10 @@ can change `active_shell` or declare a release combination.
 Both Shells sit inside the same `OPL Base + OPL App + OPL Packages + optional
 OPL Cloud` ecology. Studio owns only candidate Shell implementation; it never
 promotes itself into Base, Package lifecycle, Cloud service, or App authority.
-The shared Host-projected Client graph remains a consumer target until Framework
-P7 lands its real producer/projection and producer-consumer conformance.
+Framework's Host projection is active. Studio's qualification lane consumes the
+canonical producer and App product profile, then compares its Client projection
+with AionUI. This repository still owns only candidate compatibility evidence;
+App release admission remains separate.
 
 ## Current Owners
 
@@ -31,6 +33,7 @@ P7 lands its real producer/projection and producer-consumer conformance.
 | --- | --- |
 | Public candidate entry | [Root README](../README.md) |
 | Candidate implementation boundary | [Architecture](./architecture.md) |
+| Candidate architecture rationale | [Whitepaper](./whitepaper.md) |
 | Current state, open gaps, and next prompt | [Single Active Truth plan](./active/current-state-vs-ideal-gap.md) |
 | Validation meaning | [Verification](./verification.md) |
 | Superseded implementation and visual baseline | [History](./history/README.md) |
@@ -63,7 +66,7 @@ document is unclassified.
 | Lifecycle | Covered files |
 | --- | --- |
 | Public entry | `README.md` |
-| Navigation and architecture | `docs/README.md`, `docs/architecture.md` |
+| Navigation and architecture | `docs/README.md`, `docs/architecture.md`, `docs/whitepaper.md` |
 | Active Truth | `docs/active/current-state-vs-ideal-gap.md` |
 | Verification support | `docs/verification.md` |
 | History/provenance | `docs/history/README.md`, `docs/history/2026-07-candidate-baseline.md` |

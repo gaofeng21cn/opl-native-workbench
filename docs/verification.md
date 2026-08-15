@@ -30,6 +30,8 @@ script is the command owner.
 | `npm run test:headless` | Standalone bind/config validation, health/readiness, real child App Server startup, and bounded signal shutdown |
 | `npm run test:threads` | Standard Desktop/WebUI thread lifecycle, pagination, renderer, and Codex subagent projection tests |
 | `npm run test:webui-host` | Shared host core, HTTP/SSE, model/thread pagination, OPL projection, and read-only mutation guard |
+| `npm run test:client-cordis` | Studio Client Cordis policy, typed event/slot lifecycle, and exact contribution action request |
+| `npm run validate:client-conformance` | Fresh four-repository Host -> App -> Studio/AionUI compatibility and wire-ref readback |
 | `npm run validate:candidate` | Required source markers and false-ready guards |
 | `npm run validate:state-model` | App-state projection mapping |
 | `npm run smoke:webui` | Local WebUI host/renderer smoke |
@@ -38,6 +40,32 @@ script is the command owner.
 | `npm run validate:package` | Electron package and three-platform builder configuration structure |
 | `npm run build:docker` | Local source-candidate OCI image construction only |
 | `npm run smoke:docker` | Local Docker build/run, health/readiness, non-root PID 1, persistent mounts, and guarded stop |
+
+## Cross-GUI Client Qualification
+
+```bash
+npm run validate:client-conformance -- --out out/qualification/client-conformance.json
+```
+
+The gate reads Framework, App, AionUI, and Studio remote-main refs, verifies
+local tracking refs against the wire, materializes the canonical Framework
+producer in a temporary directory, and runs one Host projection through both
+GUI parsers and Studio Client Cordis. It also compares the App and generated
+AionUI composition model plus `client_renderer_compatibility` profile, verifies
+Studio derives the same RPC/event/state/brand policy, and checks the exact App
+contribution action shape. The ignored receipt records the precise commit/tree
+cohort.
+
+Run the AionUI focused DOM test in its own repository to exercise its real
+renderer caller:
+
+```bash
+bunx cross-env VITEST_INCLUDE_DOM=1 vitest run --project dom \
+  tests/unit/opl-runtime/OplUiContributionSlot.dom.test.tsx
+```
+
+These gates establish renderer compatibility for the tested cohort. They do
+not adopt Studio, switch the active shell, or qualify a release artifact.
 
 ## Rendered WebUI Acceptance
 

@@ -20,6 +20,7 @@ const requiredFiles = [
   "README.md",
   "docs/README.md",
   "docs/architecture.md",
+  "docs/whitepaper.md",
   "docs/active/current-state-vs-ideal-gap.md",
   "docs/verification.md",
   "docs/history/README.md",
@@ -30,6 +31,7 @@ const requiredFiles = [
   "src/bridge/oplBridge.ts",
   "src/bridge/webTransport.ts",
   "src/main.tsx",
+  "src/composition/clientCordis.ts",
   "src/composition/contributionProjection.ts",
   "src/composition/contributionComponents.tsx",
   "src/composition/deepseekHarnessSourceManifest.json",
@@ -59,6 +61,7 @@ const requiredFiles = [
   "src/workbench/threads/ThreadLifecycleConfirmationDialog.tsx",
   "src/candidateContractEvidence.json",
   "scripts/build-renderer.mjs",
+  "scripts/validate-client-conformance.mjs",
   "scripts/build-desktop.mjs",
   "scripts/bun-build-renderer-entry.ts",
   "scripts/deepseek-harness-gui-vendor.mjs",
@@ -93,8 +96,10 @@ const requiredScripts = [
   "test:desktop",
   "test:threads",
   "test:ui-contributions",
+  "test:client-cordis",
   "test:storage-migration",
   "test:webui-host",
+  "validate:client-conformance",
   "validate:candidate",
   "validate:state-model",
   "validate:package",
@@ -574,6 +579,9 @@ for (const capability of [
   "dsh_ui_primitives_direct_reuse",
   "dsh_contribution_entry_error_isolation",
   "framework_ui_contributions_projection",
+  "host_derived_client_cordis",
+  "shared_aionui_studio_client_conformance",
+  "canonical_contribution_action_execute_and_readback",
   "dynamic_contribution_registration_disposal",
   "single_codex_app_server_thread_adapter",
   "thread_list_read_start_resume_fork_archive_unarchive",
@@ -629,15 +637,43 @@ assert(JSON.stringify(clientComposition?.typed_slots) === JSON.stringify(["setti
 assert(clientComposition?.typed_action_policy === "action_refs_only_via_canonical_app_action_bridge", "Client actions must remain typed App action refs");
 assert(clientComposition?.framework_host_composition_authority === "one-person-lab-framework", "Framework must remain the only Host composition authority");
 assert(clientComposition?.app_authority_policy === "one-person-lab-app_owns_product_profile_gui_abi_active_shell_and_release", "App product authorities must remain App-owned");
-assert(clientComposition?.framework_projection_runtime_status === "framework_p7_pending_producer_landing_and_conformance", "candidate evidence must not claim Framework P7 producer completion");
+assert(clientComposition?.framework_projection_runtime_status === "framework_host_projection_active", "candidate evidence must consume the active Framework Host projection");
 assert(clientComposition?.shared_transport_policy === "framework_host_projected_typed_rpc_reads_typed_events_and_canonical_app_actions", "shells must share typed RPC, event, and App action semantics");
 assert(clientComposition?.shared_product_state_semantics === true, "shells must share product state semantics");
 assert(clientComposition?.package_gui_contribution_policy === "app_schema_admitted_declarative_only_then_framework_host_projected", "Package GUI contributions must remain App-schema-admitted Host projections");
 assert(clientComposition?.client_authority_policy === "render_and_dispatch_only_no_plugin_discovery_install_registry_currentness_release_operation_task_package_or_product_truth", "Client Cordis must remain a render-and-dispatch consumer");
-assert(clientComposition?.client_cordis_graph === "derived_from_framework_host_graph", "Client Cordis must derive from the Framework Host graph");
+assert(clientComposition?.client_cordis_graph === "derived_from_framework_host_graph_and_app_product_profile_slot_policy", "Client Cordis must derive from the Framework Host graph and App slot policy");
 assert(clientComposition?.shared_product_profile_and_slot_policy === true, "shells must share the App product profile and slot policy");
 for (const field of ["independent_host_truth", "second_package_registry", "second_currentness_authority", "second_action_authority", "second_client_composition_graph"]) {
   assert(clientComposition?.[field] === false, `${field} must remain false`);
+}
+const clientCordisSource = read("src/composition/clientCordis.ts");
+const dshSlotHostSource = read("src/composition/dshSlotHost.tsx");
+for (const marker of [
+  "opl.app.client-contributions",
+  "opl/app-client-contributions/updated",
+  "framework_host_projection_active",
+  "updateHostState",
+  "readSlot"
+]) {
+  assert(clientCordisSource.includes(marker), `Client Cordis runtime is missing ${marker}`);
+}
+assert(dshSlotHostSource.includes("createOplStudioClientCordisComposition"), "DSH Shell must instantiate the Host-derived Client Cordis");
+assert(app.includes("onHostStateChange?.(state)"), "App state caller must feed fresh Host state into Client Cordis");
+assert(app.includes("createOplContributionActionRequest(entry, command, confirmed)"), "projected commands must use the typed canonical App action request");
+assert(app.includes('receipt.status === "executed"') && app.includes("loadState(settings.runtimeProfile)"), "successful contribution actions must refresh App state");
+const qualification = evidence.candidate_runtime_qualification;
+assert(qualification?.status === "host_app_studio_aionui_conformance_qualified", "missing Client runtime qualification status");
+assert(qualification?.validation_command === "npm run validate:client-conformance -- --out out/qualification/client-conformance.json", "Client qualification command mismatch");
+assert(qualification?.receipt_is_git_ignored === true, "qualification receipt must stay outside Git truth");
+assert(qualification?.host_app_studio_e2e === true, "Host-App-Studio E2E must be qualified");
+assert(qualification?.studio_aionui_projection_equal === true && qualification?.app_aionui_composition_equal === true, "both GUI clients must share projection and composition semantics");
+assert(qualification?.app_aionui_compatibility_equal === true && qualification?.studio_app_compatibility_equal === true, "both GUI clients must derive the same App Client compatibility profile");
+assert(qualification?.typed_slot_event_action_state_semantics_equal === true, "typed slot/event/action/state semantics must be qualified");
+assert(qualification?.dynamic_brand_capability_policy === "consume_current_App_and_Framework_projection_without_a_candidate_owned_fixed_brand_roster", "Studio must not own a fixed brand capability roster");
+assert(qualification?.active_shell_adopted === false && qualification?.release_ready === false, "candidate qualification must not become release admission");
+for (const value of Object.values(qualification.external_cohort ?? {})) {
+  assert(typeof value === "string" && /^[0-9a-f]{40}$/.test(value), "external qualification cohort must use exact Git object ids");
 }
 assert(evidence.reuse_policy.other_external_gui_source_copied === false, "other external GUI sources must remain reference-only");
 assert(evidence.reuse_policy.runtime_authority_transfer === false, "runtime authority must not transfer");
