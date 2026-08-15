@@ -23,6 +23,9 @@ let updaterQualificationEnabled = false;
 const nativeAccessibilityQualificationEnabled = process.env.OPL_DESKTOP_NATIVE_ACCESSIBILITY_QUALIFICATION === "1";
 if (nativeAccessibilityQualificationEnabled) {
   app.commandLine.appendSwitch("force-renderer-accessibility");
+  if (process.platform === "win32") {
+    app.commandLine.appendSwitch("enable-features", "UiaProvider");
+  }
 }
 configureDesktopUpdaterQualificationState({
   electronApp: app,

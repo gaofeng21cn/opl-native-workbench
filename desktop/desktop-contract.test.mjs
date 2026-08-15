@@ -28,6 +28,7 @@ test("desktop readiness reports the exact running package version", () => {
 test("native accessibility support is enabled only by the qualification lane", () => {
   assert.match(main, /process\.env\.OPL_DESKTOP_NATIVE_ACCESSIBILITY_QUALIFICATION === "1"/);
   assert.match(main, /nativeAccessibilityQualificationEnabled[\s\S]+app\.commandLine\.appendSwitch\("force-renderer-accessibility"\)[\s\S]+app\.whenReady\(\)/);
+  assert.match(main, /process\.platform === "win32"[\s\S]+app\.commandLine\.appendSwitch\("enable-features", "UiaProvider"\)/);
   assert.match(main, /app\.setAccessibilitySupportEnabled\(true\)/);
 });
 
