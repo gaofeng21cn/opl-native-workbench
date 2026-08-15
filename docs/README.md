@@ -19,6 +19,10 @@ contribution ABI, and versioned composition inputs. Studio may implement the
 Client Cordis and renderer natively in the DSH style, but only the App repository
 can change `active_shell` or declare a release combination.
 
+Both Shells sit inside the same `OPL Base + OPL App + OPL Packages + optional
+OPL Cloud` ecology. Studio owns only candidate Shell implementation; it never
+promotes itself into Base, Package lifecycle, Cloud service, or App authority.
+
 ## Current Owners
 
 | Theme | Single Source of Truth |

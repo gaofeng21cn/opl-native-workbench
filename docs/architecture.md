@@ -17,10 +17,14 @@ snapshot are frozen by the App release composition; candidate source or local
 validation cannot promote itself.
 
 ```text
+OPL Packages -> runtime/plugin contributions -> OPL Framework Host
+             -> declarative GUI contributions -----------+
+                                                         |
 one-person-lab-app product profile + App Client Contribution ABI + slot policy
                          +
-OPL Framework authoritative Host graph projection
-                         |
+OPL Framework authoritative Host graph projection        |
+                         |                                |
+                         +--------------------------------+
                          v
 Host-derived Client Cordis graph
                          |

@@ -13,6 +13,10 @@ DeepSeek Harness React GUI source and uses one shared Node host core. Electron i
 thin desktop carrier for macOS, Windows, and Linux; HTTP/SSE exposes the same
 renderer and bridge for standalone WebUI, headless, and Docker forms.
 
+The wider product model remains `OPL Base + OPL App + OPL Packages + optional
+OPL Cloud`. Studio implements one replaceable App Shell inside that model. It
+does not become Base, install or publish Packages, or own Cloud services.
+
 AionUI remains the active release shell. Selecting or launching Studio is a
 local development choice only; it does not change the release adapter, updater
 channel, App product truth, installed App, or current platform support. AionUI
@@ -117,7 +121,7 @@ untrusted network; this candidate has no remote access control boundary.
 | Concern | Owner | Native role |
 | --- | --- | --- |
 | GUI product behavior, model policy, page states, and adoption | `one-person-lab-app` contracts | Implementation consumer only |
-| Runtime and package state/actions | OPL Framework | Read/project exact refs; dispatch owner actions only |
+| Runtime and projected Package state/actions | OPL Framework Host plus Package owners | Read/project exact refs; dispatch owner actions only |
 | Thread identity, history, permissions, and turns | Codex App Server | Client and renderer only |
 | Professional truth, quality, artifacts, and delivery | Domain owners | Refs-only presentation |
 | Candidate source, bridge, renderer, packaging, and focused tests | This repository | Implementation evidence only |
