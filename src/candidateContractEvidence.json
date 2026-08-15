@@ -745,6 +745,15 @@
   "client_composition_boundary": {
     "app_client_contribution_abi": "opl_app_client_contributions.v1",
     "framework_host_graph_owner": "one-person-lab-framework",
+    "framework_host_projection_schema": "opl_app_ui_contributions_projection.v1",
+    "host_projection_graph": "allowlisted_closed_graph_from_framework_projection_only",
+    "host_projection_allowlist_contract": "contracts/opl-app-contributions.schema.json",
+    "typed_slots": [
+      "settings.section",
+      "runtime.detail",
+      "composer.palette"
+    ],
+    "typed_action_policy": "action_refs_only_via_canonical_app_action_bridge",
     "client_cordis_graph": "derived_from_framework_host_graph",
     "app_product_profile_owner": "one-person-lab-app",
     "shared_product_profile_and_slot_policy": true,

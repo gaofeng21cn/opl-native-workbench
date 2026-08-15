@@ -53,6 +53,13 @@ graph as `opl_app_ui_contributions_projection.v1`.
 corresponding browser occupants. The local `SlotCore` is therefore the Client
 Cordis face of the authoritative Host graph, not an independent Host.
 
+The projected graph is closed and allowlisted by the App-owned
+`contracts/opl-app-contributions.schema.json`: Studio mounts only the three
+product-profile slots and retains commands only as typed action refs. All writes
+then enter the canonical App action bridge. Unknown slots, executable component
+fields, handlers, HTML, paths, URLs, and arbitrary plugin objects cannot become
+Client Cordis occupants.
+
 The renderer may register static DSH shell slots needed to draw the App, but it
 must not discover Packages, establish another Package registry, or own
 currentness, state, actions, sessions, or runtime truth. Cordis itself is not

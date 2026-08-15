@@ -622,6 +622,11 @@ for (const rootName of ["WorkspaceBrowser", "AgentPresetSeat", "ModelSelect"]) {
 }
 const clientComposition = evidence.client_composition_boundary;
 assert(clientComposition?.app_client_contribution_abi === "opl_app_client_contributions.v1", "missing App Client Contribution ABI binding");
+assert(clientComposition?.framework_host_projection_schema === "opl_app_ui_contributions_projection.v1", "missing Framework Host projection schema binding");
+assert(clientComposition?.host_projection_graph === "allowlisted_closed_graph_from_framework_projection_only", "Client Cordis must consume only the allowlisted Host projection graph");
+assert(clientComposition?.host_projection_allowlist_contract === "contracts/opl-app-contributions.schema.json", "Client graph allowlist must remain App-owned");
+assert(JSON.stringify(clientComposition?.typed_slots) === JSON.stringify(["settings.section", "runtime.detail", "composer.palette"]), "Client Cordis typed slots must match the App product profile");
+assert(clientComposition?.typed_action_policy === "action_refs_only_via_canonical_app_action_bridge", "Client actions must remain typed App action refs");
 assert(clientComposition?.client_cordis_graph === "derived_from_framework_host_graph", "Client Cordis must derive from the Framework Host graph");
 assert(clientComposition?.shared_product_profile_and_slot_policy === true, "shells must share the App product profile and slot policy");
 for (const field of ["independent_host_truth", "second_package_registry", "second_currentness_authority", "second_action_authority", "second_client_composition_graph"]) {

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  OPL_UI_CONTRIBUTION_SLOTS,
   readUiContributionsProjection,
   type OplUiContributionsProjection
 } from "../../src/composition/contributionProjection.ts";
@@ -68,6 +69,24 @@ const projectionState = {
           confirmation_required: true
         }],
         badges: []
+      }, {
+        contribution_key: "hostile:overlay",
+        contribution_id: "overlay",
+        package_id: "hostile",
+        slot: "shell.overlay",
+        contribution_kind: "command_group",
+        trust_tier: "trusted_first_party_renderer",
+        scope: "root",
+        sort_order: 0,
+        component: "arbitrary-component",
+        commands: [{
+          command_id: "execute",
+          label_i18n: { "en-US": "Execute" },
+          action_ref: "hostile.overlay.v1#execute",
+          confirmation_required: false,
+          handler: "arbitrary-handler"
+        }],
+        badges: []
       }]
     }
   }
@@ -88,6 +107,7 @@ describe("OPL Studio DSH contribution composition", () => {
 
   test("normalizes Framework projection without importing executable plugin fields", () => {
     const projection = readUiContributionsProjection(projectionState);
+    expect(OPL_UI_CONTRIBUTION_SLOTS).toEqual(["composer.palette", "runtime.detail", "settings.section"]);
     expect(projection.surfaceKind).toBe("opl_app_ui_contributions_projection.v1");
     expect(projection.entries.map((entry) => entry.contributionKey)).toEqual([
       "mag:grant-actions",
@@ -95,6 +115,13 @@ describe("OPL Studio DSH contribution composition", () => {
     ]);
     expect(projection.entries[1]?.view?.dataRef).toBe("mas.research-roadmap.v1#current");
     expect(projection.entries[1]?.commands[0]?.actionRef).toBe("mas.research-roadmap.v1#refresh");
+    expect(Object.keys(projection.entries[1]?.commands[0] ?? {}).sort()).toEqual([
+      "actionRef",
+      "commandId",
+      "confirmationRequired",
+      "label"
+    ]);
+    expect(projection.entries.some((entry) => entry.contributionKey === "hostile:overlay")).toBe(false);
     expect(JSON.stringify(projection)).not.toMatch(/component|javascript|html|url/i);
   });
 
