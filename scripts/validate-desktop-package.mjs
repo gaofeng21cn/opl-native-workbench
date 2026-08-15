@@ -34,6 +34,7 @@ export function validateDesktopPackage({
   outRoot = path.join(repositoryRoot, "out"),
   platform = process.platform,
   arch = process.arch,
+  version,
   requireDistribution = false
 } = {}) {
   assert.ok(fs.existsSync(outRoot), "desktop package output is missing");
@@ -52,9 +53,10 @@ export function validateDesktopPackage({
 
   const distributionArtifacts = [];
   if (requireDistribution) {
-    const version = JSON.parse(fs.readFileSync(path.join(repositoryRoot, "package.json"), "utf8")).version;
+    const expectedVersion = version
+      ?? JSON.parse(fs.readFileSync(path.join(repositoryRoot, "package.json"), "utf8")).version;
     const topLevel = new Set(fs.readdirSync(outRoot));
-    for (const name of requiredDistributionArtifacts({ platform, version, arch })) {
+    for (const name of requiredDistributionArtifacts({ platform, version: expectedVersion, arch })) {
       assert.ok(topLevel.has(name), `desktop distribution artifact is missing: ${name}`);
       const artifactPath = path.join(outRoot, name);
       const artifact = fs.statSync(artifactPath);
@@ -76,8 +78,19 @@ export function validateDesktopPackage({
   };
 }
 
+function optionValue(name) {
+  const index = process.argv.indexOf(name);
+  if (index === -1) return undefined;
+  const value = process.argv[index + 1];
+  assert.ok(value && !value.startsWith("--"), `${name} requires a value`);
+  return value;
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === modulePath) {
+  const outRoot = optionValue("--out-root");
   console.log(JSON.stringify(validateDesktopPackage({
+    ...(outRoot ? { outRoot: path.resolve(outRoot) } : {}),
+    version: optionValue("--version"),
     requireDistribution: process.argv.includes("--distribution")
   }), null, 2));
 }

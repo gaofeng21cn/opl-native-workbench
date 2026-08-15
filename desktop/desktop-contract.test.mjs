@@ -21,6 +21,10 @@ test("Electron is a thin, isolated adapter over the shared host core", () => {
   assert.doesNotMatch(main, /AionCore|AionUI/);
 });
 
+test("desktop readiness reports the exact running package version", () => {
+  assert.match(main, /type: "opl-desktop-ready",\s+version: app\.getVersion\(\)/);
+});
+
 test("Electron owns the App carrier log directory exposed in diagnostics", () => {
   assert.match(main, /app\.getPath\("logs"\)/);
   assert.match(main, /carrierDiagnostics:/);

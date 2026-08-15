@@ -102,8 +102,17 @@ assert.ok(
 );
 const { appPath, executable } = packaged;
 assert.ok(fs.existsSync(executable), `missing packaged executable: ${executable}`);
-const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), "opl-desktop-live-smoke-"));
-const lifecycleLog = path.join(stateRoot, "fake-app-server-lifecycle.jsonl");
+const configuredStateRoot = process.env.OPL_DESKTOP_SMOKE_STATE_ROOT?.trim();
+if (configuredStateRoot) {
+  assert.ok(path.isAbsolute(configuredStateRoot), "OPL_DESKTOP_SMOKE_STATE_ROOT must be absolute");
+}
+const ownsStateRoot = !configuredStateRoot;
+const stateRoot = configuredStateRoot
+  ? path.resolve(configuredStateRoot)
+  : fs.mkdtempSync(path.join(os.tmpdir(), "opl-desktop-live-smoke-"));
+fs.mkdirSync(stateRoot, { recursive: true });
+const lifecycleLog = path.join(stateRoot, `fake-app-server-lifecycle-${process.pid}.jsonl`);
+const expectedVersion = process.env.OPL_DESKTOP_EXPECTED_VERSION?.trim();
 const oplBinary = process.platform === "win32"
   ? path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "where.exe")
   : "/usr/bin/true";
@@ -164,6 +173,9 @@ try {
     windowState.accessibilityQualification?.detail
       ?? `Chromium AX tree smoke failed: ${JSON.stringify(windowState.accessibilityQualification)}`
   );
+  if (expectedVersion) {
+    assert.equal(windowState.version, expectedVersion, "desktop ready receipt reported the wrong running version");
+  }
 
   const appServerStart = await waitFor(
     () => lifecycleEvents(lifecycleLog).find((event) => event.event === "start"),
@@ -206,5 +218,5 @@ try {
     try { process.kill(appServerPid, "SIGKILL"); } catch {}
     await waitFor(() => !processExists(appServerPid), 5_000, "forced App Server cleanup");
   }
-  fs.rmSync(stateRoot, { recursive: true, force: true });
+  if (ownsStateRoot) fs.rmSync(stateRoot, { recursive: true, force: true });
 }

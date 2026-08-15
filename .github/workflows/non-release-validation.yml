@@ -27,11 +27,11 @@ jobs:
           - label: Windows x64
             os: windows-latest
             distribution: windows
-            live_command: npm run smoke:desktop-live
+            builder_target: win
           - label: Linux x64
             os: ubuntu-latest
             distribution: linux
-            live_command: xvfb-run --auto-servernum npm run smoke:desktop-live
+            builder_target: linux
     env:
       OPL_APP_REPO_ROOT: ${{ github.workspace }}/app-product
       OPL_DESKTOP_WINDOWS_INSTALL_ID: a1f6388a-3f9a-5543-b06c-e3debfa55a91
@@ -73,11 +73,50 @@ jobs:
       - name: Run desktop source gates
         run: npm run typecheck && npm run test:desktop
 
-      - name: Build unsigned ${{ matrix.label }} distribution
+      - name: Prepare lifecycle versions and persistent smoke state
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import os from "node:os";
+          import path from "node:path";
+          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+          const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(pkg.version);
+          if (!match) throw new Error(`desktop lifecycle requires numeric semver, observed ${pkg.version}`);
+          const targetVersion = `${match[1]}.${match[2]}.${Number(match[3]) + 1}`;
+          const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), "opl-desktop-package-lifecycle-"));
+          const marker = path.join(stateRoot, "existing-user-state.txt");
+          fs.writeFileSync(marker, `preserve-${process.env.GITHUB_SHA}\n`, "utf8");
+          fs.appendFileSync(process.env.GITHUB_ENV, [
+            `OPL_DESKTOP_BASE_VERSION=${pkg.version}`,
+            `OPL_DESKTOP_TARGET_VERSION=${targetVersion}`,
+            `OPL_DESKTOP_SMOKE_STATE_ROOT=${stateRoot}`,
+            `OPL_DESKTOP_STATE_MARKER=${marker}`,
+            ""
+          ].join("\n"));
+          NODE
+
+      - name: Build unsigned base ${{ matrix.label }} distribution
         run: npm run dist:${{ matrix.distribution }}
 
-      - name: Validate native package set
-        run: npm run qualify:desktop:distribution
+      - name: Build unsigned target ${{ matrix.label }} distribution
+        shell: bash
+        run: |
+          npx electron-builder \
+            --${{ matrix.builder_target }} \
+            --config electron-builder.yml \
+            --publish never \
+            --config.directories.output=out-target \
+            --config.extraMetadata.version="$OPL_DESKTOP_TARGET_VERSION"
+
+      - name: Validate base and target native package sets
+        shell: bash
+        run: |
+          npm run qualify:desktop:distribution
+          node scripts/validate-desktop-package.mjs \
+            --distribution \
+            --out-root out-target \
+            --version "$OPL_DESKTOP_TARGET_VERSION"
 
       - name: Prepare Chromium sandbox for unpacked Linux runtime
         if: matrix.distribution == 'linux'
@@ -88,9 +127,17 @@ jobs:
           test "$(stat -c '%U:%G %a' out/linux-unpacked/chrome-sandbox)" = "root:root 4755"
 
       - name: Start unpacked app and read Chromium AX tree
-        run: ${{ matrix.live_command }}
+        shell: bash
+        run: |
+          if test "${{ matrix.distribution }}" = linux; then
+            OPL_DESKTOP_EXPECTED_VERSION="$OPL_DESKTOP_BASE_VERSION" \
+              xvfb-run --auto-servernum npm run smoke:desktop-live
+          else
+            OPL_DESKTOP_EXPECTED_VERSION="$OPL_DESKTOP_BASE_VERSION" \
+              npm run smoke:desktop-live
+          fi
 
-      - name: Install Windows NSIS package
+      - name: Install base Windows NSIS package
         if: matrix.distribution == 'windows'
         shell: pwsh
         run: |
@@ -140,13 +187,76 @@ jobs:
           if (-not (Test-Path -LiteralPath $uninstallRegistryPath)) {
             throw "NSIS install did not register its exact uninstall identity"
           }
+          $installedVersion = [string](Get-ItemProperty -LiteralPath $uninstallRegistryPath).DisplayVersion
+          if ($installedVersion -ne $env:OPL_DESKTOP_BASE_VERSION) {
+            throw "NSIS base install reported version $installedVersion instead of $env:OPL_DESKTOP_BASE_VERSION"
+          }
 
           "OPL_DESKTOP_EXECUTABLE=$installedExecutable" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "OPL_DESKTOP_APP_PATH=$installRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Start installed Windows app and read Chromium AX tree
+      - name: Start base Windows app and read exact version
         if: matrix.distribution == 'windows'
-        run: npm run smoke:desktop-live
+        shell: pwsh
+        run: |
+          $env:OPL_DESKTOP_EXPECTED_VERSION = $env:OPL_DESKTOP_BASE_VERSION
+          npm run smoke:desktop-live
+
+      - name: Update Windows NSIS package
+        if: matrix.distribution == 'windows'
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem -Path out-target -File -Filter '*.exe')
+          if ($installers.Count -ne 1) {
+            throw "expected exactly one target NSIS installer, found $($installers.Count)"
+          }
+          $process = Start-Process -FilePath $installers[0].FullName -ArgumentList '/S' -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "NSIS update exited with code $($process.ExitCode)"
+          }
+          $uninstallRegistryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$env:OPL_DESKTOP_WINDOWS_INSTALL_ID"
+          $installedVersion = [string](Get-ItemProperty -LiteralPath $uninstallRegistryPath).DisplayVersion
+          if ($installedVersion -ne $env:OPL_DESKTOP_TARGET_VERSION) {
+            throw "NSIS update reported version $installedVersion instead of $env:OPL_DESKTOP_TARGET_VERSION"
+          }
+          if ((Get-Content -LiteralPath $env:OPL_DESKTOP_STATE_MARKER -Raw).Trim() -ne "preserve-$env:GITHUB_SHA") {
+            throw "NSIS update did not preserve the existing user-state marker"
+          }
+
+      - name: Start updated Windows app and read exact version
+        if: matrix.distribution == 'windows'
+        shell: pwsh
+        run: |
+          $env:OPL_DESKTOP_EXPECTED_VERSION = $env:OPL_DESKTOP_TARGET_VERSION
+          npm run smoke:desktop-live
+
+      - name: Roll back Windows NSIS package
+        if: matrix.distribution == 'windows'
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem -Path out -File -Filter '*.exe')
+          if ($installers.Count -ne 1) {
+            throw "expected exactly one base NSIS installer, found $($installers.Count)"
+          }
+          $process = Start-Process -FilePath $installers[0].FullName -ArgumentList '/S' -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "NSIS rollback exited with code $($process.ExitCode)"
+          }
+          $uninstallRegistryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$env:OPL_DESKTOP_WINDOWS_INSTALL_ID"
+          $installedVersion = [string](Get-ItemProperty -LiteralPath $uninstallRegistryPath).DisplayVersion
+          if ($installedVersion -ne $env:OPL_DESKTOP_BASE_VERSION) {
+            throw "NSIS rollback reported version $installedVersion instead of $env:OPL_DESKTOP_BASE_VERSION"
+          }
+          if ((Get-Content -LiteralPath $env:OPL_DESKTOP_STATE_MARKER -Raw).Trim() -ne "preserve-$env:GITHUB_SHA") {
+            throw "NSIS rollback did not preserve the existing user-state marker"
+          }
+
+      - name: Start rolled-back Windows app and read exact version
+        if: matrix.distribution == 'windows'
+        shell: pwsh
+        run: |
+          $env:OPL_DESKTOP_EXPECTED_VERSION = $env:OPL_DESKTOP_BASE_VERSION
+          npm run smoke:desktop-live
 
       - name: Uninstall Windows NSIS package and verify cleanup
         if: ${{ always() && matrix.distribution == 'windows' }}
@@ -191,7 +301,7 @@ jobs:
             throw "NSIS uninstall left exact product files or registry identity behind"
           }
 
-      - name: Install Linux DEB package
+      - name: Install base Linux DEB package
         if: matrix.distribution == 'linux'
         shell: bash
         run: |
@@ -204,6 +314,7 @@ jobs:
 
           deb_path="$(realpath "${debs[0]}")"
           sudo apt-get install --no-install-recommends --yes "$deb_path"
+          test "$(dpkg-query -W -f='${Version}' "$package_name")" = "$OPL_DESKTOP_BASE_VERSION"
           executable="$(command -v one-person-lab-preview)"
           test -n "$executable"
           real_executable="$(readlink -f "$executable")"
@@ -219,9 +330,39 @@ jobs:
           echo "OPL_DESKTOP_EXECUTABLE=$executable" >> "$GITHUB_ENV"
           echo "OPL_DESKTOP_APP_PATH=$app_path" >> "$GITHUB_ENV"
 
-      - name: Start installed Linux app and read Chromium AX tree
+      - name: Start base Linux app and read exact version
         if: matrix.distribution == 'linux'
-        run: xvfb-run --auto-servernum npm run smoke:desktop-live
+        run: OPL_DESKTOP_EXPECTED_VERSION="$OPL_DESKTOP_BASE_VERSION" xvfb-run --auto-servernum npm run smoke:desktop-live
+
+      - name: Update Linux DEB package
+        if: matrix.distribution == 'linux'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          debs=(out-target/*.deb)
+          test "${#debs[@]}" -eq 1
+          sudo apt-get install --no-install-recommends --yes "$(realpath "${debs[0]}")"
+          test "$(dpkg-query -W -f='${Version}' "$OPL_DESKTOP_DEB_PACKAGE")" = "$OPL_DESKTOP_TARGET_VERSION"
+          test "$(tr -d '\r\n' < "$OPL_DESKTOP_STATE_MARKER")" = "preserve-$GITHUB_SHA"
+
+      - name: Start updated Linux app and read exact version
+        if: matrix.distribution == 'linux'
+        run: OPL_DESKTOP_EXPECTED_VERSION="$OPL_DESKTOP_TARGET_VERSION" xvfb-run --auto-servernum npm run smoke:desktop-live
+
+      - name: Roll back Linux DEB package
+        if: matrix.distribution == 'linux'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          debs=(out/*.deb)
+          test "${#debs[@]}" -eq 1
+          sudo apt-get install --no-install-recommends --yes --allow-downgrades "$(realpath "${debs[0]}")"
+          test "$(dpkg-query -W -f='${Version}' "$OPL_DESKTOP_DEB_PACKAGE")" = "$OPL_DESKTOP_BASE_VERSION"
+          test "$(tr -d '\r\n' < "$OPL_DESKTOP_STATE_MARKER")" = "preserve-$GITHUB_SHA"
+
+      - name: Start rolled-back Linux app and read exact version
+        if: matrix.distribution == 'linux'
+        run: OPL_DESKTOP_EXPECTED_VERSION="$OPL_DESKTOP_BASE_VERSION" xvfb-run --auto-servernum npm run smoke:desktop-live
 
       - name: Purge Linux DEB package and verify cleanup
         if: ${{ always() && matrix.distribution == 'linux' }}
@@ -252,6 +393,23 @@ jobs:
           fi
           status="$(dpkg-query -W -f='${Status}' "$package_name" 2>/dev/null || true)"
           test "$status" != "install ok installed"
+
+      - name: Remove lifecycle smoke state
+        if: always()
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import os from "node:os";
+          import path from "node:path";
+          const root = process.env.OPL_DESKTOP_SMOKE_STATE_ROOT;
+          if (!root) process.exit(0);
+          const relative = path.relative(fs.realpathSync.native(os.tmpdir()), fs.realpathSync.native(root));
+          if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+            throw new Error(`refusing to remove lifecycle state outside the system temp directory: ${root}`);
+          }
+          fs.rmSync(root, { recursive: true, force: true });
+          NODE
 
   oci-distribution:
     name: OCI multi-architecture build and lifecycle

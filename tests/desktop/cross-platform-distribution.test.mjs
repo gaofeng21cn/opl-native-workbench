@@ -15,19 +15,19 @@ async function artifact(file, { executable = false } = {}) {
   if (executable) await chmod(file, 0o755);
 }
 
-async function fixture(platform, { arch = "x64" } = {}) {
+async function fixture(platform, { arch = "x64", artifactVersion = version } = {}) {
   const outRoot = await mkdtemp(path.join(os.tmpdir(), `opl-${platform}-distribution-`));
   if (platform === "win32") {
     await artifact(path.join(outRoot, "win-unpacked", "resources", "app.asar"));
     await artifact(path.join(outRoot, "win-unpacked", "One Person Lab Preview.exe"));
-    await artifact(path.join(outRoot, `one-person-lab-preview-${version}-win-x64.exe`));
-    await artifact(path.join(outRoot, `one-person-lab-preview-${version}-win-x64.zip`));
+    await artifact(path.join(outRoot, `one-person-lab-preview-${artifactVersion}-win-x64.exe`));
+    await artifact(path.join(outRoot, `one-person-lab-preview-${artifactVersion}-win-x64.zip`));
   } else {
     const unpacked = arch === "x64" ? "linux-unpacked" : `linux-${arch}-unpacked`;
     const debArch = arch === "x64" ? "amd64" : arch;
     await artifact(path.join(outRoot, unpacked, "resources", "app.asar"));
     await artifact(path.join(outRoot, unpacked, "one-person-lab-preview"), { executable: true });
-    await artifact(path.join(outRoot, `one-person-lab-preview-${version}-linux-${debArch}.deb`));
+    await artifact(path.join(outRoot, `one-person-lab-preview-${artifactVersion}-linux-${debArch}.deb`));
   }
   return outRoot;
 }
@@ -56,6 +56,23 @@ test("Linux arm64 cross-distribution qualification reads the architecture-specif
   const receipt = validateDesktopPackage({ repositoryRoot, outRoot, platform: "linux", arch: "arm64", requireDistribution: true });
   assert.deepEqual(receipt.distributionArtifacts.map((entry) => entry.name), [
     `one-person-lab-preview-${version}-linux-arm64.deb`
+  ]);
+});
+
+test("distribution qualification accepts an explicit lifecycle target version", async () => {
+  const targetVersion = "0.1.1";
+  const outRoot = await fixture("win32", { artifactVersion: targetVersion });
+  const receipt = validateDesktopPackage({
+    repositoryRoot,
+    outRoot,
+    platform: "win32",
+    arch: "x64",
+    version: targetVersion,
+    requireDistribution: true
+  });
+  assert.deepEqual(receipt.distributionArtifacts.map((entry) => entry.name), [
+    `one-person-lab-preview-${targetVersion}-win-x64.exe`,
+    `one-person-lab-preview-${targetVersion}-win-x64.zip`
   ]);
 });
 

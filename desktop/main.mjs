@@ -77,6 +77,7 @@ function createWindow() {
       }
       process.send({
         type: "opl-desktop-ready",
+        version: app.getVersion(),
         visible: window.isVisible(),
         windowCount: BrowserWindow.getAllWindows().length,
         accessibilityQualification

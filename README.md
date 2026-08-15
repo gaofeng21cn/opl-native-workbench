@@ -52,12 +52,13 @@ OPL Workspace serves the same renderer through the shared Node host core and a
 lightweight HTTP/SSE adapter. Docker runs neither Electron nor AionCore. The
 source now includes a standalone Node command and a non-root OCI carrier with
 `/data` and `/projects` persistence. Hosted Windows x64 and Linux x64 gates now
-build the unsigned native package sets, launch the unpacked executables, install
-the real Windows NSIS and Linux DEB packages, launch the installed executables
-with a Chromium accessibility-tree smoke, and remove the exact installation
-again. This is an ephemeral hosted-runner installer-lifecycle baseline. It is
-not clean-VM, native screen-reader, update/rollback, signing, release, or
-platform-support qualification. AppImage is intentionally not a supported
+build two unsigned native package cohorts, launch the unpacked base executable,
+and drive the real Windows NSIS or Linux DEB through install, update, rollback,
+and uninstall. Each installed launch reads the exact running version, requires
+the Chromium accessibility-tree smoke, and reuses one temporary user-state
+marker across the version transitions. This is an ephemeral hosted-runner
+package-lifecycle baseline. It is not dedicated clean-VM, native screen-reader,
+signing, release, or platform-support qualification. AppImage is intentionally not a supported
 target: a user-mounted FUSE image cannot provide the setuid Chromium sandbox,
 while Ubuntu 24.04 requires an installed AppArmor policy for the alternative
 user-namespace sandbox. The App does not hide that conflict with host

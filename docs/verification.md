@@ -41,7 +41,7 @@ script is the command owner.
 | `npm run dist:windows` | Unsigned Windows x64 unpacked app, NSIS, and ZIP construction with publishing disabled |
 | `npm run dist:linux` | Unsigned Linux x64 unpacked app and DEB construction with publishing disabled |
 | `npm run qualify:desktop:distribution` | Current-platform native package-set presence and executable-shape checks |
-| `npm run smoke:desktop-live` | Current-platform unpacked packaged executable startup, Chromium AX tree, and App Server cleanup smoke |
+| `npm run smoke:desktop-live` | Current-platform packaged executable startup, exact optional version readback, Chromium AX tree, and App Server cleanup smoke |
 | `npm run build:docker` | Local source-candidate OCI image construction only |
 | `npm run smoke:docker` | Local Docker build/run, health/readiness, non-root PID 1, persistent mounts, and guarded stop |
 
@@ -110,29 +110,30 @@ active-shell adoption, or release readiness.
 `.github/workflows/non-release-validation.yml` builds and checks exact-head
 unsigned candidates on GitHub-hosted Windows x64 and Linux x64 runners:
 
-- Windows requires the unpacked executable, NSIS installer, and ZIP, then
-  launches the unpacked executable, silently installs the NSIS package, resolves
-  the installed executable through the fixed product registry identity,
-  launches it, and runs the exact uninstaller before checking that the install
-  root and registry identities are absent;
+- Windows requires two unsigned unpacked/NSIS/ZIP cohorts under the same fixed
+  product identity, then proves base install, newer-version update, old-version
+  rollback, and exact uninstall. Every launch reads the running Electron version
+  rather than trusting the installer exit code or artifact filename;
 - Linux requires the unpacked executable and DEB, prepares the
   packaged Chromium sandbox according to the runner's user-namespace support,
-  launches the unpacked executable under Xvfb, installs the DEB through APT,
-  launches the installed executable, then purges the package and checks that
-  the executable and install root are absent;
+  launches the unpacked executable under Xvfb, then uses APT for base install,
+  update, explicit downgrade rollback, and purge. The installed DEB metadata and
+  each running version must match the expected cohort;
+- both platform sequences reuse one bounded temporary Electron state directory
+  and require its pre-existing marker to survive update and rollback;
 - both platforms require a visible One Person Lab window, a Chromium AX tree
   with no unnamed interactive controls, and bounded App Server cleanup;
 - every distribution command uses `--publish never`.
 
-This closes the unsigned NSIS and DEB install/start/uninstall baseline on
-ephemeral GitHub-hosted runners. AppImage is rejected from the supported target
+This closes the unsigned NSIS and DEB install/update/rollback/uninstall
+lifecycle on ephemeral GitHub-hosted runners. AppImage is rejected from the supported target
 set because its FUSE mount cannot supply the setuid Chromium sandbox and Ubuntu
 24.04 requires an installed AppArmor policy for the user-namespace alternative.
 CI does not provision that policy, extract the image, or disable the sandbox to
 turn a prepared host into false portable evidence. The gate does not establish
-a dedicated clean-VM cohort; preserve or migrate existing user state; prove
-update/rollback; exercise Windows UIA or Linux AT-SPI; run NVDA or Orca; sign or
-publish artifacts; or establish platform support or release readiness.
+a dedicated clean-VM cohort; prove schema migration across incompatible state;
+exercise Windows UIA or Linux AT-SPI; run NVDA or Orca; sign or publish
+artifacts; or establish platform support or release readiness.
 
 ## Local Headless And Docker Smoke
 

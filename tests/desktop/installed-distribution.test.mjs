@@ -40,12 +40,16 @@ test("desktop live smoke prioritizes an explicitly installed executable", () => 
   assert.match(result.stderr, new RegExp(`missing packaged executable: ${missingExecutable.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
 });
 
-test("Windows hosted qualification installs, smokes, and always removes the NSIS package", async () => {
+test("Windows hosted qualification installs, updates, rolls back, and removes the NSIS package", async () => {
   const steps = await workflowSteps();
   const workflow = YAML.parse(await readFile(workflowPath, "utf8"));
   const builder = YAML.parse(await readFile(builderPath, "utf8"));
-  const install = stepByName(steps, "Install Windows NSIS package");
-  const smoke = stepByName(steps, "Start installed Windows app and read Chromium AX tree");
+  const install = stepByName(steps, "Install base Windows NSIS package");
+  const baseSmoke = stepByName(steps, "Start base Windows app and read exact version");
+  const update = stepByName(steps, "Update Windows NSIS package");
+  const updatedSmoke = stepByName(steps, "Start updated Windows app and read exact version");
+  const rollback = stepByName(steps, "Roll back Windows NSIS package");
+  const rolledBackSmoke = stepByName(steps, "Start rolled-back Windows app and read exact version");
   const cleanup = stepByName(steps, "Uninstall Windows NSIS package and verify cleanup");
 
   assert.equal(install.if, "matrix.distribution == 'windows'");
@@ -54,7 +58,16 @@ test("Windows hosted qualification installs, smokes, and always removes the NSIS
   assert.match(install.run, /InstallLocation/);
   assert.match(install.run, /HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall/);
   assert.match(install.run, /OPL_DESKTOP_EXECUTABLE=/);
-  assert.equal(smoke.run, "npm run smoke:desktop-live");
+  assert.match(install.run, /DisplayVersion/);
+  assert.match(baseSmoke.run, /OPL_DESKTOP_BASE_VERSION/);
+  assert.match(update.run, /out-target/);
+  assert.match(update.run, /OPL_DESKTOP_TARGET_VERSION/);
+  assert.match(update.run, /OPL_DESKTOP_STATE_MARKER/);
+  assert.match(updatedSmoke.run, /OPL_DESKTOP_TARGET_VERSION/);
+  assert.match(rollback.run, /Get-ChildItem -Path out /);
+  assert.match(rollback.run, /OPL_DESKTOP_BASE_VERSION/);
+  assert.match(rollback.run, /OPL_DESKTOP_STATE_MARKER/);
+  assert.match(rolledBackSmoke.run, /OPL_DESKTOP_BASE_VERSION/);
   assert.match(cleanup.if, /always\(\)/);
   assert.match(cleanup.run, /OPL_DESKTOP_WINDOWS_INSTALL_ATTEMPTED/);
   assert.match(cleanup.run, /Uninstall One Person Lab Preview\.exe/);
@@ -62,10 +75,14 @@ test("Windows hosted qualification installs, smokes, and always removes the NSIS
   assert.doesNotMatch(cleanup.run, /Get-ChildItem[^\n]+-Recurse/);
 });
 
-test("Linux hosted qualification installs, smokes, and always purges the DEB package", async () => {
+test("Linux hosted qualification installs, updates, rolls back, and purges the DEB package", async () => {
   const steps = await workflowSteps();
-  const install = stepByName(steps, "Install Linux DEB package");
-  const smoke = stepByName(steps, "Start installed Linux app and read Chromium AX tree");
+  const install = stepByName(steps, "Install base Linux DEB package");
+  const baseSmoke = stepByName(steps, "Start base Linux app and read exact version");
+  const update = stepByName(steps, "Update Linux DEB package");
+  const updatedSmoke = stepByName(steps, "Start updated Linux app and read exact version");
+  const rollback = stepByName(steps, "Roll back Linux DEB package");
+  const rolledBackSmoke = stepByName(steps, "Start rolled-back Linux app and read exact version");
   const cleanup = stepByName(steps, "Purge Linux DEB package and verify cleanup");
 
   assert.equal(install.if, "matrix.distribution == 'linux'");
@@ -74,10 +91,41 @@ test("Linux hosted qualification installs, smokes, and always purges the DEB pac
   assert.match(install.run, /root:root 755/);
   assert.match(install.run, /root:root 4755/);
   assert.match(install.run, /OPL_DESKTOP_EXECUTABLE=/);
-  assert.match(smoke.run, /xvfb-run --auto-servernum npm run smoke:desktop-live/);
+  assert.match(install.run, /dpkg-query -W/);
+  assert.match(baseSmoke.run, /OPL_DESKTOP_BASE_VERSION/);
+  assert.match(update.run, /out-target\/\*\.deb/);
+  assert.match(update.run, /OPL_DESKTOP_TARGET_VERSION/);
+  assert.match(update.run, /OPL_DESKTOP_STATE_MARKER/);
+  assert.match(updatedSmoke.run, /OPL_DESKTOP_TARGET_VERSION/);
+  assert.match(rollback.run, /--allow-downgrades/);
+  assert.match(rollback.run, /OPL_DESKTOP_BASE_VERSION/);
+  assert.match(rollback.run, /OPL_DESKTOP_STATE_MARKER/);
+  assert.match(rolledBackSmoke.run, /OPL_DESKTOP_BASE_VERSION/);
   assert.match(cleanup.if, /always\(\)/);
   assert.match(cleanup.run, /sudo dpkg --purge/);
   assert.match(cleanup.run, /test ! -e "\$OPL_DESKTOP_APP_PATH"/);
+});
+
+test("hosted lifecycle reuses bounded user state and validates both package versions", async () => {
+  const steps = await workflowSteps();
+  const prepare = stepByName(steps, "Prepare lifecycle versions and persistent smoke state");
+  const buildTarget = stepByName(steps, "Build unsigned target ${{ matrix.label }} distribution");
+  const validate = stepByName(steps, "Validate base and target native package sets");
+  const cleanup = stepByName(steps, "Remove lifecycle smoke state");
+  const smoke = await readFile(smokePath, "utf8");
+
+  assert.match(prepare.run, /OPL_DESKTOP_BASE_VERSION/);
+  assert.match(prepare.run, /OPL_DESKTOP_TARGET_VERSION/);
+  assert.match(prepare.run, /OPL_DESKTOP_SMOKE_STATE_ROOT/);
+  assert.match(buildTarget.run, /extraMetadata\.version/);
+  assert.match(buildTarget.run, /--publish never/);
+  assert.match(validate.run, /--out-root out-target/);
+  assert.match(validate.run, /--version "\$OPL_DESKTOP_TARGET_VERSION"/);
+  assert.match(cleanup.if, /always\(\)/);
+  assert.match(cleanup.run, /system temp directory/);
+  assert.match(smoke, /OPL_DESKTOP_EXPECTED_VERSION/);
+  assert.match(smoke, /windowState\.version/);
+  assert.match(smoke, /if \(ownsStateRoot\) fs\.rmSync/);
 });
 
 test("Linux supports only the DEB native carrier", async () => {
