@@ -90,6 +90,14 @@ jobs:
       - name: Start unpacked app and read Chromium AX tree
         run: ${{ matrix.live_command }}
 
+      - name: Install AppImage FUSE runtime
+        if: matrix.distribution == 'linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes libfuse2t64
+          ldconfig -p | grep -F 'libfuse.so.2'
+
       - name: Inspect AppImage portable integration
         if: matrix.distribution == 'linux'
         shell: bash
@@ -112,6 +120,7 @@ jobs:
 
           payload_root="$inspect_root/squashfs-root"
           test -x "$payload_root/AppRun"
+          test "$(stat -c '%a' "$payload_root/chrome-sandbox")" = '4755'
           desktop_entries=("$payload_root"/*.desktop)
           test "${#desktop_entries[@]}" -eq 1
           grep -Fx 'Name=One Person Lab Preview' "${desktop_entries[0]}"
@@ -132,11 +141,11 @@ jobs:
         run: |
           test -x "$OPL_DESKTOP_APPIMAGE"
           test -d "$OPL_DESKTOP_APPIMAGE_TMPDIR"
-          APPIMAGE_EXTRACT_AND_RUN=1 \
-            TMPDIR="$OPL_DESKTOP_APPIMAGE_TMPDIR" \
-            OPL_DESKTOP_EXECUTABLE="$OPL_DESKTOP_APPIMAGE" \
-            OPL_DESKTOP_APP_PATH="$OPL_DESKTOP_APPIMAGE" \
-            xvfb-run --auto-servernum npm run smoke:desktop-live
+          OPL_DESKTOP_RUNTIME_TMPDIR="$OPL_DESKTOP_APPIMAGE_TMPDIR" \
+          OPL_DESKTOP_LAUNCH_ARGS_JSON='["--enable-sandbox"]' \
+          OPL_DESKTOP_EXECUTABLE="$OPL_DESKTOP_APPIMAGE" \
+          OPL_DESKTOP_APP_PATH="$OPL_DESKTOP_APPIMAGE" \
+          xvfb-run --auto-servernum npm run smoke:desktop-live
 
       - name: Remove AppImage portable candidate and verify cleanup
         if: ${{ always() && matrix.distribution == 'linux' }}

@@ -2,6 +2,7 @@ appId: cn.gflab.opl.studio.preview
 productName: One Person Lab Preview
 asar: true
 npmRebuild: false
+afterPack: scripts/desktop/linux-sandbox-after-pack.cjs
 directories:
   output: out
 files:

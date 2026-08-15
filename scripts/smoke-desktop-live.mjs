@@ -10,6 +10,14 @@ const outRoot = path.join(root, "out");
 const fakeAppServer = path.join(root, "scripts", "webui-host", "fixtures", "fake-app-server.mjs");
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+function configuredLaunchArgs() {
+  const raw = process.env.OPL_DESKTOP_LAUNCH_ARGS_JSON?.trim();
+  if (!raw) return [];
+  const parsed = JSON.parse(raw);
+  assert.ok(Array.isArray(parsed) && parsed.every((value) => typeof value === "string"), "OPL_DESKTOP_LAUNCH_ARGS_JSON must be a JSON string array");
+  return parsed;
+}
+
 function findPackagedExecutable() {
   const configuredExecutable = process.env.OPL_DESKTOP_EXECUTABLE?.trim();
   if (configuredExecutable) {
@@ -107,11 +115,14 @@ const lifecycleLog = path.join(stateRoot, "fake-app-server-lifecycle.jsonl");
 const oplBinary = process.platform === "win32"
   ? path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "where.exe")
   : "/usr/bin/true";
+const runtimeTmpDir = process.env.OPL_DESKTOP_RUNTIME_TMPDIR?.trim();
+if (runtimeTmpDir) assert.ok(path.isAbsolute(runtimeTmpDir), "OPL_DESKTOP_RUNTIME_TMPDIR must be absolute");
 
-const child = spawn(executable, ["--disable-gpu", "--enable-logging=stderr"], {
+const child = spawn(executable, [...configuredLaunchArgs(), "--disable-gpu", "--enable-logging=stderr"], {
   cwd: root,
   env: {
     ...process.env,
+    ...(runtimeTmpDir ? { TMPDIR: runtimeTmpDir } : {}),
     OPL_CODEX_BIN: process.execPath,
     CODEX_APP_SERVER_ARGS: fakeAppServer,
     FAKE_APP_SERVER_LIFECYCLE_LOG: lifecycleLog,
