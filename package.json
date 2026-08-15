@@ -4,6 +4,15 @@
   "private": true,
   "type": "module",
   "description": "First-party One Person Lab App shell with one WebUI across desktop and headless hosts.",
+  "homepage": "https://github.com/gaofeng21cn/opl-studio",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gaofeng21cn/opl-studio.git"
+  },
+  "author": {
+    "name": "Feng Gao",
+    "email": "gaofeng21cn@hotmail.com"
+  },
   "main": "desktop/main.mjs",
   "license": "Apache-2.0",
   "dependencies": {
@@ -69,7 +78,7 @@
     "dist:linux": "npm run build:desktop && electron-builder --linux --config electron-builder.yml",
     "build:docker": "docker build --tag one-person-lab-app:headless-candidate .",
     "smoke:desktop-live": "node scripts/smoke-desktop-live.mjs",
-    "test:desktop": "node --test desktop/app-log-directory.test.mjs desktop/desktop-contract.test.mjs desktop/shutdown.test.mjs desktop/updater.test.mjs && npm run test:desktop-distribution",
+    "test:desktop": "node --test desktop/accessibility-qualification.test.mjs desktop/app-log-directory.test.mjs desktop/desktop-contract.test.mjs desktop/shutdown.test.mjs desktop/updater.test.mjs && npm run test:desktop-distribution",
     "test:desktop-distribution": "node --test tests/desktop/*.test.mjs",
     "test:headless": "node --test tests/headless/*.test.mjs",
     "test:gateway-account-projection": "bun test tests/workbench/gateway-account-cache.test.mts && bun run scripts/gateway-account-projection-regression.ts",
@@ -85,6 +94,7 @@
     "validate:candidate": "node scripts/validate-opl-studio-candidate.mjs",
     "validate:state-model": "node scripts/validate-state-model.mjs",
     "validate:package": "node scripts/validate-desktop-package.mjs",
+    "qualify:desktop:distribution": "node scripts/validate-desktop-package.mjs --distribution",
     "qualify:desktop:mac": "node scripts/desktop/macos-distribution.mjs",
     "qualify:desktop:mac:release": "node scripts/desktop/macos-distribution.mjs --require-release-trust --require-public-feed",
     "qualify:desktop:updater:local": "node scripts/desktop/qualify-local-updater.mjs",

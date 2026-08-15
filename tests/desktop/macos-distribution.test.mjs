@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 import {
   prepareMacUpdateFeed,
@@ -12,7 +13,7 @@ import {
 } from "../../scripts/desktop/macos-distribution.mjs";
 import { nextPatchVersion } from "../../scripts/desktop/qualify-local-updater.mjs";
 
-const root = path.resolve(new URL("../..", import.meta.url).pathname);
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 test("local updater qualification derives exactly one patch-newer target", () => {
   assert.equal(nextPatchVersion("0.1.0"), "0.1.1");

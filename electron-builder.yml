@@ -27,6 +27,7 @@ win:
 linux:
   icon: assets/branding/opl-studio.png
   category: Development
+  maintainer: Feng Gao <gaofeng21cn@hotmail.com>
   target:
     - AppImage
     - deb

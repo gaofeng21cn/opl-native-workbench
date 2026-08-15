@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createOplHostCore } from "../scripts/webui-host/host-core.mjs";
+import { captureDesktopAccessibility } from "./accessibility-qualification.mjs";
 import { createAppLogDirectoryController } from "./app-log-directory.mjs";
 import { createShutdownController } from "./shutdown.mjs";
 import {
@@ -59,13 +60,26 @@ function createWindow() {
       webSecurity: true
     }
   });
-  window.once("ready-to-show", () => {
+  window.once("ready-to-show", async () => {
     window.show();
     if (typeof process.send === "function") {
+      let accessibilityQualification = null;
+      if (process.env.OPL_DESKTOP_ACCESSIBILITY_QUALIFICATION === "1") {
+        try {
+          accessibilityQualification = await captureDesktopAccessibility(window.webContents);
+        } catch (error) {
+          accessibilityQualification = {
+            schema: "opl_desktop_chromium_ax_tree_smoke.v1",
+            status: "failed",
+            detail: error instanceof Error ? error.message : String(error)
+          };
+        }
+      }
       process.send({
         type: "opl-desktop-ready",
         visible: window.isVisible(),
-        windowCount: BrowserWindow.getAllWindows().length
+        windowCount: BrowserWindow.getAllWindows().length,
+        accessibilityQualification
       });
     }
   });

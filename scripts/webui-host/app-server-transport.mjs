@@ -171,20 +171,23 @@ export class CodexAppServerTransport extends EventEmitter {
     this.process = null;
     this.initialized = false;
     child.stdin.end();
-    child.kill("SIGTERM");
     await new Promise((resolve) => {
       if (child.exitCode !== null) return resolve();
       let settled = false;
       const finish = () => {
         if (settled) return;
         settled = true;
+        clearTimeout(terminateTimer);
         clearTimeout(forceTimer);
         clearTimeout(abandonTimer);
         resolve();
       };
+      const terminateTimer = setTimeout(() => {
+        if (child.exitCode === null) child.kill("SIGTERM");
+      }, 500);
       const forceTimer = setTimeout(() => {
-        child.kill("SIGKILL");
-      }, 2_000);
+        if (child.exitCode === null) child.kill("SIGKILL");
+      }, 2_500);
       const abandonTimer = setTimeout(finish, 5_000);
       child.once("exit", finish);
     });

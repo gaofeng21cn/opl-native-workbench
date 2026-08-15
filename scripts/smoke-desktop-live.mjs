@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -9,10 +10,26 @@ const outRoot = path.join(root, "out");
 const fakeAppServer = path.join(root, "scripts", "webui-host", "fixtures", "fake-app-server.mjs");
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-function findMacApp() {
+function findPackagedExecutable() {
   if (!fs.existsSync(outRoot)) return null;
-  for (const entry of fs.readdirSync(outRoot, { recursive: true }).map(String)) {
-    if (entry.endsWith("One Person Lab Preview.app")) return path.join(outRoot, entry);
+  if (process.platform === "darwin") {
+    for (const entry of fs.readdirSync(outRoot, { recursive: true }).map(String)) {
+      if (entry.endsWith("One Person Lab Preview.app")) {
+        const appPath = path.join(outRoot, entry);
+        return {
+          appPath,
+          executable: path.join(appPath, "Contents", "MacOS", "One Person Lab Preview")
+        };
+      }
+    }
+  }
+  if (process.platform === "win32") {
+    const executable = path.join(outRoot, "win-unpacked", "One Person Lab Preview.exe");
+    return fs.existsSync(executable) ? { appPath: path.dirname(executable), executable } : null;
+  }
+  if (process.platform === "linux") {
+    const executable = path.join(outRoot, "linux-unpacked", "one-person-lab-preview");
+    return fs.existsSync(executable) ? { appPath: path.dirname(executable), executable } : null;
   }
   return null;
 }
@@ -51,23 +68,43 @@ async function waitFor(predicate, timeoutMs, label) {
   throw new Error(`timed out waiting for ${label}`);
 }
 
-if (process.platform !== "darwin") {
-  console.log(JSON.stringify({ status: "desktop_live_smoke_not_applicable", platform: process.platform }, null, 2));
-  process.exit(0);
+function lifecycleEvents(file) {
+  if (!fs.existsSync(file)) return [];
+  return fs.readFileSync(file, "utf8").trim().split("\n").flatMap((line) => {
+    try { return [JSON.parse(line)]; } catch { return []; }
+  });
 }
 
-const appPath = findMacApp();
-assert.ok(appPath, "run npm run package before the desktop live smoke");
-const executable = path.join(appPath, "Contents", "MacOS", "One Person Lab Preview");
-assert.ok(fs.existsSync(executable), `missing packaged executable: ${executable}`);
+function processExists(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code !== "ESRCH";
+  }
+}
 
-const child = spawn(executable, [], {
+assert.ok(["darwin", "win32", "linux"].includes(process.platform), `unsupported desktop smoke platform: ${process.platform}`);
+const packaged = findPackagedExecutable();
+assert.ok(packaged, "run the current platform desktop package before the desktop live smoke");
+const { appPath, executable } = packaged;
+assert.ok(fs.existsSync(executable), `missing packaged executable: ${executable}`);
+const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), "opl-desktop-live-smoke-"));
+const lifecycleLog = path.join(stateRoot, "fake-app-server-lifecycle.jsonl");
+const oplBinary = process.platform === "win32"
+  ? path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "where.exe")
+  : "/usr/bin/true";
+
+const child = spawn(executable, ["--disable-gpu"], {
   cwd: root,
   env: {
     ...process.env,
     OPL_CODEX_BIN: process.execPath,
     CODEX_APP_SERVER_ARGS: fakeAppServer,
-    OPL_APP_OPL_BIN: "/usr/bin/true",
+    FAKE_APP_SERVER_LIFECYCLE_LOG: lifecycleLog,
+    OPL_APP_OPL_BIN: oplBinary,
+    OPL_DESKTOP_ACCESSIBILITY_QUALIFICATION: "1",
+    OPL_DESKTOP_UPDATE_QUALIFICATION_STATE_ROOT: stateRoot,
     OPL_NATIVE_WORKBENCH_CODEX_CWD: root,
     OPL_NATIVE_WORKBENCH_READ_ONLY: "1"
   },
@@ -85,25 +122,45 @@ try {
     30_000,
     "a visible One Person Lab window"
   );
+  assert.equal(
+    windowState.accessibilityQualification?.status,
+    "passed",
+    windowState.accessibilityQualification?.detail
+      ?? `Chromium AX tree smoke failed: ${JSON.stringify(windowState.accessibilityQualification)}`
+  );
 
-  const appServer = await waitFor(() => descendants(child.pid).find((row) => row.command.includes("fake-app-server.mjs")), 10_000, "the shared Codex App Server child");
-  appServerPid = appServer.pid;
+  const appServerStart = await waitFor(
+    () => lifecycleEvents(lifecycleLog).find((event) => event.event === "start"),
+    10_000,
+    "the shared Codex App Server child"
+  );
+  appServerPid = appServerStart.pid;
+  if (process.platform === "darwin") {
+    assert.ok(descendants(child.pid).some((row) => row.pid === appServerPid && row.command.includes("fake-app-server.mjs")));
+  }
 
   child.send({ type: "opl-desktop-smoke-quit" });
-  await waitFor(() => child.exitCode !== null, 15_000, "desktop process exit");
-  await waitFor(() => !processRows().some((row) => row.pid === appServerPid), 10_000, "Codex App Server cleanup");
+  await waitFor(() => child.exitCode !== null || child.signalCode !== null, 15_000, "desktop process exit");
+  await waitFor(() => !processExists(appServerPid), 10_000, "Codex App Server cleanup");
+  const gracefulExit = lifecycleEvents(lifecycleLog).find((event) => event.event === "exit") ?? null;
+  if (process.platform === "darwin") {
+    await waitFor(() => !processRows().some((row) => row.pid === appServerPid), 10_000, "Codex App Server process cleanup");
+  }
 
   console.log(JSON.stringify({
     status: "desktop_live_smoke_passed",
     platform: process.platform,
     appPath,
     windowState,
+    accessibility: windowState.accessibilityQualification,
     appServerChildObserved: true,
-    appServerChildCleaned: true
+    appServerChildCleaned: true,
+    appServerGracefulExitObserved: gracefulExit !== null
   }, null, 2));
 } finally {
-  if (child.exitCode === null) child.kill("SIGKILL");
-  if (appServerPid && processRows().some((row) => row.pid === appServerPid)) {
+  if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+  if (appServerPid && !lifecycleEvents(lifecycleLog).some((event) => event.event === "exit")) {
     try { process.kill(appServerPid, "SIGKILL"); } catch {}
   }
+  fs.rmSync(stateRoot, { recursive: true, force: true });
 }

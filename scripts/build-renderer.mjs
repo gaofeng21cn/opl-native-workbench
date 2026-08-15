@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolveAppRepoRoot } from "./resolve-app-repo-root.mjs";
 
-const root = path.resolve(new URL("..", import.meta.url).pathname);
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const templatePath = path.join(root, "src", "renderer-shell.html");
 const appRepoRoot = resolveAppRepoRoot(root);
 const appProductProfilePath = path.join(appRepoRoot, "contracts", "app-product-profile.json");

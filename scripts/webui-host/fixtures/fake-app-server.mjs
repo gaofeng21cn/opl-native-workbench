@@ -5,6 +5,7 @@ const workspace = process.env.FAKE_WORKSPACE ?? "/workspace/project-a";
 const configuredProjectKey = process.env.FAKE_PROJECT_KEY ?? "project-a";
 const projectKey = configuredProjectKey === "__projectless__" ? null : configuredProjectKey;
 const logPath = process.env.FAKE_APP_SERVER_LOG;
+const lifecyclePath = process.env.FAKE_APP_SERVER_LIFECYCLE_LOG;
 const threads = new Map([
   ["thread-source", thread("thread-source", { type: "idle" }, ["src/source.ts"])],
   ["thread-idle", thread("thread-idle", { type: "idle" }, ["src/idle.ts"])],
@@ -22,6 +23,26 @@ const threads = new Map([
 ]);
 let nextThread = 1;
 let nextTurn = 1;
+let lifecycleClosed = false;
+
+function lifecycle(event, detail = {}) {
+  if (lifecyclePath) appendFileSync(lifecyclePath, `${JSON.stringify({ event, pid: process.pid, ...detail })}\n`);
+}
+
+function closeLifecycle(reason) {
+  if (lifecycleClosed) return;
+  lifecycleClosed = true;
+  lifecycle("exit", { reason });
+}
+
+lifecycle("start");
+process.once("exit", () => closeLifecycle("process_exit"));
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.once(signal, () => {
+    closeLifecycle(signal);
+    process.exit(0);
+  });
+}
 
 function turn(id, status, items = []) {
   return { id, items, itemsView: { type: "full" }, status, error: null, startedAt: 1, completedAt: null, durationMs: null };
@@ -162,6 +183,10 @@ async function handle(frame) {
 }
 
 const lines = readline.createInterface({ input: process.stdin });
+lines.once("close", () => {
+  closeLifecycle("stdin_closed");
+  process.exit(0);
+});
 lines.on("line", (line) => {
   try {
     void handle(JSON.parse(line));
