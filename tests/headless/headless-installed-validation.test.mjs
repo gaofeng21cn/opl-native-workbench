@@ -31,6 +31,7 @@ test("hosted macOS qualification installs pinned runtime inputs and reads owner 
   const framework = named(job.steps, "Checkout Framework Host");
   const frameworkRuntime = named(job.steps, "Prepare pinned Framework runtime");
   const app = named(job.steps, "Checkout App product authority");
+  const bun = named(job.steps, "Set up Bun");
   const codex = named(job.steps, "Install pinned Codex CLI");
   const install = named(job.steps, "Install headless macOS user service");
   const inspect = named(job.steps, "Inspect installed headless runtime");
@@ -48,6 +49,8 @@ test("hosted macOS qualification installs pinned runtime inputs and reads owner 
   assert.doesNotMatch(frameworkRuntime.run, /npm run build(?:\s|$)/);
   assert.equal(app.with.repository, "gaofeng21cn/one-person-lab-app");
   assert.equal(app.with.ref, "${{ steps.runtime-cohort.outputs.app_sha }}");
+  assert.equal(bun.uses, "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6");
+  assert.equal(bun.with["bun-version"], "1.3.14");
   assert.match(codex.run, /@openai\/codex@0\.147\.0/);
   assert.match(codex.run, /OPL_CODEX_BIN=/);
 
