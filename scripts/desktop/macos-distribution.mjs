@@ -99,6 +99,98 @@ export async function prepareMacUpdateFeed({ outRoot } = {}) {
   return result;
 }
 
+function dedicatedPublicFeedUrl(value) {
+  invariant(typeof value === "string" && value, "public update feed URL is required");
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("public update feed URL is invalid");
+  }
+  invariant(url.protocol === "https:", "public update feed must use HTTPS");
+  invariant(!url.username && !url.password && !url.search && !url.hash, "public update feed URL must not contain credentials, query, or fragment");
+  invariant(url.hostname === "github.com", "public update feed must use GitHub Releases");
+  invariant(
+    /^\/gaofeng21cn\/opl-studio\/releases\/download\/[^/]+\/$/.test(url.pathname),
+    "public update feed must target one gaofeng21cn/opl-studio release"
+  );
+  return url;
+}
+
+async function publicResponse(fetchImpl, baseUrl, name) {
+  const response = await fetchImpl(new URL(safeArtifactName(name), baseUrl), { redirect: "follow" });
+  invariant(response?.ok, `public update asset ${name} is unavailable anonymously (${response?.status ?? "unknown"})`);
+  return response;
+}
+
+async function publicBytes(fetchImpl, baseUrl, name) {
+  return Buffer.from(await (await publicResponse(fetchImpl, baseUrl, name)).arrayBuffer());
+}
+
+async function publicDigest(fetchImpl, baseUrl, name) {
+  const response = await publicResponse(fetchImpl, baseUrl, name);
+  invariant(response.body, `public update asset ${name} has no response body`);
+  const sha512 = createHash("sha512");
+  const sha256 = createHash("sha256");
+  let size = 0;
+  for await (const chunk of response.body) {
+    const bytes = Buffer.from(chunk);
+    size += bytes.length;
+    sha512.update(bytes);
+    sha256.update(bytes);
+  }
+  return {
+    name,
+    size,
+    sha512: sha512.digest("base64"),
+    sha256: sha256.digest("hex")
+  };
+}
+
+export async function validateMacPublicUpdateFeed({
+  outRoot,
+  publicFeedUrl,
+  expectedVersion,
+  fetchImpl = globalThis.fetch
+} = {}) {
+  invariant(outRoot, "outRoot is required");
+  invariant(typeof fetchImpl === "function", "public update feed requires fetch");
+  const baseUrl = dedicatedPublicFeedUrl(publicFeedUrl);
+  const localFeed = await validateMacUpdateFeed({ outRoot, expectedVersion });
+  const primaryBytes = await readFile(path.join(outRoot, "latest-mac.yml"));
+  const compatibilityBytes = await readFile(path.join(outRoot, "latest-arm64-mac.yml"));
+  invariant(
+    Buffer.compare(primaryBytes, await publicBytes(fetchImpl, baseUrl, "latest-mac.yml")) === 0,
+    "public latest-mac.yml does not match the qualified local metadata"
+  );
+  invariant(
+    Buffer.compare(compatibilityBytes, await publicBytes(fetchImpl, baseUrl, "latest-arm64-mac.yml")) === 0,
+    "public latest-arm64-mac.yml does not match the qualified local metadata"
+  );
+
+  const artifacts = [];
+  for (const localArtifact of localFeed.artifacts) {
+    const publicArtifact = await publicDigest(fetchImpl, baseUrl, localArtifact.name);
+    invariant(
+      publicArtifact.size === localArtifact.size &&
+        publicArtifact.sha512 === localArtifact.sha512 &&
+        publicArtifact.sha256 === localArtifact.sha256,
+      `public update artifact ${localArtifact.name} does not match the qualified local bytes`
+    );
+    artifacts.push(publicArtifact);
+  }
+
+  return {
+    schema: "opl_public_desktop_update_feed_qualification.v1",
+    qualified: true,
+    baseUrl: baseUrl.href,
+    version: localFeed.version,
+    metadata: ["latest-mac.yml", "latest-arm64-mac.yml"],
+    anonymousDownload: true,
+    artifacts
+  };
+}
+
 function plistValue(plistPath, key) {
   return command("/usr/bin/plutil", ["-extract", key, "raw", "-o", "-", plistPath]).stdout.trim();
 }
@@ -145,7 +237,10 @@ function dmgFormat(dmgPath) {
 export async function qualifyMacDistribution({
   outRoot = path.join(repositoryRoot, "out"),
   packageFile = path.join(repositoryRoot, "package.json"),
-  requireReleaseTrust = false
+  requireReleaseTrust = false,
+  requirePublicFeed = false,
+  publicFeedUrl = process.env.OPL_DESKTOP_PUBLIC_UPDATE_FEED_URL,
+  fetchImpl = globalThis.fetch
 } = {}) {
   invariant(process.platform === "darwin", "macOS distribution qualification requires macOS");
   const pkg = JSON.parse(await readFile(packageFile, "utf8"));
@@ -181,7 +276,33 @@ export async function qualifyMacDistribution({
 
     const trust = trustResult(appPath, path.join(outRoot, dmg.name));
     const releaseTrustAccepted = trust.gatekeeperAccepted && trust.appStapled && trust.dmgStapled;
-    if (requireReleaseTrust) invariant(releaseTrustAccepted, "release trust requires Gatekeeper acceptance and stapled App/DMG tickets");
+    let publicFeed = {
+      schema: "opl_public_desktop_update_feed_qualification.v1",
+      qualified: false,
+      baseUrl: publicFeedUrl || null,
+      reason: "public_update_feed_url_required"
+    };
+    if (publicFeedUrl) {
+      try {
+        publicFeed = await validateMacPublicUpdateFeed({
+          outRoot,
+          publicFeedUrl,
+          expectedVersion: pkg.version,
+          fetchImpl
+        });
+      } catch (error) {
+        publicFeed = {
+          schema: "opl_public_desktop_update_feed_qualification.v1",
+          qualified: false,
+          baseUrl: null,
+          reason: "public_update_feed_qualification_failed",
+          detail: error instanceof Error ? error.message : String(error)
+        };
+      }
+    }
+    const releaseBlockers = [];
+    if (!releaseTrustAccepted) releaseBlockers.push("apple_notarization_and_stapling_required");
+    if (!publicFeed.qualified) releaseBlockers.push("public_update_feed_qualification_required");
     const receipt = {
       schema: "opl_macos_desktop_distribution_qualification.v1",
       carrier: "electron_desktop",
@@ -196,11 +317,19 @@ export async function qualifyMacDistribution({
       updaterZip: { name: zip.name, blockmapPresent: true },
       signature,
       trust,
+      publicFeed,
       localDistributableCandidate: true,
-      releaseReady: releaseTrustAccepted,
-      releaseBlocker: releaseTrustAccepted ? null : "apple_notarization_and_stapling_required"
+      releaseReady: releaseBlockers.length === 0,
+      releaseBlocker: releaseBlockers[0] ?? null,
+      releaseBlockers
     };
     await writeFile(path.join(outRoot, "macos-distribution-qualification.json"), `${JSON.stringify(receipt, null, 2)}\n`);
+    const requiredFailures = [];
+    if (requireReleaseTrust && !releaseTrustAccepted) requiredFailures.push("Gatekeeper acceptance and stapled App/DMG tickets");
+    if (requirePublicFeed && !publicFeed.qualified) {
+      requiredFailures.push(publicFeed.detail ?? "an anonymously downloadable public update feed");
+    }
+    invariant(requiredFailures.length === 0, `release admission requires ${requiredFailures.join("; ")}`);
     return receipt;
   } finally {
     await rm(extractionRoot, { recursive: true, force: true });
@@ -210,7 +339,8 @@ export async function qualifyMacDistribution({
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const receipt = await qualifyMacDistribution({
-    requireReleaseTrust: process.argv.includes("--require-release-trust")
+    requireReleaseTrust: process.argv.includes("--require-release-trust"),
+    requirePublicFeed: process.argv.includes("--require-public-feed")
   });
   process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
 }

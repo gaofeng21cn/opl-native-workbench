@@ -86,7 +86,7 @@
     "validate:state-model": "node scripts/validate-state-model.mjs",
     "validate:package": "node scripts/validate-desktop-package.mjs",
     "qualify:desktop:mac": "node scripts/desktop/macos-distribution.mjs",
-    "qualify:desktop:mac:release": "node scripts/desktop/macos-distribution.mjs --require-release-trust",
+    "qualify:desktop:mac:release": "node scripts/desktop/macos-distribution.mjs --require-release-trust --require-public-feed",
     "qualify:desktop:updater:local": "node scripts/desktop/qualify-local-updater.mjs",
     "smoke:webui": "node scripts/smoke-webui.mjs",
     "smoke:visual": "node scripts/smoke-visual.mjs",

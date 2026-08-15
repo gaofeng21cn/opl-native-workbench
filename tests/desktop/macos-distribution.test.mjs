@@ -7,6 +7,7 @@ import test from "node:test";
 import { parse } from "yaml";
 import {
   prepareMacUpdateFeed,
+  validateMacPublicUpdateFeed,
   validateMacUpdateFeed
 } from "../../scripts/desktop/macos-distribution.mjs";
 import { nextPatchVersion } from "../../scripts/desktop/qualify-local-updater.mjs";
@@ -25,6 +26,8 @@ test("macOS builder declares hardened runtime, ULFO, and the dedicated Studio up
   assert.match(builder, /dmg:\s*\n\s+format:\s*ULFO/);
   assert.match(builder, /publish:\s*\n\s+provider:\s*github\s*\n\s+owner:\s*gaofeng21cn\s*\n\s+repo:\s*opl-studio/);
   assert.match(pkg.scripts["dist:mac"], /qualify:desktop:mac/);
+  assert.match(pkg.scripts["qualify:desktop:mac:release"], /--require-release-trust/);
+  assert.match(pkg.scripts["qualify:desktop:mac:release"], /--require-public-feed/);
   assert.equal(pkg.scripts["test:desktop-distribution"], "node --test tests/desktop/*.test.mjs");
   assert.equal(pkg.scripts["qualify:desktop:updater:local"], "node scripts/desktop/qualify-local-updater.mjs");
 });
@@ -91,4 +94,85 @@ test("macOS updater feed rejects metadata that does not match artifact bytes", a
     validateMacUpdateFeed({ outRoot, expectedVersion: "1.1.0" }),
     /does not match update metadata/
   );
+});
+
+test("public macOS updater admission binds anonymous GitHub release bytes to the local feed", async () => {
+  const outRoot = await mkdtemp(path.join(os.tmpdir(), "opl-public-mac-feed-test-"));
+  const baseUrl = "https://github.com/gaofeng21cn/opl-studio/releases/download/v1.1.0/";
+  const zipName = "one-person-lab-preview-1.1.0-mac-arm64.zip";
+  const dmgName = "one-person-lab-preview-1.1.0-mac-arm64.dmg";
+  const zipBytes = Buffer.from("public signed zip fixture");
+  const dmgBytes = Buffer.from("public signed dmg fixture");
+  const sha512 = (value) => createHash("sha512").update(value).digest("base64");
+  const metadata = Buffer.from([
+    "version: 1.1.0",
+    "files:",
+    `  - url: ${zipName}`,
+    `    sha512: ${sha512(zipBytes)}`,
+    `    size: ${zipBytes.length}`,
+    `  - url: ${dmgName}`,
+    `    sha512: ${sha512(dmgBytes)}`,
+    `    size: ${dmgBytes.length}`,
+    `path: ${zipName}`,
+    `sha512: ${sha512(zipBytes)}`,
+    ""
+  ].join("\n"));
+  const assets = new Map([
+    [`${baseUrl}latest-mac.yml`, metadata],
+    [`${baseUrl}latest-arm64-mac.yml`, metadata],
+    [`${baseUrl}${zipName}`, zipBytes],
+    [`${baseUrl}${dmgName}`, dmgBytes]
+  ]);
+  await writeFile(path.join(outRoot, "latest-mac.yml"), metadata);
+  await writeFile(path.join(outRoot, "latest-arm64-mac.yml"), metadata);
+  await writeFile(path.join(outRoot, zipName), zipBytes);
+  await writeFile(path.join(outRoot, dmgName), dmgBytes);
+
+  const fetchImpl = async (input) => {
+    const bytes = assets.get(String(input));
+    return bytes ? new Response(bytes) : new Response("not found", { status: 404 });
+  };
+  const result = await validateMacPublicUpdateFeed({
+    outRoot,
+    publicFeedUrl: baseUrl,
+    expectedVersion: "1.1.0",
+    fetchImpl
+  });
+  assert.equal(result.qualified, true);
+  assert.equal(result.anonymousDownload, true);
+  assert.deepEqual(result.artifacts.map((entry) => entry.name), [zipName, dmgName]);
+
+  assets.set(`${baseUrl}${dmgName}`, Buffer.from("different public bytes"));
+  await assert.rejects(
+    validateMacPublicUpdateFeed({ outRoot, publicFeedUrl: baseUrl, expectedVersion: "1.1.0", fetchImpl }),
+    /does not match the qualified local bytes/
+  );
+});
+
+test("public macOS updater admission rejects non-canonical feed locations", async () => {
+  await assert.rejects(
+    validateMacPublicUpdateFeed({
+      outRoot: "/tmp/unused",
+      publicFeedUrl: "https://example.com/releases/v1/",
+      fetchImpl: async () => new Response()
+    }),
+    /must use GitHub Releases/
+  );
+});
+
+test("public feed qualification rejects credential-bearing URLs before fetching", async () => {
+  const outRoot = await mkdtemp(path.join(os.tmpdir(), "opl-public-mac-feed-secret-test-"));
+  let fetched = false;
+  await assert.rejects(
+    validateMacPublicUpdateFeed({
+      outRoot,
+      publicFeedUrl: "https://user:secret@github.com/gaofeng21cn/opl-studio/releases/download/v1/",
+      fetchImpl: async () => {
+        fetched = true;
+        return new Response();
+      }
+    }),
+    /must not contain credentials/
+  );
+  assert.equal(fetched, false);
 });
