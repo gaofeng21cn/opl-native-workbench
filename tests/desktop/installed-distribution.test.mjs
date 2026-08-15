@@ -80,6 +80,30 @@ test("Linux hosted qualification installs, smokes, and always purges the DEB pac
   assert.match(cleanup.run, /test ! -e "\$OPL_DESKTOP_APP_PATH"/);
 });
 
+test("Linux hosted qualification inspects, runs, and removes the AppImage portable carrier", async () => {
+  const steps = await workflowSteps();
+  const builder = YAML.parse(await readFile(builderPath, "utf8"));
+  const inspect = stepByName(steps, "Inspect AppImage portable integration");
+  const smoke = stepByName(steps, "Start AppImage and read Chromium AX tree");
+  const cleanup = stepByName(steps, "Remove AppImage portable candidate and verify cleanup");
+
+  assert.equal(inspect.if, "matrix.distribution == 'linux'");
+  assert.deepEqual(builder.appImage.executableArgs, ["--enable-sandbox"]);
+  assert.match(inspect.run, /--appimage-extract/);
+  assert.match(inspect.run, /\.desktop/);
+  assert.match(inspect.run, /Name=One Person Lab Preview/);
+  assert.match(inspect.run, /Exec=AppRun --enable-sandbox %U/);
+  assert.match(inspect.run, /Icon=/);
+  assert.match(inspect.run, /OPL_DESKTOP_APPIMAGE=/);
+  assert.match(smoke.run, /APPIMAGE_EXTRACT_AND_RUN=1/);
+  assert.match(smoke.run, /OPL_DESKTOP_EXECUTABLE="\$OPL_DESKTOP_APPIMAGE"/);
+  assert.match(smoke.run, /xvfb-run --auto-servernum npm run smoke:desktop-live/);
+  assert.match(cleanup.if, /always\(\)/);
+  assert.match(cleanup.run, /find "\$OPL_DESKTOP_APPIMAGE_TMPDIR" -mindepth 1/);
+  assert.match(cleanup.run, /rm -- "\$appimage"/);
+  assert.match(cleanup.run, /test ! -e "\$appimage"/);
+});
+
 test("Linux DEB removal unregisters the installed alternative target", async () => {
   const builder = YAML.parse(await readFile(builderPath, "utf8"));
   const afterRemove = await readFile(linuxAfterRemovePath, "utf8");

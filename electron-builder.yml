@@ -34,6 +34,9 @@ linux:
   target:
     - AppImage
     - deb
+appImage:
+  executableArgs:
+    - --enable-sandbox
 deb:
   afterRemove: scripts/desktop/linux-after-remove.sh
 artifactName: one-person-lab-preview-${version}-${os}-${arch}.${ext}

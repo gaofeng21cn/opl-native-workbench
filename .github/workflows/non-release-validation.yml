@@ -90,6 +90,86 @@ jobs:
       - name: Start unpacked app and read Chromium AX tree
         run: ${{ matrix.live_command }}
 
+      - name: Inspect AppImage portable integration
+        if: matrix.distribution == 'linux'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          appimages=(out/*.AppImage)
+          test "${#appimages[@]}" -eq 1
+          appimage="$(realpath "${appimages[0]}")"
+          chmod +x "$appimage"
+
+          inspect_root="$RUNNER_TEMP/opl-studio-appimage-inspect"
+          runtime_root="$RUNNER_TEMP/opl-studio-appimage-runtime"
+          test ! -e "$inspect_root"
+          test ! -e "$runtime_root"
+          mkdir -p "$inspect_root" "$runtime_root"
+          (
+            cd "$inspect_root"
+            "$appimage" --appimage-extract >/dev/null
+          )
+
+          payload_root="$inspect_root/squashfs-root"
+          test -x "$payload_root/AppRun"
+          desktop_entries=("$payload_root"/*.desktop)
+          test "${#desktop_entries[@]}" -eq 1
+          grep -Fx 'Name=One Person Lab Preview' "${desktop_entries[0]}"
+          grep -Fx 'Exec=AppRun --enable-sandbox %U' "${desktop_entries[0]}"
+          grep -Eq '^Icon=.+$' "${desktop_entries[0]}"
+          icon_name="$(sed -n 's/^Icon=//p' "${desktop_entries[0]}" | head -n 1)"
+          test -n "$icon_name"
+          test -n "$(find -L "$payload_root" -type f \( -name "$icon_name.png" -o -name "$icon_name.svg" -o -name "$icon_name.xpm" \) -print -quit)"
+
+          rm -rf -- "$inspect_root"
+          test ! -e "$inspect_root"
+          echo "OPL_DESKTOP_APPIMAGE=$appimage" >> "$GITHUB_ENV"
+          echo "OPL_DESKTOP_APPIMAGE_TMPDIR=$runtime_root" >> "$GITHUB_ENV"
+
+      - name: Start AppImage and read Chromium AX tree
+        if: matrix.distribution == 'linux'
+        shell: bash
+        run: |
+          test -x "$OPL_DESKTOP_APPIMAGE"
+          test -d "$OPL_DESKTOP_APPIMAGE_TMPDIR"
+          APPIMAGE_EXTRACT_AND_RUN=1 \
+            TMPDIR="$OPL_DESKTOP_APPIMAGE_TMPDIR" \
+            OPL_DESKTOP_EXECUTABLE="$OPL_DESKTOP_APPIMAGE" \
+            OPL_DESKTOP_APP_PATH="$OPL_DESKTOP_APPIMAGE" \
+            xvfb-run --auto-servernum npm run smoke:desktop-live
+
+      - name: Remove AppImage portable candidate and verify cleanup
+        if: ${{ always() && matrix.distribution == 'linux' }}
+        shell: bash
+        run: |
+          appimage="${OPL_DESKTOP_APPIMAGE:-}"
+          if test -z "$appimage"; then
+            shopt -s nullglob
+            appimages=(out/*.AppImage)
+            if test "${#appimages[@]}" -eq 1; then
+              appimage="$(realpath "${appimages[0]}")"
+            fi
+          fi
+
+          if test -n "${OPL_DESKTOP_APPIMAGE_TMPDIR:-}" && test -d "$OPL_DESKTOP_APPIMAGE_TMPDIR"; then
+            deadline=$((SECONDS + 10))
+            while find "$OPL_DESKTOP_APPIMAGE_TMPDIR" -mindepth 1 -print -quit | grep -q . &&
+                  test "$SECONDS" -lt "$deadline"; do
+              sleep 0.5
+            done
+            if find "$OPL_DESKTOP_APPIMAGE_TMPDIR" -mindepth 1 -print -quit | grep -q .; then
+              echo "AppImage runtime left extracted state behind:" >&2
+              find "$OPL_DESKTOP_APPIMAGE_TMPDIR" -mindepth 1 -maxdepth 2 -print >&2
+              exit 1
+            fi
+            rmdir "$OPL_DESKTOP_APPIMAGE_TMPDIR"
+          fi
+
+          if test -n "$appimage"; then
+            rm -- "$appimage"
+            test ! -e "$appimage"
+          fi
+
       - name: Install Windows NSIS package
         if: matrix.distribution == 'windows'
         shell: pwsh
