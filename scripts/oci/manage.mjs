@@ -441,9 +441,25 @@ export function createOciManager({
           previous: existing.current,
           updatedAt: now()
         };
-        const runtime = await applyState(candidate, { forceRecreate: true });
-        await writeState(paths, candidate);
-        return { status: "oci_rolled_back", ...runtime, current: candidate.current, previous: candidate.previous };
+        try {
+          const runtime = await applyState(candidate, { forceRecreate: true });
+          await writeState(paths, candidate);
+          return { status: "oci_rolled_back", ...runtime, current: candidate.current, previous: candidate.previous };
+        } catch (rollbackError) {
+          let recovered = false;
+          let recoveryError = null;
+          try {
+            await applyState(existing, { forceRecreate: true });
+            recovered = true;
+          } catch (error) {
+            recoveryError = error.message;
+          }
+          throw new OciManagerError("rollback_failed", "OCI rollback failed; the current image was retained in installation state", {
+            rollbackError: rollbackError.message,
+            recovered,
+            recoveryError
+          });
+        }
       }
       const args = ["down", "--remove-orphans"];
       if (options.purgeData === true) args.push("--volumes");

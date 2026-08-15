@@ -149,14 +149,18 @@ When a local Docker daemon is available:
 
 ```bash
 npm run smoke:docker
+npm run smoke:docker:lifecycle
 ```
 
-The smoke builds an isolated candidate tag, starts it with isolated `/data` and
+The first smoke builds an isolated candidate tag, starts it with isolated `/data` and
 `/projects` volumes, verifies HTTP health and readiness, UID 1000 and Node PID 1,
-then stops and removes its container, volumes, and image. This proves only the
-local source candidate on the current Docker host. It does not prove an OCI
-registry publication, image digest/cohort authority, multi-architecture build,
-clean-host install, update/rollback, remote access safety, or release readiness.
+then stops and removes its container, volumes, and image. The lifecycle smoke
+adds install, update, recreate, rollback, preserving uninstall, reinstall, and
+destructive cleanup with immutable local image IDs. The hosted non-release job
+also constructs a runner-local `linux/amd64` + `linux/arm64` OCI layout with
+SBOM/provenance attestations and runs the lifecycle on each architecture. None
+of these paths proves registry publication, digest/cohort authority, clean-host
+installation, remote access safety, or release readiness.
 
 ## False-Ready Guard
 

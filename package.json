@@ -77,10 +77,12 @@
     "dist:windows": "npm run build:desktop && electron-builder --win --config electron-builder.yml --publish never",
     "dist:linux": "npm run build:desktop && electron-builder --linux --config electron-builder.yml --publish never",
     "build:docker": "docker build --tag one-person-lab-app:headless-candidate .",
+    "plan:oci:multiarch": "node scripts/oci/build-plan.mjs",
     "smoke:desktop-live": "node scripts/smoke-desktop-live.mjs",
     "test:desktop": "node --test desktop/accessibility-qualification.test.mjs desktop/app-log-directory.test.mjs desktop/desktop-contract.test.mjs desktop/shutdown.test.mjs desktop/updater.test.mjs && npm run test:desktop-distribution",
     "test:desktop-distribution": "node --test tests/desktop/*.test.mjs",
     "test:headless": "node --test tests/headless/*.test.mjs",
+    "test:oci": "node --test tests/oci/*.test.mjs tests/headless/docker-contract.test.mjs",
     "test:gateway-account-projection": "bun test tests/workbench/gateway-account-cache.test.mts && bun run scripts/gateway-account-projection-regression.ts",
     "test:package-projection": "bun test tests/workbench/package-projection.test.mts",
     "test:runtime-projection": "bun test tests/workbench/runtime-projection.test.mts",
@@ -101,6 +103,7 @@
     "smoke:webui": "node scripts/smoke-webui.mjs",
     "smoke:visual": "node scripts/smoke-visual.mjs",
     "smoke:docker": "node tests/headless/docker-smoke.mjs",
-    "test": "npm run typecheck && npm run test:desktop && npm run test:headless && npm run test:gateway-account-projection && npm run test:package-projection && npm run test:runtime-projection && npm run test:ui-contributions && npm run test:client-cordis && npm run test:storage-migration && npm run test:threads && npm run validate:candidate && npm run validate:state-model && npm run smoke:webui && npm run smoke:visual && npm run package && npm run validate:package"
+    "smoke:docker:lifecycle": "node tests/headless/docker-lifecycle-smoke.mjs",
+    "test": "npm run typecheck && npm run test:desktop && npm run test:headless && npm run test:oci && npm run test:gateway-account-projection && npm run test:package-projection && npm run test:runtime-projection && npm run test:ui-contributions && npm run test:client-cordis && npm run test:storage-migration && npm run test:threads && npm run validate:candidate && npm run validate:state-model && npm run smoke:webui && npm run smoke:visual && npm run package && npm run validate:package"
   }
 }

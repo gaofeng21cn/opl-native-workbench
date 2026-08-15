@@ -3,13 +3,20 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("OCI carrier runs only the Node headless host with persistent non-root defaults", async () => {
-  const [dockerfile, compose, distribution] = await Promise.all([
+  const [dockerfile, compose, distribution, workflow, buildPlan] = await Promise.all([
     readFile(new URL("../../Dockerfile", import.meta.url), "utf8"),
     readFile(new URL("../../compose.yaml", import.meta.url), "utf8"),
-    readFile(new URL("../../docker-compose.distribution.yaml", import.meta.url), "utf8")
+    readFile(new URL("../../docker-compose.distribution.yaml", import.meta.url), "utf8"),
+    readFile(new URL("../../.github/workflows/non-release-validation.yml", import.meta.url), "utf8"),
+    readFile(new URL("../../scripts/oci/build-plan.mjs", import.meta.url), "utf8")
   ]);
   assert.match(dockerfile, /node:22-bookworm-slim@sha256:[a-f0-9]{64}/);
-  assert.match(dockerfile, /ARG OPL_APP_REF=65e6d5674d0bcd6aacd977dfbfcbecd925627ae6/);
+  assert.match(dockerfile, /ARG OPL_FRAMEWORK_REF=b0811d88051beee0296345a1692bcccfc3971daf/);
+  assert.match(dockerfile, /ARG OPL_APP_REF=9a7775704619c4e2d6f607874f8aa20227b103fb/);
+  assert.match(dockerfile, /npm pack --workspaces --ignore-scripts/);
+  assert.match(dockerfile, /npm install --global --prefix \/opt\/opl-framework --omit=dev \/tmp\/one-person-lab-\*\.tgz \/tmp\/opl-framework-\*\.tgz/);
+  assert.match(compose, /OPL_FRAMEWORK_REF:-b0811d88051beee0296345a1692bcccfc3971daf/);
+  assert.match(compose, /OPL_APP_REF:-9a7775704619c4e2d6f607874f8aa20227b103fb/);
   const runtime = dockerfile.slice(dockerfile.indexOf("FROM ${NODE_IMAGE} AS runtime"));
   assert.match(runtime, /org\.opencontainers\.image\.revision="\$\{OPL_SOURCE_REVISION\}"/);
   assert.doesNotMatch(runtime, /org\.opencontainers\.image\.licenses/);
@@ -33,4 +40,10 @@ test("OCI carrier runs only the Node headless host with persistent non-root defa
   assert.match(distribution, /image: \$\{OPL_APP_IMAGE:\?immutable OPL_APP_IMAGE is required\}/);
   assert.match(distribution, /pull_policy: never/);
   assert.doesNotMatch(distribution, /\bbuild:/);
+  assert.match(workflow, /name: OCI multi-architecture build and lifecycle/);
+  assert.match(workflow, /plan:oci:multiarch/);
+  assert.match(buildPlan, /type=oci/);
+  assert.match(workflow, /OPL_OCI_LIFECYCLE_PLATFORM: linux\/amd64/);
+  assert.match(workflow, /OPL_OCI_LIFECYCLE_PLATFORM: linux\/arm64/);
+  assert.doesNotMatch(workflow, /docker\/login-action/);
 });

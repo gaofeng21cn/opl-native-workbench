@@ -63,7 +63,11 @@ while Ubuntu 24.04 requires an installed AppArmor policy for the alternative
 user-namespace sandbox. The App does not hide that conflict with host
 provisioning, extraction, or `--no-sandbox`. Every desktop platform and the
 successor OCI carrier still require their remaining independent delivery
-admission before they can be claimed as released or supported.
+admission before they can be claimed as released or supported. The non-release
+workflow now builds a runner-local `linux/amd64` + `linux/arm64` OCI layout with
+SBOM/provenance attestations, then runs the existing install/update/recreate/
+rollback/uninstall lifecycle on both architectures. It does not log in to a
+registry, push an image, or create a release cohort.
 
 The conversation directory is not a Native copy. It reads the canonical Codex
 state DB overview with `thread/list useStateDbOnly=true`, then opens the same

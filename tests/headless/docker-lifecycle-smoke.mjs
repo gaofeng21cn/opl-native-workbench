@@ -8,8 +8,10 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const suffix = `${process.pid}-${Date.now()}`;
-const imageA = `opl-studio-oci-lifecycle-a:${suffix}`;
-const imageB = `opl-studio-oci-lifecycle-b:${suffix}`;
+const qualificationPlatform = process.env.OPL_OCI_LIFECYCLE_PLATFORM || null;
+const platformLabel = qualificationPlatform?.replaceAll("/", "-") ?? "native";
+const imageA = `opl-studio-oci-lifecycle-a-${platformLabel}:${suffix}`;
+const imageB = `opl-studio-oci-lifecycle-b-${platformLabel}:${suffix}`;
 const project = `opl-oci-${suffix}`.toLowerCase();
 const stateDirectory = await mkdtemp(path.join(os.tmpdir(), "opl-oci-state-"));
 const sourceCompose = path.join(root, "docker-compose.distribution.yaml");
@@ -71,17 +73,38 @@ const revisionB = "b".repeat(40);
 
 try {
   for (const [image, revision] of [[imageA, revisionA], [imageB, revisionB]]) {
+    const buildArgs = qualificationPlatform ? [
+      "buildx", "build",
+      "--platform", qualificationPlatform,
+      "--load",
+      "--provenance=false",
+      "--sbom=false"
+    ] : ["build"];
     const build = spawnSync("docker", [
-      "build",
+      ...buildArgs,
       "--build-arg", `OPL_SOURCE_REVISION=${revision}`,
       "--tag", image,
       "."
-    ], { cwd: root, stdio: "inherit", timeout: 20 * 60_000 });
-    assert.equal(build.status, 0, `docker build failed for ${image} with ${build.status}`);
+    ], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, BUILDKIT_PROGRESS: "plain" },
+      maxBuffer: 32 * 1024 * 1024,
+      timeout: 20 * 60_000
+    });
+    if (build.status !== 0) {
+      const output = `${build.stdout ?? ""}\n${build.stderr ?? ""}`;
+      throw new Error(`docker build failed for ${image} with ${build.status}:\n${output.slice(-12_000)}`);
+    }
   }
   const imageAId = docker("image", "inspect", imageA, "--format", "{{.Id}}");
   const imageBId = docker("image", "inspect", imageB, "--format", "{{.Id}}");
   assert.notEqual(imageAId, imageBId);
+  if (qualificationPlatform) {
+    const expectedArchitecture = qualificationPlatform.split("/")[1];
+    assert.equal(docker("image", "inspect", imageA, "--format", "{{.Architecture}}"), expectedArchitecture);
+    assert.equal(docker("image", "inspect", imageB, "--format", "{{.Architecture}}"), expectedArchitecture);
+  }
 
   const baseArgs = [
     "--allow-local-image",
@@ -135,6 +158,7 @@ try {
   console.log(JSON.stringify({
     status: "oci_lifecycle_smoke_passed",
     carrier: "shared_node_host_and_renderer",
+    platform: qualificationPlatform ?? `${process.platform}/${process.arch}`,
     installedImage: imageAId,
     updatedImage: imageBId,
     lifecycle: ["install", "start", "update", "recreate", "rollback", "uninstall"],
@@ -148,7 +172,7 @@ try {
       publishedAddress: "127.0.0.1"
     },
     publicImagePublished: false,
-    hostedArchitectureQualified: false
+    hostedArchitectureQualified: process.env.CI === "true" && qualificationPlatform !== null
   }, null, 2));
 } finally {
   spawnSync("docker", [

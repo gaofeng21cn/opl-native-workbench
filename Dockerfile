@@ -9,7 +9,7 @@ RUN apt-get update \
 
 FROM source-builder-base AS framework-builder
 ARG OPL_FRAMEWORK_REPOSITORY=https://github.com/gaofeng21cn/one-person-lab.git
-ARG OPL_FRAMEWORK_REF=45d8ffba80b06bf1633f1953de054fb1dfe6d614
+ARG OPL_FRAMEWORK_REF=b0811d88051beee0296345a1692bcccfc3971daf
 WORKDIR /src/opl-framework
 
 RUN git init \
@@ -19,8 +19,9 @@ RUN git init \
   && test "$(git rev-parse HEAD)" = "${OPL_FRAMEWORK_REF}"
 RUN npm ci --ignore-scripts \
   && npm run build \
+  && npm pack --workspaces --ignore-scripts --silent --pack-destination /tmp \
   && npm pack --ignore-scripts --silent --pack-destination /tmp \
-  && npm install --global --prefix /opt/opl-framework --omit=dev /tmp/opl-framework-*.tgz \
+  && npm install --global --prefix /opt/opl-framework --omit=dev /tmp/one-person-lab-*.tgz /tmp/opl-framework-*.tgz \
   && npm cache clean --force
 
 FROM ${NODE_IMAGE} AS codex-builder
@@ -30,7 +31,7 @@ RUN npm install --global --prefix /opt/codex "${OPL_CODEX_NPM_SPEC}" \
 
 FROM source-builder-base AS app-product-profile
 ARG OPL_APP_REPOSITORY=https://github.com/gaofeng21cn/one-person-lab-app.git
-ARG OPL_APP_REF=65e6d5674d0bcd6aacd977dfbfcbecd925627ae6
+ARG OPL_APP_REF=9a7775704619c4e2d6f607874f8aa20227b103fb
 WORKDIR /src/one-person-lab-app
 RUN git init \
   && git remote add origin "${OPL_APP_REPOSITORY}" \

@@ -10,18 +10,31 @@ function required(value, name) {
   return value;
 }
 
-export function createMultiArchBuildPlan({ image, sourceRevision, output }) {
+function exactRevision(value, name) {
+  const revision = required(value, name);
+  if (!/^[a-f0-9]{40}$/.test(revision)) {
+    throw new Error(`${name} must be an exact 40-character Git SHA`);
+  }
+  return revision;
+}
+
+export function createMultiArchBuildPlan({ image, sourceRevision, frameworkRef, appRef, output }) {
   const imageRef = required(image, "image");
-  const revision = required(sourceRevision, "sourceRevision");
+  const revision = exactRevision(sourceRevision, "sourceRevision");
+  const frameworkRevision = exactRevision(frameworkRef, "frameworkRef");
+  const appRevision = exactRevision(appRef, "appRef");
   const destination = path.resolve(required(output, "output"));
   if (/:latest$/.test(imageRef)) throw new Error("image must not use the latest tag");
-  if (!/^[a-f0-9]{40}$/.test(revision)) throw new Error("sourceRevision must be an exact 40-character Git SHA");
   return {
     schema: "one_person_lab_oci_multi_arch_build_plan.v1",
     status: "plan_only",
     platforms: multiArchPlatforms,
     image: imageRef,
     sourceRevision: revision,
+    externalCohort: {
+      frameworkRef: frameworkRevision,
+      appRef: appRevision
+    },
     output: destination,
     command: [
       "docker", "buildx", "build",
@@ -30,6 +43,8 @@ export function createMultiArchBuildPlan({ image, sourceRevision, output }) {
       "--sbom=true",
       "--output", `type=oci,dest=${destination}`,
       "--build-arg", `OPL_SOURCE_REVISION=${revision}`,
+      "--build-arg", `OPL_FRAMEWORK_REF=${frameworkRevision}`,
+      "--build-arg", `OPL_APP_REF=${appRevision}`,
       "--tag", imageRef,
       "."
     ],
@@ -51,6 +66,8 @@ function parse(argv) {
     if (!value) throw new Error(`Missing value for ${flag}`);
     if (flag === "--image") options.image = value;
     else if (flag === "--source-revision") options.sourceRevision = value;
+    else if (flag === "--framework-ref") options.frameworkRef = value;
+    else if (flag === "--app-ref") options.appRef = value;
     else if (flag === "--output") options.output = value;
     else throw new Error(`Unknown option: ${flag}`);
   }

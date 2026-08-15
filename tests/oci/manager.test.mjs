@@ -158,6 +158,27 @@ test("failed update restores the previous image and does not advance installatio
   assert.equal(state.previous, null);
 });
 
+test("failed rollback restores the current image and does not advance installation state", async () => {
+  const paths = await fixture();
+  const failUpFor = new Set();
+  const docker = fakeDocker({
+    images: new Map([["fixture:a", imageA], ["fixture:b", imageB]]),
+    failUpFor
+  });
+  const manager = createOciManager({ execute: docker.execute, sourceRoot: paths.sourceRoot });
+  const base = { allowLocalImage: true, stateDirectory: paths.stateDirectory, projectName: "opl-rollback-recovery", port: 49183 };
+  await manager.run("install", { ...base, image: "fixture:a" });
+  await manager.run("update", { ...base, image: "fixture:b" });
+  failUpFor.add(imageA.id);
+  await assert.rejects(
+    manager.run("rollback", base),
+    (error) => error.code === "rollback_failed" && error.details.recovered === true
+  );
+  const state = JSON.parse(await readFile(path.join(paths.stateDirectory, "installation.json"), "utf8"));
+  assert.equal(state.current.observedId, imageB.id);
+  assert.equal(state.previous.observedId, imageA.id);
+});
+
 test("manager rejects a modified installed Compose template before Docker mutation", async () => {
   const paths = await fixture();
   const docker = fakeDocker({ images: new Map([["fixture:a", imageA]]) });
@@ -206,17 +227,34 @@ test("multi-arch build contract is plan-only and requests SBOM plus provenance",
   const plan = createMultiArchBuildPlan({
     image: "ghcr.io/example/one-person-lab:v26.8.15",
     sourceRevision: "a".repeat(40),
+    frameworkRef: "b".repeat(40),
+    appRef: "c".repeat(40),
     output: "./out/one-person-lab.oci.tar"
   });
   assert.deepEqual(plan.platforms, multiArchPlatforms);
   assert.ok(plan.command.includes("linux/amd64,linux/arm64"));
   assert.ok(plan.command.includes("--provenance=mode=max"));
   assert.ok(plan.command.includes("--sbom=true"));
+  assert.deepEqual(plan.externalCohort, {
+    frameworkRef: "b".repeat(40),
+    appRef: "c".repeat(40)
+  });
+  assert.ok(plan.command.includes(`OPL_FRAMEWORK_REF=${"b".repeat(40)}`));
+  assert.ok(plan.command.includes(`OPL_APP_REF=${"c".repeat(40)}`));
   assert.equal(plan.evidenceBoundary.executesBuild, false);
   assert.equal(plan.evidenceBoundary.hostedArchitectureQualified, false);
   assert.throws(() => createMultiArchBuildPlan({
     image: "ghcr.io/example/one-person-lab:latest",
     sourceRevision: "a".repeat(40),
+    frameworkRef: "b".repeat(40),
+    appRef: "c".repeat(40),
     output: "./out/image.tar"
   }), /latest/);
+  assert.throws(() => createMultiArchBuildPlan({
+    image: "ghcr.io/example/one-person-lab:v26.8.15",
+    sourceRevision: "a".repeat(40),
+    frameworkRef: "main",
+    appRef: "c".repeat(40),
+    output: "./out/image.tar"
+  }), /frameworkRef/);
 });

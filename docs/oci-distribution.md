@@ -59,15 +59,19 @@ Generate the non-executing build plan with an exact source revision:
 node scripts/oci/build-plan.mjs \
   --image ghcr.io/OWNER/IMAGE:v26.8.15 \
   --source-revision 0123456789abcdef0123456789abcdef01234567 \
+  --framework-ref 0123456789abcdef0123456789abcdef01234567 \
+  --app-ref 0123456789abcdef0123456789abcdef01234567 \
   --output ./out/one-person-lab.oci.tar
 ```
 
 The plan requests BuildKit provenance, an SBOM, both platforms, and a local OCI
-layout. It deliberately does not execute a build or push an image. A release
-owner must separately prove hosted builds on both architectures, registry
-digest parity, signatures/attestations, vulnerability policy, public
-publication, clean-host installation, update, rollback, and final runtime
-readback.
+layout. It deliberately does not execute a build or push an image. The
+non-release workflow executes that plan into runner-local storage, checks that
+the OCI index contains `linux/amd64` and `linux/arm64` plus attestation
+descriptors, and runs the host manager's full lifecycle on each architecture.
+It has no registry login or push step. Registry digest parity, signatures,
+vulnerability policy, public publication, clean-host installation, and final
+release runtime readback remain separate owner gates.
 
 The Dockerfile pins the multi-platform Node base by digest and pins App and
 Framework source inputs by Git commit. Codex and Bun are exact package versions,
@@ -79,7 +83,7 @@ provenance metadata, not signature verification.
 
 ```bash
 node --test tests/oci/*.test.mjs tests/headless/docker-contract.test.mjs
-node tests/headless/docker-lifecycle-smoke.mjs
+npm run smoke:docker:lifecycle
 npm run smoke:docker
 npm test
 docker compose config
@@ -90,5 +94,7 @@ git diff --check
 The lifecycle smoke builds two local images, then proves install, start, update,
 recreate, rollback, preserving uninstall, reinstallation, destructive uninstall,
 volume persistence, health, image identity, loopback publication, and container
-hardening on the current Docker host. It does not prove a public image, hosted
-architecture, release cohort, or production admission.
+hardening on the current Docker host. The hosted non-release workflow adds the
+two-platform OCI layout and per-architecture QEMU lifecycle, but neither path
+proves a public image, registry identity, release cohort, or production
+admission.
