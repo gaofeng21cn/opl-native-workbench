@@ -25,6 +25,11 @@ test("desktop readiness reports the exact running package version", () => {
   assert.match(main, /type: "opl-desktop-ready",\s+version: app\.getVersion\(\)/);
 });
 
+test("native accessibility support is enabled only by the qualification lane", () => {
+  assert.match(main, /process\.env\.OPL_DESKTOP_NATIVE_ACCESSIBILITY_QUALIFICATION === "1"/);
+  assert.match(main, /app\.setAccessibilitySupportEnabled\(true\)/);
+});
+
 test("Electron owns the App carrier log directory exposed in diagnostics", () => {
   assert.match(main, /app\.getPath\("logs"\)/);
   assert.match(main, /carrierDiagnostics:/);

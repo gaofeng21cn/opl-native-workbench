@@ -121,8 +121,10 @@ unsigned candidates on GitHub-hosted Windows x64 and Linux x64 runners:
   each running version must match the expected cohort;
 - both platform sequences reuse one bounded temporary Electron state directory
   and require its pre-existing marker to survive update and rollback;
-- both platforms require a visible One Person Lab window, a Chromium AX tree
-  with no unnamed interactive controls, and bounded App Server cleanup;
+- both platforms require a visible One Person Lab window, a Chromium AX tree,
+  and a process-bound native Windows UIA or Linux AT-SPI tree with no unnamed
+  interactive controls at base, update, and rollback; each launch also requires
+  bounded App Server cleanup;
 - every distribution command uses `--publish never`.
 
 This closes the unsigned NSIS and DEB install/update/rollback/uninstall
@@ -132,8 +134,8 @@ set because its FUSE mount cannot supply the setuid Chromium sandbox and Ubuntu
 CI does not provision that policy, extract the image, or disable the sandbox to
 turn a prepared host into false portable evidence. The gate does not establish
 a dedicated clean-VM cohort; prove schema migration across incompatible state;
-exercise Windows UIA or Linux AT-SPI; run NVDA or Orca; sign or publish
-artifacts; or establish platform support or release readiness.
+run NVDA or Orca or otherwise prove screen-reader user experience; sign or
+publish artifacts; or establish platform support or release readiness.
 
 ## Local Headless And Docker Smoke
 

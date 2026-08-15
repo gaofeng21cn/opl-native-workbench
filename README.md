@@ -55,11 +55,13 @@ source now includes a standalone Node command and a non-root OCI carrier with
 build two unsigned native package cohorts, launch the unpacked base executable,
 and drive the real Windows NSIS or Linux DEB through install, update, rollback,
 and uninstall. Each installed launch reads the exact running version, requires
-the Chromium accessibility-tree smoke, and reuses one temporary user-state
+the Chromium accessibility-tree smoke plus a process-bound Windows UIA or Linux
+AT-SPI tree with named interactive controls, and reuses one temporary user-state
 marker across the version transitions. This is an ephemeral hosted-runner
-package-lifecycle baseline. It is not dedicated clean-VM, native screen-reader,
-signing, release, or platform-support qualification. AppImage is intentionally not a supported
-target: a user-mounted FUSE image cannot provide the setuid Chromium sandbox,
+package-lifecycle and native-API accessibility baseline. It is not dedicated
+clean-VM, NVDA/Orca user-experience, signing, release, or platform-support
+qualification. AppImage is intentionally not a supported target: a user-mounted
+FUSE image cannot provide the setuid Chromium sandbox,
 while Ubuntu 24.04 requires an installed AppArmor policy for the alternative
 user-namespace sandbox. The App does not hide that conflict with host
 provisioning, extraction, or `--no-sandbox`. Every desktop platform and the

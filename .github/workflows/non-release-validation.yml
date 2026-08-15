@@ -70,6 +70,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install Linux native accessibility runtime
+        if: matrix.distribution == 'linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes at-spi2-core dbus-x11 python3-pyatspi
+
       - name: Run desktop source gates
         run: npm run typecheck && npm run test:desktop
 
@@ -200,6 +207,7 @@ jobs:
         shell: pwsh
         run: |
           $env:OPL_DESKTOP_EXPECTED_VERSION = $env:OPL_DESKTOP_BASE_VERSION
+          $env:OPL_DESKTOP_NATIVE_ACCESSIBILITY_QUALIFICATION = '1'
           npm run smoke:desktop-live
 
       - name: Update Windows NSIS package
@@ -228,6 +236,7 @@ jobs:
         shell: pwsh
         run: |
           $env:OPL_DESKTOP_EXPECTED_VERSION = $env:OPL_DESKTOP_TARGET_VERSION
+          $env:OPL_DESKTOP_NATIVE_ACCESSIBILITY_QUALIFICATION = '1'
           npm run smoke:desktop-live
 
       - name: Roll back Windows NSIS package
@@ -256,6 +265,7 @@ jobs:
         shell: pwsh
         run: |
           $env:OPL_DESKTOP_EXPECTED_VERSION = $env:OPL_DESKTOP_BASE_VERSION
+          $env:OPL_DESKTOP_NATIVE_ACCESSIBILITY_QUALIFICATION = '1'
           npm run smoke:desktop-live
 
       - name: Uninstall Windows NSIS package and verify cleanup
@@ -332,7 +342,13 @@ jobs:
 
       - name: Start base Linux app and read exact version
         if: matrix.distribution == 'linux'
-        run: OPL_DESKTOP_EXPECTED_VERSION="$OPL_DESKTOP_BASE_VERSION" xvfb-run --auto-servernum npm run smoke:desktop-live
+        shell: bash
+        run: |
+          dbus-run-session -- env \
+            NO_AT_BRIDGE=0 \
+            OPL_DESKTOP_NATIVE_ACCESSIBILITY_QUALIFICATION=1 \
+            OPL_DESKTOP_EXPECTED_VERSION="$OPL_DESKTOP_BASE_VERSION" \
+            xvfb-run --auto-servernum npm run smoke:desktop-live
 
       - name: Update Linux DEB package
         if: matrix.distribution == 'linux'
@@ -347,7 +363,13 @@ jobs:
 
       - name: Start updated Linux app and read exact version
         if: matrix.distribution == 'linux'
-        run: OPL_DESKTOP_EXPECTED_VERSION="$OPL_DESKTOP_TARGET_VERSION" xvfb-run --auto-servernum npm run smoke:desktop-live
+        shell: bash
+        run: |
+          dbus-run-session -- env \
+            NO_AT_BRIDGE=0 \
+            OPL_DESKTOP_NATIVE_ACCESSIBILITY_QUALIFICATION=1 \
+            OPL_DESKTOP_EXPECTED_VERSION="$OPL_DESKTOP_TARGET_VERSION" \
+            xvfb-run --auto-servernum npm run smoke:desktop-live
 
       - name: Roll back Linux DEB package
         if: matrix.distribution == 'linux'
@@ -362,7 +384,13 @@ jobs:
 
       - name: Start rolled-back Linux app and read exact version
         if: matrix.distribution == 'linux'
-        run: OPL_DESKTOP_EXPECTED_VERSION="$OPL_DESKTOP_BASE_VERSION" xvfb-run --auto-servernum npm run smoke:desktop-live
+        shell: bash
+        run: |
+          dbus-run-session -- env \
+            NO_AT_BRIDGE=0 \
+            OPL_DESKTOP_NATIVE_ACCESSIBILITY_QUALIFICATION=1 \
+            OPL_DESKTOP_EXPECTED_VERSION="$OPL_DESKTOP_BASE_VERSION" \
+            xvfb-run --auto-servernum npm run smoke:desktop-live
 
       - name: Purge Linux DEB package and verify cleanup
         if: ${{ always() && matrix.distribution == 'linux' }}

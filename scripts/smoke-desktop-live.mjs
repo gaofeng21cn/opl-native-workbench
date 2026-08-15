@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { qualifyNativeAccessibility } from "../desktop/native-accessibility-qualification.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outRoot = path.join(root, "out");
@@ -113,6 +114,7 @@ const stateRoot = configuredStateRoot
 fs.mkdirSync(stateRoot, { recursive: true });
 const lifecycleLog = path.join(stateRoot, `fake-app-server-lifecycle-${process.pid}.jsonl`);
 const expectedVersion = process.env.OPL_DESKTOP_EXPECTED_VERSION?.trim();
+const nativeAccessibilityRequired = process.env.OPL_DESKTOP_NATIVE_ACCESSIBILITY_QUALIFICATION === "1";
 const oplBinary = process.platform === "win32"
   ? path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "where.exe")
   : "/usr/bin/true";
@@ -135,6 +137,7 @@ const child = spawn(executable, ["--disable-gpu", "--enable-logging=stderr"], {
 
 let appServerPid;
 let readyReceipt;
+let nativeAccessibility = null;
 let spawnError;
 let stdoutTail = "";
 let stderrTail = "";
@@ -176,6 +179,12 @@ try {
   if (expectedVersion) {
     assert.equal(windowState.version, expectedVersion, "desktop ready receipt reported the wrong running version");
   }
+  if (nativeAccessibilityRequired) {
+    const processIds = process.platform === "linux"
+      ? [child.pid, ...descendants(child.pid).map((row) => row.pid)]
+      : [child.pid];
+    nativeAccessibility = qualifyNativeAccessibility({ processIds });
+  }
 
   const appServerStart = await waitFor(
     () => lifecycleEvents(lifecycleLog).find((event) => event.event === "start"),
@@ -201,6 +210,7 @@ try {
     appPath,
     windowState,
     accessibility: windowState.accessibilityQualification,
+    nativeAccessibility,
     appServerChildObserved: true,
     appServerChildCleaned: true,
     appServerGracefulExitObserved: gracefulExit !== null

@@ -156,6 +156,9 @@ async function createDesktopHost(appLogDirectory) {
 }
 
 app.whenReady().then(async () => {
+  if (process.env.OPL_DESKTOP_NATIVE_ACCESSIBILITY_QUALIFICATION === "1") {
+    app.setAccessibilitySupportEnabled(true);
+  }
   const appLogDirectory = createAppLogDirectoryController({ electronApp: app });
   await appLogDirectory.restore();
   const desktopHost = await createDesktopHost(appLogDirectory);
