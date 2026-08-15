@@ -51,7 +51,7 @@ release admission, and is explicitly adopted.
 | DSH GUI baseline | `pinned_source_reuse_implemented` | App frame, navigation, workspace/session tree, conversation, composer, Agent preset, model selection, Settings, theme, and queue are reused byte-identically from the pinned MIT upstream source; OPL keeps no parallel visual system |
 | Product brand | `one_person_lab_only` | `OPL Studio` remains an internal repo/codename and is not a user-facing product brand or logo |
 | Renderer/hosts | `shared_renderer_and_node_host_core_implemented` | Electron IPC and HTTP/SSE adapt one host core and one renderer; release-cohort equivalence is not proven |
-| Desktop host | `electron_hosted_installer_lifecycle_baseline` | macOS directory packaging is proven locally; hosted Windows x64 and Linux x64 build unsigned package sets, start the unpacked executables, install/start/uninstall the NSIS and DEB, and verify exact cleanup. AppImage installation, update/rollback, clean-VM, native screen-reader, signing, release, and platform support remain unqualified |
+| Desktop host | `electron_hosted_installer_lifecycle_baseline` | macOS directory packaging is proven locally; hosted Windows x64 and Linux x64 build unsigned package sets, start the unpacked executables, install/start/uninstall the NSIS and DEB, and verify exact cleanup. DEB is the only admitted Linux native carrier; AppImage is rejected because its sandbox requirements conflict with direct portable execution on Ubuntu 24.04. Update/rollback, clean-VM, native screen-reader, signing, release, and platform support remain unqualified |
 | Headless/WebUI host | `node_http_sse_implemented` | Candidate WebUI starts Codex App Server directly; no Electron/AionCore or Desktop database |
 | Docker carrier | `successor_oci_source_implemented` | Dockerfile/Compose reuse the shared Node host core and renderer with pinned Base/Codex inputs and persistent volumes; distribution install, image update/recreate, multi-arch, security, and release admission remain open |
 | AionUI/AionCore dependency | `false` | Native starts Codex App Server directly and consumes only Framework App state/action contracts |
@@ -82,7 +82,7 @@ release admission, and is explicitly adopted.
 | Desktop App updater feed is not qualified | `release_admission_p0` | App release producer plus desktop package owner | Electron updater state/operations are implemented; produce signed artifacts and a dedicated signed feed, then prove check/download/apply/restart/version readback without consuming AionUI update metadata |
 | Headless service distribution is incomplete | `delivery_p0` | App install owner plus shared-host owner | Wire the proven user-service and fixed update command plans into supported installers, then prove install/start/stop/restart/update/uninstall and fresh App-state readback |
 | Successor OCI carrier distribution and admission are incomplete | `delivery_p0` | App release/install owner plus host-core owner | Keep the proven Node-only source carrier, then add distribution install and image update/recreate and qualify multi-arch, security, install/start/update/rollback, and release without Electron or AionCore |
-| Windows/Linux update, clean-VM, AppImage-install, and native accessibility qualification remain incomplete | `delivery_p1` | Platform package owners | Hosted-runner NSIS and DEB install/start/uninstall plus exact cleanup are proven; next qualify AppImage installation, dedicated clean VMs, existing-state update/rollback, UIA/AT-SPI, NVDA/Orca, and supported-user-path behavior |
+| Windows/Linux update, clean-VM, and native accessibility qualification remain incomplete | `delivery_p1` | Platform package owners | Hosted-runner NSIS and DEB install/start/uninstall plus exact cleanup are proven; next qualify dedicated clean VMs, existing-state update/rollback, UIA/AT-SPI, NVDA/Orca, and supported-user-path behavior. AppImage is a closed non-admission decision, not an open delivery promise |
 | Exact-cohort Pixel and accessibility acceptance are absent | `evidence_p1` | App GUI acceptance owner | Capture the tested Desktop and WebUI cohorts across target viewports, keyboard and screen-reader paths; source screenshots do not close installed Pixel |
 | Security, Release, and cutover proof are absent | `non_blocking_candidate_evidence_gap` | App release owner and owning runtime/release surfaces | Qualify signed artifacts, dedicated clean-VM installs, OCI supply chain, update/rollback, and release cohorts independently; switch AionUI only through a final explicit adoption decision |
 
@@ -151,7 +151,7 @@ carrier.
 3. Complete Docker/OCI distribution, host-managed image recreate/rollback,
    multi-arch, supply-chain, and remote-access security qualification.
 4. Extend the hosted Windows/Linux NSIS/DEB install/start/uninstall baseline to
-   AppImage installation, dedicated clean-VM update/rollback, UIA/AT-SPI,
+   dedicated clean-VM update/rollback, UIA/AT-SPI,
    NVDA/Orca, and exact-cohort Desktop/WebUI Pixel and accessibility acceptance.
 5. Keep AionUI active until Source, Pixel, Install, Security, and Release are
    all admitted; perform the adapter/release cutover only as one explicit final

@@ -32,12 +32,7 @@ linux:
   maintainer: Feng Gao <gaofeng21cn@hotmail.com>
   executableName: one-person-lab-preview
   target:
-    - AppImage
     - deb
-appImage:
-  executableArgs:
-    - --enable-sandbox
-    - --disable-setuid-sandbox
 deb:
   afterRemove: scripts/desktop/linux-after-remove.sh
 artifactName: one-person-lab-preview-${version}-${os}-${arch}.${ext}

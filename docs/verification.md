@@ -39,7 +39,7 @@ script is the command owner.
 | `npm run package` | Current-platform Electron directory package construction |
 | `npm run validate:package` | Electron package and three-platform builder configuration structure |
 | `npm run dist:windows` | Unsigned Windows x64 unpacked app, NSIS, and ZIP construction with publishing disabled |
-| `npm run dist:linux` | Unsigned Linux x64 unpacked app, AppImage, and DEB construction with publishing disabled |
+| `npm run dist:linux` | Unsigned Linux x64 unpacked app and DEB construction with publishing disabled |
 | `npm run qualify:desktop:distribution` | Current-platform native package-set presence and executable-shape checks |
 | `npm run smoke:desktop-live` | Current-platform unpacked packaged executable startup, Chromium AX tree, and App Server cleanup smoke |
 | `npm run build:docker` | Local source-candidate OCI image construction only |
@@ -115,7 +115,7 @@ unsigned candidates on GitHub-hosted Windows x64 and Linux x64 runners:
   the installed executable through the fixed product registry identity,
   launches it, and runs the exact uninstaller before checking that the install
   root and registry identities are absent;
-- Linux requires the unpacked executable, AppImage, and DEB, prepares the
+- Linux requires the unpacked executable and DEB, prepares the
   packaged Chromium sandbox according to the runner's user-namespace support,
   launches the unpacked executable under Xvfb, installs the DEB through APT,
   launches the installed executable, then purges the package and checks that
@@ -125,8 +125,12 @@ unsigned candidates on GitHub-hosted Windows x64 and Linux x64 runners:
 - every distribution command uses `--publish never`.
 
 This closes the unsigned NSIS and DEB install/start/uninstall baseline on
-ephemeral GitHub-hosted runners. It does not install the AppImage; establish a
-dedicated clean-VM cohort; preserve or migrate existing user state; prove
+ephemeral GitHub-hosted runners. AppImage is rejected from the supported target
+set because its FUSE mount cannot supply the setuid Chromium sandbox and Ubuntu
+24.04 requires an installed AppArmor policy for the user-namespace alternative.
+CI does not provision that policy, extract the image, or disable the sandbox to
+turn a prepared host into false portable evidence. The gate does not establish
+a dedicated clean-VM cohort; preserve or migrate existing user state; prove
 update/rollback; exercise Windows UIA or Linux AT-SPI; run NVDA or Orca; sign or
 publish artifacts; or establish platform support or release readiness.
 

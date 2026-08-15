@@ -80,33 +80,10 @@ test("Linux hosted qualification installs, smokes, and always purges the DEB pac
   assert.match(cleanup.run, /test ! -e "\$OPL_DESKTOP_APP_PATH"/);
 });
 
-test("Linux hosted qualification inspects, runs, and removes the AppImage portable carrier", async () => {
-  const steps = await workflowSteps();
+test("Linux supports only the DEB native carrier", async () => {
   const builder = YAML.parse(await readFile(builderPath, "utf8"));
-  const fuse = stepByName(steps, "Install AppImage FUSE runtime");
-  const inspect = stepByName(steps, "Inspect AppImage portable integration");
-  const smoke = stepByName(steps, "Start AppImage and read Chromium AX tree");
-  const cleanup = stepByName(steps, "Remove AppImage portable candidate and verify cleanup");
-
-  assert.equal(inspect.if, "matrix.distribution == 'linux'");
-  assert.deepEqual(builder.appImage.executableArgs, ["--enable-sandbox", "--disable-setuid-sandbox"]);
-  assert.equal(builder.afterPack, undefined);
-  assert.match(fuse.run, /libfuse2t64/);
-  assert.match(inspect.run, /--appimage-extract/);
-  assert.match(inspect.run, /\.desktop/);
-  assert.match(inspect.run, /Name=One Person Lab Preview/);
-  assert.match(inspect.run, /Exec=AppRun --enable-sandbox --disable-setuid-sandbox %U/);
-  assert.match(inspect.run, /Icon=/);
-  assert.match(inspect.run, /OPL_DESKTOP_APPIMAGE=/);
-  assert.doesNotMatch(smoke.run, /APPIMAGE_EXTRACT_AND_RUN/);
-  assert.match(smoke.run, /OPL_DESKTOP_RUNTIME_TMPDIR=/);
-  assert.match(smoke.run, /OPL_DESKTOP_LAUNCH_ARGS_JSON='\["--enable-sandbox","--disable-setuid-sandbox"\]'/);
-  assert.match(smoke.run, /OPL_DESKTOP_EXECUTABLE="\$OPL_DESKTOP_APPIMAGE"/);
-  assert.match(smoke.run, /xvfb-run --auto-servernum npm run smoke:desktop-live/);
-  assert.match(cleanup.if, /always\(\)/);
-  assert.match(cleanup.run, /find "\$OPL_DESKTOP_APPIMAGE_TMPDIR" -mindepth 1/);
-  assert.match(cleanup.run, /rm -- "\$appimage"/);
-  assert.match(cleanup.run, /test ! -e "\$appimage"/);
+  assert.deepEqual(builder.linux.target, ["deb"]);
+  assert.equal(builder.appImage, undefined);
 });
 
 test("Linux DEB removal unregisters the installed alternative target", async () => {
@@ -128,5 +105,4 @@ test("desktop live smoke waits for forced process cleanup before installer remov
 test("installed lifecycle qualification never disables the Chromium sandbox", async () => {
   const source = await readFile(workflowPath, "utf8");
   assert.doesNotMatch(source, /--no-sandbox/);
-  assert.match(source, /--enable-sandbox/);
 });

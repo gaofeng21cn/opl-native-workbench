@@ -56,9 +56,13 @@ build the unsigned native package sets, launch the unpacked executables, install
 the real Windows NSIS and Linux DEB packages, launch the installed executables
 with a Chromium accessibility-tree smoke, and remove the exact installation
 again. This is an ephemeral hosted-runner installer-lifecycle baseline. It is
-not AppImage installation, clean-VM, native screen-reader, update/rollback,
-signing, release, or platform-support qualification. Every desktop platform and
-the successor OCI carrier still require their remaining independent delivery
+not clean-VM, native screen-reader, update/rollback, signing, release, or
+platform-support qualification. AppImage is intentionally not a supported
+target: a user-mounted FUSE image cannot provide the setuid Chromium sandbox,
+while Ubuntu 24.04 requires an installed AppArmor policy for the alternative
+user-namespace sandbox. The App does not hide that conflict with host
+provisioning, extraction, or `--no-sandbox`. Every desktop platform and the
+successor OCI carrier still require their remaining independent delivery
 admission before they can be claimed as released or supported.
 
 The conversation directory is not a Native copy. It reads the canonical Codex

@@ -15,7 +15,7 @@ async function artifact(file, { executable = false } = {}) {
   if (executable) await chmod(file, 0o755);
 }
 
-async function fixture(platform) {
+async function fixture(platform, { arch = "x64" } = {}) {
   const outRoot = await mkdtemp(path.join(os.tmpdir(), `opl-${platform}-distribution-`));
   if (platform === "win32") {
     await artifact(path.join(outRoot, "win-unpacked", "resources", "app.asar"));
@@ -23,10 +23,11 @@ async function fixture(platform) {
     await artifact(path.join(outRoot, `one-person-lab-preview-${version}-win-x64.exe`));
     await artifact(path.join(outRoot, `one-person-lab-preview-${version}-win-x64.zip`));
   } else {
-    await artifact(path.join(outRoot, "linux-unpacked", "resources", "app.asar"));
-    await artifact(path.join(outRoot, "linux-unpacked", "one-person-lab-preview"), { executable: true });
-    await artifact(path.join(outRoot, `one-person-lab-preview-${version}-linux-x86_64.AppImage`), { executable: true });
-    await artifact(path.join(outRoot, `one-person-lab-preview-${version}-linux-amd64.deb`));
+    const unpacked = arch === "x64" ? "linux-unpacked" : `linux-${arch}-unpacked`;
+    const debArch = arch === "x64" ? "amd64" : arch;
+    await artifact(path.join(outRoot, unpacked, "resources", "app.asar"));
+    await artifact(path.join(outRoot, unpacked, "one-person-lab-preview"), { executable: true });
+    await artifact(path.join(outRoot, `one-person-lab-preview-${version}-linux-${debArch}.deb`));
   }
   return outRoot;
 }
@@ -41,13 +42,20 @@ test("Windows distribution qualification requires unpacked, NSIS, and ZIP artifa
   ]);
 });
 
-test("Linux distribution qualification requires unpacked, AppImage, and DEB artifacts", async () => {
+test("Linux distribution qualification requires the unpacked app and DEB carrier", async () => {
   const outRoot = await fixture("linux");
   const receipt = validateDesktopPackage({ repositoryRoot, outRoot, platform: "linux", arch: "x64", requireDistribution: true });
   assert.equal(receipt.status, "desktop_package_validated");
   assert.deepEqual(receipt.distributionArtifacts.map((entry) => entry.name), [
-    `one-person-lab-preview-${version}-linux-x86_64.AppImage`,
     `one-person-lab-preview-${version}-linux-amd64.deb`
+  ]);
+});
+
+test("Linux arm64 cross-distribution qualification reads the architecture-specific unpacked app", async () => {
+  const outRoot = await fixture("linux", { arch: "arm64" });
+  const receipt = validateDesktopPackage({ repositoryRoot, outRoot, platform: "linux", arch: "arm64", requireDistribution: true });
+  assert.deepEqual(receipt.distributionArtifacts.map((entry) => entry.name), [
+    `one-person-lab-preview-${version}-linux-arm64.deb`
   ]);
 });
 
