@@ -111,17 +111,23 @@ active-shell adoption, or release readiness.
 unsigned candidates on GitHub-hosted Windows x64 and Linux x64 runners:
 
 - Windows requires the unpacked executable, NSIS installer, and ZIP, then
-  launches the unpacked packaged executable;
+  launches the unpacked executable, silently installs the NSIS package, resolves
+  the installed executable through the fixed product registry identity,
+  launches it, and runs the exact uninstaller before checking that the install
+  root and registry identities are absent;
 - Linux requires the unpacked executable, AppImage, and DEB, prepares the
-  packaged Chromium sandbox as `root:root` mode `4755`, and launches the
-  unpacked packaged executable under Xvfb;
+  packaged Chromium sandbox according to the runner's user-namespace support,
+  launches the unpacked executable under Xvfb, installs the DEB through APT,
+  launches the installed executable, then purges the package and checks that
+  the executable and install root are absent;
 - both platforms require a visible One Person Lab window, a Chromium AX tree
   with no unnamed interactive controls, and bounded App Server cleanup;
 - every distribution command uses `--publish never`.
 
-This closes the first native package and packaged-startup baseline. It does not
-install the NSIS, AppImage, or DEB on a clean VM; prove uninstall, update, or
-rollback; exercise Windows UIA or Linux AT-SPI; run NVDA or Orca; sign or
+This closes the unsigned NSIS and DEB install/start/uninstall baseline on
+ephemeral GitHub-hosted runners. It does not install the AppImage; establish a
+dedicated clean-VM cohort; preserve or migrate existing user state; prove
+update/rollback; exercise Windows UIA or Linux AT-SPI; run NVDA or Orca; sign or
 publish artifacts; or establish platform support or release readiness.
 
 ## Local Headless And Docker Smoke

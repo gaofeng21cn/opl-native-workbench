@@ -52,12 +52,14 @@ OPL Workspace serves the same renderer through the shared Node host core and a
 lightweight HTTP/SSE adapter. Docker runs neither Electron nor AionCore. The
 source now includes a standalone Node command and a non-root OCI carrier with
 `/data` and `/projects` persistence. Hosted Windows x64 and Linux x64 gates now
-build the unsigned native package sets and launch the unpacked packaged
-executables with a Chromium accessibility-tree smoke. This is a package/runtime
-baseline, not installer, clean-VM, native screen-reader, update, release, or
-platform-support qualification. Every desktop platform and the successor OCI
-carrier still require their remaining independent delivery admission before
-they can be claimed as released or supported.
+build the unsigned native package sets, launch the unpacked executables, install
+the real Windows NSIS and Linux DEB packages, launch the installed executables
+with a Chromium accessibility-tree smoke, and remove the exact installation
+again. This is an ephemeral hosted-runner installer-lifecycle baseline. It is
+not AppImage installation, clean-VM, native screen-reader, update/rollback,
+signing, release, or platform-support qualification. Every desktop platform and
+the successor OCI carrier still require their remaining independent delivery
+admission before they can be claimed as released or supported.
 
 The conversation directory is not a Native copy. It reads the canonical Codex
 state DB overview with `thread/list useStateDbOnly=true`, then opens the same
