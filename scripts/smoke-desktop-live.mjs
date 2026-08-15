@@ -194,9 +194,17 @@ try {
     appServerGracefulExitObserved: gracefulExit !== null
   }, null, 2));
 } finally {
-  if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
-  if (appServerPid && !lifecycleEvents(lifecycleLog).some((event) => event.event === "exit")) {
+  if (child.exitCode === null && child.signalCode === null) {
+    child.kill("SIGKILL");
+    await waitFor(
+      () => child.exitCode !== null || child.signalCode !== null,
+      5_000,
+      "forced desktop process exit"
+    );
+  }
+  if (appServerPid && processExists(appServerPid)) {
     try { process.kill(appServerPid, "SIGKILL"); } catch {}
+    await waitFor(() => !processExists(appServerPid), 5_000, "forced App Server cleanup");
   }
   fs.rmSync(stateRoot, { recursive: true, force: true });
 }

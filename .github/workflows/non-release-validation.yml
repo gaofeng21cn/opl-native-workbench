@@ -34,6 +34,7 @@ jobs:
             live_command: xvfb-run --auto-servernum npm run smoke:desktop-live
     env:
       OPL_APP_REPO_ROOT: ${{ github.workspace }}/app-product
+      OPL_DESKTOP_WINDOWS_INSTALL_ID: a1f6388a-3f9a-5543-b06c-e3debfa55a91
 
     steps:
       - name: Checkout Studio candidate
@@ -98,11 +99,17 @@ jobs:
             throw "expected exactly one NSIS installer, found $($installers.Count)"
           }
 
+          $installRegistryPath = "HKCU:\Software\$env:OPL_DESKTOP_WINDOWS_INSTALL_ID"
+          $uninstallRegistryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$env:OPL_DESKTOP_WINDOWS_INSTALL_ID"
           $programsRoot = Join-Path $env:LOCALAPPDATA 'Programs'
-          $existing = @(Get-ChildItem -Path $programsRoot -File -Filter 'One Person Lab Preview.exe' -Recurse -ErrorAction SilentlyContinue)
-          if ($existing.Count -ne 0) {
-            throw "clean runner already contains One Person Lab Preview"
+          $fallbackInstallRoot = Join-Path $programsRoot 'opl-studio'
+          if ((Test-Path -LiteralPath $installRegistryPath) -or
+              (Test-Path -LiteralPath $uninstallRegistryPath) -or
+              (Test-Path -LiteralPath $fallbackInstallRoot)) {
+            throw "clean runner already contains the exact One Person Lab Preview install identity"
           }
+
+          "OPL_DESKTOP_WINDOWS_INSTALL_ATTEMPTED=1" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
           $installerProcess = Start-Process -FilePath $installers[0].FullName -ArgumentList '/S' -Wait -PassThru
           if ($installerProcess.ExitCode -ne 0) {
@@ -110,20 +117,32 @@ jobs:
           }
 
           $deadline = (Get-Date).AddSeconds(30)
-          do {
-            $installed = @(Get-ChildItem -Path $programsRoot -File -Filter 'One Person Lab Preview.exe' -Recurse -ErrorAction SilentlyContinue)
-            if ($installed.Count -gt 1) {
-              throw "expected one installed executable, found $($installed.Count)"
-            }
-            if ($installed.Count -eq 1) { break }
+          while (-not (Test-Path -LiteralPath $installRegistryPath) -and (Get-Date) -lt $deadline) {
             Start-Sleep -Milliseconds 500
-          } while ((Get-Date) -lt $deadline)
-          if ($installed.Count -ne 1) {
-            throw "NSIS install did not create One Person Lab Preview.exe under $programsRoot"
+          }
+          if (-not (Test-Path -LiteralPath $installRegistryPath)) {
+            throw "NSIS install did not create its exact HKCU install identity"
           }
 
-          "OPL_DESKTOP_EXECUTABLE=$($installed[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "OPL_DESKTOP_APP_PATH=$($installed[0].DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $installRoot = [IO.Path]::GetFullPath((Get-ItemProperty -LiteralPath $installRegistryPath).InstallLocation)
+          $programsPrefix = [IO.Path]::GetFullPath($programsRoot).TrimEnd('\') + '\'
+          if (-not $installRoot.StartsWith($programsPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "NSIS InstallLocation escaped the current-user Programs root: $installRoot"
+          }
+          $installedExecutable = Join-Path $installRoot 'One Person Lab Preview.exe'
+          $uninstaller = Join-Path $installRoot 'Uninstall One Person Lab Preview.exe'
+          if (-not (Test-Path -LiteralPath $installedExecutable -PathType Leaf)) {
+            throw "NSIS InstallLocation is missing the application executable: $installedExecutable"
+          }
+          if (-not (Test-Path -LiteralPath $uninstaller -PathType Leaf)) {
+            throw "NSIS InstallLocation is missing the uninstaller: $uninstaller"
+          }
+          if (-not (Test-Path -LiteralPath $uninstallRegistryPath)) {
+            throw "NSIS install did not register its exact uninstall identity"
+          }
+
+          "OPL_DESKTOP_EXECUTABLE=$installedExecutable" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "OPL_DESKTOP_APP_PATH=$installRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Start installed Windows app and read Chromium AX tree
         if: matrix.distribution == 'windows'
@@ -133,36 +152,43 @@ jobs:
         if: ${{ always() && matrix.distribution == 'windows' }}
         shell: pwsh
         run: |
-          $programsRoot = Join-Path $env:LOCALAPPDATA 'Programs'
-          $installed = if ($env:OPL_DESKTOP_EXECUTABLE) {
-            Get-Item -LiteralPath $env:OPL_DESKTOP_EXECUTABLE -ErrorAction SilentlyContinue
-          } else {
-            @(Get-ChildItem -Path $programsRoot -File -Filter 'One Person Lab Preview.exe' -Recurse -ErrorAction SilentlyContinue) | Select-Object -First 1
+          if ($env:OPL_DESKTOP_WINDOWS_INSTALL_ATTEMPTED -ne '1') {
+            Write-Host 'No NSIS install was attempted by this job; leaving pre-existing state untouched.'
+            exit 0
           }
 
-          if ($installed) {
-            $installRoot = $installed.DirectoryName
-            $uninstallers = @(Get-ChildItem -Path $installRoot -File -Filter 'Uninstall*.exe' -ErrorAction SilentlyContinue)
-            if ($uninstallers.Count -ne 1) {
-              throw "expected one NSIS uninstaller in $installRoot, found $($uninstallers.Count)"
-            }
-            $uninstallProcess = Start-Process -FilePath $uninstallers[0].FullName -ArgumentList '/S' -Wait -PassThru
+          $installRegistryPath = "HKCU:\Software\$env:OPL_DESKTOP_WINDOWS_INSTALL_ID"
+          $uninstallRegistryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$env:OPL_DESKTOP_WINDOWS_INSTALL_ID"
+          $fallbackInstallRoot = Join-Path (Join-Path $env:LOCALAPPDATA 'Programs') 'opl-studio'
+          $installRoot = if (Test-Path -LiteralPath $installRegistryPath) {
+            [string](Get-ItemProperty -LiteralPath $installRegistryPath).InstallLocation
+          } elseif ($env:OPL_DESKTOP_APP_PATH) {
+            $env:OPL_DESKTOP_APP_PATH
+          } else {
+            $fallbackInstallRoot
+          }
+
+          $uninstaller = Join-Path $installRoot 'Uninstall One Person Lab Preview.exe'
+          if (Test-Path -LiteralPath $uninstaller -PathType Leaf) {
+            $uninstallProcess = Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait -PassThru
             if ($uninstallProcess.ExitCode -ne 0) {
               throw "NSIS uninstaller exited with code $($uninstallProcess.ExitCode)"
             }
-
-            $deadline = (Get-Date).AddSeconds(30)
-            while ((Test-Path -LiteralPath $installRoot) -and (Get-Date) -lt $deadline) {
-              Start-Sleep -Milliseconds 500
-            }
-            if (Test-Path -LiteralPath $installRoot) {
-              throw "NSIS uninstall left the installation directory behind: $installRoot"
-            }
+          } elseif ((Test-Path -LiteralPath $installRoot) -or (Test-Path -LiteralPath $installRegistryPath)) {
+            throw "NSIS install attempt left product state without its exact uninstaller"
           }
 
-          $remaining = @(Get-ChildItem -Path $programsRoot -File -Filter 'One Person Lab Preview.exe' -Recurse -ErrorAction SilentlyContinue)
-          if ($remaining.Count -ne 0) {
-            throw "NSIS uninstall left installed executable bytes behind"
+          $deadline = (Get-Date).AddSeconds(30)
+          while (((Test-Path -LiteralPath $installRoot) -or
+                  (Test-Path -LiteralPath $installRegistryPath) -or
+                  (Test-Path -LiteralPath $uninstallRegistryPath)) -and
+                 (Get-Date) -lt $deadline) {
+            Start-Sleep -Milliseconds 500
+          }
+          if ((Test-Path -LiteralPath $installRoot) -or
+              (Test-Path -LiteralPath $installRegistryPath) -or
+              (Test-Path -LiteralPath $uninstallRegistryPath)) {
+            throw "NSIS uninstall left exact product files or registry identity behind"
           }
 
       - name: Install Linux DEB package
@@ -183,7 +209,12 @@ jobs:
           real_executable="$(readlink -f "$executable")"
           app_path="$(dirname "$real_executable")"
           test -x "$real_executable"
-          test "$(stat -c '%U:%G %a' "$app_path/chrome-sandbox")" = "root:root 4755"
+          if sudo bash -c '[[ -L /proc/self/ns/user ]] && unshare --user true'; then
+            expected_sandbox_state='root:root 755'
+          else
+            expected_sandbox_state='root:root 4755'
+          fi
+          test "$(stat -c '%U:%G %a' "$app_path/chrome-sandbox")" = "$expected_sandbox_state"
 
           echo "OPL_DESKTOP_EXECUTABLE=$executable" >> "$GITHUB_ENV"
           echo "OPL_DESKTOP_APP_PATH=$app_path" >> "$GITHUB_ENV"

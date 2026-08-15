@@ -24,6 +24,8 @@ win:
   target:
     - nsis
     - zip
+nsis:
+  guid: a1f6388a-3f9a-5543-b06c-e3debfa55a91
 linux:
   icon: assets/branding/opl-studio.png
   category: Development
@@ -32,6 +34,8 @@ linux:
   target:
     - AppImage
     - deb
+deb:
+  afterRemove: scripts/desktop/linux-after-remove.sh
 artifactName: one-person-lab-preview-${version}-${os}-${arch}.${ext}
 publish:
   provider: github
