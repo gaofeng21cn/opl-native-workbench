@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   desktop-distribution:
-    name: ${{ matrix.label }} package and Chromium AX tree
+    name: ${{ matrix.label }} package and installer lifecycle
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -86,5 +86,137 @@ jobs:
           sudo chmod 4755 out/linux-unpacked/chrome-sandbox
           test "$(stat -c '%U:%G %a' out/linux-unpacked/chrome-sandbox)" = "root:root 4755"
 
-      - name: Start packaged app and read Chromium AX tree
+      - name: Start unpacked app and read Chromium AX tree
         run: ${{ matrix.live_command }}
+
+      - name: Install Windows NSIS package
+        if: matrix.distribution == 'windows'
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem -Path out -File -Filter '*.exe')
+          if ($installers.Count -ne 1) {
+            throw "expected exactly one NSIS installer, found $($installers.Count)"
+          }
+
+          $programsRoot = Join-Path $env:LOCALAPPDATA 'Programs'
+          $existing = @(Get-ChildItem -Path $programsRoot -File -Filter 'One Person Lab Preview.exe' -Recurse -ErrorAction SilentlyContinue)
+          if ($existing.Count -ne 0) {
+            throw "clean runner already contains One Person Lab Preview"
+          }
+
+          $installerProcess = Start-Process -FilePath $installers[0].FullName -ArgumentList '/S' -Wait -PassThru
+          if ($installerProcess.ExitCode -ne 0) {
+            throw "NSIS installer exited with code $($installerProcess.ExitCode)"
+          }
+
+          $deadline = (Get-Date).AddSeconds(30)
+          do {
+            $installed = @(Get-ChildItem -Path $programsRoot -File -Filter 'One Person Lab Preview.exe' -Recurse -ErrorAction SilentlyContinue)
+            if ($installed.Count -gt 1) {
+              throw "expected one installed executable, found $($installed.Count)"
+            }
+            if ($installed.Count -eq 1) { break }
+            Start-Sleep -Milliseconds 500
+          } while ((Get-Date) -lt $deadline)
+          if ($installed.Count -ne 1) {
+            throw "NSIS install did not create One Person Lab Preview.exe under $programsRoot"
+          }
+
+          "OPL_DESKTOP_EXECUTABLE=$($installed[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "OPL_DESKTOP_APP_PATH=$($installed[0].DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Start installed Windows app and read Chromium AX tree
+        if: matrix.distribution == 'windows'
+        run: npm run smoke:desktop-live
+
+      - name: Uninstall Windows NSIS package and verify cleanup
+        if: ${{ always() && matrix.distribution == 'windows' }}
+        shell: pwsh
+        run: |
+          $programsRoot = Join-Path $env:LOCALAPPDATA 'Programs'
+          $installed = if ($env:OPL_DESKTOP_EXECUTABLE) {
+            Get-Item -LiteralPath $env:OPL_DESKTOP_EXECUTABLE -ErrorAction SilentlyContinue
+          } else {
+            @(Get-ChildItem -Path $programsRoot -File -Filter 'One Person Lab Preview.exe' -Recurse -ErrorAction SilentlyContinue) | Select-Object -First 1
+          }
+
+          if ($installed) {
+            $installRoot = $installed.DirectoryName
+            $uninstallers = @(Get-ChildItem -Path $installRoot -File -Filter 'Uninstall*.exe' -ErrorAction SilentlyContinue)
+            if ($uninstallers.Count -ne 1) {
+              throw "expected one NSIS uninstaller in $installRoot, found $($uninstallers.Count)"
+            }
+            $uninstallProcess = Start-Process -FilePath $uninstallers[0].FullName -ArgumentList '/S' -Wait -PassThru
+            if ($uninstallProcess.ExitCode -ne 0) {
+              throw "NSIS uninstaller exited with code $($uninstallProcess.ExitCode)"
+            }
+
+            $deadline = (Get-Date).AddSeconds(30)
+            while ((Test-Path -LiteralPath $installRoot) -and (Get-Date) -lt $deadline) {
+              Start-Sleep -Milliseconds 500
+            }
+            if (Test-Path -LiteralPath $installRoot) {
+              throw "NSIS uninstall left the installation directory behind: $installRoot"
+            }
+          }
+
+          $remaining = @(Get-ChildItem -Path $programsRoot -File -Filter 'One Person Lab Preview.exe' -Recurse -ErrorAction SilentlyContinue)
+          if ($remaining.Count -ne 0) {
+            throw "NSIS uninstall left installed executable bytes behind"
+          }
+
+      - name: Install Linux DEB package
+        if: matrix.distribution == 'linux'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          debs=(out/*.deb)
+          test "${#debs[@]}" -eq 1
+          package_name="$(dpkg-deb -f "${debs[0]}" Package)"
+          test -n "$package_name"
+          echo "OPL_DESKTOP_DEB_PACKAGE=$package_name" >> "$GITHUB_ENV"
+
+          sudo dpkg -i "${debs[0]}"
+          executable="$(command -v one-person-lab-preview)"
+          test -n "$executable"
+          real_executable="$(readlink -f "$executable")"
+          app_path="$(dirname "$real_executable")"
+          test -x "$real_executable"
+          test "$(stat -c '%U:%G %a' "$app_path/chrome-sandbox")" = "root:root 4755"
+
+          echo "OPL_DESKTOP_EXECUTABLE=$executable" >> "$GITHUB_ENV"
+          echo "OPL_DESKTOP_APP_PATH=$app_path" >> "$GITHUB_ENV"
+
+      - name: Start installed Linux app and read Chromium AX tree
+        if: matrix.distribution == 'linux'
+        run: xvfb-run --auto-servernum npm run smoke:desktop-live
+
+      - name: Purge Linux DEB package and verify cleanup
+        if: ${{ always() && matrix.distribution == 'linux' }}
+        shell: bash
+        run: |
+          package_name="${OPL_DESKTOP_DEB_PACKAGE:-}"
+          if test -z "$package_name"; then
+            shopt -s nullglob
+            debs=(out/*.deb)
+            if test "${#debs[@]}" -eq 1; then
+              package_name="$(dpkg-deb -f "${debs[0]}" Package)"
+            fi
+          fi
+
+          if test -n "$package_name" && dpkg-query -W "$package_name" >/dev/null 2>&1; then
+            sudo dpkg --purge "$package_name"
+          fi
+
+          if test -n "${OPL_DESKTOP_EXECUTABLE:-}"; then
+            test ! -e "$OPL_DESKTOP_EXECUTABLE"
+          fi
+          if test -n "${OPL_DESKTOP_APP_PATH:-}"; then
+            test ! -e "$OPL_DESKTOP_APP_PATH"
+          fi
+          if command -v one-person-lab-preview >/dev/null 2>&1; then
+            echo "Linux purge left one-person-lab-preview on PATH" >&2
+            exit 1
+          fi
+          status="$(dpkg-query -W -f='${Status}' "$package_name" 2>/dev/null || true)"
+          test "$status" != "install ok installed"

@@ -11,6 +11,15 @@ const fakeAppServer = path.join(root, "scripts", "webui-host", "fixtures", "fake
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 function findPackagedExecutable() {
+  const configuredExecutable = process.env.OPL_DESKTOP_EXECUTABLE?.trim();
+  if (configuredExecutable) {
+    const executable = path.resolve(configuredExecutable);
+    const configuredAppPath = process.env.OPL_DESKTOP_APP_PATH?.trim();
+    return {
+      appPath: configuredAppPath ? path.resolve(configuredAppPath) : path.dirname(executable),
+      executable
+    };
+  }
   if (!fs.existsSync(outRoot)) return null;
   if (process.platform === "darwin") {
     for (const entry of fs.readdirSync(outRoot, { recursive: true }).map(String)) {
@@ -87,7 +96,10 @@ function processExists(pid) {
 
 assert.ok(["darwin", "win32", "linux"].includes(process.platform), `unsupported desktop smoke platform: ${process.platform}`);
 const packaged = findPackagedExecutable();
-assert.ok(packaged, "run the current platform desktop package before the desktop live smoke");
+assert.ok(
+  packaged,
+  "set OPL_DESKTOP_EXECUTABLE or run the current platform desktop package before the desktop live smoke"
+);
 const { appPath, executable } = packaged;
 assert.ok(fs.existsSync(executable), `missing packaged executable: ${executable}`);
 const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), "opl-desktop-live-smoke-"));
