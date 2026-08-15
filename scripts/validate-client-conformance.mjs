@@ -117,7 +117,7 @@ const cohort = {
   framework: refEvidence(repos.framework, "origin"),
   app: refEvidence(repos.app, "origin"),
   aionui: refEvidence(repos.aionui, "gh-https"),
-  studio_base: refEvidence(studioCanonical, "origin"),
+  studio_main: refEvidence(studioCanonical, "origin"),
   studio_candidate: {
     commit: git(studioRoot, "rev-parse", "HEAD"),
     tree: git(studioRoot, "rev-parse", "HEAD^{tree}"),
@@ -134,9 +134,7 @@ assert.deepEqual(declaredExternalCohort, {
   app_commit: cohort.app.commit,
   app_tree: cohort.app.tree,
   aionui_commit: cohort.aionui.commit,
-  aionui_tree: cohort.aionui.tree,
-  studio_base_commit: cohort.studio_base.commit,
-  studio_base_tree: cohort.studio_base.tree
+  aionui_tree: cohort.aionui.tree
 }, "candidate evidence external cohort differs from the canonical conformance cohort");
 
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "opl-client-conformance-"));

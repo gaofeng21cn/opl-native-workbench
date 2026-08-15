@@ -672,6 +672,14 @@ assert(qualification?.app_aionui_compatibility_equal === true && qualification?.
 assert(qualification?.typed_slot_event_action_state_semantics_equal === true, "typed slot/event/action/state semantics must be qualified");
 assert(qualification?.dynamic_brand_capability_policy === "consume_current_App_and_Framework_projection_without_a_candidate_owned_fixed_brand_roster", "Studio must not own a fixed brand capability roster");
 assert(qualification?.active_shell_adopted === false && qualification?.release_ready === false, "candidate qualification must not become release admission");
+assert(JSON.stringify(Object.keys(qualification.external_cohort ?? {}).sort()) === JSON.stringify([
+  "aionui_commit",
+  "aionui_tree",
+  "app_commit",
+  "app_tree",
+  "framework_commit",
+  "framework_tree"
+]), "external qualification cohort must contain only the three external owner repositories");
 for (const value of Object.values(qualification.external_cohort ?? {})) {
   assert(typeof value === "string" && /^[0-9a-f]{40}$/.test(value), "external qualification cohort must use exact Git object ids");
 }

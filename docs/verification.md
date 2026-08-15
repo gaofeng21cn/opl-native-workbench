@@ -53,8 +53,9 @@ producer in a temporary directory, and runs one Host projection through both
 GUI parsers and Studio Client Cordis. It also compares the App and generated
 AionUI composition model plus `client_renderer_compatibility` profile, verifies
 Studio derives the same RPC/event/state/brand policy, and checks the exact App
-contribution action shape. The ignored receipt records the precise commit/tree
-cohort.
+contribution action shape. The tracked evidence fixes the three external owner
+repositories; each ignored receipt also records the Studio main and candidate
+commit/tree observed by that exact run.
 
 Run the AionUI focused DOM test in its own repository to exercise its real
 renderer caller:

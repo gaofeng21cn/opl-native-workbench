@@ -815,9 +815,7 @@
       "app_commit": "9a7775704619c4e2d6f607874f8aa20227b103fb",
       "app_tree": "81ea0981a7d9b8262b12b9d784e77971904d0fb5",
       "aionui_commit": "ecfef2dd74b659f19ad5e04cd33e326259ebc7e5",
-      "aionui_tree": "de96a67f6f58a25681e1fc85dd339fff6b41cf85",
-      "studio_base_commit": "f94946be8a5766a0e6b90e2dfc2bcaff0ba2415c",
-      "studio_base_tree": "db1f5e9ba2a91868fed6bcf73503f665a5c1760c"
+      "aionui_tree": "de96a67f6f58a25681e1fc85dd339fff6b41cf85"
     },
     "framework_producer": "src/read-models/operator/app-state-ui-contributions.ts#buildAppUiContributionsProjection",
     "host_app_studio_e2e": true,
