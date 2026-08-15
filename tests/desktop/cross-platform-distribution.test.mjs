@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -58,4 +58,11 @@ test("platform qualification fails closed when one native distribution artifact 
     () => validateDesktopPackage({ repositoryRoot, outRoot, platform: "win32", arch: "x64", requireDistribution: true }),
     /artifact is missing/
   );
+});
+
+test("Linux hosted live smoke prepares the Chromium sandbox without disabling it", async () => {
+  const workflow = await readFile(path.join(repositoryRoot, ".github", "workflows", "non-release-validation.yml"), "utf8");
+  assert.match(workflow, /sudo chown root:root out\/linux-unpacked\/chrome-sandbox/);
+  assert.match(workflow, /sudo chmod 4755 out\/linux-unpacked\/chrome-sandbox/);
+  assert.doesNotMatch(workflow, /--no-sandbox/);
 });

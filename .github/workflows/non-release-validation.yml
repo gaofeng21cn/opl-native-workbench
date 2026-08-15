@@ -78,5 +78,13 @@ jobs:
       - name: Validate native package set
         run: npm run qualify:desktop:distribution
 
+      - name: Prepare Chromium sandbox for unpacked Linux runtime
+        if: matrix.distribution == 'linux'
+        shell: bash
+        run: |
+          sudo chown root:root out/linux-unpacked/chrome-sandbox
+          sudo chmod 4755 out/linux-unpacked/chrome-sandbox
+          test "$(stat -c '%U:%G %a' out/linux-unpacked/chrome-sandbox)" = "root:root 4755"
+
       - name: Start packaged app and read Chromium AX tree
         run: ${{ matrix.live_command }}
