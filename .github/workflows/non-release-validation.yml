@@ -439,6 +439,144 @@ jobs:
           fs.rmSync(root, { recursive: true, force: true });
           NODE
 
+  headless-installed-macos:
+    name: macOS headless installed lifecycle
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      OPL_APP_OPL_BIN: ${{ github.workspace }}/framework/bin/opl
+      OPL_APP_REPO_ROOT: ${{ github.workspace }}/app-product
+
+    steps:
+      - name: Checkout Studio candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read pinned Framework/App cohort
+        id: runtime-cohort
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const evidence = JSON.parse(fs.readFileSync("src/candidateContractEvidence.json", "utf8"));
+          const cohort = evidence.candidate_runtime_qualification?.external_cohort ?? {};
+          for (const [name, value] of [["framework_sha", cohort.framework_commit], ["app_sha", cohort.app_commit]]) {
+            if (!/^[0-9a-f]{40}$/.test(value ?? "")) throw new Error(`missing exact ${name} cohort commit`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}\n`);
+          }
+          NODE
+
+      - name: Checkout Framework Host
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: gaofeng21cn/one-person-lab
+          ref: ${{ steps.runtime-cohort.outputs.framework_sha }}
+          path: framework
+          persist-credentials: false
+
+      - name: Checkout App product authority
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: gaofeng21cn/one-person-lab-app
+          ref: ${{ steps.runtime-cohort.outputs.app_sha }}
+          path: app-product
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Studio dependencies
+        run: npm ci
+
+      - name: Build pinned Framework Host
+        working-directory: framework
+        run: npm ci --ignore-scripts && npm run build
+
+      - name: Install pinned Codex CLI
+        shell: bash
+        run: |
+          npm install --global @openai/codex@0.147.0
+          codex_path="$(command -v codex)"
+          test -x "$codex_path"
+          test "$(codex --version)" = "codex-cli 0.147.0"
+          codex_home="$RUNNER_TEMP/codex-home"
+          install_root="$RUNNER_TEMP/one-person-lab-headless"
+          workspace_root="$RUNNER_TEMP/opl-workspace"
+          mkdir -p "$codex_home" "$workspace_root"
+          {
+            echo "CODEX_HOME=$codex_home"
+            echo "OPL_CODEX_BIN=$codex_path"
+            echo "OPL_HEADLESS_INSTALL_ROOT=$install_root"
+            echo "OPL_HEADLESS_WORKSPACE_ROOT=$workspace_root"
+          } >> "$GITHUB_ENV"
+
+      - name: Build shared WebUI
+        run: npm run build:webui
+
+      - name: Install headless macOS user service
+        shell: bash
+        run: |
+          npm run --silent headless:install -- \
+            --install-root "$OPL_HEADLESS_INSTALL_ROOT" \
+            --workspace "$OPL_HEADLESS_WORKSPACE_ROOT" \
+            --readback-timeout-ms 30000 \
+            | tee "$RUNNER_TEMP/opl-headless-install.json"
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const result = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/opl-headless-install.json`, "utf8"));
+          if (result.schema !== "opl_headless_installer_result.v1" || result.status !== "installed") throw new Error("headless install receipt is invalid");
+          if (result.readback?.ready?.status !== "ready") throw new Error("installed /readyz status is not ready");
+          if (result.readback.ready.appServerAvailable !== true) throw new Error("installed Codex App Server is unavailable");
+          if (result.readback?.appState?.readback?.exitCode !== 0) throw new Error("installed App state readback failed");
+          if (result.readback.appState.surfaceKind !== "opl_app_state.v1") throw new Error("installed App state surface is not opl_app_state.v1");
+          NODE
+
+      - name: Inspect installed headless runtime
+        shell: bash
+        run: |
+          npm run --silent headless:status -- \
+            --install-root "$OPL_HEADLESS_INSTALL_ROOT" \
+            --workspace "$OPL_HEADLESS_WORKSPACE_ROOT" \
+            | tee "$RUNNER_TEMP/opl-headless-status.json"
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const result = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/opl-headless-status.json`, "utf8"));
+          if (result.status !== "inspected" || result.service?.native?.exitCode !== 0) throw new Error("installed launchd service is not active");
+          if (result.readback?.status !== "ready" || result.readback?.appState?.readback?.exitCode !== 0) throw new Error("installed runtime readback failed");
+          NODE
+
+      - name: Verify installed LaunchAgent binding
+        shell: bash
+        run: |
+          plist="$HOME/Library/LaunchAgents/com.onepersonlab.headless.plist"
+          test -f "$plist"
+          test "$(plutil -extract ProgramArguments.1 raw "$plist")" = "$OPL_HEADLESS_INSTALL_ROOT/current/scripts/headless/run.mjs"
+          test "$(plutil -extract EnvironmentVariables.OPL_APP_OPL_BIN raw "$plist")" = "$OPL_APP_OPL_BIN"
+          test "$(plutil -extract EnvironmentVariables.OPL_APP_REPO_ROOT raw "$plist")" = "$OPL_APP_REPO_ROOT"
+          test "$(plutil -extract EnvironmentVariables.OPL_CODEX_BIN raw "$plist")" = "$OPL_CODEX_BIN"
+          test "$(plutil -extract EnvironmentVariables.CODEX_HOME raw "$plist")" = "$CODEX_HOME"
+
+      - name: Uninstall headless macOS user service and verify cleanup
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          if test -f "$OPL_HEADLESS_INSTALL_ROOT/installation.json"; then
+            npm run --silent headless:uninstall -- \
+              --install-root "$OPL_HEADLESS_INSTALL_ROOT" \
+              --workspace "$OPL_HEADLESS_WORKSPACE_ROOT" \
+              | tee "$RUNNER_TEMP/opl-headless-uninstall.json"
+          fi
+          if launchctl print "gui/$(id -u)/com.onepersonlab.headless" >/dev/null 2>&1; then
+            echo "headless launchd service remains loaded" >&2
+            exit 1
+          fi
+          test ! -e "$HOME/Library/LaunchAgents/com.onepersonlab.headless.plist"
+          test ! -e "$OPL_HEADLESS_INSTALL_ROOT"
+
   oci-distribution:
     name: OCI multi-architecture build and lifecycle
     runs-on: ubuntu-latest

@@ -33,6 +33,14 @@ function assertLoopbackAddress(address) {
   }
 }
 
+function optionalAbsolutePath(value, name) {
+  if (value === undefined || value === "") return undefined;
+  if (typeof value !== "string" || /[\0\r\n]/.test(value) || !path.isAbsolute(value)) {
+    throw new Error(`${name} must be an absolute single-line path`);
+  }
+  return path.resolve(value);
+}
+
 async function installationRecord(installRoot) {
   return JSON.parse(await readFile(path.join(installRoot, "installation.json"), "utf8"));
 }
@@ -112,6 +120,10 @@ export function createHeadlessInstaller({
     const record = await installationRecord(root);
     const serviceEnvironment = {
       PATH: env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
+      CODEX_HOME: optionalAbsolutePath(env.CODEX_HOME, "CODEX_HOME"),
+      OPL_APP_OPL_BIN: optionalAbsolutePath(env.OPL_APP_OPL_BIN, "OPL_APP_OPL_BIN"),
+      OPL_APP_REPO_ROOT: optionalAbsolutePath(env.OPL_APP_REPO_ROOT, "OPL_APP_REPO_ROOT"),
+      OPL_CODEX_BIN: optionalAbsolutePath(env.OPL_CODEX_BIN, "OPL_CODEX_BIN"),
       OPL_HEADLESS_HOST: address,
       OPL_HEADLESS_PORT: String(port),
       OPL_HEADLESS_INSTALL_ROOT: root,

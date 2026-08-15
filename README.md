@@ -72,6 +72,14 @@ SBOM/provenance attestations, then runs the existing install/update/recreate/
 rollback/uninstall lifecycle on both architectures. It does not log in to a
 registry, push an image, or create a release cohort.
 
+The macOS non-release lane also installs the standalone Headless WebUI as a
+per-user LaunchAgent from the exact candidate Framework/App/Codex inputs. It
+reads `/readyz` and `opl_app_state.v1` through the installed payload, verifies
+that launchd is bound to that payload and those absolute runtime paths, then
+unloads the service and removes both its plist and install root. This is an
+installed user-service baseline, not a supported installer, update channel,
+remote-access boundary, release, or production claim.
+
 The conversation directory is not a Native copy. It reads the canonical Codex
 state DB overview with `thread/list useStateDbOnly=true`, then opens the same
 thread ID with `thread/read includeTurns=true`. Native stores only UI selection,
@@ -126,6 +134,21 @@ The default URL is `http://127.0.0.1:4178`. `OPL_HEADLESS_HOST`,
 is process liveness; `/readyz` is successful Codex App Server initialization.
 SIGINT and SIGTERM close HTTP/SSE and the child App Server within the configured
 shutdown bound.
+
+On macOS, after building the WebUI and supplying absolute `OPL_APP_OPL_BIN`,
+`OPL_APP_REPO_ROOT`, `OPL_CODEX_BIN`, and `CODEX_HOME` paths, the supported
+candidate service commands are:
+
+```bash
+npm run headless:install
+npm run headless:status
+npm run headless:uninstall
+```
+
+They manage only the current user's `com.onepersonlab.headless` LaunchAgent and
+default to loopback. The installed payload lives under the user's Application
+Support directory; command options can select a different absolute install root,
+workspace, port, and loopback host.
 
 ### Docker Candidate
 

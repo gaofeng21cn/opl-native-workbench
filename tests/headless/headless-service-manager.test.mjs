@@ -217,3 +217,74 @@ test("macOS restart retries bootstrap while launchd finishes bootout", async () 
   assert.deepEqual(waits, [100]);
   assertNoShell(calls);
 });
+
+test("macOS uninstall waits for launchd absence before removing the service definition", async () => {
+  const operations = [];
+  const waits = [];
+  let printAttempts = 0;
+  const manager = createHeadlessServiceManager({
+    platform: "darwin",
+    homeDirectory: "/Users/opl",
+    uid: 501,
+    nodeExecutable: "/usr/bin/node",
+    headlessEntry: "/opt/one-person-lab/scripts/headless/run.mjs",
+    sleep: async (milliseconds) => waits.push(milliseconds),
+    execute: async (command, args, options) => {
+      operations.push({ operation: "execute", command, args, options });
+      if (args[0] === "print") {
+        printAttempts += 1;
+        return printAttempts < 3
+          ? { exitCode: 0, stdout: "still loaded", stderr: "" }
+          : { exitCode: 113, stdout: "", stderr: "Could not find service" };
+      }
+      return { exitCode: 0, stdout: "", stderr: "" };
+    },
+    fileSystem: {
+      mkdir: async () => {},
+      writeFile: async () => {},
+      rm: async (target, options) => operations.push({ operation: "rm", target, options })
+    }
+  });
+
+  const uninstalled = await manager.run("uninstall");
+  assert.deepEqual(uninstalled.absenceReadback, {
+    command: "launchctl print",
+    absent: true,
+    attempts: 3,
+    exitCode: 113
+  });
+  assert.deepEqual(waits, [100, 100]);
+  assert.deepEqual(operations.map((entry) => entry.operation === "execute"
+    ? [entry.command, entry.args]
+    : [entry.operation, entry.target]), [
+    ["launchctl", ["bootout", "gui/501/com.onepersonlab.headless"]],
+    ["launchctl", ["print", "gui/501/com.onepersonlab.headless"]],
+    ["launchctl", ["print", "gui/501/com.onepersonlab.headless"]],
+    ["launchctl", ["print", "gui/501/com.onepersonlab.headless"]],
+    ["rm", "/Users/opl/Library/LaunchAgents/com.onepersonlab.headless.plist"]
+  ]);
+});
+
+test("macOS uninstall preserves the service definition when launchd absence cannot be proven", async () => {
+  const removed = [];
+  const manager = createHeadlessServiceManager({
+    platform: "darwin",
+    homeDirectory: "/Users/opl",
+    uid: 501,
+    nodeExecutable: "/usr/bin/node",
+    headlessEntry: "/opt/one-person-lab/scripts/headless/run.mjs",
+    sleep: async () => {},
+    execute: async () => ({ exitCode: 0, stdout: "still loaded", stderr: "" }),
+    fileSystem: {
+      mkdir: async () => {},
+      writeFile: async () => {},
+      rm: async (target) => removed.push(target)
+    }
+  });
+
+  await assert.rejects(
+    manager.run("uninstall"),
+    /service remained loaded after bootout/
+  );
+  assert.deepEqual(removed, []);
+});

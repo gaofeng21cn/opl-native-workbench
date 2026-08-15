@@ -28,6 +28,7 @@ script is the command owner.
 | `npm run typecheck` | TypeScript source consistency |
 | `npm run test:desktop` | Electron isolation, IPC adapter, updater, and guarded shutdown behavior |
 | `npm run test:headless` | Standalone bind/config validation, health/readiness, real child App Server startup, and bounded signal shutdown |
+| `npm run headless:install` / `headless:status` / `headless:uninstall` | Current-user macOS/Linux service install, installed readiness/App-state readback, and bounded service/payload removal; platform support is separately admitted |
 | `npm run test:threads` | Standard Desktop/WebUI thread lifecycle, pagination, renderer, and Codex subagent projection tests |
 | `npm run test:webui-host` | Shared host core, HTTP/SSE, model/thread pagination, OPL projection, and read-only mutation guard |
 | `npm run test:client-cordis` | Studio Client Cordis policy, typed event/slot lifecycle, and exact contribution action request |
@@ -147,6 +148,16 @@ npm run start:headless
 Read `/healthz` for liveness and `/readyz` for Codex App Server initialization.
 Stopping the process with SIGINT or SIGTERM must emit
 `headless_server_stopped` inside the configured shutdown bound.
+
+The hosted macOS Headless job reads the exact Framework and App commits from
+`src/candidateContractEvidence.json`, builds Framework and the shared WebUI,
+pins Codex CLI 0.147.0, then invokes the public `headless:install` and
+`headless:status` commands. Passing evidence requires a ready Codex App Server,
+successful Framework App-state command, `opl_app_state.v1`, a LaunchAgent whose
+program and runtime inputs point at the installed exact cohort, and an
+`always()` uninstall that leaves no loaded service, plist, or install root.
+This does not qualify a Linux user-service installation, headless update or
+rollback, remote binding, a public installer, signing, release, or production.
 
 When a local Docker daemon is available:
 

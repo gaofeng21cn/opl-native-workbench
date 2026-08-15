@@ -39,6 +39,10 @@ test("installer binds the installed runtime, fixed updater argv, and fresh host/
     nodeExecutable: "/opt/homebrew/bin/node",
     env: {
       PATH: "/opt/homebrew/bin:/usr/bin:/bin",
+      CODEX_HOME: "/Users/opl/.codex",
+      OPL_APP_OPL_BIN: "/Users/opl/framework/bin/opl",
+      OPL_APP_REPO_ROOT: "/Users/opl/app-product",
+      OPL_CODEX_BIN: "/Users/opl/.local/bin/codex",
       OPL_HEADLESS_HOST: "127.0.0.1",
       OPL_HEADLESS_PORT: "4180",
       OPL_HEADLESS_WORKSPACE_ROOT: "/Users/opl/Projects"
@@ -78,6 +82,10 @@ test("installer binds the installed runtime, fixed updater argv, and fresh host/
   assert.equal(options.serviceEnvironment.OPL_WEBUI_ROOT, path.join(current, "dist", "webui"));
   assert.equal(options.serviceEnvironment.OPL_NATIVE_APP_UPDATE_CARRIER, "standalone_headless_webui");
   assert.equal(options.serviceEnvironment.OPL_NATIVE_APP_UPDATE_EXECUTABLE, "/opt/homebrew/bin/node");
+  assert.equal(options.serviceEnvironment.CODEX_HOME, "/Users/opl/.codex");
+  assert.equal(options.serviceEnvironment.OPL_APP_OPL_BIN, "/Users/opl/framework/bin/opl");
+  assert.equal(options.serviceEnvironment.OPL_APP_REPO_ROOT, "/Users/opl/app-product");
+  assert.equal(options.serviceEnvironment.OPL_CODEX_BIN, "/Users/opl/.local/bin/codex");
   assert.deepEqual(JSON.parse(options.serviceEnvironment.OPL_NATIVE_APP_UPDATE_CHECK_ARGS_JSON), [
     updater,
     "check",

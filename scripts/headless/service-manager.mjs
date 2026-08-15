@@ -223,7 +223,7 @@ export function createHeadlessServiceManager({
     return result;
   }
 
-  function outcome(action, native) {
+  function outcome(action, native, evidence = {}) {
     return {
       action,
       platform,
@@ -232,7 +232,8 @@ export function createHeadlessServiceManager({
       definitionPath: definitions?.file ?? null,
       native: native
         ? { exitCode: native.exitCode, stdout: native.stdout, stderr: native.stderr }
-        : null
+        : null,
+      ...evidence
     };
   }
 
@@ -272,8 +273,25 @@ export function createHeadlessServiceManager({
       return outcome(action, await bootstrap());
     }
     const native = await invoke("launchctl", ["bootout", target], { allowFailure: true });
+    let absence;
+    let attempts = 0;
+    for (; attempts < 50; attempts += 1) {
+      absence = await invoke("launchctl", ["print", target], { allowFailure: true });
+      if (absence.exitCode !== 0) break;
+      if (attempts < 49) await sleep(100);
+    }
+    if (!absence || absence.exitCode === 0) {
+      throw new Error(`launchctl service remained loaded after bootout: ${target}`);
+    }
     await fileSystem.rm(definitions.file, { force: true });
-    return outcome(action, native);
+    return outcome(action, native, {
+      absenceReadback: {
+        command: "launchctl print",
+        absent: true,
+        attempts: attempts + 1,
+        exitCode: absence.exitCode
+      }
+    });
   }
 
   async function runLinux(action) {
