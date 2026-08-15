@@ -15,11 +15,15 @@
       "packages/client/ui-layout/src",
       "packages/client/ui-sidebar/src",
       "packages/client/ui-conversation/src",
+      "packages/client/ui-input-trigger/src",
+      "packages/client/ui-model-selection/src",
+      "packages/client/ui-agent-preset/src",
+      "packages/client/ui-workspace/src",
       "packages/client/ui-settings-general/src",
       "packages/client/ui-theme/src",
       "packages/client/ui-primitives/src"
     ],
-    "file_count": 207
+    "file_count": 263
   },
   "opl_delta_roots": [
     "src/composition",
@@ -39,6 +43,74 @@
     {
       "path": "LICENSE",
       "sha256": "ebb4f09972aee8608be255debaf78451a68e95c290f55c240dec2ecfa16ea6be"
+    },
+    {
+      "path": "packages/client/ui-agent-preset/src/client/AgentPresetLabel.module.css",
+      "sha256": "88daf334fa6083888f13144c429a73dbced9ea262956b68f86a285dc51687fa9"
+    },
+    {
+      "path": "packages/client/ui-agent-preset/src/client/AgentPresetLabel.tsx",
+      "sha256": "42c4e02786a09defebc558c162647141d6a4af455ac13ea9cf03aeb01d38de44"
+    },
+    {
+      "path": "packages/client/ui-agent-preset/src/client/AgentPresetRow.module.css",
+      "sha256": "201624dd534365fe0f583eb548ba1e2a4844dc7bd826097c8c7c20277bbaff85"
+    },
+    {
+      "path": "packages/client/ui-agent-preset/src/client/AgentPresetRow.tsx",
+      "sha256": "f9912fbb7dbc246c9c276a23f01d92e2e119de86e45819b084d1954e52bb7dc0"
+    },
+    {
+      "path": "packages/client/ui-agent-preset/src/client/AgentPresetSeat.module.css",
+      "sha256": "e71c45a5e2d90ef56cf8f1f7c94f4796e1a300fd2c3e2f1c47228fb5c33af228"
+    },
+    {
+      "path": "packages/client/ui-agent-preset/src/client/AgentPresetSeat.tsx",
+      "sha256": "0df3554bec39f24b304efca3c7ba538d6f025b1f736a28f81a26c2577c48750b"
+    },
+    {
+      "path": "packages/client/ui-agent-preset/src/client/AgentPresetSection.module.css",
+      "sha256": "3a8905932e8c0e91d37c533e26120afd0fe8d6f3345e11390de7773c40a73573"
+    },
+    {
+      "path": "packages/client/ui-agent-preset/src/client/AgentPresetSection.tsx",
+      "sha256": "4f97d10b31508fe70bf1b0b83c8889e5549cd553780498a9baec9fe9aa58404e"
+    },
+    {
+      "path": "packages/client/ui-agent-preset/src/client/PresetMenu.tsx",
+      "sha256": "064f9d6cdd111c9a71740630ba28c23dd4aa46579d4cd06928f9e7eb292467c7"
+    },
+    {
+      "path": "packages/client/ui-agent-preset/src/client/index.ts",
+      "sha256": "ff13535b7b62f6af0c500a2bfa3848dc13de4dc4773c185b351ffe5eabd1bf1e"
+    },
+    {
+      "path": "packages/client/ui-agent-preset/src/client/locales.ts",
+      "sha256": "560874822297c4c214747dcdd5cadb3e015f07458262ad2777be8ce8cf812933"
+    },
+    {
+      "path": "packages/client/ui-agent-preset/src/client/seat-store.ts",
+      "sha256": "6190b63c69d18cee4278f6382f7a46bf39a616a5648ef7afc9727ae53662a7ce"
+    },
+    {
+      "path": "packages/client/ui-agent-preset/src/client/section-store.ts",
+      "sha256": "d92ff581b08265c010fe5ea586f9ac1981d0fc56e2c7737cf9368b14e1757bac"
+    },
+    {
+      "path": "packages/client/ui-agent-preset/src/client/settings-store.ts",
+      "sha256": "56ff97919693a9672376e77eb01e05441bd9a81bdbfcfed6369171d70e87f7f6"
+    },
+    {
+      "path": "packages/client/ui-agent-preset/src/css-modules.d.ts",
+      "sha256": "d4395f8ef04ea16601b9b84979df7de5af4ccfeb7b094c510f1442f3d8d5785a"
+    },
+    {
+      "path": "packages/client/ui-agent-preset/src/index.ts",
+      "sha256": "aaebafa4968de2822986a600a280cb775a51918ab44804a44c3f75158b951472"
+    },
+    {
+      "path": "packages/client/ui-agent-preset/src/invariant.ts",
+      "sha256": "52c7ec55fafbe22292d975a04efa5023a41d958264cd6900df25641fd6935bef"
     },
     {
       "path": "packages/client/ui-conversation/src/client/apply.ts",
@@ -405,6 +477,66 @@
       "sha256": "3f01ef83124ae33dd54b8f1e057818ea6ba8b971a558209ab7c34344273ae5a3"
     },
     {
+      "path": "packages/client/ui-input-trigger/src/client/MenuView.module.css",
+      "sha256": "fc6b870bc44689208bbf3c6e900fb04bff350f240fb985b487bfb9624fb543d5"
+    },
+    {
+      "path": "packages/client/ui-input-trigger/src/client/MenuView.tsx",
+      "sha256": "4d8bb19e2cf61dea1aa9b0dda2505b9e43bde434c7ed2dbdd8dae326bf6776fb"
+    },
+    {
+      "path": "packages/client/ui-input-trigger/src/client/contract.ts",
+      "sha256": "d558b516d00fa9894529f985ba3a70e3be199a99aa961808708dd6988628a8b3"
+    },
+    {
+      "path": "packages/client/ui-input-trigger/src/client/controller.ts",
+      "sha256": "0bf26691631dc5299cc641ccbfbb9f676532e62c077ce77f98c290a847da6f47"
+    },
+    {
+      "path": "packages/client/ui-input-trigger/src/client/index.ts",
+      "sha256": "216184119a5eb20ec9f53a872363c2bfe7ac65d94e1959d70c71ee9f7143aecc"
+    },
+    {
+      "path": "packages/client/ui-input-trigger/src/client/locales.ts",
+      "sha256": "f3426cdb85add6b967e72aea4341c48ff9f066cef24b70b111ca2b76c67ac189"
+    },
+    {
+      "path": "packages/client/ui-input-trigger/src/client/service.ts",
+      "sha256": "34d62754348cd3ea5559e7575630baadff6f7222ba201db1183aeec198f7fa90"
+    },
+    {
+      "path": "packages/client/ui-input-trigger/src/client/slots.ts",
+      "sha256": "56a1be30ce50aff88b4b4d3616a680cd039142bd3624961ccf53caaec98a14ef"
+    },
+    {
+      "path": "packages/client/ui-input-trigger/src/core/contract.ts",
+      "sha256": "1d6ef7981b55703c4b315c330d9fd4d2ecc14c520643348506fe56f22b35dace"
+    },
+    {
+      "path": "packages/client/ui-input-trigger/src/core/detect.ts",
+      "sha256": "425dc26876432f19ae8b576cce643e280c3af748c438596acf47aac6a97d908d"
+    },
+    {
+      "path": "packages/client/ui-input-trigger/src/core/menu.ts",
+      "sha256": "4f679c0a221158d90ec236330a81dfcfe36e89040330feabff017a45eb7cf4e9"
+    },
+    {
+      "path": "packages/client/ui-input-trigger/src/css-modules.d.ts",
+      "sha256": "e28410d74a0d763364c04fa690c2ca2202ad3019c74f8f5205e8dc6cba69c02f"
+    },
+    {
+      "path": "packages/client/ui-input-trigger/src/index.ts",
+      "sha256": "b99f9c5bd8de51f6b3fec094805bb3d6957409eb72d0e1ed39f34f5fc40d3f78"
+    },
+    {
+      "path": "packages/client/ui-input-trigger/src/invariant.ts",
+      "sha256": "8282978c30f107cf0a80a31e7e39da315907961b15ae5639a70a51a96bd080bd"
+    },
+    {
+      "path": "packages/client/ui-input-trigger/src/types.ts",
+      "sha256": "680ed4c5f81ddd603f8729480eb78b77e01ba49af3336766867b227ed4b312eb"
+    },
+    {
       "path": "packages/client/ui-layout/src/client/AppFrame.module.css",
       "sha256": "329ad2e094a26fb4ffe3a33eb2d4bdf21262af37ec01da386bd14ef10ba64670"
     },
@@ -443,6 +575,46 @@
     {
       "path": "packages/client/ui-layout/src/invariant.ts",
       "sha256": "8898f0ea2d016545220ab75506a83e17de79085a8b1e5aff805dd5af1981ae9d"
+    },
+    {
+      "path": "packages/client/ui-model-selection/src/client/ModelSelect.module.css",
+      "sha256": "174d9f21cce5885d6df131183f56028cf22a4f862f2ab20829442a521a2e3384"
+    },
+    {
+      "path": "packages/client/ui-model-selection/src/client/ModelSelect.tsx",
+      "sha256": "3d39e2e39f6be6cc6968fbc7929698fcc3cdaf1b9341ce8a46927cc4948f1fd8"
+    },
+    {
+      "path": "packages/client/ui-model-selection/src/client/directory.ts",
+      "sha256": "dfaf003099e536bd6863972850270e798ba80fd794d376776b78a8047ef2ef51"
+    },
+    {
+      "path": "packages/client/ui-model-selection/src/client/index.ts",
+      "sha256": "c024e068ffb911bcbffd58c623f8b3f6ba38a38517dec277acb9c3d622054fda"
+    },
+    {
+      "path": "packages/client/ui-model-selection/src/client/locales.ts",
+      "sha256": "ed1b559244fe66cabb3f1b47a88cd9eebf2e38c3dc1640cf42cbdfa71ffcd590"
+    },
+    {
+      "path": "packages/client/ui-model-selection/src/client/service.ts",
+      "sha256": "e80fd1e06ef0753360294373b69ef71024f800cc1b242da7590c11c8980fb880"
+    },
+    {
+      "path": "packages/client/ui-model-selection/src/client/slots.ts",
+      "sha256": "c9412303392b05f405596d16fd40595289aab0247c44f85eb31f12ce7b7352e8"
+    },
+    {
+      "path": "packages/client/ui-model-selection/src/css-modules.d.ts",
+      "sha256": "e28410d74a0d763364c04fa690c2ca2202ad3019c74f8f5205e8dc6cba69c02f"
+    },
+    {
+      "path": "packages/client/ui-model-selection/src/index.ts",
+      "sha256": "4a27dae71056521f33897160de6cf497bb5949bda12f37ea485fb7a5e54d48ff"
+    },
+    {
+      "path": "packages/client/ui-model-selection/src/invariant.ts",
+      "sha256": "ceb447767d1a83a3a8270796f2f4174d92e94b6fd2ad3796e62b0c4b197bc7f0"
     },
     {
       "path": "packages/client/ui-primitives/src/BrandWordmark.tsx",
@@ -863,6 +1035,62 @@
     {
       "path": "packages/client/ui-theme/src/theme-settings.ts",
       "sha256": "0ec3e2d37f6d0b51cc215c340d008c1f59d249b4e2c915c87d0f1ff81a705ab1"
+    },
+    {
+      "path": "packages/client/ui-workspace/src/client/WorkspaceBrowser.module.css",
+      "sha256": "a09fdf87dab5c03454cb3967dfd968e8894b021eb50b6220345f24553b8981e2"
+    },
+    {
+      "path": "packages/client/ui-workspace/src/client/WorkspaceBrowser.tsx",
+      "sha256": "692645c4161b9e93569df4623f70c147868af6380d6e3e7fed5023da4072242a"
+    },
+    {
+      "path": "packages/client/ui-workspace/src/client/WorkspacePicker.module.css",
+      "sha256": "8b9252a27e4163be3c9b32b2ec30a750477e83d09b5d2a05af3346b628503db4"
+    },
+    {
+      "path": "packages/client/ui-workspace/src/client/WorkspacePicker.tsx",
+      "sha256": "15d40fe72339bf06839ab107a00faa0d36eb341fa9388698d4ed7b2b7761b9ba"
+    },
+    {
+      "path": "packages/client/ui-workspace/src/client/contract/slots.ts",
+      "sha256": "8b2fff471ad15bbe967a340a30b8d100a51861603a3bcad4aa37c14f9b41b692"
+    },
+    {
+      "path": "packages/client/ui-workspace/src/client/index.ts",
+      "sha256": "998512e74f24d02fd8ba0ed0a7e81803f9317606d89562e6110cb3936bed523f"
+    },
+    {
+      "path": "packages/client/ui-workspace/src/client/locales.ts",
+      "sha256": "23d1866da00497c4ee7534f80759a9e390eabb1e7823deb64d6bcdb9ee9e141b"
+    },
+    {
+      "path": "packages/client/ui-workspace/src/client/rows/Rows.module.css",
+      "sha256": "6eb8798f70f962a1c57106ba11eb456012b4a3d5688ca5a3c52b6d972aa497e8"
+    },
+    {
+      "path": "packages/client/ui-workspace/src/client/rows/Rows.tsx",
+      "sha256": "3f6214ec1c7788810c2086d761677c75c2bb65d9f7699e3c5c9a2855edffed8e"
+    },
+    {
+      "path": "packages/client/ui-workspace/src/client/stores.ts",
+      "sha256": "8c6355addf9f04a3567d75d520eaa701ae53ad348f5634ad258f14d65e04636a"
+    },
+    {
+      "path": "packages/client/ui-workspace/src/client/tree.ts",
+      "sha256": "8511885c482e12b192e19528f6753fd09cba468f3a698da8ca36ecacf879c61b"
+    },
+    {
+      "path": "packages/client/ui-workspace/src/css-modules.d.ts",
+      "sha256": "e28410d74a0d763364c04fa690c2ca2202ad3019c74f8f5205e8dc6cba69c02f"
+    },
+    {
+      "path": "packages/client/ui-workspace/src/index.ts",
+      "sha256": "7a4f9356cd158169c0e87d92eee6871ca6b1527851fb905a9c5ab8d9e87cd864"
+    },
+    {
+      "path": "packages/client/ui-workspace/src/invariant.ts",
+      "sha256": "a71023769dbbb8db3fe2a918ea6a7710d9db0f584cf5a1ac4f402f13bffc5335"
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { Folder, PanelRight, Settings as SettingsIcon, X } from "lucide-react";
 import {
   SlotCore,
@@ -13,6 +13,20 @@ import { ConversationRoot } from "@opl-vendor/dsh-conversation-root";
 import { InputBar } from "@opl-vendor/dsh-input-bar";
 import { QueueDock } from "@opl-vendor/dsh-queue-dock";
 import { SettingsRoot } from "@opl-vendor/dsh-settings-root";
+import { WorkspaceBrowser } from "@opl-vendor/dsh-workspace-browser";
+import { AgentPresetSeat } from "@opl-vendor/dsh-agent-preset-seat";
+import { ModelSelect } from "@opl-vendor/dsh-model-select";
+import { createWorkspaceViewStore } from "../vendor/deepseek-harness/packages/client/ui-workspace/src/client/stores.ts";
+import { zh as workspaceZh, en as workspaceEn } from "../vendor/deepseek-harness/packages/client/ui-workspace/src/client/locales.ts";
+import { zh as modelZh, en as modelEn } from "../vendor/deepseek-harness/packages/client/ui-model-selection/src/client/locales.ts";
+import { zh as agentZh, en as agentEn } from "../vendor/deepseek-harness/packages/client/ui-agent-preset/src/client/locales.ts";
+import {
+  createSnapshotStore,
+  type ModelProviderGroup,
+  type ModelSelection,
+  type SessionListState,
+  type WorkspaceListState,
+} from "../integrations/deepseek-harness/runtimeShim";
 import App from "../workbench/App";
 import { settingsDestinations, type SettingsDestinationId } from "../workbench/SettingsPanel";
 import { ProjectedContribution } from "./contributionComponents";
@@ -127,6 +141,10 @@ function constantObservable<T>(snapshot: T): HostObservable<T> {
   return { getSnapshot: () => snapshot, subscribe: () => () => undefined };
 }
 
+function useDshSnapshot<T, S>(store: { getSnapshot(): T; subscribe(listener: () => void): () => void }, selector: (value: T) => S): S {
+  return selector(useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot));
+}
+
 type ActiveRegistration = { fingerprint: string; dispose(): void };
 type StudioContextValue = OplStudioSurface & {
   narrow: boolean;
@@ -148,7 +166,7 @@ function translate(locale: "zh" | "en", key: string, params?: Record<string, unk
   const copy: Record<string, [string, string]> = {
     "session.new.label": ["新建任务", "New task"], "session.new": ["新建任务", "New task"],
     "toggle.open": ["展开侧栏", "Expand sidebar"], "toggle.collapse": ["收起侧栏", "Collapse sidebar"],
-    "hero.headline": ["今天要推进什么？", "What will you move forward today?"], "hero.preview": ["One Person Lab", "One Person Lab"],
+    "hero.headline": ["One Person Lab", "One Person Lab"], "hero.preview": ["预览版", "Preview"],
     "hero.chooseWorkspace": ["选择工作区", "Choose workspace"], "placeholder.workspace": ["先选择工作区", "Choose a workspace first"],
     "placeholder.hero": ["向 OPL 描述你的目标", "Describe your goal to OPL"], "placeholder.default": ["向 OPL 描述你的目标", "Describe your goal to OPL"],
     "placeholder.unavailable": ["当前不可输入", "Input unavailable"], "placeholder.parentOffline": ["父任务当前离线", "Parent task is offline"],
@@ -165,7 +183,10 @@ function translate(locale: "zh" | "en", key: string, params?: Record<string, unk
     "queue.editFailed": ["编辑失败，请重试。", "Editing failed. Try again."], "queue.removeFailed": ["删除失败，请重试。", "Removal failed. Try again."],
     "queue.steerFailed": ["插话发送失败，请重试。", "Steering failed. Try again."]
   };
-  let value = copy[key]?.[locale === "zh" ? 0 : 1] ?? key;
+  const dshDictionary = locale === "zh"
+    ? { ...workspaceZh, ...modelZh, ...agentZh }
+    : { ...workspaceEn, ...modelEn, ...agentEn };
+  let value = copy[key]?.[locale === "zh" ? 0 : 1] ?? dshDictionary[key as keyof typeof dshDictionary] ?? key;
   for (const [name, replacement] of Object.entries(params ?? {})) value = value.replaceAll(`{${name}}`, String(replacement));
   return value;
 }
@@ -250,7 +271,7 @@ function StudioFrame({ surface, renderSlot }: { surface: OplStudioSurface; rende
 }
 
 function OplStudioRoot({ renderSlot }: { renderSlot: any }) {
-  return <App renderShell={(surface) => <StudioFrame surface={surface} renderSlot={renderSlot} />} renderContributionSlot={(slot, owner) => renderSlot(slot, owner)} onUiContributionsChange={(projection) => slotHost.replaceProjection(projection)} onUiContributionsDispose={() => slotHost.clearProjection()} />;
+  return <App renderShell={(surface) => <StudioFrame surface={surface} renderSlot={renderSlot} />} renderContributionSlot={(slot, owner) => renderSlot(slot, owner)} onUiContributionsChange={(projection) => slotHost.replaceHostDerivedProjection(projection)} onUiContributionsDispose={() => slotHost.clearProjection()} />;
 }
 
 function SidebarSlot({ collapsed, width, renderSlot }: { collapsed: boolean; width: number; renderSlot: any }) {
@@ -260,8 +281,61 @@ function SidebarSlot({ collapsed, width, renderSlot }: { collapsed: boolean; wid
 
 function SidebarWorkspacesSlot({ wide, expandSidebar }: { wide: boolean; expandSidebar(): void }) {
   const studio = useStudio();
-  if (wide) return <>{studio.workspaceRail}</>;
-  return <button type="button" className="opl-dsh-rail-browser" aria-label={studio.locale === "zh" ? "展开项目" : "Expand projects"} onClick={expandSidebar}><Folder aria-hidden="true" size={18} /></button>;
+  const workspaceStore = useMemo(() => createWorkspaceViewStore().create(), []);
+  const list: SessionListState = useMemo(() => {
+    const projects = studio.threadProjects;
+    const byId = Object.fromEntries(projects.flatMap(project => project.threads.map(thread => [thread.id, {
+      id: thread.id,
+      displayTitle: thread.title,
+      cwd: thread.workspace,
+      running: thread.status === "running",
+      completed: thread.status === "completed",
+      blank: false,
+      updatedAt: thread.updatedAt ? Date.parse(thread.updatedAt) : 0
+    }]))) as SessionListState["byId"];
+    return {
+      ids: Object.keys(byId), byId, current: studio.currentThreadId,
+      phase: studio.threadDirectoryStatus,
+      subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined
+    };
+  }, [studio.currentThreadId, studio.threadDirectoryStatus, studio.threadProjects]);
+  const workspaces: WorkspaceListState = useMemo(() => ({
+    phase: studio.threadDirectoryStatus,
+    items: studio.threadProjects.map(project => ({
+      workspaceId: project.id,
+      path: project.workspace ?? project.label,
+      title: project.label,
+      sessionIds: project.threads.map(thread => thread.id),
+      createdAt: "1970-01-01T00:00:00.000Z",
+      updatedAt: new Date().toISOString()
+    })),
+    archivedSessionIds: new Set()
+  }), [studio.threadDirectoryStatus, studio.threadProjects]);
+  const actions = workspaceStore.actions as Record<string, (...args: any[]) => void>;
+  const dshLocale = (key: string, params?: Record<string, unknown>) => translate(studio.locale, key, params);
+  return <WorkspaceBrowser
+    wide={wide}
+    expandSidebar={expandSidebar}
+    useSessions={(selector: any) => selector(list)}
+    useWorkspaces={(selector: any) => selector(workspaces)}
+    useStore={(selector: any) => useDshSnapshot(workspaceStore, selector)}
+    actions={actions}
+    startSession={(projectId?: string) => studio.startSessionInProject(projectId)}
+    open={(threadId: string) => studio.openThread(threadId)}
+    renameSession={async () => { throw new Error(studio.locale === "zh" ? "会话重命名尚未接入宿主。" : "Session rename is not exposed by this host yet."); }}
+    forkSession={(threadId: string) => studio.forkThread(threadId)}
+    renameWorkspace={async () => { throw new Error(studio.locale === "zh" ? "工作区重命名尚未接入宿主。" : "Workspace rename is not exposed by this host yet."); }}
+    deleteWorkspace={async () => { throw new Error(studio.locale === "zh" ? "工作区删除尚未接入宿主。" : "Workspace deletion is not exposed by this host yet."); }}
+    insertWorkspaceBefore={async () => { throw new Error(studio.locale === "zh" ? "工作区排序尚未接入宿主。" : "Workspace ordering is not exposed by this host yet."); }}
+    archiveSession={(threadId: string) => studio.archiveThread(threadId)}
+    insertSessionBefore={async () => { throw new Error(studio.locale === "zh" ? "会话排序尚未接入宿主。" : "Session ordering is not exposed by this host yet."); }}
+    createWorkspace={async () => { throw new Error(studio.locale === "zh" ? "目录选择尚未接入宿主。" : "Directory picking is not exposed by this host yet."); }}
+    searchSessions={async (query: string) => ({ items: await studio.searchThreads(query), hasMore: false })}
+    searchResultLimit={100}
+    useDirectoryFlow={() => false}
+    renderSlot={() => null}
+    t={dshLocale}
+  />;
 }
 
 function ConversationSlot({ renderSlot }: { renderSlot: any }) {
@@ -281,9 +355,65 @@ function ConversationHeaderSlot() {
 }
 
 function ConversationBodySlot() { return <>{useStudio().conversationBody}</>; }
-function HeroActionsSlot() { return <>{useStudio().heroActions}</>; }
+function HeroActionsSlot() {
+  const studio = useStudio();
+  const store = useMemo(() => createSnapshotStore<{
+    options: Array<{ id: string; trust: "system"; name: string; description: string }>;
+    current: string;
+    error: string | null;
+    busy: boolean;
+    introduce: boolean;
+  }>({ options: [], current: "", error: null, busy: false, introduce: false }), []);
+  useEffect(() => {
+    store.set({
+      ...store.getSnapshot(),
+      options: studio.agentPresets.map((preset) => ({ id: preset.id, trust: "system" as const, name: preset.name, description: preset.description })),
+      current: studio.selectedAgentPresetId,
+    });
+  }, [store, studio.agentPresets, studio.selectedAgentPresetId]);
+  return <AgentPresetSeat
+    load={async () => undefined}
+    select={(id: string) => studio.selectAgentPreset(id)}
+    introduced={() => undefined}
+    useAgentPresetSeat={(selector: any) => useDshSnapshot(store, selector)}
+    t={(key: string) => translate(studio.locale, key)}
+  />;
+}
 function ComposerOverlaySlot() { return <>{useStudio().composerOverlay}</>; }
-function ComposerModelSlot() { return <>{useStudio().composerModelControls}</>; }
+function ComposerModelSlot() {
+  const studio = useStudio();
+  const directory = useMemo(() => createSnapshotStore<{
+    current: ModelSelection | null;
+    routable: boolean | null;
+    groups: ModelProviderGroup[];
+    failures: Array<{ id: string; name: string; message: string }>;
+    status: "idle" | "loading" | "ready" | "selecting" | "error";
+    error: string | null;
+  }>({
+    current: null,
+    routable: true,
+    groups: [],
+    failures: [],
+    status: "ready" as const,
+    error: null,
+  }), []);
+  useEffect(() => {
+    const groups = [{ id: "opl", name: studio.locale === "zh" ? "OPL 模型" : "OPL Models", models: [
+      { id: "__auto", name: studio.locale === "zh" ? "自动" : "Auto", reasoning: { efforts: studio.modelOptions.map(option => ({ id: option.defaultReasoningEffort, name: option.defaultReasoningEffort })), defaultEffort: studio.reasoningSelection } },
+      ...studio.modelOptions.map(option => ({ id: option.id, name: studio.locale === "zh" ? option.label_zh : option.label_en, reasoning: { efforts: option.supportedReasoningEfforts.map(id => ({ id, name: id })), defaultEffort: option.defaultReasoningEffort } }))
+    ] }];
+    const current = studio.modelSelection === "__auto" ? { provider: "opl", model: "__auto", reasoningEffort: studio.reasoningSelection } : { provider: "opl", model: studio.modelSelection, reasoningEffort: studio.reasoningSelection };
+    directory.set({ ...directory.getSnapshot(), current, groups, status: "ready", error: null });
+  }, [directory, studio.locale, studio.modelOptions, studio.modelSelection, studio.reasoningSelection]);
+  return <ModelSelect
+    locked={studio.sending}
+    available
+    directory={directory}
+    load={() => undefined}
+    select={async (selection: { model: string; reasoningEffort?: string }) => studio.selectModel(selection.model, selection.reasoningEffort)}
+    t={(key: string, params?: Record<string, unknown>) => translate(studio.locale, key, params)}
+  />;
+}
 
 function InputBarSlot({ renderSlot, ...owner }: Record<string, any>) {
   const studio = useStudio();
@@ -392,7 +522,8 @@ function SettingsSlot({ wide, renderSlot }: { wide: boolean; renderSlot: any }) 
 
 function SettingsTriggerSlot({ wide }: { wide: boolean }) {
   const studio = useStudio();
-  return <><SettingsIcon aria-hidden="true" size={16} />{wide ? <span>{studio.locale === "zh" ? "设置" : "Settings"}</span> : null}</>;
+  const label = studio.locale === "zh" ? "设置" : "Settings";
+  return <><SettingsIcon aria-hidden="true" size={16} /><span className={wide ? undefined : "visually-hidden"}>{label}</span></>;
 }
 
 function SettingsHeaderSlot() { return <>One Person Lab</>; }
@@ -452,7 +583,9 @@ export class OplStudioDshSlotHost {
 
   renderRoot() { return this.renderer.renderRoot(this.host, {}); }
 
-  replaceProjection(projection: OplUiContributionsProjection) {
+  // Package occupants come only from the Framework Host projection. Static DSH
+  // registrations define renderer structure, not a second Package graph.
+  replaceHostDerivedProjection(projection: OplUiContributionsProjection) {
     const next = new Map(projection.entries.map((entry) => [entry.contributionKey, entry]));
     for (const [key, active] of this.registrations) {
       const entry = next.get(key); const fingerprint = entry ? JSON.stringify(entry) : null;

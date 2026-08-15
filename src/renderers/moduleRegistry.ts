@@ -4,7 +4,6 @@ import * as RadixTabs from "@radix-ui/react-tabs";
 import * as KaTeX from "katex";
 import * as LucideIcons from "lucide-react";
 import * as Mermaid from "mermaid";
-import * as ResizablePanels from "react-resizable-panels";
 import * as Streamdown from "streamdown";
 
 const PdfJs = {
@@ -35,7 +34,6 @@ export const rendererModuleBindings = {
   lucideIcons: LucideIcons,
   mermaid: Mermaid,
   pdfJs: PdfJs,
-  resizablePanels: ResizablePanels,
   streamdown: Streamdown
 } as const;
 
@@ -131,14 +129,6 @@ export const rendererModuleRegistry: RendererModuleRegistration[] = [
     adapter: "Icon components inside action buttons and cards",
     evidenceTestId: "opl-export-action",
     authorityBoundary: "Visual affordance only"
-  },
-  {
-    id: "react-resizable-panels",
-    packageName: "react-resizable-panels",
-    surface: "Workspace rail / chat / inspector layout",
-    adapter: "PanelGroup with three resizable product regions",
-    evidenceTestId: "opl-workspace-rail",
-    authorityBoundary: "Renderer layout only"
   },
   {
     id: "streamdown",

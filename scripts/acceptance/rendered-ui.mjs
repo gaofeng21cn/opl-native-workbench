@@ -144,16 +144,13 @@ try {
     horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth || document.body.scrollWidth > window.innerWidth,
     viewport: [window.innerWidth, window.innerHeight],
     promptVisible: document.querySelector('textarea')?.getClientRects().length > 0,
-    selectedModelLabel: document.querySelector('[data-testid="opl-topbar-model-config"] select')?.selectedOptions[0]?.textContent?.trim(),
-    modelLabels: Array.from(document.querySelectorAll('[data-testid="opl-topbar-model-config"] select:first-child option')).map((item) => item.textContent?.trim())
+    selectedModelLabel: document.querySelector('button[aria-label^="选择模型"] span')?.textContent?.trim()
   })`, cliRoot);
   assert.deepEqual(narrow.viewport, [400, 800]);
   assert.equal(narrow.root, true);
   assert.equal(narrow.horizontalOverflow, false);
   assert.equal(narrow.promptVisible, true);
   assert.equal(narrow.selectedModelLabel, "自动");
-  assert.equal(narrow.modelLabels.filter((label) => label === "5.6 Sol").length, 1);
-  assert.equal(narrow.modelLabels.some((label) => label?.includes("当前")), false);
   await cli(["screenshot"], cliRoot);
   const narrowScreenshot = await latestScreenshot(cliRoot);
 

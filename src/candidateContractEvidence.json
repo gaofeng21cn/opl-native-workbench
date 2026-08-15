@@ -95,7 +95,6 @@
     "runtime_detail_contributions",
     "mobile_details_overlay",
     "text_only_product_brand",
-    "delivery_mode_selection",
     "export_action",
     "webui_renderer_parity",
     "release_isolation",
@@ -345,6 +344,26 @@
         ]
       }
     ],
+    "gateway_account_lkg_cache": [
+      {
+        "file": "src/workbench/gatewayAccountCache.ts",
+        "contains": [
+          "opl.app.gatewayAccount.lkg.v1",
+          "sanitizeGatewayAccount",
+          "readGatewayAccountCache",
+          "writeGatewayAccountCache",
+          "markGatewayAccountCacheStale"
+        ]
+      },
+      {
+        "file": "src/workbench/App.tsx",
+        "contains": [
+          "readGatewayAccountCache",
+          "writeGatewayAccountCache",
+          "markGatewayAccountCacheStale"
+        ]
+      }
+    ],
     "execute_confirmation": [
       {
         "file": "src/workbench/SettingsPanel.tsx",
@@ -396,11 +415,9 @@
         ]
       },
       {
-        "file": "src/workbench/App.tsx",
+        "file": "src/workbench/workbenchModel.ts",
         "contains": [
-          "opl-workbench-delivery-mode",
-          "opl-delivery-mode-option",
-          "purposePreviewAction"
+          "starterPreviewAction"
         ]
       }
     ],
@@ -482,11 +499,11 @@
         ]
       },
       {
-        "file": "src/workbench/threads/ThreadRail.tsx",
+        "file": "src/composition/dshSlotHost.tsx",
         "contains": [
-          "opl-real-thread-directory",
-          "opl-thread-scope-filter",
-          "opl-thread-detail-trigger"
+          "WorkspaceBrowser",
+          "searchSessions",
+          "archiveSession"
         ]
       }
     ]
@@ -584,8 +601,11 @@
         "dsh_roots": [
           "AppFrame",
           "SidebarRoot",
+          "WorkspaceBrowser",
           "ConversationRoot",
           "InputBar",
+          "AgentPresetSeat",
+          "ModelSelect",
           "SettingsRoot"
         ],
         "slot_runtime": [
@@ -595,12 +615,14 @@
         ],
         "surface_handoff": [
           "return renderShell({",
-          "workspaceRail: studioWorkspaceRail",
+          "threadProjects,",
+          "agentPresets:",
+          "modelOptions,",
           "conversationBody: studioConversationBody",
           "renderSettings: renderStudioSettings"
         ],
         "dynamic_contributions": [
-          "replaceProjection",
+          "replaceHostDerivedProjection",
           "registerContribution",
           "active.dispose()"
         ]
@@ -610,7 +632,7 @@
       "reference_product": "DeepSeek Harness",
       "reference_version": "47f943859bef60e4160492346772ded9b24f765a",
       "reference_date": "2026-08-14",
-      "scope": "six_pinned_gui_package_source_trees_with_vendor_external_opl_adapters",
+      "scope": "ten_pinned_gui_package_source_trees_with_vendor_external_opl_adapters",
       "token_source": "src/vendor/deepseek-harness/packages/client/ui-theme/src/styles/design-platform.css",
       "palette": {
         "canvas": "#fff",
@@ -656,7 +678,8 @@
     "adopted_patterns": [
       "SlotCore typed slot registry and disposer lifecycle",
       "createSlotRenderer React composition and entry error isolation",
-      "byte-identical AppFrame SidebarRoot ConversationRoot EmptyHero InputBar and SettingsRoot GUI source",
+      "byte-identical AppFrame SidebarRoot WorkspaceBrowser ConversationRoot EmptyHero InputBar AgentPresetSeat ModelSelect and SettingsRoot GUI source",
+      "DSH-owned typography spacing layout color state and interaction without an OPL parallel visual system",
       "project-first persistent left sidebar",
       "single centered conversation canvas",
       "default-closed DSH resizable details column",
@@ -676,13 +699,17 @@
     ],
     "vendored_source_root": "src/vendor/deepseek-harness",
     "source_manifest": "src/composition/deepseekHarnessSourceManifest.json",
-    "vendored_file_count": 207,
+    "vendored_file_count": 263,
     "byte_identical": true,
     "byte_identical_to_pinned_ref": true,
     "vendored_package_roots": [
       "packages/client/ui-layout/src",
       "packages/client/ui-sidebar/src",
       "packages/client/ui-conversation/src",
+      "packages/client/ui-input-trigger/src",
+      "packages/client/ui-model-selection/src",
+      "packages/client/ui-agent-preset/src",
+      "packages/client/ui-workspace/src",
       "packages/client/ui-settings-general/src",
       "packages/client/ui-theme/src",
       "packages/client/ui-primitives/src"
@@ -701,8 +728,11 @@
     "active_gui_roots": [
       "packages/client/ui-layout/src/client/AppFrame.tsx#AppFrame",
       "packages/client/ui-sidebar/src/client/SidebarRoot.tsx#SidebarRoot",
+      "packages/client/ui-workspace/src/client/WorkspaceBrowser.tsx#WorkspaceBrowser",
       "packages/client/ui-conversation/src/client/skeleton/ConversationRoot.tsx#ConversationRoot+EmptyHero",
       "packages/client/ui-conversation/src/client/skeleton/InputBar.tsx#InputBar",
+      "packages/client/ui-agent-preset/src/client/AgentPresetSeat.tsx#AgentPresetSeat",
+      "packages/client/ui-model-selection/src/client/ModelSelect.tsx#ModelSelect",
       "packages/client/ui-settings-general/src/client/SettingsRoot.tsx#SettingsRoot"
     ],
     "other_gui_source_reuse": [],
@@ -710,7 +740,20 @@
     "other_external_source_copied": false,
     "runtime_authority_transfer": false,
     "user_visible_protocol_copy": false,
-    "required_boundary": "render the pinned DeepSeek Harness GUI package source through OPL-owned adapters; do not adopt DeepSeek Harness session, agent, provider, credential, plugin-manager, control-plane, domain, runtime, or release authority"
+    "required_boundary": "render the pinned DeepSeek Harness GUI package source through OPL-owned adapters; derive the single Client Cordis graph from Framework Host projection plus App profile and slot policy; do not adopt DeepSeek Harness session, agent, provider, credential, plugin-manager, control-plane, domain, runtime, or release authority"
+  },
+  "client_composition_boundary": {
+    "app_client_contribution_abi": "opl_app_client_contributions.v1",
+    "framework_host_graph_owner": "one-person-lab-framework",
+    "client_cordis_graph": "derived_from_framework_host_graph",
+    "app_product_profile_owner": "one-person-lab-app",
+    "shared_product_profile_and_slot_policy": true,
+    "renderer_and_package_carrier_may_differ": true,
+    "independent_host_truth": false,
+    "second_package_registry": false,
+    "second_currentness_authority": false,
+    "second_action_authority": false,
+    "second_client_composition_graph": false
   },
   "false_ready_boundary": {
     "active_shell_adopted": false,
@@ -817,19 +860,6 @@
         "opl-runtime-contributions"
       ]
     },
-    "delivery_mode": {
-      "capability": "delivery_mode_selection",
-      "status_field": "delivery_mode_status",
-      "live_evidence": false,
-      "layout_markers": [
-        "opl-dsh-hero-actions"
-      ],
-      "renderer_testids": [
-        "opl-workbench-delivery-mode",
-        "opl-delivery-mode",
-        "opl-delivery-mode-option"
-      ]
-    },
     "export_action": {
       "capability": "export_action",
       "status_field": "export_action_status",
@@ -852,8 +882,6 @@
       "release"
     ],
     "runtime_testids": [
-      "opl-workspace-rail",
-      "opl-session-list",
       "opl-context-tabs",
       "opl-runtime-status-panel",
       "opl-agent-run-status",
@@ -945,6 +973,16 @@
         "theme",
         "developerDetails"
       ]
+    },
+    "gateway_account_lkg_cache": {
+      "file": "src/workbench/gatewayAccountCache.ts",
+      "storage_key": "opl.app.gatewayAccount.lkg.v1",
+      "scope": "public_gateway_account_read_model_only",
+      "fresh_read_replaces_cache": true,
+      "loading_and_failure_render_cached_value_as_stale": true,
+      "secret_fields_cached": false,
+      "private_receipts_cached": false,
+      "raw_response_cached": false
     }
   },
   "bilingual_ui": {

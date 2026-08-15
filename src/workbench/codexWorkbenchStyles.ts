@@ -1088,7 +1088,7 @@ export const codexWorkbenchStyles = `
     left: -1px;
     bottom: calc(100% + 8px);
     width: min(420px, calc(100vw - 48px));
-    max-height: min(520px, calc(100vh - 150px));
+    max-height: min(520px, calc(50dvh - 64px));
     display: flex;
     flex-direction: column;
     overflow: hidden;

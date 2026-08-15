@@ -8,8 +8,8 @@ Machine boundary: Human-readable Native product entry. App product and adoption 
 -->
 
 `opl-studio` is the internal repository and development codename for the
-first-party One Person Lab App successor. The product uses a DeepSeek
-Harness-derived React renderer and one shared Node host core. Electron is the
+first-party One Person Lab App successor. The product directly reuses the pinned
+DeepSeek Harness React GUI source and uses one shared Node host core. Electron is the
 thin desktop carrier for macOS, Windows, and Linux; HTTP/SSE exposes the same
 renderer and bridge for standalone WebUI, headless, and Docker forms.
 
@@ -26,6 +26,13 @@ mutations remain behind Framework `opl app state/action` contracts. It does not
 package or read AionUI/AionCore manifests, sessions, or data.
 Codex App Server stdio is the only enabled carrier; `pi` and `hermes` are
 reserved disabled interface names and add no current code path or dependency.
+
+Package-facing GUI composition uses the same App Client Contribution ABI,
+product profile, and slot policy as AionUI. The browser Client Cordis graph is
+derived only from the Framework Host projection; it does not discover Packages
+or own a second registry, currentness, state, session, or action plane. DSH owns
+the reused typography, spacing, layout, colors, component state, and interaction;
+OPL supplies only text identity, real projections, policy, and thin adapters.
 
 OPL Workspace serves the same renderer through the shared Node host core and a
 lightweight HTTP/SSE adapter. Docker runs neither Electron nor AionCore. The

@@ -13,6 +13,10 @@ const packageRoots = [
   "packages/client/ui-layout/src",
   "packages/client/ui-sidebar/src",
   "packages/client/ui-conversation/src",
+  "packages/client/ui-input-trigger/src",
+  "packages/client/ui-model-selection/src",
+  "packages/client/ui-agent-preset/src",
+  "packages/client/ui-workspace/src",
   "packages/client/ui-settings-general/src",
   "packages/client/ui-theme/src",
   "packages/client/ui-primitives/src"

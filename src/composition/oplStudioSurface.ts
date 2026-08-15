@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import type { SettingsDestinationId } from "../workbench/SettingsPanel";
+import type { AgentPackageSelectionIntent, WorkbenchProjectGroup } from "../workbench/workbenchModel";
+import type { ResolvedCodexModelOption } from "../workbench/modelPolicy";
 import type { OplContributionSlotOwner, OplUiContributionsProjection } from "./contributionProjection";
 
 export type OplStudioSurface = {
@@ -19,18 +21,36 @@ export type OplStudioSurface = {
   }>;
   contributionOwner: OplContributionSlotOwner;
   uiContributions: OplUiContributionsProjection;
-  workspaceRail: ReactNode;
+  threadProjects: WorkbenchProjectGroup[];
+  threadDirectoryStatus: "loading" | "ready" | "error";
+  currentThreadId?: string;
+  selectedProjectId?: string;
+  modelOptions: ResolvedCodexModelOption[];
+  modelSelection: string;
+  reasoningSelection: string;
+  agentPresets: Array<{
+    id: string;
+    name: string;
+    description: string;
+    selection: AgentPackageSelectionIntent | null;
+  }>;
+  selectedAgentPresetId: string;
   conversationHeader: ReactNode;
   conversationBody: ReactNode;
-  heroActions: ReactNode;
   composerAccessory: ReactNode;
   composerOverlay: ReactNode;
-  composerModelControls: ReactNode;
   details: ReactNode;
   renderSettings(destination: SettingsDestinationId): ReactNode;
   overlay: ReactNode;
   detailsRequestRevision: number;
   startSession(): void;
+  startSessionInProject(projectId?: string): void;
+  openThread(threadId: string): void;
+  forkThread(threadId: string): void;
+  archiveThread(threadId: string): Promise<void>;
+  searchThreads(query: string): Promise<Array<{ sessionId: string; snippet?: string }>>;
+  selectModel(modelId: string, reasoningEffort?: string): Promise<boolean>;
+  selectAgentPreset(id: string): Promise<void>;
   updatePrompt(value: string): void;
   submitPrompt(mode?: "queue" | "steer"): void;
   steerQueue(): void;

@@ -21,6 +21,22 @@ body {
   letter-spacing: 0;
 }
 
+html[data-opl-host="desktop"] .opl-studio-dsh-root {
+  box-sizing: border-box;
+  padding-top: 28px;
+}
+
+html[data-opl-host="desktop"] .opl-studio-dsh-root::before {
+  content: "";
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  right: 0;
+  left: 80px;
+  height: 28px;
+  -webkit-app-region: drag;
+}
+
 button,
 input,
 textarea,
@@ -55,15 +71,6 @@ select {
   display: inline !important;
 }
 
-.opl-dsh-workspace-rail {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.opl-dsh-projects > header button,
 .opl-dsh-conversation-header button,
 .opl-dsh-context-panel button {
   border: 0;
@@ -71,55 +78,10 @@ select {
   color: inherit;
 }
 
-.opl-dsh-projects > header button:hover,
 .opl-dsh-conversation-header button:hover,
 .opl-dsh-context-panel button:hover {
   background: var(--dsw-alias-interactive-bg-hover);
 }
-
-.opl-dsh-projects {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.opl-dsh-projects > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 12px 6px 8px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-}
-
-.opl-dsh-projects > header button {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-}
-
-.opl-dsh-projects > div {
-  min-height: 0;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-}
-
-.opl-dsh-rail-browser {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
-}
-
-.opl-dsh-rail-browser:hover { background: var(--dsw-alias-interactive-bg-hover); }
 
 .opl-dsh-conversation-header {
   flex: none;
@@ -167,43 +129,6 @@ select {
   flex-direction: column;
   gap: 22px;
   padding: 28px 0 20px;
-}
-
-.opl-dsh-hero-actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  width: min(100%, 420px);
-  max-width: 100%;
-}
-
-.opl-dsh-hero-actions [data-testid="opl-delivery-mode-option"] {
-  flex: 0 1 auto;
-  max-width: 100%;
-  min-height: 26px;
-  padding: 3px 9px;
-  line-height: 18px;
-  white-space: normal;
-}
-
-.opl-studio-dsh-root .composer-model-controls select {
-  min-height: 30px;
-  max-width: 112px;
-  padding: 4px 6px;
-  border: 0;
-  border-radius: 8px;
-  outline: 0;
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-}
-
-.opl-studio-dsh-root .composer-model-controls select:hover,
-.opl-studio-dsh-root .composer-model-controls select:focus-visible {
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-primary);
 }
 
 .opl-dsh-details {
@@ -562,5 +487,4 @@ select {
 @media (max-width: 640px) {
   .opl-dsh-conversation-header { padding-inline: 12px; }
   .opl-dsh-thread { width: min(100% - 24px, 748px); }
-  .opl-dsh-hero-actions { width: 100%; }
 }

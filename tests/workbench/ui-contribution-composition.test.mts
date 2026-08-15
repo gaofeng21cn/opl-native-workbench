@@ -101,13 +101,13 @@ describe("OPL Studio DSH contribution composition", () => {
   test("uses DSH registration and disposer lifecycle for projection changes", () => {
     const host = new OplStudioDshSlotHost();
     const projection = readUiContributionsProjection(projectionState);
-    host.replaceProjection(projection);
+    host.replaceHostDerivedProjection(projection);
 
     expect(host.core.entries("runtime.detail")).toHaveLength(1);
     expect(host.core.entries("composer.palette")).toHaveLength(1);
     expect(host.core.snapshot("runtime.detail")[0]?.occupants[0]?.registrant).toBe("mas");
 
-    host.replaceProjection({
+    host.replaceHostDerivedProjection({
       surfaceKind: "opl_app_ui_contributions_projection.v1",
       entries: projection.entries.filter((entry) => entry.slot === "runtime.detail")
     });
@@ -120,7 +120,7 @@ describe("OPL Studio DSH contribution composition", () => {
 
   test("contains a failed contribution at its DSH entry boundary", () => {
     const host = new OplStudioDshSlotHost();
-    host.replaceProjection(readUiContributionsProjection(projectionState));
+    host.replaceHostDerivedProjection(readUiContributionsProjection(projectionState));
     const entry = host.core.entries("runtime.detail")[0];
     expect(entry).toBeDefined();
 

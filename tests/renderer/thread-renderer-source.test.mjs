@@ -25,12 +25,11 @@ const desktopMain = read("desktop/main.mjs");
 const desktopPreload = read("desktop/preload.cjs");
 const hostCore = read("scripts/webui-host/host-core.mjs");
 const appServerTransport = read("scripts/webui-host/app-server-transport.mjs");
-const rail = read("src/workbench/threads/ThreadRail.tsx");
 const detail = read("src/workbench/threads/ThreadDetailPopover.tsx");
 const lifecycle = read("src/workbench/threads/ThreadLifecycleConfirmationDialog.tsx");
-const threadSearch = read("src/workbench/ThreadSearchDialog.tsx");
 const composerPalette = read("src/workbench/ComposerCapabilityPalette.tsx");
 const settings = read("src/workbench/settingsModel.ts");
+const gatewayCache = read("src/workbench/gatewayAccountCache.ts");
 const contributionComponents = read("src/composition/contributionComponents.tsx");
 const primitiveIndex = read("src/vendor/deepseek-harness/packages/client/ui-primitives/src/index.ts");
 const sourceManifest = JSON.parse(read("src/composition/deepseekHarnessSourceManifest.json"));
@@ -40,7 +39,7 @@ const typecheckConfig = JSON.parse(read("tsconfig.typecheck.json"));
 
 test("renderer consumes one standard Codex thread adapter", () => {
   assert.match(app, /from "\.\.\/threads\/types"/);
-  assert.match(app, /from "\.\/threads\/ThreadRail"/);
+  assert.doesNotMatch(app, /from "\.\/threads\/ThreadRail"/);
   for (const method of ["listThreads", "readThread", "resumeThread", "forkThread", "setArchived"]) {
     assert.match(desktopPreload, new RegExp(`${method}:`));
     assert.match(hostCore, new RegExp(`case "${method}"`));
@@ -84,12 +83,13 @@ test("local storage keeps only UI metadata and drafts after one-way legacy backu
   assert.doesNotMatch(app, /writeChatSessions|messages:\s*nextMessages|setItem\(legacyChatSessionsStorageKey/);
 });
 
-test("thread rail, lifecycle, and Codex subagent projection stay explicit", () => {
-  for (const scope of ["current", "all", "archived"]) assert.match(rail, new RegExp(`"${scope}"`));
-  assert.match(rail, /data-projectless/);
-  assert.match(rail, /project\.projectless \? project\.threads/);
-  assert.doesNotMatch(rail, /\bInbox\b/);
-  assert.match(rail, /agentNickname \?\? thread\.agentRole/);
+test("DSH workspace browser, lifecycle, and Codex subagent projection stay explicit", () => {
+  assert.match(slotHost, /<WorkspaceBrowser/);
+  assert.match(slotHost, /studio\.threadProjects\.map/);
+  assert.match(slotHost, /project\.threads\.map/);
+  assert.match(slotHost, /searchSessions=\{async/);
+  assert.match(slotHost, /archiveSession=\{/);
+  assert.match(slotHost, /forkSession=\{/);
   assert.match(detail, /opl-thread-resume/);
   assert.match(detail, /onRequestArchive/);
   assert.doesNotMatch(detail, /onCoordinate|coordinate/);
@@ -262,7 +262,9 @@ test("Electron desktop hosts the live DeepSeek Harness composition root", () => 
     assert.match(slotHost, new RegExp(`<${component}`));
   }
   assert.match(app, /return renderShell\(\{/);
-  assert.match(app, /workspaceRail: studioWorkspaceRail/);
+  assert.match(app, /threadProjects,/);
+  assert.match(app, /agentPresets:/);
+  assert.match(app, /modelOptions,/);
   assert.match(app, /conversationBody: studioConversationBody/);
   assert.match(app, /renderSettings: renderStudioSettings/);
   assert.match(main, /createRoot\(rootElement\)\.render\(renderOplStudioRoot\(\)\)/);
@@ -305,12 +307,13 @@ test("Framework managed updates reuse the projected App action bus", () => {
 });
 
 test("search, composer attachments, and Agent permissions route to real renderer and bridge behavior", () => {
-  assert.match(app, /data-testid="opl-workspace-rail"/);
-  assert.match(app, /setThreadSearchOpen\(true\)/);
-  assert.match(app, /<ThreadSearchDialog/);
+  assert.doesNotMatch(app, /data-testid="opl-workspace-rail"/);
+  assert.doesNotMatch(app, /setThreadSearchOpen\(true\)/);
+  assert.doesNotMatch(app, /<ThreadSearchDialog/);
   assert.match(slotHost, /<SidebarRoot/);
   assert.match(slotHost, /name: "sidebar\.workspaces"/);
-  assert.match(threadSearch, /!thread\.isTemporaryWorkspace && !project\.projectless/);
+  assert.match(slotHost, /<WorkspaceBrowser/);
+  assert.match(slotHost, /searchSessions=/);
   assert.match(app, /<ComposerCapabilityPalette/);
   assert.match(app, /function openComposerPalette\(\)/);
   assert.doesNotMatch(app, /openComposerPalette\("capabilities"\)|composerPaletteMode/);
@@ -349,10 +352,9 @@ test("desktop visual shell uses vendored DeepSeek Harness roots and theme tokens
     assert.ok(theme.includes(marker), `missing DeepSeek Harness visual token: ${marker}`);
   }
   assert.match(adapterStyles, /\.opl-studio-dsh-root \{/);
-  assert.match(adapterStyles, /\.opl-dsh-workspace-rail \{/);
   assert.match(adapterStyles, /\.opl-dsh-conversation-header \{/);
   assert.match(adapterStyles, /\.opl-dsh-context-panel \{/);
-  assert.match(adapterStyles, /\.opl-dsh-hero-actions \{[^}]*flex-wrap: wrap;/s);
+  assert.doesNotMatch(adapterStyles, /\.opl-dsh-workspace-rail|\.opl-dsh-hero-actions|composer-model-controls/);
   assert.match(adapterStyles, /letter-spacing: 0/);
   assert.match(styles, /\[data-streamdown="link"\]/);
   assert.match(styles, /\[data-streamdown="inline-code"\]/);
@@ -363,11 +365,11 @@ test("DSH controls resolve to the complete pinned upstream primitives tree while
   const primitiveAlias = ["src/vendor/deepseek-harness/packages/client/ui-primitives/src/index.ts"];
   assert.deepEqual(tsconfig.compilerOptions.paths["@deepseek-ai/dsh-client-ui-primitives"], primitiveAlias);
   assert.deepEqual(typecheckConfig.compilerOptions.paths["@deepseek-ai/dsh-client-ui-primitives"], primitiveAlias);
-  assert.equal(sourceManifest.snapshot.file_count, 207);
-  assert.equal(sourceManifest.files.length, 207);
+  assert.equal(sourceManifest.snapshot.file_count, 263);
+  assert.equal(sourceManifest.files.length, 263);
   assert.equal(sourceManifest.snapshot.byte_identical_to_pinned_ref, true);
   assert.ok(sourceManifest.snapshot.package_roots.includes("packages/client/ui-primitives/src"));
-  assert.equal(candidateEvidence.reused_oss_module_policy.vendored_file_count, 207);
+  assert.equal(candidateEvidence.reused_oss_module_policy.vendored_file_count, 263);
   assert.equal(candidateEvidence.reused_oss_module_policy.byte_identical_to_pinned_ref, true);
   assert.equal(fs.existsSync(path.join(root, "src/integrations/deepseek-harness/uiPrimitives.tsx")), false);
 
@@ -384,7 +386,8 @@ test("DSH controls resolve to the complete pinned upstream primitives tree while
   assert.match(adapterStyles, /svg\[viewBox="0 0 23\.16 17\.04"\]/);
   assert.match(adapterStyles, /display: none/);
   assert.match(adapterStyles, /content: "One Person Lab"/);
-  assert.match(slotHost, /"hero.preview": \["One Person Lab", "One Person Lab"\]/);
+  assert.match(slotHost, /"hero.headline": \["One Person Lab", "One Person Lab"\]/);
+  assert.match(slotHost, /"hero.preview": \["预览版", "Preview"\]/);
   assert.match(slotHost, /function SettingsHeaderSlot\(\) \{ return <>One Person Lab<\/>; \}/);
   assert.doesNotMatch(main, /--opl-brand-logo/);
   assert.doesNotMatch(main, /branding\/opl-app-logo\.png/);
@@ -393,7 +396,8 @@ test("DSH controls resolve to the complete pinned upstream primitives tree while
 test("primary canvas hides its scrollbar without disabling scrolling", () => {
   assert.match(conversationStyles, /\.scrollBody \{[^}]*overflow-y: auto;[^}]*overflow-x: hidden;/s);
   assert.match(styles, /\.settings-detail \{[^}]*overflow-y: auto;[^}]*scrollbar-width: none;/s);
-  assert.match(adapterStyles, /\.opl-dsh-projects > div \{[^}]*overflow-y: auto;[^}]*scrollbar-gutter: stable;/s);
+  const workspaceStyles = read("src/vendor/deepseek-harness/packages/client/ui-workspace/src/client/WorkspaceBrowser.module.css");
+  assert.match(workspaceStyles, /\.list \{[\s\S]*overflow-y: auto;/);
   assert.match(styles, /\.sidebar-scroll > \*,[\s\S]*\.thread-directory-row \{[^}]*min-width: 0;[^}]*max-width: 100%;/s);
   assert.match(styles, /\.history-list li \.thread-directory-open \{[^}]*max-width: 100%;[^}]*overflow: hidden;/s);
   assert.match(styles, /\.history-list li \.thread-directory-open \.thread-directory-copy \{[^}]*max-width: 100%;[^}]*overflow: hidden;/s);
@@ -432,6 +436,7 @@ test("OPL overlays and DSH resize handles expose complete keyboard accessibility
   );
 
   assert.match(slotHost, /className="opl-mobile-details-overlay"\s*role="dialog"\s*aria-modal="true"\s*aria-labelledby=/);
+  assert.match(slotHost, /className=\{wide \? undefined : "visually-hidden"\}/);
   assert.match(slotHost, /focusableElements\(detailsDialogRef\.current\)/);
   assert.match(slotHost, /closeButtonRef\.current\?\.focus/);
   assert.match(slotHost, /previousFocus\.focus\(\)/);
@@ -471,6 +476,12 @@ test("DSH Settings content consumes the canonical Gateway account read model", (
   assert.match(settingsPanel, /账户状态不可用/);
   assert.match(settingsPanel, /Not required \(not included\)/);
   assert.doesNotMatch(`${app}\n${settingsPanel}\n${model}`, /masked_email/);
+  assert.match(app, /readGatewayAccountCache/);
+  assert.match(app, /writeGatewayAccountCache\(nextModel\.gatewayAccount\)/);
+  assert.match(app, /markGatewayAccountCacheStale/);
+  assert.match(gatewayCache, /opl\.app\.gatewayAccount\.lkg\.v1/);
+  assert.match(gatewayCache, /sanitizeGatewayAccount/);
+  assert.doesNotMatch(gatewayCache, /password|apiKey|receipt|stdout|stderr/);
 });
 
 test("Settings uses the App-owned navigation groups and one shared read model", () => {
@@ -524,11 +535,16 @@ test("Settings directly reuses DSH appearance controls and applies the selected 
 });
 
 test("composer separates OPL standard agents from Skills, connections, and other modules", () => {
-  assert.match(app, /standardAgents=\{codexThreadId \? \[\] : model\.packageLifecycle\.filter\(\(item\) => \(\s*item\.packageRole === "standard_agent"\s*&& item\.official\s*&& item\.readiness\.selectable\s*&& item\.homeShortcuts\.some\(\(shortcut\) => Boolean\(shortcut\.route\)\)\s*\)\)\}/s);
-  assert.match(app, /agentSelection: codexThreadId \? undefined : selectedAgentSnapshot\(\)/);
-  assert.match(composerPalette, /data-testid="opl-standard-agents"/);
-  assert.match(composerPalette, /OPL 标准智能体/);
+  assert.match(app, /agentPresets: \[/);
+  assert.match(app, /id: "opl-daily-work"/);
+  for (const [packageId, label] of [["mag", "医学基金"], ["mas", "医学科研"], ["obf", "图书创作"], ["oma", "智能演进"], ["rca", "视觉设计"]]) {
+    assert.match(app, new RegExp(`${packageId}: "${label}"`));
+  }
+  assert.match(slotHost, /<AgentPresetSeat/);
+  assert.match(slotHost, /name: "conversation\.hero\.agentPreset"/);
+  assert.doesNotMatch(composerPalette, /standardAgents|OPL 标准智能体|data-testid="opl-standard-agents"/);
   assert.match(composerPalette, /其他模块/);
+  assert.match(styles, /\.composer-palette \{[^}]*max-height: min\(520px, calc\(50dvh - 64px\)\);/s);
 });
 
 test("desktop uses DSH columns and mobile keeps full-height thread dialogs", () => {
@@ -536,9 +552,8 @@ test("desktop uses DSH columns and mobile keeps full-height thread dialogs", () 
   assert.match(styles, /@media \(max-width: 760px\)/);
   assert.match(styles, /\[role="dialog"\]\[aria-labelledby\]:has\(> nav\) > nav > div:last-child/);
   assert.match(styles, /flex-direction: row/);
-  assert.match(rail, /project\.threads\.slice\(0, 2\)/);
   assert.match(app, /conversation\.scrollTop = conversation\.scrollHeight/);
-  assert.match(slotHost, /className="opl-dsh-rail-browser"/);
+  assert.match(slotHost, /<WorkspaceBrowser/);
   assert.match(styles, /\.thread-detail-popover,\s*\.thread-confirmation-dialog \{\s*inset: 0;/s);
   assert.match(styles, /height: 100dvh/);
   assert.match(styles, /border-radius: 0/);

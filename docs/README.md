@@ -7,9 +7,17 @@ Machine boundary: Human-readable navigation and ownership map. App contracts,
 Framework state/action output, Codex App Server, source/tests, and explicit owner
 decisions remain the corresponding machine and product truth.
 
-This repository is the implementation carrier for the first-party Native App successor. It
+This repository is the implementation carrier for the first-party `opl-studio`
+DSH-derived Native App successor. It is one replaceable Shell of the single OPL App
+product, not a second App. It
 does not own App product requirements, OPL runtime/package truth, Codex thread
 truth, domain verdicts, release adoption, or production readiness.
+
+The stable sibling is `opl-aion-shell`. Both shells consume the same
+`one-person-lab-app` product contracts, Framework Host projection, Client Cordis
+contribution ABI, and versioned composition inputs. Studio may implement the
+Client Cordis and renderer natively in the DSH style, but only the App repository
+can change `active_shell` or declare a release combination.
 
 ## Current Owners
 

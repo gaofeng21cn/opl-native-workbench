@@ -40,14 +40,21 @@ import {
   initialWorkbenchModel,
   mergeManagedUpdateProjections,
   readManagedUpdateProjection,
+  agentPackageSelectionIntent,
   type ManagedUpdateProjection,
   type AgentPackageSelectionIntent,
   type WorkbenchArtifactRef,
   type WorkbenchProjectGroup,
   type WorkbenchActionRef,
+  type WorkbenchModel,
   type WorkbenchThreadItem,
   type WorkbenchThreadMessage
 } from "./workbenchModel";
+import {
+  markGatewayAccountCacheStale,
+  readGatewayAccountCache,
+  writeGatewayAccountCache
+} from "./gatewayAccountCache";
 import {
   migrateStorageValue,
   readSettings,
@@ -58,9 +65,6 @@ import {
 import { codexWorkbenchStyles } from "./codexWorkbenchStyles";
 import {
   codexModelPolicy,
-  conversationModelLabel,
-  modelLabel,
-  reasoningLabel,
   resolveCodexModelOptions,
   resolveCodexSelection
 } from "./modelPolicy";
@@ -80,7 +84,6 @@ import {
 import { ThreadDetailPopover } from "./threads/ThreadDetailPopover";
 import { ThreadLifecycleConfirmationDialog } from "./threads/ThreadLifecycleConfirmationDialog";
 import type { ThreadLifecycleAction } from "./threads/ThreadLifecycleConfirmationDialog";
-import { ThreadRail } from "./threads/ThreadRail";
 import { assistantDisplayMarkdown } from "./messageDisplay";
 import {
   ComposerCapabilityPalette,
@@ -90,7 +93,6 @@ import {
   buildRunDetailViewModel,
   type ScopedRunDetailItem
 } from "./runDetailModel";
-import { ThreadSearchDialog } from "./ThreadSearchDialog";
 import type {
   OplContributionAction,
   OplUiContributionsProjection,
@@ -414,13 +416,14 @@ const uiCopy = {
   }
 } as const;
 
-const localizedPurposeLabels = {
-  zh: { research: "审阅结果", grant: "起草标书", presentation: "制作演示", review: "准备交付" },
-  en: { research: "Review results", grant: "Draft grant", presentation: "Build deck", review: "Prepare handoff" }
-} as const;
-
-const previewActionRefId = "task_action_receipt_preview";
 const exportActionRefId = "task_export_bundle_preview";
+const standardAgentSeatLabelsZh: Record<string, string> = {
+  mag: "医学基金",
+  mas: "医学科研",
+  obf: "图书创作",
+  oma: "智能演进",
+  rca: "视觉设计"
+};
 const emptyCapabilityCatalog: CodexCapabilityCatalog = {
   source: "bridge_unavailable",
   skills: [],
@@ -609,7 +612,10 @@ export function App({
   const messagesRef = useRef<ChatMessage[]>(createIntroMessages());
   const activeTurnRef = useRef<{ threadId: string; turnId: string } | null>(null);
   const ephemeralQueueRef = useRef<EphemeralQueueItem[]>([]);
-  const [model, setModel] = useState(initialWorkbenchModel);
+  const [model, setModel] = useState<WorkbenchModel>(() => ({
+    ...initialWorkbenchModel,
+    gatewayAccount: readGatewayAccountCache()
+  }));
   const [managedUpdate, setManagedUpdate] = useState<ManagedUpdateProjection | null>(null);
   const [nativeAppUpdate, setNativeAppUpdate] = useState<NativeAppUpdateResult | null>(null);
   const [projectedManagedUpdateActions, setProjectedManagedUpdateActions] = useState<ProjectedManagedUpdateAction[]>([]);
@@ -658,7 +664,6 @@ export function App({
   const [composerSubmissionError, setComposerSubmissionError] = useState("");
   const [threadInputFiles, setThreadInputFiles] = useState<Record<string, WorkbenchArtifactRef[]>>({});
   const [pendingInputFiles, setPendingInputFiles] = useState<WorkbenchArtifactRef[]>([]);
-  const [threadSearchOpen, setThreadSearchOpen] = useState(false);
   const [activeContextTab, setActiveContextTab] = useState<ContextTabId>("opl-runtime-status-panel");
   const t = uiCopy[settings.locale];
   const contextTabLabels: Record<ContextTabId, string> = {
@@ -666,7 +671,6 @@ export function App({
     "opl-files-results-panel": settings.locale === "zh" ? "文件与结果" : "Files & results",
     "opl-agents-capabilities-panel": settings.locale === "zh" ? "智能体与能力" : "Agents & capabilities"
   };
-  const purposeCopy = localizedPurposeLabels[settings.locale];
   const normalizedCapabilityQuery = capabilityQuery.trim().toLowerCase();
   const capabilityGroups = [
     {
@@ -690,7 +694,6 @@ export function App({
   }));
   const previewAction = firstPreviewAction(model.contextActions);
   const exportAction = model.contextActions.find((action) => action.id === exportActionRefId && action.dryRunSupported) ?? previewAction;
-  const purposePreviewAction = model.contextActions.find((action) => action.id === previewActionRefId && action.dryRunSupported) ?? previewAction;
   const activeThreads = useMemo(() => threadProjects.flatMap((project) => project.threads), [threadProjects]);
   const archivedThreads = useMemo(() => archivedThreadProjects.flatMap((project) => project.threads), [archivedThreadProjects]);
   const allThreads = useMemo(() => [...activeThreads, ...archivedThreads], [activeThreads, archivedThreads]);
@@ -701,9 +704,6 @@ export function App({
   const selectedProject = threadProjects.find((project) => project.id === uiMetadata.selectedProjectId)
     ?? threadProjects.find((project) => project.threads.some((thread) => thread.id === codexThreadId))
     ?? threadProjects[0];
-  const visibleThreadProjects = uiMetadata.threadScope === "archived"
-    ? archivedThreadProjects
-    : threadProjects;
   const currentProject = selectedProject?.label ?? settings.defaultWorkspace ?? "Current project";
   const selectedWorkItemId = model.activeProjectLines.find((line) => line.status === "running")?.activeRunId
     ?? model.activeProjectLines[0]?.activeRunId
@@ -741,11 +741,6 @@ export function App({
     effectiveSelection
   } = resolveCodexSelection(modelOptions, settings.modelAccess, settings.reasoningLevel);
   const unavailableFixedModel = settings.modelAccess !== "__auto" && !resolvedModel;
-  const resolvedConversationModelLabel = conversationModelLabel(
-    settings.modelAccess,
-    resolvedModel?.id,
-    settings.locale
-  );
   const projectedManagedUpdateHostActions = useMemo(() => {
     const projectedActions = new Map(projectedManagedUpdateActions.map((action) => [action.actionId, action]));
     return managedUpdateActionSpecs.flatMap((spec) => {
@@ -864,7 +859,9 @@ export function App({
     return bridge
       .readState(profile)
       .then((state) => {
-        setModel(deriveWorkbenchModelFromState(state));
+        const nextModel = deriveWorkbenchModelFromState(state);
+        setModel(nextModel);
+        writeGatewayAccountCache(nextModel.gatewayAccount);
         setProjectedManagedUpdateActions(readProjectedManagedUpdateActions(state));
         setCarrierDiagnostics(state.carrierDiagnostics);
         setProjectedGatewayActions(readGatewayActionsFromState(state));
@@ -875,6 +872,9 @@ export function App({
         setStateStatus("ready");
       })
       .catch((error) => {
+        setModel((current) => current.gatewayAccount
+          ? { ...current, gatewayAccount: markGatewayAccountCacheStale(current.gatewayAccount) }
+          : current);
         setStateStatus("error");
         setStateError(String(error));
       });
@@ -1535,6 +1535,49 @@ export function App({
     setComposerPaletteOpen(false);
   }
 
+  function startNewChatInProject(projectId?: string) {
+    if (projectId) updateUiMetadata({ selectedProjectId: projectId, threadScope: "current" });
+    startNewChat();
+  }
+
+  function threadById(threadId: string) {
+    return allThreads.find((thread) => thread.id === threadId);
+  }
+
+  async function archiveThreadById(threadId: string) {
+    const thread = threadById(threadId);
+    if (!thread) throw new Error(settings.locale === "zh" ? "找不到该会话。" : "Thread not found.");
+    setLifecycleConfirmation({ thread, action: "archive" });
+  }
+
+  async function searchThreads(query: string) {
+    const normalized = query.trim().toLocaleLowerCase();
+    if (!normalized) return [];
+    return allThreads
+      .filter((thread) => `${thread.title} ${thread.preview}`.toLocaleLowerCase().includes(normalized))
+      .slice(0, 100)
+      .map((thread) => ({ sessionId: thread.id, ...(thread.preview ? { snippet: thread.preview } : {}) }));
+  }
+
+  async function selectStudioModel(modelId: string, reasoningEffort?: string) {
+    if (modelId !== "__auto" && !modelOptions.some((option) => option.id === modelId && option.available)) return false;
+    const nextReasoning = reasoningEffort ?? resolvedReasoning;
+    setSettings(writeSettings({ modelAccess: modelId, reasoningLevel: nextReasoning }));
+    return true;
+  }
+
+  async function selectStudioAgentPreset(id: string) {
+    if (id === "opl-daily-work") {
+      setSelectedAgent(null);
+      return;
+    }
+    const agent = model.packageLifecycle.find((item) => item.packageId === id);
+    if (!agent || agent.packageRole !== "standard_agent" || !agent.readiness.selectable) {
+      throw new Error(settings.locale === "zh" ? "该智能体当前不可用。" : "This Agent is unavailable.");
+    }
+    setSelectedAgent(agentPackageSelectionIntent(agent));
+  }
+
   async function loadCapabilities() {
     if (capabilityStatus === "loading") return;
     setCapabilityStatus("loading");
@@ -1620,34 +1663,6 @@ export function App({
     setSettings(writeSettings({ modelAccess, reasoningLevel }));
   }
 
-  const studioWorkspaceRail = (
-    <div data-testid="opl-workspace-rail" className="opl-dsh-workspace-rail" aria-label="Workspaces">
-      <section className="opl-dsh-projects" aria-label="Codex projects and conversations">
-        <header><strong>{uiMetadata.threadScope === "archived" ? (settings.locale === "zh" ? "归档对话" : "Archived") : t.projects}</strong><button type="button" aria-label={settings.locale === "zh" ? "搜索对话" : "Search conversations"} onClick={() => setThreadSearchOpen(true)}><Search aria-hidden="true" size={14} /></button></header>
-        <div data-testid="opl-project-chats">
-          <div data-testid="opl-session-list">
-            <ThreadRail
-              projects={visibleThreadProjects}
-              selectedProjectId={uiMetadata.selectedProjectId}
-              selectedThreadId={codexThreadId}
-              locale={settings.locale}
-              scope={uiMetadata.threadScope}
-              loading={threadDirectoryStatus === "loading"}
-              error={threadDirectoryStatus === "error" ? threadDirectoryError : undefined}
-              onScopeChange={(threadScope) => {
-                updateUiMetadata({ threadScope, selectedProjectId: threadScope === "archived" ? archivedThreadProjects[0]?.id : threadProjects[0]?.id });
-                if (threadScope === "archived" && !archivedThreadProjects.length) void loadThreadDirectory(false, "archived");
-              }}
-              onSelectProject={(selectedProjectId) => updateUiMetadata({ selectedProjectId })}
-              onSelectThread={(thread) => void openThread(thread)}
-              onOpenDetail={setThreadDetail}
-            />
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-
   const studioConversationBody = (
     <div className="opl-dsh-thread" ref={conversationRef as never}>
       {threadActionError ? <p className="thread-read-error" role="alert">{threadActionError}</p> : null}
@@ -1663,13 +1678,6 @@ export function App({
           {message.role === "assistant" ? <span data-testid="opl-codex-reply" hidden /> : null}
         </article>
       ))}
-    </div>
-  );
-
-  const studioHeroActions = (
-    <div data-testid="opl-workbench-delivery-mode" className="opl-dsh-hero-actions" aria-label="Suggested outputs">
-      {model.purposes.map((purpose) => <Pill key={purpose} data-testid="opl-delivery-mode-option" disabled={!purposePreviewAction} onClick={() => { if (purposePreviewAction) runDryRun(purposePreviewAction.id, { purpose }); }}>{purposeCopy[purpose]}</Pill>)}
-      <span data-testid="opl-delivery-mode" hidden>research</span>
     </div>
   );
 
@@ -1707,32 +1715,12 @@ export function App({
       status={capabilityStatus}
       error={capabilityError}
       selections={composerSelections}
-      standardAgents={codexThreadId ? [] : model.packageLifecycle.filter((item) => (
-        item.packageRole === "standard_agent"
-        && item.official
-        && item.readiness.selectable
-        && item.homeShortcuts.some((shortcut) => Boolean(shortcut.route))
-      ))}
-      selectedAgentPackageId={selectedAgent?.packageId}
       onClose={() => setComposerPaletteOpen(false)}
       onPickFiles={() => void pickComposerFiles()}
       onPickDirectory={() => void pickComposerDirectory()}
       onToggleSkill={toggleComposerSkill}
-      onSelectAgent={setSelectedAgent}
       contributions={hasContribution("composer.palette") ? renderContributionSlot?.("composer.palette", contributionOwner) : null}
     />
-  );
-
-  const studioModelControls = (
-    <span className="composer-model-controls" data-testid="opl-topbar-model-config">
-      <select data-testid="opl-model-access-entry" aria-label={settings.locale === "zh" ? "模型" : "Model"} value={effectiveSelection} onChange={(event) => updateSetting("modelAccess", event.currentTarget.value)}>
-        <option value="__auto">{resolvedConversationModelLabel}</option>
-        {modelOptions.map((option) => <option key={option.id} value={option.id} disabled={!option.available}>{modelLabel(option.id, settings.locale)}</option>)}
-      </select>
-      <select aria-label={settings.locale === "zh" ? "推理强度" : "Reasoning effort"} value={resolvedReasoning} disabled={!resolvedModel} onChange={(event) => updateReasoning(event.currentTarget.value as WorkbenchSettings["reasoningLevel"])}>
-        {codexModelPolicy.reasoningOptions.map((effort) => <option key={effort} value={effort} disabled={!resolvedReasoningOptions.includes(effort)}>{reasoningLabel(effort, settings.locale, true)}</option>)}
-      </select>
-    </span>
   );
 
   const studioDetails = (
@@ -1893,18 +1881,51 @@ export function App({
     queue: ephemeralQueue,
     contributionOwner,
     uiContributions: model.uiContributions,
-    workspaceRail: studioWorkspaceRail,
+    threadProjects,
+    threadDirectoryStatus,
+    currentThreadId: codexThreadId,
+    selectedProjectId: uiMetadata.selectedProjectId,
+    modelOptions,
+    modelSelection: effectiveSelection,
+    reasoningSelection: resolvedReasoning,
+    agentPresets: [
+      {
+        id: "opl-daily-work",
+        name: settings.locale === "zh" ? "日常工作" : "Daily Work",
+        description: settings.locale === "zh" ? "One Person Lab 默认通用智能体" : "One Person Lab's default general-purpose Agent",
+        selection: null
+      },
+      ...model.packageLifecycle.filter((item) => (
+        item.packageRole === "standard_agent"
+        && item.official
+        && item.readiness.selectable
+        && item.homeShortcuts.some((shortcut) => Boolean(shortcut.route))
+      )).map((agent) => ({
+        id: agent.packageId,
+        name: settings.locale === "zh"
+          ? standardAgentSeatLabelsZh[agent.packageId] ?? agent.displayNameI18n.zh ?? agent.label
+          : agent.displayNameI18n.en ?? agent.label,
+        description: (settings.locale === "zh" ? agent.descriptionI18n.zh : agent.descriptionI18n.en) ?? agent.description,
+        selection: agentPackageSelectionIntent(agent)
+      }))
+    ],
+    selectedAgentPresetId: selectedAgent?.packageId ?? "opl-daily-work",
     conversationHeader: <><Folder aria-hidden="true" size={15} /><h1>{localizedSessionTitle(currentSession?.title || t.newTaskTitle, settings.locale)}</h1><button type="button" aria-label={t.conversationMenu} disabled={!currentSession} onClick={() => setThreadDetail(currentSession ?? null)}><CircleEllipsis aria-hidden="true" size={16} /></button></>,
     conversationBody: studioConversationBody,
-    heroActions: studioHeroActions,
     composerAccessory: studioComposerAccessory,
     composerOverlay: studioComposerOverlay,
-    composerModelControls: studioModelControls,
     details: studioDetails,
     renderSettings: renderStudioSettings,
-    overlay: <><style>{codexWorkbenchStyles}</style><ThreadSearchDialog open={threadSearchOpen} locale={settings.locale} projects={uiMetadata.threadScope === "archived" ? archivedThreadProjects : threadProjects} onOpenChange={setThreadSearchOpen} onSelect={(thread) => void openThread(thread)} /><ThreadDetailPopover thread={threadDetail} locale={settings.locale} busy={threadActionBusy} onClose={() => setThreadDetail(null)} onResume={(thread) => void resumeThreadAndOpen(thread)} onFork={(thread) => void forkThread(thread)} onRequestArchive={(thread, archived) => { setLifecycleConfirmation({ thread, action: archived ? "archive" : "unarchive" }); setThreadActionError(""); setThreadDetail(null); }} /><ThreadLifecycleConfirmationDialog thread={lifecycleConfirmation?.thread ?? null} action={lifecycleConfirmation?.action ?? "archive"} locale={settings.locale} busy={threadActionBusy} error={threadActionError} onClose={() => setLifecycleConfirmation(null)} onConfirm={() => void confirmThreadLifecycle()} /></>,
+    overlay: <><style>{codexWorkbenchStyles}</style><ThreadDetailPopover thread={threadDetail} locale={settings.locale} busy={threadActionBusy} onClose={() => setThreadDetail(null)} onResume={(thread) => void resumeThreadAndOpen(thread)} onFork={(thread) => void forkThread(thread)} onRequestArchive={(thread, archived) => { setLifecycleConfirmation({ thread, action: archived ? "archive" : "unarchive" }); setThreadActionError(""); setThreadDetail(null); }} /><ThreadLifecycleConfirmationDialog thread={lifecycleConfirmation?.thread ?? null} action={lifecycleConfirmation?.action ?? "archive"} locale={settings.locale} busy={threadActionBusy} error={threadActionError} onClose={() => setLifecycleConfirmation(null)} onConfirm={() => void confirmThreadLifecycle()} /></>,
     detailsRequestRevision,
     startSession: startNewChat,
+    startSessionInProject: startNewChatInProject,
+    openThread: (threadId) => { const thread = threadById(threadId); if (thread) void openThread(thread); },
+    forkThread: (threadId) => { const thread = threadById(threadId); if (thread) void forkThread(thread); },
+    archiveThread: archiveThreadById,
+    searchThreads,
+    selectModel: selectStudioModel,
+    selectAgentPreset: selectStudioAgentPreset,
     updatePrompt,
     submitPrompt: sendCodexMessage,
     steerQueue: () => void steerAllQueuedItems(),

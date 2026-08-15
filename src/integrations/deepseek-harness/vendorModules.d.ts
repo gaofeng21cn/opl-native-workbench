@@ -22,6 +22,18 @@ declare module "@opl-vendor/dsh-settings-root" {
   export const SettingsRoot: (props: any) => JSX.Element;
 }
 
+declare module "@opl-vendor/dsh-workspace-browser" {
+  export const WorkspaceBrowser: (props: any) => JSX.Element;
+}
+
+declare module "@opl-vendor/dsh-agent-preset-seat" {
+  export const AgentPresetSeat: (props: any) => JSX.Element;
+}
+
+declare module "@opl-vendor/dsh-model-select" {
+  export const ModelSelect: (props: any) => JSX.Element;
+}
+
 declare module "@deepseek-ai/dsh-client-ui-settings/client" {}
 
 declare module "@deepseek-ai/dsh-client-runtime/client" {

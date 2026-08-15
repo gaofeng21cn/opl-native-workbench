@@ -38,7 +38,6 @@
     "pdfjs-dist": "^6.2.108",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "react-resizable-panels": "^4.12.1",
     "shiki": "4.3.1",
     "streamdown": "^2.5.0"
   },
@@ -73,7 +72,7 @@
     "test:desktop": "node --test desktop/app-log-directory.test.mjs desktop/desktop-contract.test.mjs desktop/shutdown.test.mjs desktop/updater.test.mjs && npm run test:desktop-distribution",
     "test:desktop-distribution": "node --test tests/desktop/*.test.mjs",
     "test:headless": "node --test tests/headless/*.test.mjs",
-    "test:gateway-account-projection": "bun run scripts/gateway-account-projection-regression.ts",
+    "test:gateway-account-projection": "bun test tests/workbench/gateway-account-cache.test.mts && bun run scripts/gateway-account-projection-regression.ts",
     "test:package-projection": "bun test tests/workbench/package-projection.test.mts",
     "test:runtime-projection": "bun test tests/workbench/runtime-projection.test.mts",
     "test:ui-contributions": "bun test tests/workbench/ui-contribution-composition.test.mts",

@@ -17,36 +17,42 @@ Source repository: <https://github.com/deepseek-ai/deepseek-harness>
 
 Inspected source ref: `47f943859bef60e4160492346772ded9b24f765a`
 
-The complete `src/` trees of six GUI packages are vendored byte-for-byte from
+The complete `src/` trees of ten GUI packages are vendored byte-for-byte from
 that ref under `src/vendor/deepseek-harness/packages/client/`:
 
 - `ui-layout`
 - `ui-sidebar`
 - `ui-conversation`
+- `ui-input-trigger`
+- `ui-model-selection`
+- `ui-agent-preset`
+- `ui-workspace`
 - `ui-settings-general`
 - `ui-theme`
 - `ui-primitives`
 
-The snapshot contains 207 files, including the upstream `LICENSE`. Its package
+The snapshot contains 263 files, including the upstream `LICENSE`. Its package
 roots, per-file SHA-256 inventory, source package version (`0.1.0-rc.5`), and
 update boundary are recorded in
 `src/composition/deepseekHarnessSourceManifest.json`; `npm run verify:dsh-gui`
 checks local byte parity. OPL changes stay outside the vendor root.
 
-The live OPL Studio composition directly renders upstream `AppFrame`,
-`SidebarRoot`, `ConversationRoot`/`EmptyHero`, `InputBar`, and `SettingsRoot`.
+The live One Person Lab composition directly renders upstream `AppFrame`,
+`SidebarRoot`, `WorkspaceBrowser`, `ConversationRoot`/`EmptyHero`, `InputBar`,
+`AgentPresetSeat`, `ModelSelect`, and `SettingsRoot`.
 `SlotCore` and `createSlotRenderer()` provide registration, disposal, and entry
 error isolation. OPL components import `Button`, `Pill`, `Input`, `Tooltip`,
 `StateDot`, `MessageText`, and icons directly from the vendored upstream
-`@deepseek-ai/dsh-client-ui-primitives` index. OPL branding replaces the
-upstream wordmark and fish through vendor-external styles and packaged assets;
-no primitive control or icon is reimplemented. Imports for unavailable
+`@deepseek-ai/dsh-client-ui-primitives` index. User-visible identity is the
+vendor-external text `One Person Lab`; no OPL logo, parallel type scale, layout,
+color system, primitive control, or icon is introduced. Imports for unavailable
 attachment and runtime packages terminate in narrow OPL-owned adapters.
 
 DeepSeek Harness session, agent, provider, credential, connection,
-plugin-manager, and control-plane authority are not adopted. Cordis is used
-only as the composition substrate required by the slot packages; OPL Studio
-does not create a second plugin runtime or plugin manager.
+plugin-manager, and control-plane authority are not adopted. The Client Cordis
+graph is derived from the Framework Host graph and App-owned profile/slot
+policy; it does not discover Packages or create a second registry, currentness,
+state, session, or action authority.
 
 MIT License
 

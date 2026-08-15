@@ -39,6 +39,9 @@ const requiredFiles = [
   "src/vendor/deepseek-harness/LICENSE",
   "src/vendor/deepseek-harness/packages/client/ui-layout/src/client/AppFrame.tsx",
   "src/vendor/deepseek-harness/packages/client/ui-sidebar/src/client/SidebarRoot.tsx",
+  "src/vendor/deepseek-harness/packages/client/ui-workspace/src/client/WorkspaceBrowser.tsx",
+  "src/vendor/deepseek-harness/packages/client/ui-agent-preset/src/client/AgentPresetSeat.tsx",
+  "src/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/ModelSelect.tsx",
   "src/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.tsx",
   "src/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/InputBar.tsx",
   "src/vendor/deepseek-harness/packages/client/ui-settings-general/src/client/SettingsRoot.tsx",
@@ -50,8 +53,8 @@ const requiredFiles = [
   "src/workbench/modelPolicy.ts",
   "src/workbench/workbenchModel.ts",
   "src/workbench/settingsModel.ts",
+  "src/workbench/gatewayAccountCache.ts",
   "src/threads/types.ts",
-  "src/workbench/threads/ThreadRail.tsx",
   "src/workbench/threads/ThreadDetailPopover.tsx",
   "src/workbench/threads/ThreadLifecycleConfirmationDialog.tsx",
   "src/candidateContractEvidence.json",
@@ -101,10 +104,6 @@ const requiredScripts = [
 ];
 
 const requiredTestIds = [
-  "opl-workspace-rail",
-  "opl-project-chats",
-  "opl-topbar-model-config",
-  "opl-session-list",
   "opl-context-tabs",
   "opl-runtime-status-panel",
   "opl-agent-run-status",
@@ -116,8 +115,6 @@ const requiredTestIds = [
   "opl-codex-capability-catalog",
   "opl-web-transport",
   "opl-locale-toggle",
-  "opl-real-thread-directory",
-  "opl-thread-scope-filter",
   "opl-thread-detail-popover",
   "opl-thread-lifecycle-confirmation"
 ];
@@ -336,7 +333,7 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
   assert(evidence.default_home_layout?.details_default_open === false, "task details must be closed by default");
   assert(evidence.webui_parity?.desktop_and_webui_default_home === "chat_first_default_collapsed", "desktop and WebUI must share the chat-first default-collapsed home");
   assert(visualStyle?.reference_version === alignment.reference_version, "visual tokens must bind to the same DeepSeek Harness source ref");
-  assert(visualStyle?.scope === "six_pinned_gui_package_source_trees_with_vendor_external_opl_adapters", "visual source scope must cover all six pinned DSH GUI package trees");
+  assert(visualStyle?.scope === "ten_pinned_gui_package_source_trees_with_vendor_external_opl_adapters", "visual source scope must cover all ten pinned DSH GUI package trees");
   assert(visualStyle?.token_source === "src/vendor/deepseek-harness/packages/client/ui-theme/src/styles/design-platform.css", "DeepSeek Harness token source must be exact");
   for (const marker of ["--dsw-static-deepseek-450", "--dsw-alias-button-primary-fill", "--dsw-alias-tooltip-bg"]) {
     assert(themeSource.includes(marker), `missing vendored DeepSeek Harness design token ${marker}`);
@@ -347,9 +344,12 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
   for (const [component, moduleName] of [
     ["AppFrame", "@opl-vendor/dsh-app-frame"],
     ["SidebarRoot", "@opl-vendor/dsh-sidebar-root"],
+    ["WorkspaceBrowser", "@opl-vendor/dsh-workspace-browser"],
     ["ConversationRoot", "@opl-vendor/dsh-conversation-root"],
     ["InputBar", "@opl-vendor/dsh-input-bar"],
     ["QueueDock", "@opl-vendor/dsh-queue-dock"],
+    ["AgentPresetSeat", "@opl-vendor/dsh-agent-preset-seat"],
+    ["ModelSelect", "@opl-vendor/dsh-model-select"],
     ["SettingsRoot", "@opl-vendor/dsh-settings-root"]
   ]) {
     assert(slotHost.includes(`import { ${component} } from "${moduleName}"`), `missing direct ${component} vendor import`);
@@ -364,7 +364,7 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
     /bridge\.steerTurn\(\{\s*threadId: active\.threadId,\s*expectedTurnId: active\.turnId,/s.test(appSource),
     "queued follow-ups must steer the exact active Codex thread and turn"
   );
-  for (const marker of ["return renderShell({", "workspaceRail: studioWorkspaceRail", "conversationBody: studioConversationBody", "renderSettings: renderStudioSettings", "detailsRequestRevision"]) {
+  for (const marker of ["return renderShell({", "threadProjects,", "agentPresets:", "modelOptions,", "conversationBody: studioConversationBody", "renderSettings: renderStudioSettings", "detailsRequestRevision"]) {
     assert(appSource.includes(marker), `missing App-to-DSH surface handoff marker ${marker}`);
   }
   assert(mainSource.includes('import { renderOplStudioRoot } from "./composition/dshSlotHost"'), "main must import the DSH composition host");
@@ -374,7 +374,7 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
   assert(sourceManifest.snapshot?.local_root === "src/vendor/deepseek-harness", "vendor manifest root must be canonical");
   assert(sourceManifest.snapshot?.byte_identical === true, "vendor snapshot must remain byte-identical");
   assert(sourceManifest.snapshot?.byte_identical_to_pinned_ref === true, "vendor snapshot byte identity must bind to the pinned DSH ref");
-  assert(sourceManifest.snapshot?.file_count === 207 && sourceManifest.files?.length === 207, "vendor manifest must inventory 207 files");
+  assert(sourceManifest.snapshot?.file_count === 263 && sourceManifest.files?.length === 263, "vendor manifest must inventory 263 files");
   assert(JSON.stringify(sourceManifest.snapshot?.package_roots) === JSON.stringify(evidence.reused_oss_module_policy.vendored_package_roots), "candidate evidence package roots must match the vendor manifest");
   const vendorCheck = spawnSync(process.execPath, [path.join(root, "scripts/deepseek-harness-gui-vendor.mjs"), "check"], { cwd: root, encoding: "utf8" });
   assert(vendorCheck.status === 0, `vendored DSH GUI byte parity failed: ${vendorCheck.stderr}`);
@@ -419,6 +419,8 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
 
 function assertCodexModelControls(evidence, app, rendererSource) {
   const settings = read("src/workbench/settingsModel.ts");
+  const settingsPanel = read("src/workbench/SettingsPanel.tsx");
+  const slotHost = read("src/composition/dshSlotHost.tsx");
   const policySource = read("src/workbench/modelPolicy.ts");
   const rendererBuilder = read("scripts/build-renderer.mjs");
   const appRepoResolver = read("scripts/resolve-app-repo-root.mjs");
@@ -467,8 +469,8 @@ function assertCodexModelControls(evidence, app, rendererSource) {
   assert(evidence.model_list_pagination_regression?.validation_command === "npm run test:webui-host", "candidate evidence must record the model/list pagination command");
   assert(settings.includes('modelAccess: "__auto"'), "settings must default to App-owned Auto model resolution");
   assert(settings.includes("codexModelPolicy.defaultReasoningEffort"), "settings default reasoning must consume the App-derived policy");
-  assert(policySource.includes("codexModelPolicy.modelOptions.map") && app.includes("modelOptions.map"), "composer and Settings must render the App-derived model list");
-  assert(rendererSource.includes("codexModelPolicy.reasoningOptions.map"), "composer and Settings must render the App-derived reasoning list");
+  assert(settingsPanel.includes("modelOptions.map") && slotHost.includes("studio.modelOptions.map"), "DSH composer and Settings must render the App-derived model list");
+  assert(settingsPanel.includes("codexModelPolicy.reasoningOptions.map") && slotHost.includes("supportedReasoningEfforts.map"), "DSH composer and Settings must render the App-derived reasoning list");
   assert(policySource.includes('invalidPolicy("policy is missing")'), "missing App model policy injection must fail explicitly");
   assert(!policySource.includes("fallbackModelOptions") && !policySource.includes("fallbackReasoningOptions"), "source model policy must not keep versioned fallback lists");
   assert(app.includes("bridge.readCodexModels()"), "renderer must read app-server model availability");
@@ -481,9 +483,9 @@ function assertCodexModelControls(evidence, app, rendererSource) {
       && app.includes("replaceEphemeralQueue(ephemeralQueueRef.current.concat(item))"),
     "composer submissions during an active turn must enter the DSH queue"
   );
-  assert(app.includes("conversationModelLabel(") && app.includes("resolvedConversationModelLabel"), "composer model control must use the tested resolved-label policy");
-  assert(app.includes('<option value="__auto">{resolvedConversationModelLabel}</option>'), "composer Auto must display the resolved model without an Auto prefix");
-  assert(app.includes('value="__auto"'), "Settings must expose Auto model restoration");
+  assert(slotHost.includes('import { ModelSelect } from "@opl-vendor/dsh-model-select"') && slotHost.includes("<ModelSelect"), "composer must use the pinned DSH ModelSelect");
+  assert(slotHost.includes('{ id: "__auto", name: studio.locale === "zh" ? "自动" : "Auto"'), "DSH composer must expose one App-owned Auto model row");
+  assert(settingsPanel.includes('<option value="__auto">{autoModelLabel(settings.locale)}</option>'), "Settings must expose Auto model restoration");
   assert(app.includes("model: resolvedModel.id"), "composer must send the App-resolved model");
   assert(app.includes("reasoningEffort: resolvedReasoning"), "composer must send a supported reasoning effort");
   assert(bridge.includes("model?: string"), "bridge request must carry the App-selected model override");
@@ -593,7 +595,6 @@ for (const capability of [
   "runtime_detail_contributions",
   "mobile_details_overlay",
   "text_only_product_brand",
-  "delivery_mode_selection",
   "export_action"
 ]) {
   assert(evidence.capabilities.includes(capability), `missing evidence capability ${capability}`);
@@ -604,7 +605,7 @@ assert(evidence.reuse_policy.deepseek_harness_ui_package_version === "0.1.0-rc.6
 assert(evidence.reuse_policy.deepseek_harness_selected_source_reused === true, "selected DeepSeek Harness source must be declared as reused");
 assert(evidence.reused_oss_module_policy.vendored_source_root === "src/vendor/deepseek-harness", "DeepSeek Harness source must have one explicit vendor root");
 assert(evidence.reused_oss_module_policy.source_manifest === "src/composition/deepseekHarnessSourceManifest.json", "DeepSeek Harness source manifest must be canonical");
-assert(evidence.reused_oss_module_policy.vendored_file_count === 207, "DeepSeek Harness source inventory must contain 207 files");
+assert(evidence.reused_oss_module_policy.vendored_file_count === 263, "DeepSeek Harness source inventory must contain 263 files");
 assert(evidence.reused_oss_module_policy.byte_identical === true, "DeepSeek Harness vendor source must remain byte-identical");
 assert(evidence.reused_oss_module_policy.byte_identical_to_pinned_ref === true, "DeepSeek Harness vendor source byte identity must bind to the pinned ref");
 assert(evidence.reused_oss_module_policy.vendored_package_roots?.includes("packages/client/ui-primitives/src"), "DeepSeek Harness source reuse must include the complete ui-primitives tree");
@@ -616,12 +617,24 @@ assert(evidence.reused_oss_module_policy.brand_override === "vendor_external_tex
 for (const rootName of ["AppFrame", "SidebarRoot", "ConversationRoot", "InputBar", "SettingsRoot"]) {
   assert(evidence.reused_oss_module_policy.active_gui_roots.some((entry) => entry.includes(rootName)), `missing active DeepSeek Harness GUI root ${rootName}`);
 }
+for (const rootName of ["WorkspaceBrowser", "AgentPresetSeat", "ModelSelect"]) {
+  assert(evidence.reused_oss_module_policy.active_gui_roots.some((entry) => entry.includes(rootName)), `missing active DeepSeek Harness product control ${rootName}`);
+}
+const clientComposition = evidence.client_composition_boundary;
+assert(clientComposition?.app_client_contribution_abi === "opl_app_client_contributions.v1", "missing App Client Contribution ABI binding");
+assert(clientComposition?.client_cordis_graph === "derived_from_framework_host_graph", "Client Cordis must derive from the Framework Host graph");
+assert(clientComposition?.shared_product_profile_and_slot_policy === true, "shells must share the App product profile and slot policy");
+for (const field of ["independent_host_truth", "second_package_registry", "second_currentness_authority", "second_action_authority", "second_client_composition_graph"]) {
+  assert(clientComposition?.[field] === false, `${field} must remain false`);
+}
 assert(evidence.reuse_policy.other_external_gui_source_copied === false, "other external GUI sources must remain reference-only");
 assert(evidence.reuse_policy.runtime_authority_transfer === false, "runtime authority must not transfer");
 assert(evidence.user_visible_protocol_copy.agui === false, "AGUI must not be ordinary UI copy");
 assert(evidence.user_visible_protocol_copy.copilotkit_surface === false, "CopilotKit must not be ordinary native UI copy");
 assert(evidence.settings_information_architecture?.persistence_model?.storage_key === "opl.studio.settings.v1", "settings persistence storage key must be recorded");
 assert(evidence.settings_information_architecture?.persistence_model?.system_write_permission === false, "settings persistence must not request system write permission");
+assert(evidence.settings_information_architecture?.gateway_account_lkg_cache?.storage_key === "opl.app.gatewayAccount.lkg.v1", "Gateway account LKG cache key must be recorded");
+assert(evidence.settings_information_architecture?.gateway_account_lkg_cache?.secret_fields_cached === false, "Gateway account LKG cache must exclude secrets");
 assert(evidence.false_ready_boundary.settings_system_write_permission === false, "settings system write permission must stay false");
 assert(evidence.false_ready_boundary.artifact_authority === false, "artifact authority must stay false");
 assert(evidence.false_ready_boundary.starter_execution_authority === false, "starter execution authority must stay false");

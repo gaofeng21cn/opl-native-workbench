@@ -9,19 +9,58 @@ readback, Codex App Server, and domain owners retain their respective truth.
 
 ## Authority Stack
 
+This repository is the candidate Shell in the one-product/two-Shell topology:
+`one-person-lab-app` owns product and release truth, `opl-aion-shell` remains the
+Stable AionUI carrier, and `opl-studio` is the DSH-derived candidate carrier.
+The selected Shell, GUI ABI version, Framework compatibility and contribution
+snapshot are frozen by the App release composition; candidate source or local
+validation cannot promote itself.
+
 ```text
-one-person-lab-app product and candidate contracts
--> OPL Framework app state/action JSON
--> Codex App Server thread/turn protocol
--> shared Node host core
--> Electron IPC or HTTP/SSE transport adapter
--> shared candidate renderer
+one-person-lab-app product profile + App Client Contribution ABI + slot policy
+                         +
+OPL Framework authoritative Host graph projection
+                         |
+                         v
+Host-derived Client Cordis graph
+                         |
+                         v
+renderer adapter (DSH React here; AionUI in the current shell)
+                         |
+                         v
+shared Node host core -> Electron IPC or HTTP/SSE
+
+Codex App Server separately owns thread/turn protocol and history.
 ```
 
 The dependency direction is one-way. Native implements App requirements and
 renders owner projections. Candidate source, UI defaults, generated manifests,
 or package output cannot redefine App product behavior, runtime/package truth,
 thread truth, or domain authority.
+
+## Client Composition Boundary
+
+Both the current AionUI shell and this DSH-derived Native candidate consume the
+same App-owned Client Contribution ABI, product profile, slot vocabulary,
+trust/scope/order rules, and disposal policy. Their renderer and package carrier
+may differ; their Package graph and authority inputs may not.
+
+The Framework Host graph remains the only Package producer, identity, and
+lifecycle authority. `opl app state` projects its bounded declarative client
+graph as `opl_app_ui_contributions_projection.v1`.
+`readUiContributionsProjection()` normalizes that projection and
+`OplStudioDshSlotHost.replaceHostDerivedProjection()` registers or disposes the
+corresponding browser occupants. The local `SlotCore` is therefore the Client
+Cordis face of the authoritative Host graph, not an independent Host.
+
+The renderer may register static DSH shell slots needed to draw the App, but it
+must not discover Packages, establish another Package registry, or own
+currentness, state, actions, sessions, or runtime truth. Cordis itself is not
+forbidden in a GUI; a second independent graph or authority plane is.
+
+DSH GUI/runtime source reuse remains Native-only. AionUI can consume the same
+Host-derived Client Cordis inputs through its own thin renderer adapter without
+importing DSH GUI/runtime source.
 
 ## Renderer And Host Topology
 
@@ -46,7 +85,8 @@ updater cohort, released Docker image, or cross-carrier runtime equivalence.
 `scripts/headless/run.mjs` is the standalone process entrypoint. It validates
 bind, port, renderer-root, and shutdown-bound inputs, starts the same
 `createOplHostCore` plus HTTP/SSE adapter used by the desktop architecture, and
-owns SIGINT/SIGTERM shutdown. It does not introduce a second plugin runtime,
+owns SIGINT/SIGTERM shutdown. It reuses the renderer's single Host-derived
+Client Cordis graph and does not introduce an independent composition graph,
 thread store, action dispatcher, or renderer.
 
 The HTTP adapter publishes two carrier-level probes:
@@ -84,7 +124,8 @@ session/database state, backend, and authentication are not Native runtime input
 
 This independence is a carrier property, not a second product or runtime
 authority. Codex still owns thread/turn truth, Framework still owns OPL
-state/actions, and App contracts still own product behavior.
+state/actions and the authoritative Package Host graph, and App contracts still
+own product behavior plus Client ABI/slot policy.
 
 Codex CLI/App Server is the candidate's complete backend scope. App Server over
 stdio is the only enabled carrier. `pi` and `hermes` are

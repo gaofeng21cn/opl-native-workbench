@@ -9,7 +9,6 @@ export const requiredDeliverySurfaceKeys = [
   "agents_capabilities",
   "runtime_contributions",
   "artifact_preview_tabs",
-  "delivery_mode",
   "export_action"
 ];
 
@@ -17,7 +16,6 @@ export const rendererSourcePaths = [
   "src/workbench/App.tsx",
   "src/workbench/SettingsPanel.tsx",
   "src/workbench/codexWorkbenchStyles.ts",
-  "src/workbench/threads/ThreadRail.tsx",
   "src/workbench/threads/ThreadDetailPopover.tsx",
   "src/workbench/threads/ThreadLifecycleConfirmationDialog.tsx",
   "src/ui/workbenchPrimitives.tsx",

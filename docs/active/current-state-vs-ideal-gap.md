@@ -1,5 +1,10 @@
 # OPL Studio Current State And Pre-Adoption Development Policy
 
+Studio is the DSH-derived candidate Shell for the single OPL App product. The
+current release Shell remains AionUI until the App-owned adapter and release
+gates switch. All candidate evidence in this document is scoped to Studio bytes
+and must not be read as active-shell, App-release, or production evidence.
+
 Owner: `one-person-lab-app`
 Purpose: `single_active_truth_plan`
 State: `active_product_development_reference`
@@ -13,9 +18,11 @@ authority, release adoption, or production readiness.
 Studio is the internal repository and development codename for the thin,
 maintainable first-party implementation of the One Person Lab Native GUI. The
 product UI presents only `One Person Lab`. It directly reuses the pinned
-DeepSeek Harness App frame, navigation, conversation, composer, Settings,
-theme, and queue source as its visual and interaction baseline, then composes
-OPL-owned capabilities through typed contribution boundaries.
+DeepSeek Harness App frame, workspace browser, conversation, composer, Agent
+preset, model selection, Settings, theme, and queue source as its visual and
+interaction baseline. DSH-owned typography, spacing, layout, colors, state, and
+interaction stay unchanged; OPL adds only product identity, real data, App
+policy, and typed contribution adapters outside the vendor root.
 
 The implementation has one React renderer and one shared Node host core.
 Electron packages them for macOS, Windows, and Linux, while a thin HTTP/SSE
@@ -41,7 +48,7 @@ release admission, and is explicitly adopted.
 | Product work policy | `active_product_development_release_admission_separate` | Minimum-complete OPL outcomes are required; full AionUI parity and implicit release are not |
 | Current mainline | `false` | AionUI remains the only mainline until Studio completes and passes separate release qualification |
 | Product completion obligation | `true` | Minimum-complete Native gaps enter the App development backlog without blocking the current AionUI release |
-| DSH GUI baseline | `pinned_source_reuse_implemented` | App frame, navigation, conversation, composer, Settings, theme, and queue are reused from the pinned MIT upstream source; OPL features enter through composition/adapters |
+| DSH GUI baseline | `pinned_source_reuse_implemented` | App frame, navigation, workspace/session tree, conversation, composer, Agent preset, model selection, Settings, theme, and queue are reused byte-identically from the pinned MIT upstream source; OPL keeps no parallel visual system |
 | Product brand | `one_person_lab_only` | `OPL Studio` remains an internal repo/codename and is not a user-facing product brand or logo |
 | Renderer/hosts | `shared_renderer_and_node_host_core_implemented` | Electron IPC and HTTP/SSE adapt one host core and one renderer; release-cohort equivalence is not proven |
 | Desktop host | `electron_selected_source_implemented` | macOS directory package and live window are proven locally; Windows/Linux remain source targets pending native qualification |
@@ -54,7 +61,8 @@ release admission, and is explicitly adopted.
 | Shared directory | `codex_state_db_overview` | Uses `thread/list useStateDbOnly=true` and opens history by the same canonical thread ID |
 | Codex subagents | `read_only_app_server_projection` | Lineage, role, nickname, source kind, tool-call, and activity items are displayed without owning scheduling |
 | Private cross-thread layer | `removed_non_goal` | No proposal/dispatch/wait protocol, host queue, ledger, bilateral receipt, or dynamic-tool bridge remains |
-| OPL state/actions | `canonical_producer_consumer_conformance` | Framework Cordis composition and the public App state/action producer are canonical; Native keeps one bounded consumer bridge and imports neither Cordis nor another plugin runtime |
+| Client composition | `host_derived_client_cordis` | AionUI and Native consume the same App Client Contribution ABI, product profile, and slot policy. Native's Client Cordis occupants derive only from the Framework Host projection; no shell discovers Packages or owns another graph |
+| OPL state/actions | `canonical_producer_consumer_conformance` | Framework Cordis composition, Package graph, and public App state/action producer are canonical; Native has one bounded consumer bridge and no second registry, currentness, session, state, or action authority |
 | Conversation | `chat_first_with_on_demand_detail` | Primary surface is the DSH conversation; run status, roadmap/detail contributions, files, and results open on demand instead of becoming static home cards |
 | Standard Agents | `typed_dynamic_selection` | Composer separates OPL-owned `standard_agent` packages from skills/plugins/connections and requires selectable readiness plus a real Codex route |
 | Active turn | `direct_steer_with_renderer_queue` | Active submissions use Codex `turn/steer`; the DSH queue is temporary renderer state and is not a second persistent scheduler or queue |
@@ -111,6 +119,8 @@ carrier.
 - no second product model, model catalog, package registry, thread/history
   store, permission control plane, runtime truth, domain truth, or artifact
   authority;
+- no independent Client Cordis graph or Package discovery; the single GUI-side
+  graph must derive from the Framework Host projection and App slot policy;
 - no revival of cross-host handoff, dynamic-tool product requirements, or
   private delivery ledgers merely because experimental source exists;
 - no conflation of AionUI Team executor orchestration with Codex App Server
