@@ -1,4 +1,5 @@
 import { access } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createWebUiHost } from "../webui-host/http-host.mjs";
@@ -50,10 +51,15 @@ async function listen(server, port, address) {
 
 export async function startHeadlessHost({
   config = resolveHeadlessConfig(),
-  createHost = createWebUiHost
+  createHost = createWebUiHost,
+  env = process.env
 } = {}) {
   await access(path.join(config.webRoot, "index.html"));
-  const host = await createHost({ webRoot: config.webRoot });
+  const host = await createHost({
+    webRoot: config.webRoot,
+    channelBindingFile: env.OPL_STUDIO_CHANNEL_BINDINGS_FILE
+      ?? path.join(env.OPL_DATA_DIR ?? os.homedir(), ".opl-studio", "channel-transport-bindings.json")
+  });
   try {
     await listen(host.server, config.port, config.address);
   } catch (error) {

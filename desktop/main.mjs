@@ -128,6 +128,7 @@ async function createDesktopHost(appLogDirectory) {
   });
   core = await createOplHostCore({
     workspaceRoot: desktopCodexWorkspaceRoot(),
+    channelBindingFile: path.join(app.getPath("userData"), "channel-transport-bindings.json"),
     platform: {
       pickFiles: async () => {
         const result = await dialog.showOpenDialog({ properties: ["openFile", "multiSelections"] });

@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import os from "node:os";
 import path from "node:path";
-import { mkdtemp } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { CodexAppServerTransport } from "./app-server-transport.mjs";
+import { ChannelBindingStore } from "./channel-bindings.mjs";
+import {
+  createFrameworkChannelCallbackRegistrar,
+  loadFrameworkCordisProfiles
+} from "./framework-channel-bootstrap.mjs";
 import { createOplHostCore, OplHostCore } from "./host-core.mjs";
 import { createOplPassthrough } from "./opl-passthrough.mjs";
 
@@ -34,11 +40,12 @@ test("optional channel provider receives canonical App Server callbacks without 
   let disposeCount = 0;
   const core = await createOplHostCore({
     transport,
+    channelBindingFile: path.join(directory, "channel-bindings.json"),
     opl: createOplPassthrough({
       cwd: directory,
-      channelCallbackRegistrar: (value) => {
+      channelCallbackRegistrar: async (value) => {
         callbacks = value;
-        return () => { disposeCount += 1; };
+        return { dispose: () => { disposeCount += 1; } };
       }
     })
   });
@@ -94,6 +101,170 @@ test("optional channel provider receives canonical App Server callbacks without 
   await core.close();
   closed = true;
   assert.equal(disposeCount, 1);
+  const bindings = JSON.parse(await readFile(path.join(directory, "channel-bindings.json"), "utf8"));
+  assert.deepEqual(bindings.entries, [{
+    provider_id: "opl-channel-weixin",
+    account_id: "account-1",
+    channel_session_id: "session-1",
+    canonical_thread_host: "local",
+    canonical_thread_id: started.canonical_thread_id
+  }]);
+});
+
+test("channel binding restart recovers the exact thread and rejects unknown or mismatched refs", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "opl-channel-binding-restart-test-"));
+  const bindingFile = path.join(directory, "bindings.json");
+  const identity = {
+    provider_id: "opl-channel-weixin",
+    account_id: "account-exact",
+    channel_session_id: "session-exact"
+  };
+  const calls = [];
+  const first = new CodexAppServerTransport({
+    host: "host-exact",
+    channelBindingStore: new ChannelBindingStore({ filePath: bindingFile })
+  });
+  first.startThread = async () => {
+    calls.push("start:first");
+    return { thread: { id: "thread-exact" } };
+  };
+  first.readThread = async (threadId) => {
+    calls.push(`read:first:${threadId}`);
+    return { thread: { id: threadId } };
+  };
+  const created = await first.createChannelCallbackAdapter().startThread(identity);
+  assert.deepEqual(created, {
+    canonical_thread_host: "host-exact",
+    canonical_thread_id: "thread-exact"
+  });
+
+  const restarted = new CodexAppServerTransport({
+    host: "host-exact",
+    channelBindingStore: new ChannelBindingStore({ filePath: bindingFile })
+  });
+  restarted.startThread = async () => {
+    throw new Error("restart must not create a replacement thread");
+  };
+  restarted.readThread = async (threadId) => {
+    calls.push(`read:restart:${threadId}`);
+    return { thread: { id: threadId } };
+  };
+  restarted.resumeThread = async (threadId) => {
+    calls.push(`resume:restart:${threadId}`);
+    return { thread: { id: threadId } };
+  };
+  const recovered = await restarted.createChannelCallbackAdapter().startThread(identity);
+  assert.deepEqual(recovered, created);
+  assert.deepEqual(calls, [
+    "start:first",
+    "read:first:thread-exact",
+    "read:restart:thread-exact",
+    "resume:restart:thread-exact"
+  ]);
+
+  await assert.rejects(
+    restarted.createChannelCallbackAdapter().resumeThread({
+      canonical_thread_host: "host-exact",
+      canonical_thread_id: "thread-unknown"
+    }),
+    (error) => error.code === "channel_binding_unknown"
+  );
+  const mismatchedThread = new CodexAppServerTransport({
+    host: "host-exact",
+    channelBindingStore: new ChannelBindingStore({ filePath: bindingFile })
+  });
+  mismatchedThread.readThread = async () => ({ thread: { id: "thread-other" } });
+  await assert.rejects(
+    mismatchedThread.createChannelCallbackAdapter().startThread(identity),
+    (error) => error.code === "invalid_app_server_response" && /different canonical thread/.test(error.message)
+  );
+  const otherHost = new CodexAppServerTransport({
+    host: "host-other",
+    channelBindingStore: new ChannelBindingStore({ filePath: bindingFile })
+  });
+  otherHost.readThread = async () => { throw new Error("host mismatch must fail before thread/read"); };
+  await assert.rejects(
+    otherHost.createChannelCallbackAdapter().startThread(identity),
+    (error) => error.code === "invalid_app_server_response" && /different canonical thread/.test(error.message)
+  );
+});
+
+test("shared Host attaches after App Server start and tears the provider down before transport", async () => {
+  const calls = [];
+  const transport = new EventEmitter();
+  transport.cwd = "/tmp/studio-order";
+  transport.initialized = false;
+  transport.createChannelCallbackAdapter = () => ({
+    startThread: async () => {},
+    resumeThread: async () => {},
+    startTurn: async () => {},
+    subscribeTurn: () => ({ dispose() {} })
+  });
+  transport.start = async () => {
+    calls.push("transport:start");
+    transport.initialized = true;
+  };
+  transport.stop = async () => {
+    calls.push("transport:stop");
+    transport.initialized = false;
+  };
+  const opl = createOplPassthrough({
+    channelCallbackRegistrar: async () => {
+      calls.push("provider:attach");
+      return { dispose: async () => { calls.push("provider:dispose"); } };
+    }
+  });
+  const core = await createOplHostCore({ transport, opl });
+  assert.deepEqual(calls, ["transport:start", "provider:attach"]);
+  await core.close();
+  await core.close();
+  assert.deepEqual(calls, [
+    "transport:start",
+    "provider:attach",
+    "provider:dispose",
+    "transport:stop"
+  ]);
+});
+
+test("Framework registrar loads only the carrier public Cordis export and returns its disposable Host", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "opl-framework-carrier-test-"));
+  await mkdir(path.join(directory, "bin"), { recursive: true });
+  await mkdir(path.join(directory, "dist", "host"), { recursive: true });
+  const command = path.join(directory, "bin", "opl");
+  await writeFile(command, "#!/bin/sh\nexit 0\n", "utf8");
+  await chmod(command, 0o755);
+  await writeFile(path.join(directory, "package.json"), JSON.stringify({
+    name: "opl-framework",
+    type: "module",
+    exports: { "./cordis-profiles": "./dist/host/composition-profiles.js" }
+  }), "utf8");
+  await writeFile(
+    path.join(directory, "dist", "host", "composition-profiles.js"),
+    "export const publicCarrierMarker = 'framework-public-export';\n",
+    "utf8"
+  );
+  const profiles = await loadFrameworkCordisProfiles({ command, env: { PATH: "" } });
+  assert.equal(profiles.publicCarrierMarker, "framework-public-export");
+
+  const calls = [];
+  const callback = Object.freeze({});
+  const registrar = createFrameworkChannelCallbackRegistrar({
+    command,
+    env: { PATH: "" },
+    loadProfiles: async () => ({
+      startCordisChannelProviderHost: async (options) => {
+        calls.push({ operation: "attach", callback: options.callback });
+        return { dispose: async () => { calls.push({ operation: "dispose" }); } };
+      }
+    })
+  });
+  const registration = await registrar(callback);
+  assert.deepEqual(calls, [{ operation: "attach", callback }]);
+  await registration.dispose();
+  assert.deepEqual(calls, [
+    { operation: "attach", callback },
+    { operation: "dispose" }
+  ]);
 });
 
 test("shared host core serves desktop and HTTP adapters through one typed method surface", async (t) => {

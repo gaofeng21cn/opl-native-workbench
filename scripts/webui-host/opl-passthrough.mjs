@@ -518,17 +518,20 @@ export function createOplPassthrough({
     throw Object.assign(new Error("channel callback registrar must be a function"), { code: "invalid_request" });
   }
   return {
-    registerChannelCallbackAdapter(adapter) {
+    async registerChannelCallbackAdapter(adapter) {
       const validated = validateChannelCallbackAdapter(adapter);
       if (typeof channelCallbackRegistrar !== "function") {
         return { status: "dormant", registered: false, dispose: async () => {} };
       }
-      const dispose = channelCallbackRegistrar(validated);
+      const registration = await channelCallbackRegistrar(validated);
+      const dispose = typeof registration === "function"
+        ? registration
+        : registration?.dispose;
       if (dispose !== undefined && typeof dispose !== "function") {
-        throw Object.assign(new Error("channel callback registrar must return a dispose function"), { code: "invalid_request" });
+        throw Object.assign(new Error("channel callback registrar must return a disposable"), { code: "invalid_request" });
       }
       return {
-        status: "registered",
+        status: registration?.status ?? "registered",
         registered: true,
         dispose: async () => { await dispose?.(); }
       };

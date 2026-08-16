@@ -15,7 +15,7 @@ test("channel callbacks stay dormant unless an optional provider registrar is co
     startTurn: async () => {},
     subscribeTurn: () => ({ dispose() {} })
   };
-  const dormant = createOplPassthrough().registerChannelCallbackAdapter(adapter);
+  const dormant = await createOplPassthrough().registerChannelCallbackAdapter(adapter);
   assert.deepEqual(
     { status: dormant.status, registered: dormant.registered },
     { status: "dormant", registered: false }
@@ -23,10 +23,10 @@ test("channel callbacks stay dormant unless an optional provider registrar is co
 
   let received;
   let disposeCount = 0;
-  const configured = createOplPassthrough({
-    channelCallbackRegistrar: (value) => {
+  const configured = await createOplPassthrough({
+    channelCallbackRegistrar: async (value) => {
       received = value;
-      return () => { disposeCount += 1; };
+      return { dispose: () => { disposeCount += 1; } };
     }
   }).registerChannelCallbackAdapter(adapter);
   assert.equal(received, adapter);
@@ -35,8 +35,8 @@ test("channel callbacks stay dormant unless an optional provider registrar is co
   await configured.dispose();
   assert.equal(disposeCount, 1);
 
-  assert.throws(
-    () => createOplPassthrough().registerChannelCallbackAdapter({ ...adapter, subscribeTurn: undefined }),
+  await assert.rejects(
+    createOplPassthrough().registerChannelCallbackAdapter({ ...adapter, subscribeTurn: undefined }),
     /missing subscribeTurn/
   );
   assert.throws(

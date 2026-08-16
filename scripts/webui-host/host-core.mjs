@@ -1,7 +1,10 @@
 import { EventEmitter } from "node:events";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CHANNEL_CALLBACK_SCHEMA, CodexAppServerTransport } from "./app-server-transport.mjs";
+import { ChannelBindingStore } from "./channel-bindings.mjs";
+import { createFrameworkChannelCallbackRegistrar } from "./framework-channel-bootstrap.mjs";
 import { createGatewayAccountLogin } from "./gateway-account-login.mjs";
 import { createNativeAppUpdaterFromEnvironment } from "./native-app-updater.mjs";
 import { createOplPassthrough } from "./opl-passthrough.mjs";
@@ -33,6 +36,11 @@ function defaultPlatformServices() {
 
 function defaultNativeUpdater() {
   return createNativeAppUpdaterFromEnvironment();
+}
+
+function defaultChannelBindingFile(env) {
+  return env.OPL_STUDIO_CHANNEL_BINDINGS_FILE
+    ?? path.join(env.OPL_DATA_DIR ?? os.homedir(), ".opl-studio", "channel-transport-bindings.json");
 }
 
 function unavailableCarrierDiagnostics(reasonCode = "carrier_log_directory_unavailable") {
@@ -90,6 +98,8 @@ export class OplHostCore extends EventEmitter {
     workspaceRoot = defaultWorkspaceRoot,
     transport,
     opl,
+    channelBindingFile,
+    channelCallbackRegistrar,
     gatewayAccountLogin,
     platform = defaultPlatformServices(),
     nativeUpdater = defaultNativeUpdater(),
@@ -97,8 +107,22 @@ export class OplHostCore extends EventEmitter {
     env = process.env
   } = {}) {
     super();
-    this.transport = transport ?? new CodexAppServerTransport({ cwd: workspaceRoot });
-    this.opl = opl ?? createOplPassthrough({ cwd: workspaceRoot });
+    const oplCommand = env.OPL_APP_OPL_BIN ?? env.OPL_COMMAND ?? "opl";
+    const channelBindingStore = new ChannelBindingStore({
+      filePath: channelBindingFile ?? defaultChannelBindingFile(env)
+    });
+    this.transport = transport ?? new CodexAppServerTransport({
+      cwd: workspaceRoot,
+      env,
+      channelBindingStore
+    });
+    this.transport.channelBindingStore ??= channelBindingStore;
+    this.opl = opl ?? createOplPassthrough({
+      cwd: workspaceRoot,
+      command: oplCommand,
+      channelCallbackRegistrar: channelCallbackRegistrar
+        ?? createFrameworkChannelCallbackRegistrar({ command: oplCommand, env })
+    });
     this.gatewayAccountLogin = gatewayAccountLogin ?? createGatewayAccountLogin({ cwd: workspaceRoot });
     this.platform = { ...defaultPlatformServices(), ...platform };
     this.nativeUpdater = nativeUpdater;
@@ -107,10 +131,9 @@ export class OplHostCore extends EventEmitter {
     this.channelCallbackAdapter = typeof this.transport.createChannelCallbackAdapter === "function"
       ? this.transport.createChannelCallbackAdapter()
       : null;
-    this.channelCallbackRegistration = this.channelCallbackAdapter
-      && typeof this.opl.registerChannelCallbackAdapter === "function"
-      ? this.opl.registerChannelCallbackAdapter(this.channelCallbackAdapter)
-      : { status: "dormant", registered: false, dispose: async () => {} };
+    this.channelCallbackRegistration = { status: "dormant", registered: false, dispose: async () => {} };
+    this.channelCallbackRegistrationAttempted = false;
+    this.closePromise = null;
     this.appServerError = null;
 
     this.threads.on("event", (event) => this.emit("event", event));
@@ -135,6 +158,26 @@ export class OplHostCore extends EventEmitter {
         message: error.message ?? String(error)
       };
     }
+    if (
+      this.transport.initialized === true
+      && !this.channelCallbackRegistrationAttempted
+      && this.channelCallbackAdapter
+      && typeof this.opl.registerChannelCallbackAdapter === "function"
+    ) {
+      this.channelCallbackRegistrationAttempted = true;
+      try {
+        this.channelCallbackRegistration = await this.opl.registerChannelCallbackAdapter(
+          this.channelCallbackAdapter
+        );
+      } catch (error) {
+        this.channelCallbackRegistration = {
+          status: "failed",
+          registered: false,
+          reasonCode: error.code ?? "channel_provider_bootstrap_failed",
+          dispose: async () => {}
+        };
+      }
+    }
     return this.capabilities();
   }
 
@@ -150,7 +193,10 @@ export class OplHostCore extends EventEmitter {
         channelCallback: {
           schema: this.channelCallbackAdapter ? CHANNEL_CALLBACK_SCHEMA : null,
           status: this.channelCallbackRegistration?.status ?? "dormant",
-          registered: this.channelCallbackRegistration?.registered === true
+          registered: this.channelCallbackRegistration?.registered === true,
+          ...(this.channelCallbackRegistration?.reasonCode
+            ? { reasonCode: this.channelCallbackRegistration.reasonCode }
+            : {})
         }
       }
     };
@@ -207,8 +253,11 @@ export class OplHostCore extends EventEmitter {
   }
 
   async close() {
-    await this.channelCallbackRegistration?.dispose?.();
-    await this.transport.stop();
+    this.closePromise ??= (async () => {
+      await this.channelCallbackRegistration?.dispose?.();
+      await this.transport.stop();
+    })();
+    return this.closePromise;
   }
 }
 
