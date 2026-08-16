@@ -37,8 +37,8 @@ test("carrier diagnostics keep unavailable states human-readable and attention-t
   assert.equal(statusTone("unavailable"), "attention");
   assert.equal(statusTone("incompatible"), "attention");
   assert.equal(statusTone("available"), "ready");
-  assert.equal(carrierLogDetail(diagnostics, "zh"), "当前载体不提供 App 日志目录");
-  assert.equal(carrierLogDetail(diagnostics, "en"), "This carrier does not expose an App log directory");
+  assert.equal(carrierLogDetail(diagnostics, "zh"), "当前运行方式不提供应用日志路径");
+  assert.equal(carrierLogDetail(diagnostics, "en"), "This app mode does not provide an application log path");
 });
 
 test("managed update host actions come only from the App-projected action catalog", async () => {
