@@ -538,9 +538,15 @@ test("Settings directly reuses DSH appearance controls and applies the selected 
 test("composer separates OPL standard agents from Skills, connections, and other modules", () => {
   assert.match(app, /agentPresets: \[/);
   assert.match(app, /id: "opl-daily-work"/);
-  for (const [packageId, label] of [["mag", "医学基金"], ["mas", "医学科研"], ["obf", "图书创作"], ["oma", "智能演进"], ["rca", "视觉设计"]]) {
-    assert.match(app, new RegExp(`${packageId}: "${label}"`));
-  }
+  assert.match(app, /standardAgentSeatPresentationZh/);
+  assert.match(app, /item\.packageRole === "standard_agent"/);
+  assert.match(app, /item\.official/);
+  assert.match(app, /item\.readiness\.selectable/);
+  assert.match(app, /item\.homeShortcuts\.some\(\(shortcut\) => Boolean\(shortcut\.route\)\)/);
+  assert.match(app, /standardAgentSeatPresentationZh\[left\.packageId\]\?\.order/);
+  assert.match(app, /Number\.MAX_SAFE_INTEGER/);
+  assert.match(app, /const formalName = agent\.displayNameI18n\.en \?\? agent\.label/);
+  assert.match(app, /`\$\{formalName\} · \$\{description\}`/);
   assert.match(slotHost, /<AgentPresetSeat/);
   assert.match(slotHost, /name: "conversation\.hero\.agentPreset"/);
   assert.doesNotMatch(composerPalette, /standardAgents|OPL 标准智能体|data-testid="opl-standard-agents"/);
