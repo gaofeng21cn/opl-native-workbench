@@ -131,6 +131,46 @@ export type OplStateReadback = {
   raw_state?: Record<string, unknown>;
 };
 
+export type OplInitializeChecklistItem = {
+  itemId: string;
+  label?: string;
+  status?: string;
+  blocking: boolean;
+  required: boolean;
+  readinessLayer?: string;
+  severity?: string;
+  nextVisibleStep?: string;
+};
+
+export type OplInitializeReadback = {
+  schema: "opl_studio_initialize_readback.v1";
+  systemInitialize: {
+    overallState?: string;
+    setupFlow: {
+      isFirstRun: boolean;
+      phase?: string;
+      readyToLaunch: boolean;
+      progress: Record<string, number>;
+      blockingItems: string[];
+      maintenanceItems: string[];
+    };
+    readiness: {
+      coreReady?: boolean;
+      domainReady?: boolean;
+      launchReady?: boolean;
+      familyRuntimeProviderReady?: boolean;
+      fullReady?: boolean;
+    };
+    checklist: OplInitializeChecklistItem[];
+    familyRuntimeProvider?: {
+      status?: string;
+      ready?: boolean;
+      fullReadinessBlocking?: boolean;
+    };
+  };
+  readback: OplCommandReadback;
+};
+
 export type CarrierDiagnosticsReadback = {
   schema: "opl_app_carrier_diagnostics.v1";
   owner: "one-person-lab-app_native_host" | "one-person-lab-app_desktop_host";
@@ -214,6 +254,7 @@ export type CodexMessageRequest = {
   inputs?: CodexComposerInput[];
   threadId?: string;
   agentSelection?: CodexAgentSelectionSnapshot;
+  additionalInstructions?: string;
   model?: string;
   reasoningEffort?: string;
   permissions?: string;
@@ -313,6 +354,16 @@ export type GatewayAccountLoginResult =
   | { ok: true; stateRefreshRequired: true }
   | { ok: false; errorCode: GatewayAccountLoginErrorCode; stateRefreshRequired: false };
 
+export type CodexApiKeyConfigurationResult =
+  | { ok: true; stateRefreshRequired: true }
+  | { ok: false; errorCode: "invalid_request" | "network_unreachable" | "internal_contract_violation" | "codex_configuration_failed"; stateRefreshRequired: false };
+
+export type OplPlatformCapabilities = {
+  workspaceRootSelection: boolean;
+  codexInstall: boolean;
+  modelAccessSecretInput: boolean;
+};
+
 export type NativeAppUpdateOperation = "status" | "check" | "apply" | "restart";
 export type NativeAppUpdateResult = {
   schema: "opl_native_app_updater.v1";
@@ -388,7 +439,7 @@ export type OplBridgeEvent = OplBridgeTypeEvent | OplBridgeMethodEvent;
 
 export type OplStudioSurface = Pick<
   OplBridge,
-  "beginWindowDrag" | "readState" | "readFullDrilldown" | "readContribution" | "executeAction" | "readCodexModels" | "readCodexCapabilities" | "readCodexPermissionProfiles" | "pickFiles" | "pickDirectory" | "setLogDirectory" | "sendMessage" | "steerTurn" | "interruptTurn" | "loginGatewayAccount" | "readNativeAppUpdateStatus" | "checkNativeAppUpdate" | "applyNativeAppUpdate" | "restartNativeApp" | "subscribeEvents"
+  "platformCapabilities" | "beginWindowDrag" | "readState" | "readInitialize" | "readFullDrilldown" | "readContribution" | "executeAction" | "readCodexModels" | "readCodexCapabilities" | "readCodexPermissionProfiles" | "pickFiles" | "pickDirectory" | "setLogDirectory" | "sendMessage" | "steerTurn" | "interruptTurn" | "loginGatewayAccount" | "configureCodexApiKey" | "readNativeAppUpdateStatus" | "checkNativeAppUpdate" | "applyNativeAppUpdate" | "restartNativeApp" | "subscribeEvents"
 > & Partial<CodexThreadAdapterBridge> & {
   eventSourceUrl?: string;
   connectEvents?: (onEvent: (event: OplBridgeEvent) => void) => () => void;
@@ -425,8 +476,10 @@ export const CODEX_APP_SERVER = {
 } as const;
 
 export type OplBridge = CodexThreadAdapterBridge & {
+  platformCapabilities: OplPlatformCapabilities;
   beginWindowDrag(): void;
   readState(profile?: OplStateProfile): Promise<OplStateReadback>;
+  readInitialize(): Promise<OplInitializeReadback>;
   readFullDrilldown(): Promise<OplFullDrilldownReadback>;
   readContribution(request: OplContributionReadRequest): Promise<OplContributionReadback>;
   executeAction(request: OplActionRequest): Promise<OplActionReceipt>;
@@ -440,6 +493,7 @@ export type OplBridge = CodexThreadAdapterBridge & {
   steerTurn(request: ThreadSteerRequest): Promise<ThreadSteerResult>;
   interruptTurn(request: ThreadInterruptRequest): Promise<ThreadInterruptResult>;
   loginGatewayAccount(request: GatewayAccountLoginRequest): Promise<GatewayAccountLoginResult>;
+  configureCodexApiKey(request: { apiKey: string }): Promise<CodexApiKeyConfigurationResult>;
   readNativeAppUpdateStatus(): Promise<NativeAppUpdateResult>;
   checkNativeAppUpdate(): Promise<NativeAppUpdateResult>;
   applyNativeAppUpdate(): Promise<NativeAppUpdateResult>;
@@ -505,6 +559,75 @@ export function normalizeCarrierDiagnostics(value: unknown): CarrierDiagnosticsR
     };
   }
   return unavailableCarrierDiagnostics(carrier, asString(record?.reasonCode));
+}
+
+function normalizeInitializeChecklistItem(value: unknown): OplInitializeChecklistItem | undefined {
+  const record = asRecord(value);
+  const itemId = asString(record?.item_id);
+  if (!itemId) return undefined;
+  return {
+    itemId,
+    ...(asString(record?.label) ? { label: asString(record?.label) } : {}),
+    ...(asString(record?.status) ? { status: asString(record?.status) } : {}),
+    blocking: record?.blocking === true,
+    required: record?.required === true,
+    ...(asString(record?.readiness_layer) ? { readinessLayer: asString(record?.readiness_layer) } : {}),
+    ...(asString(record?.severity) ? { severity: asString(record?.severity) } : {}),
+    ...(asString(record?.next_visible_step) ? { nextVisibleStep: asString(record?.next_visible_step) } : {})
+  };
+}
+
+export function normalizeInitializeReadback(value: unknown): OplInitializeReadback {
+  const root = asRecord(value);
+  const systemInitialize = asRecord(root?.system_initialize) ?? {};
+  const setupFlow = asRecord(systemInitialize.setup_flow) ?? {};
+  const progressRecord = asRecord(setupFlow.progress) ?? {};
+  const readiness = asRecord(systemInitialize.readiness) ?? {};
+  const provider = asRecord(systemInitialize.family_runtime_provider);
+  const checklist = Array.isArray(systemInitialize.checklist)
+    ? systemInitialize.checklist.flatMap((item) => normalizeInitializeChecklistItem(item) ?? [])
+    : [];
+  const progress = Object.fromEntries(Object.entries(progressRecord)
+    .filter(([, item]) => typeof item === "number" && Number.isFinite(item))
+    .map(([key, item]) => [key, item as number]));
+  const readback = asRecord(root?.readback);
+  return {
+    schema: "opl_studio_initialize_readback.v1",
+    systemInitialize: {
+      ...(asString(systemInitialize.overall_state) ? { overallState: asString(systemInitialize.overall_state) } : {}),
+      setupFlow: {
+        isFirstRun: setupFlow.is_first_run === true,
+        ...(asString(setupFlow.phase) ? { phase: asString(setupFlow.phase) } : {}),
+        readyToLaunch: setupFlow.ready_to_launch === true,
+        progress,
+        blockingItems: Array.isArray(setupFlow.blocking_items) ? setupFlow.blocking_items.map(String).slice(0, 32) : [],
+        maintenanceItems: Array.isArray(setupFlow.maintenance_items) ? setupFlow.maintenance_items.map(String).slice(0, 32) : []
+      },
+      readiness: {
+        ...(asBoolean(readiness.core_ready) !== undefined ? { coreReady: asBoolean(readiness.core_ready) } : {}),
+        ...(asBoolean(readiness.domain_ready) !== undefined ? { domainReady: asBoolean(readiness.domain_ready) } : {}),
+        ...(asBoolean(readiness.launch_ready) !== undefined ? { launchReady: asBoolean(readiness.launch_ready) } : {}),
+        ...(asBoolean(readiness.family_runtime_provider_ready) !== undefined ? { familyRuntimeProviderReady: asBoolean(readiness.family_runtime_provider_ready) } : {}),
+        ...(asBoolean(readiness.full_ready) !== undefined ? { fullReady: asBoolean(readiness.full_ready) } : {})
+      },
+      checklist,
+      ...(provider ? {
+        familyRuntimeProvider: {
+          ...(asString(provider.status) ? { status: asString(provider.status) } : {}),
+          ...(asBoolean(provider.ready) !== undefined ? { ready: asBoolean(provider.ready) } : {}),
+          ...(asBoolean(provider.full_readiness_blocking) !== undefined ? { fullReadinessBlocking: asBoolean(provider.full_readiness_blocking) } : {})
+        }
+      } : {})
+    },
+    readback: {
+      command: typeof readback?.command === "string" ? readback.command : "opl system initialize --json",
+      commandArgs: Array.isArray(readback?.commandArgs) ? readback.commandArgs.map(String) : ["system", "initialize", "--json"],
+      exitCode: asNumber(readback?.exitCode) ?? 0,
+      stdout: "",
+      stderr: typeof readback?.stderr === "string" ? readback.stderr : "",
+      timedOut: readback?.timedOut === true
+    }
+  };
 }
 
 function normalizeThreadStatus(value: unknown): CodexThreadRuntimeStatus {
@@ -1246,6 +1369,11 @@ export function createBrowserBridge(): OplBridge {
   const candidate = ((globalThis as Record<string, unknown>).window as { oplStudio?: OplStudioSurface } | undefined)
     ?.oplStudio;
   return {
+    platformCapabilities: {
+      workspaceRootSelection: candidate?.platformCapabilities?.workspaceRootSelection === true,
+      codexInstall: candidate?.platformCapabilities?.codexInstall === true,
+      modelAccessSecretInput: candidate?.platformCapabilities?.modelAccessSecretInput === true
+    },
     beginWindowDrag() {
       candidate?.beginWindowDrag?.();
     },
@@ -1253,6 +1381,20 @@ export function createBrowserBridge(): OplBridge {
       const normalizedProfile = normalizeProfile(profile);
       const promise = candidate?.readState?.(normalizedProfile) ?? Promise.resolve(defaultStateReadback(normalizedProfile));
       return Promise.resolve(promise).then((value) => normalizeStateReadback(value, normalizedProfile));
+    },
+    readInitialize() {
+      const promise = candidate?.readInitialize?.() ?? Promise.resolve({
+        system_initialize: { setup_flow: { is_first_run: false, ready_to_launch: true } },
+        readback: {
+          command: "opl system initialize --json",
+          commandArgs: ["system", "initialize", "--json"],
+          exitCode: 0,
+          stdout: "",
+          stderr: "",
+          timedOut: false
+        }
+      });
+      return Promise.resolve(promise).then(normalizeInitializeReadback);
     },
     readFullDrilldown() {
       const promise = candidate?.readFullDrilldown?.() ?? Promise.resolve(defaultFullDrilldown());
@@ -1344,6 +1486,12 @@ export function createBrowserBridge(): OplBridge {
         return Promise.resolve({ ok: false, errorCode: "gateway_account_failed", stateRefreshRequired: false });
       }
       return candidate.loginGatewayAccount(request);
+    },
+    configureCodexApiKey(request) {
+      if (!candidate?.configureCodexApiKey) {
+        return Promise.resolve({ ok: false, errorCode: "codex_configuration_failed", stateRefreshRequired: false });
+      }
+      return candidate.configureCodexApiKey(request);
     },
     readNativeAppUpdateStatus() {
       return candidate?.readNativeAppUpdateStatus?.() ?? Promise.resolve(nativeUpdaterPlaceholder("status"));

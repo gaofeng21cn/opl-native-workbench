@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CHANNEL_CALLBACK_SCHEMA, CodexAppServerTransport } from "./app-server-transport.mjs";
-import { createGatewayAccountLogin } from "./gateway-account-login.mjs";
+import { createCodexApiKeyConfiguration, createGatewayAccountLogin } from "./gateway-account-login.mjs";
 import { createNativeAppUpdaterFromEnvironment } from "./native-app-updater.mjs";
 import { createOplPassthrough } from "./opl-passthrough.mjs";
 import { CodexThreadAdapter, ThreadAdapterError } from "./thread-adapter.mjs";
@@ -90,7 +90,9 @@ export class OplHostCore extends EventEmitter {
     workspaceRoot = defaultWorkspaceRoot,
     transport,
     opl,
+    candidateActionAllowlist = [],
     gatewayAccountLogin,
+    codexApiKeyConfiguration,
     platform = defaultPlatformServices(),
     nativeUpdater = defaultNativeUpdater(),
     carrierDiagnostics,
@@ -98,8 +100,9 @@ export class OplHostCore extends EventEmitter {
   } = {}) {
     super();
     this.transport = transport ?? new CodexAppServerTransport({ cwd: workspaceRoot });
-    this.opl = opl ?? createOplPassthrough({ cwd: workspaceRoot });
+    this.opl = opl ?? createOplPassthrough({ cwd: workspaceRoot, candidateActionAllowlist });
     this.gatewayAccountLogin = gatewayAccountLogin ?? createGatewayAccountLogin({ cwd: workspaceRoot });
+    this.codexApiKeyConfiguration = codexApiKeyConfiguration ?? createCodexApiKeyConfiguration({ cwd: workspaceRoot });
     this.platform = { ...defaultPlatformServices(), ...platform };
     this.nativeUpdater = nativeUpdater;
     this.carrierDiagnostics = carrierDiagnostics ?? defaultCarrierDiagnostics(env);
@@ -173,6 +176,7 @@ export class OplHostCore extends EventEmitter {
         }
         return { ...state, carrierDiagnostics };
       }
+      case "readInitialize": return this.opl.readInitialize();
       case "readFullDrilldown": return this.opl.readFullDrilldown();
       case "readContribution": return this.opl.readContribution(payload);
       case "executeAction": return this.opl.executeAction(payload);
@@ -187,6 +191,7 @@ export class OplHostCore extends EventEmitter {
       case "steerTurn": return this.transport.steerMessage(payload);
       case "interruptTurn": return this.transport.interruptMessage(payload);
       case "loginGatewayAccount": return this.gatewayAccountLogin(payload);
+      case "configureCodexApiKey": return this.codexApiKeyConfiguration(payload);
       case "readNativeAppUpdateStatus": return this.nativeUpdater.perform("status", payload);
       case "checkNativeAppUpdate": return this.nativeUpdater.perform("check", payload);
       case "applyNativeAppUpdate": return this.nativeUpdater.perform("apply", payload);

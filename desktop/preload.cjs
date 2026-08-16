@@ -16,8 +16,14 @@ function subscribeEvents(listener) {
 
 contextBridge.exposeInMainWorld("oplStudio", {
   eventSourceUrl: "electron://opl",
+  platformCapabilities: {
+    workspaceRootSelection: true,
+    codexInstall: true,
+    modelAccessSecretInput: true
+  },
   beginWindowDrag: () => invoke("beginWindowDrag"),
   readState: (profile = "fast") => invoke("readState", { profile }),
+  readInitialize: () => invoke("readInitialize"),
   readFullDrilldown: () => invoke("readFullDrilldown"),
   readContribution: (request) => invoke("readContribution", request),
   executeAction: (request) => invoke("executeAction", request),
@@ -31,6 +37,7 @@ contextBridge.exposeInMainWorld("oplStudio", {
   steerTurn: (request) => invoke("steerTurn", request),
   interruptTurn: (request) => invoke("interruptTurn", request),
   loginGatewayAccount: (request) => invoke("loginGatewayAccount", request),
+  configureCodexApiKey: (request) => invoke("configureCodexApiKey", request),
   readNativeAppUpdateStatus: () => invoke("readNativeAppUpdateStatus"),
   checkNativeAppUpdate: () => invoke("checkNativeAppUpdate"),
   applyNativeAppUpdate: () => invoke("applyNativeAppUpdate"),

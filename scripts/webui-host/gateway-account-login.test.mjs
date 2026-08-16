@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import test from "node:test";
-import { createGatewayAccountLogin } from "./gateway-account-login.mjs";
+import { createCodexApiKeyConfiguration, createGatewayAccountLogin } from "./gateway-account-login.mjs";
 
 function fakeSpawn(response, observed) {
   return (command, args, options) => {
@@ -106,4 +106,50 @@ test("Gateway account login maps structured failures without returning stderr", 
   const result = await login({ email: "user@example.com", password: "input-secret" });
   assert.deepEqual(result, { ok: false, errorCode: "invalid_request", stateRefreshRequired: false });
   assert.equal(JSON.stringify(result).includes("private diagnostic"), false);
+});
+
+test("Codex API key configuration keeps the key on stdin and returns only typed status", async () => {
+  const observed = {};
+  const apiKey = "sk-test-must-not-escape";
+  const configure = createCodexApiKeyConfiguration({
+    command: "/test/opl",
+    cwd: "/workspace",
+    spawnImpl: fakeSpawn({ stdout: JSON.stringify({ configured: true, api_key_present: true }) }, observed)
+  });
+
+  const result = await configure({ apiKey });
+
+  assert.deepEqual(result, { ok: true, stateRefreshRequired: true });
+  assert.equal(observed.command, "/test/opl");
+  assert.deepEqual(observed.args, ["system", "configure-codex", "--api-key-stdin", "--json"]);
+  assert.equal(observed.stdin, `${apiKey}\n`);
+  assert.equal(JSON.stringify({ result, args: observed.args }).includes(apiKey), false);
+  assert.equal("stdout" in result || "stderr" in result, false);
+});
+
+test("Codex API key configuration rejects unexpected fields and secret-bearing output", async () => {
+  let spawned = false;
+  const rejectsUnexpected = createCodexApiKeyConfiguration({
+    spawnImpl: () => {
+      spawned = true;
+      throw new Error("must not spawn");
+    }
+  });
+  assert.deepEqual(await rejectsUnexpected({ apiKey: "secret", provider: "other" }), {
+    ok: false,
+    errorCode: "invalid_request",
+    stateRefreshRequired: false
+  });
+  assert.equal(spawned, false);
+
+  const observed = {};
+  const apiKey = "echoed-api-key";
+  const rejectsEcho = createCodexApiKeyConfiguration({
+    spawnImpl: fakeSpawn({ stdout: JSON.stringify({ configured: true, message: apiKey }) }, observed)
+  });
+  assert.deepEqual(await rejectsEcho({ apiKey }), {
+    ok: false,
+    errorCode: "internal_contract_violation",
+    stateRefreshRequired: false
+  });
 });

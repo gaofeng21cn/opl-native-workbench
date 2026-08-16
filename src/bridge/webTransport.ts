@@ -72,8 +72,14 @@ export function installWebTransport(): void {
   const subscribeEvents = (onEvent: (event: OplBridgeEvent) => void) => connectServerEvents(eventSourceUrl, onEvent);
   const surface: WebSurface = {
     eventSourceUrl,
+    platformCapabilities: {
+      workspaceRootSelection: false,
+      codexInstall: false,
+      modelAccessSecretInput: true
+    },
     beginWindowDrag: () => undefined,
     readState: (profile = "fast") => requestJson<OplStateReadback>(`/api/opl/state?profile=${encodeURIComponent(profile)}`),
+    readInitialize: () => requestJson("/api/opl/initialize"),
     readFullDrilldown: () => requestJson("/api/opl/drilldown"),
     readContribution: (request) => postJson("/api/opl/contribution/read", request),
     executeAction: (request) => postJson("/api/opl/action", request),
@@ -95,6 +101,7 @@ export function installWebTransport(): void {
     steerTurn: (request) => postJson("/api/turns/steer", request),
     interruptTurn: (request) => postJson("/api/turns/interrupt", request),
     loginGatewayAccount: (request) => postJson("/api/opl-runtime/gateway-account-login", request),
+    configureCodexApiKey: (request) => postJson("/api/opl-runtime/configure-codex", request),
     readNativeAppUpdateStatus: () => requestJson("/api/native-app-update/status"),
     checkNativeAppUpdate: () => postJson("/api/native-app-update/check", {}),
     applyNativeAppUpdate: () => postJson("/api/native-app-update/apply", {}),

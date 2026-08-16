@@ -308,7 +308,8 @@ function compactStorageProjection(value) {
   if (!value || typeof value !== "object") return undefined;
   return {
     ...selectedFields(value, [
-      "status", "observed_at", "stale", "bytes", "reclaimable_bytes", "reason_code", "owner_route"
+      "status", "observed_at", "stale", "bytes", "reclaimable_bytes", "reason_code", "owner_route",
+      "inventory_action_id"
     ]),
     projected_action: compactProjectedAction(value.projected_action)
   };
@@ -530,6 +531,47 @@ function boundedReadback(args, result) {
   };
 }
 
+function compactInitializeChecklistItem(value) {
+  return selectedFields(value, [
+    "item_id", "label", "status", "required", "blocking", "readiness_layer",
+    "severity", "user_action_required", "next_visible_step"
+  ]) ?? {};
+}
+
+export function compactInitialize(value) {
+  const source = value?.system_initialize && typeof value.system_initialize === "object"
+    ? value.system_initialize
+    : {};
+  const setupFlow = source.setup_flow && typeof source.setup_flow === "object"
+    ? source.setup_flow
+    : {};
+  return {
+    system_initialize: {
+      ...selectedFields(source, ["overall_state"]),
+      setup_flow: {
+        ...selectedFields(setupFlow, ["is_first_run", "phase", "ready_to_launch"]),
+        progress: selectedFields(setupFlow.progress, [
+          "required_completed_count", "required_total_count", "optional_completed_count",
+          "optional_total_count", "ready_required_count", "total_required_count",
+          "ready_full_readiness_count", "total_full_readiness_count",
+          "ready_optional_count", "total_optional_count"
+        ]) ?? {},
+        blocking_items: compactStringArray(setupFlow.blocking_items),
+        maintenance_items: compactStringArray(setupFlow.maintenance_items)
+      },
+      readiness: selectedFields(source.readiness, [
+        "core_ready", "domain_ready", "launch_ready", "family_runtime_provider_ready", "full_ready"
+      ]) ?? {},
+      checklist: Array.isArray(source.checklist)
+        ? source.checklist.slice(0, 32).map(compactInitializeChecklistItem)
+        : [],
+      family_runtime_provider: selectedFields(source.family_runtime_provider, [
+        "status", "provider_kind", "blocking", "full_readiness_blocking", "ready"
+      ]) ?? {}
+    }
+  };
+}
+
 function validateChannelCallbackAdapter(adapter) {
   if (!adapter || typeof adapter !== "object" || Array.isArray(adapter)) {
     throw Object.assign(new Error("channel callback adapter must be an object"), { code: "invalid_request" });
@@ -550,9 +592,21 @@ export function createOplPassthrough({
   readStateTimeoutMs = process.env.OPL_APP_STATE_TIMEOUT_MS,
   allowActions = process.env.OPL_NATIVE_WORKBENCH_READ_ONLY === "0"
     || process.env.OPL_STUDIO_READ_ONLY === "0",
+  candidateActionAllowlist = [],
   channelCallbackRegistrar
 } = {}) {
   const stateTimeoutMs = boundedTimeout(readStateTimeoutMs, 30_000);
+  if (!Array.isArray(candidateActionAllowlist) || candidateActionAllowlist.some((actionId) => typeof actionId !== "string" || !actionId.trim())) {
+    throw Object.assign(new Error("candidateActionAllowlist must contain non-empty action IDs"), { code: "invalid_request" });
+  }
+  const allowedCandidateActions = new Set([
+    "settings_diagnose_docker_webui",
+    "settings_inventory_agent_package_store",
+    "settings_inventory_webui_data_volume",
+    "codex_user_instructions_set",
+    "codex_user_instructions_restore_opl_flow_default",
+    ...candidateActionAllowlist.map((actionId) => actionId.trim())
+  ]);
   if (channelCallbackRegistrar !== undefined && typeof channelCallbackRegistrar !== "function") {
     throw Object.assign(new Error("channel callback registrar must be a function"), { code: "invalid_request" });
   }
@@ -585,6 +639,15 @@ export function createOplPassthrough({
       };
     },
 
+    async readInitialize() {
+      const args = [command, "system", "initialize", "--json"];
+      const result = await run(command, args.slice(1), { cwd, timeoutMs: 60_000 });
+      return {
+        ...compactInitialize(jsonValue(result.stdout)),
+        readback: boundedReadback(args, result)
+      };
+    },
+
     async readFullDrilldown() {
       const args = [command, "runtime", "app-operator-drilldown", "--detail", "full", "--json"];
       const result = await run(command, args.slice(1), { cwd, timeoutMs: 45_000 });
@@ -609,7 +672,9 @@ export function createOplPassthrough({
       const confirmed = payload.confirmed === true;
       const rollbackRef = typeof payload.rollbackRef === "string" ? payload.rollbackRef : undefined;
       const requestedMode = request.mode === "rollback" || request.mode === "execute" ? request.mode : "preview";
-      const blockedReadOnly = !dryRun && !allowActions;
+      const candidateAllowedAction = allowedCandidateActions.has(actionId);
+      const actionExecutionAllowed = allowActions || candidateAllowedAction;
+      const blockedReadOnly = !dryRun && !actionExecutionAllowed;
       const receiptKind = blockedReadOnly
         ? "blocked_read_only"
         : !dryRun && !confirmed
@@ -623,12 +688,12 @@ export function createOplPassthrough({
         ? { exitCode: -1, stdout: "", stderr: "candidate_read_only_policy", timedOut: false }
         : !dryRun && !confirmed
         ? { exitCode: -1, stdout: "", stderr: "confirmation_required", timedOut: false }
-        : await run(command, args.slice(1), { cwd, timeoutMs: 45_000 });
+        : await run(command, args.slice(1), { cwd, timeoutMs: actionId === "codex_install" ? 120_000 : 45_000 });
       return {
         actionId,
         dryRun,
         confirmationRequired: dryRun || (!dryRun && !confirmed),
-        canExecute: dryRun || (allowActions && confirmed),
+        canExecute: dryRun || (actionExecutionAllowed && confirmed),
         receiptKind,
         authorityBoundary: "app_bridge_no_domain_authority",
         requestedMode,

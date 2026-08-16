@@ -128,6 +128,7 @@ async function createDesktopHost(appLogDirectory) {
   });
   core = await createOplHostCore({
     workspaceRoot: desktopCodexWorkspaceRoot(),
+    candidateActionAllowlist: ["workspace_root_set", "codex_install"],
     platform: {
       pickFiles: async () => {
         const result = await dialog.showOpenDialog({ properties: ["openFile", "multiSelections"] });

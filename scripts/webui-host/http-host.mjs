@@ -129,6 +129,10 @@ export async function createWebUiHost({
         json(res, 200, await hostCore.invoke("readState", { profile: url.searchParams.get("profile") ?? "fast" }));
         return;
       }
+      if (req.method === "GET" && url.pathname === "/api/opl/initialize") {
+        json(res, 200, await hostCore.invoke("readInitialize"));
+        return;
+      }
       if (req.method === "GET" && url.pathname === "/api/opl/drilldown") {
         json(res, 200, await hostCore.invoke("readFullDrilldown"));
         return;
@@ -167,6 +171,10 @@ export async function createWebUiHost({
       }
       if (req.method === "POST" && url.pathname === "/api/opl-runtime/gateway-account-login") {
         json(res, 200, await hostCore.invoke("loginGatewayAccount", await body(req)));
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/opl-runtime/configure-codex") {
+        json(res, 200, await hostCore.invoke("configureCodexApiKey", await body(req)));
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/native-app-update/status") {

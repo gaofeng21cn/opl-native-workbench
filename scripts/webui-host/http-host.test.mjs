@@ -30,6 +30,7 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
   });
   const opl = {
     readState: async (profile) => ({ profile, app_state: { meta: { profile } }, readback: { exitCode: 0 } }),
+    readInitialize: async () => ({ system_initialize: { setup_flow: { is_first_run: false, ready_to_launch: true } } }),
     readFullDrilldown: async () => ({ detail: "full", drilldown: {}, readback: { exitCode: 0 } }),
     readContribution: async (request) => ({ packageId: request.packageId, ref: request.ref, result: { hypotheses: ["fixture"] } }),
     executeAction: async (request) => ({
@@ -148,6 +149,8 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
 
   const state = await fetch(`${baseUrl}/api/opl/state?profile=full`).then((response) => response.json());
   assert.equal(state.profile, "full");
+  const initialize = await fetch(`${baseUrl}/api/opl/initialize`).then((response) => response.json());
+  assert.equal(initialize.system_initialize.setup_flow.ready_to_launch, true);
   const contribution = await post(baseUrl, "/api/opl/contribution/read", { packageId: "mas", ref: "mas.research-roadmap.v1#current" });
   assert.deepEqual(contribution.body.result.hypotheses, ["fixture"]);
   const action = await post(baseUrl, "/api/opl/action", { actionId: "preview.test", dryRun: true });
@@ -238,4 +241,45 @@ test("loopback HTTP host exposes the dedicated Gateway secret route without gene
   });
   assert.deepEqual(result, { status: 200, body: { ok: true, stateRefreshRequired: true } });
   assert.deepEqual(calls, [{ email: "user@example.com", password: "route-secret" }]);
+});
+
+test("loopback HTTP host sends model credentials only through the dedicated stdin bridge", async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "opl-webui-codex-key-test-"));
+  const transport = new CodexAppServerTransport({
+    command: process.execPath,
+    args: [fixture],
+    cwd: directory,
+    env: process.env,
+    requestTimeoutMs: 2_000,
+    turnTimeoutMs: 2_000
+  });
+  const calls = [];
+  const host = await createWebUiHost({
+    transport,
+    opl: {
+      readState: async () => ({}),
+      readFullDrilldown: async () => ({}),
+      readContribution: async () => ({}),
+      executeAction: async () => { throw new Error("generic action must not receive API keys"); }
+    },
+    codexApiKeyConfiguration: async (request) => {
+      calls.push(request.apiKey);
+      return { ok: true, stateRefreshRequired: true };
+    },
+    webRoot: directory
+  });
+  t.after(async () => {
+    host.server.closeAllConnections();
+    await host.close();
+  });
+  await new Promise((resolve, reject) => {
+    host.server.once("error", reject);
+    host.server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = host.server.address();
+  const result = await post(`http://127.0.0.1:${address.port}`, "/api/opl-runtime/configure-codex", {
+    apiKey: "route-api-key"
+  });
+  assert.deepEqual(result, { status: 200, body: { ok: true, stateRefreshRequired: true } });
+  assert.deepEqual(calls, ["route-api-key"]);
 });

@@ -68,6 +68,10 @@ test("package descriptions prefer the active locale and allow an English fallbac
 test("internal status and package role identifiers are projected as user-facing values", () => {
   assert.equal(presentation.statusTone("not_available"), "attention");
   assert.equal(presentation.statusTone("app_state_projection"), "neutral");
+  assert.equal(presentation.statusTone("25/25"), "ready");
+  assert.equal(presentation.statusTone("4/5"), "attention");
+  assert.equal(presentation.formatStatus("25/25", "zh"), "25 / 25 可用");
+  assert.equal(presentation.formatStatus("4/5", "en"), "4 / 5 available");
   assert.notEqual(presentation.formatStatus("preview_legacy_modules_fallback", "zh"), "preview_legacy_modules_fallback");
   assert.notEqual(presentation.packageRoleLabel("standard_agent", "zh"), "standard_agent");
   assert.notEqual(presentation.formatUpdateChannel("private_canary", "zh"), "private_canary");

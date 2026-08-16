@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
-import { Check, ChevronDown, ChevronRight, Folder, PanelRight, RefreshCw, Settings as SettingsIcon, X } from "lucide-react";
-import { Menu, type MenuEntry } from "@deepseek-ai/dsh-client-ui-primitives";
+import { AlertCircle, Check, CheckCircle2, ChevronDown, ChevronRight, Folder, LoaderCircle, PanelRight, RefreshCw, Settings as SettingsIcon, X } from "lucide-react";
+import { Menu, OnboardingSurface, type MenuEntry } from "@deepseek-ai/dsh-client-ui-primitives";
 import {
   SlotCore,
   type HostObservable,
@@ -601,8 +601,13 @@ function SettingsSlot({ wide, renderSlot }: { wide: boolean; renderSlot: any }) 
   }));
   const contributionRows = studio.uiContributions.entries.filter((entry) => entry.slot === "settings.section").map((entry) => ({ id: entry.contributionKey, order: entry.sortOrder, label: entry.view ? contributionLabel(entry.view.title, studio.locale, entry.contributionId) : entry.contributionId }));
   const rows = [...studioRows, ...contributionRows];
-  const sessions = { phase: "ready", current: "opl-current", byId: { "opl-current": { blank: false } } };
-  return <div ref={rootRef} className="opl-settings-slot-root"><SettingsRoot wide={wide} useSections={(selector: any) => selector(rows)} useOnboardingSteps={(selector: any) => selector([])} useSessions={(selector: any) => selector(sessions)} renderSlot={renderSlot} /></div>;
+  const setupFlow = studio.initialization?.systemInitialize.setupFlow;
+  const onboardingVisible = studio.initializationStatus === "ready"
+    && setupFlow?.isFirstRun === true
+    && setupFlow.readyToLaunch === false;
+  const sessions = { phase: "ready", current: "opl-current", byId: { "opl-current": { blank: onboardingVisible } } };
+  const onboardingSteps = onboardingVisible ? [{ id: "opl-first-run", order: 0 }] : [];
+  return <div ref={rootRef} className="opl-settings-slot-root"><SettingsRoot wide={wide} useSections={(selector: any) => selector(rows)} useOnboardingSteps={(selector: any) => selector(onboardingSteps)} useSessions={(selector: any) => selector(sessions)} renderSlot={renderSlot} /></div>;
 }
 
 function SettingsTriggerSlot({ wide }: { wide: boolean }) {
@@ -619,6 +624,87 @@ function settingsSectionId(destination: SettingsDestinationId): string {
 
 function SettingsMainSlot({ destination }: { destination: SettingsDestinationId }) {
   return <>{useStudio().renderSettings(destination)}</>;
+}
+
+function firstRunItemLabel(itemId: string, fallback: string | undefined, locale: "zh" | "en"): string {
+  const labels: Record<string, [string, string]> = {
+    workspace_root: ["工作目录", "Working directory"],
+    codex: ["本机助手", "Local assistant"],
+    codex_cli: ["本机助手", "Local assistant"],
+    codex_config: ["模型访问", "Model access"],
+    domain_modules: ["专业能力", "Professional capabilities"],
+    family_runtime_provider: ["后台任务服务", "Background task service"]
+  };
+  return labels[itemId]?.[locale === "zh" ? 0 : 1] ?? fallback ?? itemId;
+}
+
+function FirstRunOnboardingSlot({
+  complete,
+  openSection
+}: {
+  complete(): void;
+  openSection(id: string): void;
+}) {
+  const studio = useStudio();
+  const [setupBusy, setSetupBusy] = useState(false);
+  const [setupError, setSetupError] = useState("");
+  const systemInitialize = studio.initialization?.systemInitialize;
+  const setupFlow = systemInitialize?.setupFlow;
+  if (studio.initializationStatus !== "ready" || !systemInitialize || !setupFlow?.isFirstRun || setupFlow.readyToLaunch) return null;
+  const coreItems = systemInitialize.checklist.filter((item) => item.readinessLayer === "core_launch");
+  const nextCoreItemId = coreItems.find((item) => item.blocking)?.itemId ?? setupFlow.phase;
+  const destination: SettingsDestinationId = nextCoreItemId === "workspace_root" ? "workspace" : "account";
+  const directSetup = nextCoreItemId === "workspace_root" && studio.setupCapabilities.workspaceRoot
+    ? { label: studio.locale === "zh" ? "选择工作目录" : "Choose working directory", run: studio.chooseWorkspaceRoot }
+    : ["codex", "codex_cli"].includes(nextCoreItemId ?? "") && studio.setupCapabilities.codexInstall
+      ? { label: studio.locale === "zh" ? "安装本机助手" : "Install local assistant", run: studio.installCodex }
+      : null;
+  const runPrimarySetup = async () => {
+    if (!directSetup) {
+      complete();
+      openSection(settingsSectionId(destination));
+      return;
+    }
+    setSetupBusy(true);
+    setSetupError("");
+    const result = await directSetup.run();
+    if (result.status === "error") setSetupError(result.message ?? (studio.locale === "zh" ? "此步骤未完成。" : "This step did not complete."));
+    setSetupBusy(false);
+  };
+  return (
+    <OnboardingSurface>
+      <section className="opl-first-run" role="dialog" aria-modal="true" aria-labelledby="opl-first-run-title">
+        <header>
+          <span className="opl-first-run-mark" aria-hidden="true">OPL</span>
+          <div>
+            <p>{studio.locale === "zh" ? "首次启动" : "First launch"}</p>
+            <h1 id="opl-first-run-title">{studio.locale === "zh" ? "完成本机准备" : "Finish local setup"}</h1>
+            <span>{studio.locale === "zh" ? "检查只读取本机状态；后台能力不会阻止你进入应用。" : "The check reads local state only; background capabilities do not block entry."}</span>
+          </div>
+        </header>
+        <div className="opl-first-run-checklist">
+          {coreItems.map((item) => {
+            const ready = !item.blocking;
+            return (
+              <div key={item.itemId} data-ready={ready}>
+                {ready ? <CheckCircle2 aria-hidden="true" size={18} /> : <AlertCircle aria-hidden="true" size={18} />}
+                <span><strong>{firstRunItemLabel(item.itemId, item.label, studio.locale)}</strong><small>{ready ? (studio.locale === "zh" ? "已就绪" : "Ready") : item.nextVisibleStep ?? (studio.locale === "zh" ? "需要设置" : "Setup required")}</small></span>
+              </div>
+            );
+          })}
+        </div>
+        {setupError ? <p className="opl-first-run-error" role="alert">{setupError}</p> : null}
+        <footer>
+          <button className="settings-icon-button" type="button" aria-label={studio.locale === "zh" ? "重新检查" : "Check again"} title={studio.locale === "zh" ? "重新检查" : "Check again"} disabled={setupBusy} onClick={studio.refreshInitialization}><RefreshCw aria-hidden="true" size={16} /></button>
+          <button className="settings-action-button" type="button" disabled={setupBusy} onClick={complete}>{studio.locale === "zh" ? "稍后处理" : "Do this later"}</button>
+          <button className="settings-action-button primary" type="button" disabled={setupBusy} onClick={() => { void runPrimarySetup(); }}>
+            {setupBusy ? <LoaderCircle className="spin" aria-hidden="true" size={14} /> : null}
+            {directSetup?.label ?? (studio.locale === "zh" ? "打开设置" : "Open settings")}
+          </button>
+        </footer>
+      </section>
+    </OnboardingSurface>
+  );
 }
 
 export class OplStudioDshSlotHost {
@@ -648,6 +734,7 @@ export class OplStudioDshSlotHost {
     register({ name: "settings.trigger", registrant: "opl-studio" }, SettingsTriggerSlot);
     register({ name: "settings.header", registrant: "opl-studio" }, SettingsHeaderSlot);
     register({ name: "settings.close", registrant: "opl-studio" }, SettingsCloseSlot);
+    register({ name: "settings.onboarding", id: "opl-first-run", order: 0, registrant: "opl-studio" }, FirstRunOnboardingSlot);
     for (const [order, destination] of settingsDestinations("en").entries()) {
       register(
         { name: "settings.section", id: settingsSectionId(destination.id), order: order * 10, label: destination.label, registrant: "opl-studio" },

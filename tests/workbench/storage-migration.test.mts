@@ -13,9 +13,12 @@ import { expect, test } from "bun:test";
 };
 
 const {
+  ADDITIONAL_CONVERSATION_INSTRUCTIONS_KEY,
   SETTINGS_STORAGE_KEY,
   migrateStorageValue,
-  readSettings
+  readAdditionalConversationInstructions,
+  readSettings,
+  writeAdditionalConversationInstructions
 } = await import("../../src/workbench/settingsModel.ts");
 
 function memoryStorage(initial: Record<string, string>) {
@@ -59,4 +62,13 @@ test("preserves the directly reused DSH dark appearance preference", () => {
   });
 
   expect(readSettings(storage).theme).toBe("dark");
+});
+
+test("stores only bounded new-conversation instructions under the App session-context key", () => {
+  const storage = memoryStorage({});
+  expect(writeAdditionalConversationInstructions("  Keep results concise.  ", storage)).toBe("Keep results concise.");
+  expect(storage.values.get(ADDITIONAL_CONVERSATION_INSTRUCTIONS_KEY)).toBe("Keep results concise.");
+  expect(readAdditionalConversationInstructions(storage)).toBe("Keep results concise.");
+  expect(() => writeAdditionalConversationInstructions("x".repeat(65_537), storage)).toThrow(/64 KiB/);
+  expect(storage.values.get(ADDITIONAL_CONVERSATION_INSTRUCTIONS_KEY)).toBe("Keep results concise.");
 });

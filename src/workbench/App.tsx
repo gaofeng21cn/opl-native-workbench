@@ -29,6 +29,7 @@ import {
   type CodexPickedInput,
   type CodexSkillCapability,
   type CarrierDiagnosticsReadback,
+  type OplInitializeReadback,
   type NativeAppUpdateResult,
   type OplActionReceipt
 } from "../bridge/oplBridge";
@@ -58,7 +59,9 @@ import {
 } from "./gatewayAccountCache";
 import {
   migrateStorageValue,
+  readAdditionalConversationInstructions,
   readSettings,
+  writeAdditionalConversationInstructions,
   writeSetting,
   writeSettings,
   type WorkbenchSettings
@@ -74,6 +77,7 @@ import {
   type SettingsActionConfirmation,
   type SettingsActionFeedback,
   type SettingsActionRequest,
+  type SettingsDockerDiagnostic,
   type SettingsDestinationId
 } from "./SettingsPanel";
 import {
@@ -103,7 +107,7 @@ import type {
 } from "../composition/contributionProjection";
 import { createOplContributionActionRequest } from "../composition/contributionProjection";
 import { isManagedComputerUseActionId } from "./managedComputerUse";
-import type { RenderOplStudioShell } from "../composition/oplStudioSurface";
+import type { OplSetupOperationResult, RenderOplStudioShell } from "../composition/oplStudioSurface";
 
 const contextTabs = [
   "opl-runtime-status-panel",
@@ -136,6 +140,13 @@ const managedUpdateActionSpecs = [
   }
 ] as const;
 
+const initializationActionIds = new Set([
+  "workspace_root_set",
+  "codex_install",
+  "gateway_account_complete_setup",
+  "gateway_account_use_for_model_access"
+]);
+
 type ProjectedManagedUpdateAction = {
   actionId: string;
   label: string;
@@ -144,7 +155,14 @@ type ProjectedManagedUpdateAction = {
   dryRunSupported: boolean;
 };
 
-export function readProjectedManagedUpdateActions(state: unknown): ProjectedManagedUpdateAction[] {
+type ProjectedSetupAction = {
+  actionId: "workspace_root_set" | "codex_install";
+  payloadFields: string[];
+  confirmationRequired: boolean;
+  dryRunSupported: boolean;
+};
+
+function appStateActionRecords(state: unknown): Record<string, unknown>[] {
   const root = typeof state === "object" && state !== null && !Array.isArray(state)
     ? state as Record<string, unknown>
     : null;
@@ -154,10 +172,13 @@ export function readProjectedManagedUpdateActions(state: unknown): ProjectedMana
   const appState = typeof first?.app_state === "object" && first.app_state !== null && !Array.isArray(first.app_state)
     ? first.app_state as Record<string, unknown>
     : first;
-  const actions = Array.isArray(appState?.actions) ? appState.actions : [];
-  return actions.flatMap((value): ProjectedManagedUpdateAction[] => {
-    if (typeof value !== "object" || value === null || Array.isArray(value)) return [];
-    const action = value as Record<string, unknown>;
+  return Array.isArray(appState?.actions)
+    ? appState.actions.filter((value): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value))
+    : [];
+}
+
+export function readProjectedManagedUpdateActions(state: unknown): ProjectedManagedUpdateAction[] {
+  return appStateActionRecords(state).flatMap((action): ProjectedManagedUpdateAction[] => {
     const actionId = typeof action.action_id === "string" ? action.action_id.trim() : "";
     const spec = managedUpdateActionSpecs.find((candidate) => candidate.actionId === actionId);
     if (!spec) return [];
@@ -172,6 +193,57 @@ export function readProjectedManagedUpdateActions(state: unknown): ProjectedMana
       dryRunSupported: action.dry_run_supported === true
     }];
   });
+}
+
+export function readProjectedSetupActions(state: unknown): ProjectedSetupAction[] {
+  const supported = new Set<ProjectedSetupAction["actionId"]>(["workspace_root_set", "codex_install"]);
+  return appStateActionRecords(state).flatMap((action): ProjectedSetupAction[] => {
+    const actionId = typeof action.action_id === "string" ? action.action_id.trim() : "";
+    if (!supported.has(actionId as ProjectedSetupAction["actionId"])) return [];
+    return [{
+      actionId: actionId as ProjectedSetupAction["actionId"],
+      payloadFields: Array.isArray(action.payload_fields)
+        ? action.payload_fields.filter((field): field is string => typeof field === "string" && Boolean(field.trim()))
+        : [],
+      confirmationRequired: action.confirmation_required === true,
+      dryRunSupported: action.dry_run_supported === true
+    }];
+  });
+}
+
+function dockerDiagnosticFromReceipt(receipt: OplActionReceipt): SettingsDockerDiagnostic | null {
+  const root = typeof receipt.stdoutJson === "object" && receipt.stdoutJson !== null && !Array.isArray(receipt.stdoutJson)
+    ? receipt.stdoutJson as Record<string, unknown>
+    : null;
+  const execution = typeof root?.app_action_execution === "object" && root.app_action_execution !== null && !Array.isArray(root.app_action_execution)
+    ? root.app_action_execution as Record<string, unknown>
+    : null;
+  const result = typeof execution?.result === "object" && execution.result !== null && !Array.isArray(execution.result)
+    ? execution.result as Record<string, unknown>
+    : null;
+  const doctor = typeof result?.docker_webui_doctor === "object" && result.docker_webui_doctor !== null && !Array.isArray(result.docker_webui_doctor)
+    ? result.docker_webui_doctor as Record<string, unknown>
+    : null;
+  if (!doctor) return null;
+  const diagnosticSummary = typeof doctor.diagnostic_summary === "object" && doctor.diagnostic_summary !== null && !Array.isArray(doctor.diagnostic_summary)
+    ? doctor.diagnostic_summary as Record<string, unknown>
+    : null;
+  const summary = typeof doctor.summary === "object" && doctor.summary !== null && !Array.isArray(doctor.summary)
+    ? doctor.summary as Record<string, unknown>
+    : null;
+  const startupState = typeof doctor.startup_state === "object" && doctor.startup_state !== null && !Array.isArray(doctor.startup_state)
+    ? doctor.startup_state as Record<string, unknown>
+    : null;
+  const text = (value: unknown) => typeof value === "string" && value.trim() ? value : undefined;
+  const number = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  return {
+    status: text(doctor.status) ?? text(diagnosticSummary?.status) ?? "unknown",
+    ...(number(summary?.attention_count) !== undefined ? { attentionCount: number(summary?.attention_count) } : {}),
+    ...(text(startupState?.phase) ? { startupPhase: text(startupState?.phase) } : {}),
+    ...(text(diagnosticSummary?.docker_runtime_status) ? { dockerRuntimeStatus: text(diagnosticSummary?.docker_runtime_status) } : {}),
+    ...(text(diagnosticSummary?.browser_url_status) ? { browserUrlStatus: text(diagnosticSummary?.browser_url_status) } : {}),
+    ...(text(diagnosticSummary?.startup_maintenance_status) ? { startupMaintenanceStatus: text(diagnosticSummary?.startup_maintenance_status) } : {})
+  };
 }
 
 const assistantMarkdownLinkSafety = { enabled: false } as const;
@@ -617,6 +689,7 @@ export function App({
   const messagesRef = useRef<ChatMessage[]>(createIntroMessages());
   const activeTurnRef = useRef<{ threadId: string; turnId: string } | null>(null);
   const ephemeralQueueRef = useRef<EphemeralQueueItem[]>([]);
+  const projectedGatewayActionsRef = useRef<ProjectedGatewayAction[]>([]);
   const [model, setModel] = useState<WorkbenchModel>(() => ({
     ...initialWorkbenchModel,
     gatewayAccount: readGatewayAccountCache()
@@ -624,6 +697,7 @@ export function App({
   const [managedUpdate, setManagedUpdate] = useState<ManagedUpdateProjection | null>(null);
   const [nativeAppUpdate, setNativeAppUpdate] = useState<NativeAppUpdateResult | null>(null);
   const [projectedManagedUpdateActions, setProjectedManagedUpdateActions] = useState<ProjectedManagedUpdateAction[]>([]);
+  const [projectedSetupActions, setProjectedSetupActions] = useState<ProjectedSetupAction[]>([]);
   const [carrierDiagnostics, setCarrierDiagnostics] = useState<CarrierDiagnosticsReadback>({
     schema: "opl_app_carrier_diagnostics.v1",
     owner: "one-person-lab-app_native_host",
@@ -632,6 +706,9 @@ export function App({
     setLogDirectorySupported: false,
     reasonCode: "carrier_log_directory_unavailable"
   });
+  const [initializeReadback, setInitializeReadback] = useState<OplInitializeReadback | null>(null);
+  const [initializeStatus, setInitializeStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [additionalConversationInstructions, setAdditionalConversationInstructions] = useState(() => readAdditionalConversationInstructions());
   const [projectedGatewayActions, setProjectedGatewayActions] = useState<ProjectedGatewayAction[]>([]);
   const [stateStatus, setStateStatus] = useState<"loading" | "ready" | "error">("loading");
   const [stateError, setStateError] = useState("");
@@ -646,6 +723,7 @@ export function App({
   } | null>(null);
   const [settingsActionBusyKey, setSettingsActionBusyKey] = useState<string | null>(null);
   const [settingsActionFeedback, setSettingsActionFeedback] = useState<SettingsActionFeedback | null>(null);
+  const [dockerDiagnostic, setDockerDiagnostic] = useState<SettingsDockerDiagnostic | null>(null);
   const [settingsActionConfirmation, setSettingsActionConfirmation] = useState<SettingsActionConfirmation | null>(null);
   const [uiMetadata, setUiMetadata] = useState<WorkbenchUiMetadata>(persistedUi.metadata);
   const [drafts, setDrafts] = useState<WorkbenchDrafts>(persistedUi.drafts);
@@ -814,6 +892,12 @@ export function App({
       ...projectedManagedUpdateHostActions.map(({ intent }) => intent)
     ]
   }), [managedUpdate, model, nativeAppUpdate, projectedGatewayActions, projectedManagedUpdateHostActions, settings.locale]);
+  const workspaceRootAction = projectedSetupActions.find((action) => action.actionId === "workspace_root_set");
+  const codexInstallAction = projectedSetupActions.find((action) => action.actionId === "codex_install");
+  const setupCapabilities = {
+    workspaceRoot: bridge.platformCapabilities.workspaceRootSelection && Boolean(workspaceRootAction),
+    codexInstall: bridge.platformCapabilities.codexInstall && Boolean(codexInstallAction)
+  };
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
@@ -876,13 +960,17 @@ export function App({
         setModel(nextModel);
         writeGatewayAccountCache(nextModel.gatewayAccount);
         setProjectedManagedUpdateActions(readProjectedManagedUpdateActions(state));
+        setProjectedSetupActions(readProjectedSetupActions(state));
         setCarrierDiagnostics(state.carrierDiagnostics);
-        setProjectedGatewayActions(readGatewayActionsFromState(state));
+        const nextGatewayActions = readGatewayActionsFromState(state);
+        projectedGatewayActionsRef.current = nextGatewayActions;
+        setProjectedGatewayActions(nextGatewayActions);
         const updateProjection = readManagedUpdateProjection(state);
         if (updateProjection) {
           setManagedUpdate((current) => mergeManagedUpdateProjections(current, updateProjection));
         }
         setStateStatus("ready");
+        return nextModel;
       })
       .catch((error) => {
         setModel((current) => current.gatewayAccount
@@ -890,6 +978,22 @@ export function App({
           : current);
         setStateStatus("error");
         setStateError(String(error));
+        return null;
+      });
+  }
+
+  function loadInitialize() {
+    setInitializeStatus("loading");
+    return bridge.readInitialize()
+      .then((readback) => {
+        setInitializeReadback(readback);
+        setInitializeStatus(readback.readback.exitCode === 0 && !readback.readback.timedOut ? "ready" : "error");
+        return readback;
+      })
+      .catch(() => {
+        setInitializeReadback(null);
+        setInitializeStatus("error");
+        return null;
       });
   }
 
@@ -935,6 +1039,10 @@ export function App({
         return;
       }
       if (request.confirmationRequired) {
+        if (request.dryRunSupported === false) {
+          setSettingsActionConfirmation({ request, previewStatus: "confirmation_required" });
+          return;
+        }
         const preview = await bridge.executeAction({ actionId: request.actionId, payload: request.payload, dryRun: true });
         if (preview.status === "error" || preview.status === "timed_out") {
           setSettingsActionFeedback(settingsReceiptFeedback(preview, request.label));
@@ -948,12 +1056,25 @@ export function App({
         payload: { ...request.payload, confirmed: true },
         dryRun: false
       });
+      const diagnostic = request.actionId === "settings_diagnose_docker_webui"
+        ? dockerDiagnosticFromReceipt(receipt)
+        : null;
+      if (diagnostic) setDockerDiagnostic(diagnostic);
       if (receipt.status === "executed") {
         captureManagedUpdateReceipt(receipt);
-        if (isManagedComputerUseActionId(request.actionId)) await loadState("full");
+        if (request.actionId === "settings_diagnose_docker_webui") {
+          // The doctor is a receipt-only read; its result is already authoritative
+          // for this check and does not require a second full App-state read.
+        } else if (isManagedComputerUseActionId(request.actionId)) await loadState("full");
         else await loadState(settings.runtimeProfile);
+        if (initializationActionIds.has(request.actionId)) await loadInitialize();
       }
-      setSettingsActionFeedback(settingsReceiptFeedback(receipt, request.label));
+      setSettingsActionFeedback(diagnostic ? {
+        tone: diagnostic.status === "attention" || (diagnostic.attentionCount ?? 0) > 0 ? "attention" : "success",
+        message: settings.locale === "zh"
+          ? `诊断完成${diagnostic.attentionCount ? `，发现 ${diagnostic.attentionCount} 项需要处理` : "，未发现需要处理的项目"}。`
+          : `Diagnostics completed${diagnostic.attentionCount ? ` with ${diagnostic.attentionCount} item(s) requiring attention` : " with no items requiring attention"}.`
+      } : settingsReceiptFeedback(receipt, request.label));
     } catch (error) {
       setSettingsActionFeedback({ tone: "attention", message: String(error) });
     } finally {
@@ -976,6 +1097,7 @@ export function App({
         captureManagedUpdateReceipt(receipt);
         if (isManagedComputerUseActionId(confirmation.request.actionId)) await loadState("full");
         else await loadState(settings.runtimeProfile);
+        if (initializationActionIds.has(confirmation.request.actionId)) await loadInitialize();
       }
       setSettingsActionFeedback(settingsReceiptFeedback(receipt, confirmation.request.label));
       setSettingsActionConfirmation(null);
@@ -1058,6 +1180,127 @@ export function App({
     }
   }
 
+  async function chooseWorkspaceRoot(): Promise<OplSetupOperationResult> {
+    const key = "setup:workspace-root";
+    if (!setupCapabilities.workspaceRoot || !workspaceRootAction) {
+      const message = settings.locale === "zh" ? "当前运行方式不能修改工作目录。" : "This app mode cannot change the working directory.";
+      setSettingsActionFeedback({ tone: "attention", message });
+      return { status: "error", message };
+    }
+    setSettingsActionBusyKey(key);
+    setSettingsActionFeedback(null);
+    try {
+      const selected = (await bridge.pickDirectory()).find((item) => item.kind === "folder");
+      if (!selected) return { status: "cancelled" };
+      const receipt = await bridge.executeAction({
+        actionId: workspaceRootAction.actionId,
+        payload: { path: selected.path, confirmed: true },
+        dryRun: false
+      });
+      if (receipt.status !== "executed") {
+        const feedback = settingsReceiptFeedback(receipt, settings.locale === "zh" ? "工作目录设置" : "Working directory setup");
+        setSettingsActionFeedback(feedback);
+        return { status: "error", message: feedback.message };
+      }
+      const nextModel = await loadState(settings.runtimeProfile);
+      await loadInitialize();
+      const expected = selected.path.replace(/[\\/]+$/, "");
+      const actual = nextModel?.settingsProjection?.workspace.selectedPath?.replace(/[\\/]+$/, "");
+      if (!actual || actual !== expected) {
+        const message = settings.locale === "zh" ? "工作目录已提交，但最新状态没有确认所选位置。" : "The directory was submitted, but the fresh state did not confirm it.";
+        setSettingsActionFeedback({ tone: "attention", message });
+        return { status: "error", message };
+      }
+      const message = settings.locale === "zh" ? "工作目录已更新并通过回读确认。" : "The working directory was updated and confirmed by fresh readback.";
+      setSettingsActionFeedback({ tone: "success", message });
+      return { status: "completed", message };
+    } catch (error) {
+      const message = String(error);
+      setSettingsActionFeedback({ tone: "attention", message });
+      return { status: "error", message };
+    } finally {
+      setSettingsActionBusyKey(null);
+    }
+  }
+
+  async function installCodex(): Promise<OplSetupOperationResult> {
+    const key = "setup:codex-install";
+    if (!setupCapabilities.codexInstall || !codexInstallAction) {
+      const message = settings.locale === "zh" ? "当前运行方式不能安装本机助手。" : "This app mode cannot install the local assistant.";
+      setSettingsActionFeedback({ tone: "attention", message });
+      return { status: "error", message };
+    }
+    setSettingsActionBusyKey(key);
+    setSettingsActionFeedback(null);
+    try {
+      const receipt = await bridge.executeAction({
+        actionId: codexInstallAction.actionId,
+        payload: { confirmed: true },
+        dryRun: false
+      });
+      if (receipt.status !== "executed") {
+        const feedback = settingsReceiptFeedback(receipt, settings.locale === "zh" ? "本机助手安装" : "Local assistant installation");
+        setSettingsActionFeedback(feedback);
+        return { status: "error", message: feedback.message };
+      }
+      const nextModel = await loadState(settings.runtimeProfile);
+      const initialize = await loadInitialize();
+      const codexReady = nextModel?.settingsProjection?.codex.installed === true
+        || initialize?.systemInitialize.checklist.some((item) => ["codex", "codex_cli"].includes(item.itemId) && !item.blocking) === true;
+      if (!codexReady) {
+        const message = settings.locale === "zh" ? "安装命令已完成，但最新自检尚未确认本机助手可用。" : "Installation completed, but the fresh startup check has not confirmed the local assistant.";
+        setSettingsActionFeedback({ tone: "attention", message });
+        return { status: "error", message };
+      }
+      const message = settings.locale === "zh" ? "本机助手已安装并通过自检。" : "The local assistant was installed and passed the startup check.";
+      setSettingsActionFeedback({ tone: "success", message });
+      return { status: "completed", message };
+    } catch (error) {
+      const message = String(error);
+      setSettingsActionFeedback({ tone: "attention", message });
+      return { status: "error", message };
+    } finally {
+      setSettingsActionBusyKey(null);
+    }
+  }
+
+  async function configureCodexApiKey(apiKey: string) {
+    const key = "model-access:api-key";
+    setSettingsActionBusyKey(key);
+    setSettingsActionFeedback(null);
+    try {
+      const result = await bridge.configureCodexApiKey({ apiKey });
+      if (!result.ok) {
+        setSettingsActionFeedback({ tone: "attention", message: result.errorCode });
+        return false;
+      }
+      const nextModel = await loadState(settings.runtimeProfile);
+      const initialize = await loadInitialize();
+      const configReady = nextModel?.settingsProjection?.codex.apiKeyPresent === true
+        || initialize?.systemInitialize.checklist.some((item) => item.itemId === "codex_config" && !item.blocking) === true;
+      if (!configReady) {
+        setSettingsActionFeedback({
+          tone: "attention",
+          message: settings.locale === "zh" ? "凭据已提交，但最新自检尚未确认模型访问可用。" : "The credential was submitted, but the fresh startup check has not confirmed model access."
+        });
+        return false;
+      }
+      setSettingsActionFeedback({
+        tone: "success",
+        message: settings.locale === "zh" ? "模型访问已配置并通过自检。" : "Model access was configured and passed the startup check."
+      });
+      return true;
+    } catch {
+      setSettingsActionFeedback({
+        tone: "attention",
+        message: settings.locale === "zh" ? "模型访问配置失败，密钥没有保存在 Studio 中。" : "Model access setup failed; the key was not stored by Studio."
+      });
+      return false;
+    } finally {
+      setSettingsActionBusyKey(null);
+    }
+  }
+
   async function loginGatewayAccount(credentials: { email: string; password: string; deviceLabel?: string }) {
     const key = "gateway:login";
     setSettingsActionBusyKey(key);
@@ -1065,10 +1308,38 @@ export function App({
     try {
       const result = await bridge.loginGatewayAccount(credentials);
       if (result.ok) {
-        await loadState(settings.runtimeProfile);
+        let nextModel = await loadState(settings.runtimeProfile);
+        if (nextModel?.gatewayAccount && !nextModel.gatewayAccount.managedKey) {
+          const completeSetup = projectedGatewayActionsRef.current.find((action) => action.semantic === "complete_setup");
+          const group = nextModel.gatewayAccount.availableGroups?.find((item) => item.label.trim().toLowerCase() === "codex")
+            ?? nextModel.gatewayAccount.availableGroups?.[0];
+          if (!completeSetup || !group) {
+            setSettingsActionFeedback({
+              tone: "attention",
+              message: settings.locale === "zh" ? "账户已连接，但还需要选择可用组后才能完成本机设置。" : "The account is connected, but a group must be selected to finish device setup."
+            });
+            return false;
+          }
+          const setupReceipt = await bridge.executeAction({
+            actionId: completeSetup.action.id,
+            payload: { group_id: group.id, confirmed: true },
+            dryRun: false
+          });
+          if (setupReceipt.status !== "executed") {
+            setSettingsActionFeedback(settingsReceiptFeedback(setupReceipt, settings.locale === "zh" ? "账户设置" : "Account setup"));
+            return false;
+          }
+          nextModel = await loadState(settings.runtimeProfile);
+        }
+        await loadInitialize();
+        const modelAccessSource = nextModel?.settingsProjection?.codex.modelAccessSource?.trim().toLowerCase() ?? "";
+        const needsModelSourceConfirmation = projectedGatewayActionsRef.current.some((action) => action.semantic === "use_for_model_access")
+          && !modelAccessSource.includes("gateway");
         setSettingsActionFeedback({
           tone: "success",
-          message: settings.locale === "zh" ? "OPL Gateway 已连接。" : "OPL Gateway is connected."
+          message: needsModelSourceConfirmation
+            ? (settings.locale === "zh" ? "OPL Gateway 已连接；请在“本机默认模型来源”中确认使用。" : "OPL Gateway is connected; confirm it under Default model source.")
+            : (settings.locale === "zh" ? "OPL Gateway 已连接。" : "OPL Gateway is connected.")
         });
         return true;
       }
@@ -1169,6 +1440,10 @@ export function App({
   useEffect(() => {
     void loadState(settings.runtimeProfile);
   }, [bridge, settings.runtimeProfile]);
+
+  useEffect(() => {
+    void loadInitialize();
+  }, [bridge]);
 
   useEffect(() => () => onHostStateDispose?.(), [onHostStateDispose]);
 
@@ -1487,6 +1762,7 @@ export function App({
         ].filter((input, index, inputs) => inputs.findIndex((candidate) => candidate.type === input.type && "path" in candidate && "path" in input && candidate.path === input.path) === index),
         threadId: codexThreadId,
         agentSelection: codexThreadId ? undefined : selectedAgentSnapshot(),
+        additionalInstructions: codexThreadId ? undefined : additionalConversationInstructions,
         model: resolvedModel.id,
         reasoningEffort: resolvedReasoning,
         permissions: settings.agentPermissions
@@ -1707,6 +1983,10 @@ export function App({
     setSettings(writeSetting(key, value));
   }
 
+  function updateAdditionalConversationInstructions(value: string) {
+    setAdditionalConversationInstructions(writeAdditionalConversationInstructions(value));
+  }
+
   function updateReasoning(reasoningLevel: WorkbenchSettings["reasoningLevel"]) {
     if (!resolvedModel) return;
     const modelAccess = effectiveSelection === "__auto" && reasoningLevel !== codexModelPolicy.defaultReasoningEffort
@@ -1905,15 +2185,29 @@ export function App({
       stateStatus={stateStatus}
       stateError={stateError}
       carrierDiagnostics={carrierDiagnostics}
+      initializationStatus={initializeStatus}
+      initialization={initializeReadback}
+      nativeAppUpdate={nativeAppUpdate}
+      dockerDiagnostic={dockerDiagnostic}
       capabilityCatalog={capabilityCatalog}
       capabilityStatus={capabilityStatus}
       capabilityError={capabilityError}
       onRefreshCapabilities={() => void loadCapabilities()}
       activeDestination={activeDestination}
       onRefresh={() => void loadState(settings.runtimeProfile)}
+      onRefreshInitialization={() => { void loadInitialize(); }}
+      setupCapabilities={{
+        ...setupCapabilities,
+        modelAccessSecretInput: bridge.platformCapabilities.modelAccessSecretInput
+      }}
+      onChooseWorkspaceRoot={chooseWorkspaceRoot}
+      onInstallCodex={installCodex}
+      onConfigureCodexApiKey={configureCodexApiKey}
       onChangeLogDirectory={() => void changeLogDirectory()}
       onSettingChange={updateSetting}
       onReasoningChange={updateReasoning}
+      additionalConversationInstructions={additionalConversationInstructions}
+      onAdditionalConversationInstructionsChange={updateAdditionalConversationInstructions}
       onAction={(request) => void runSettingsAction(request)}
       onHostAction={(intent) => void runSettingsHostAction(intent)}
       onGatewayLogin={loginGatewayAccount}
@@ -1985,6 +2279,12 @@ export function App({
     composerOverlay: studioComposerOverlay,
     details: studioDetails,
     renderSettings: renderStudioSettings,
+    initializationStatus: initializeStatus,
+    initialization: initializeReadback,
+    refreshInitialization: () => { void loadInitialize(); },
+    setupCapabilities,
+    chooseWorkspaceRoot,
+    installCodex,
     overlay: <><style>{codexWorkbenchStyles}</style><ThreadDetailPopover thread={threadDetail} locale={settings.locale} busy={threadActionBusy} onClose={() => setThreadDetail(null)} onResume={(thread) => void resumeThreadAndOpen(thread)} onFork={(thread) => void forkThread(thread)} onRequestArchive={(thread, archived) => { setLifecycleConfirmation({ thread, action: archived ? "archive" : "unarchive" }); setThreadActionError(""); setThreadDetail(null); }} /><ThreadLifecycleConfirmationDialog thread={lifecycleConfirmation?.thread ?? null} action={lifecycleConfirmation?.action ?? "archive"} locale={settings.locale} busy={threadActionBusy} error={threadActionError} onClose={() => setLifecycleConfirmation(null)} onConfirm={() => void confirmThreadLifecycle()} /><Modal open={contributionActionConfirmation !== null} onClose={() => setContributionActionConfirmation(null)} title={settings.locale === "zh" ? "确认执行能力操作" : "Confirm capability action"} description={contributionActionConfirmation ? (settings.locale === "zh" ? `此操作将由 ${contributionActionConfirmation.entry.packageId} 通过 OPL App 执行。` : `This action will be executed by ${contributionActionConfirmation.entry.packageId} through OPL App.`) : ""} footer={<><Button variant="outline" onClick={() => setContributionActionConfirmation(null)}>{settings.locale === "zh" ? "取消" : "Cancel"}</Button><Button variant="primary" disabled={contributionActionBusy || !contributionActionConfirmation} onClick={() => { const pending = contributionActionConfirmation; if (pending) void executeContributionAction(pending.entry, pending.command, true, pending.input); }}>{settings.locale === "zh" ? "确认执行" : "Confirm"}</Button></>} /></>,
     detailsRequestRevision,
     startSession: startNewChat,

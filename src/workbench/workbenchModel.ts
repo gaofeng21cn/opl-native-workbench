@@ -424,6 +424,10 @@ export type WorkbenchGatewayAccount = {
     name?: string;
     status?: string;
   };
+  availableGroups?: Array<{
+    id: string;
+    label: string;
+  }>;
   installation?: {
     deviceLabel?: string;
     shortId?: string;
@@ -518,6 +522,7 @@ export type WorkbenchSettingsProjection = {
       observedAt?: string;
       stale: boolean | null;
       ownerRoute?: string;
+      inventoryAction?: RuntimeMaintenanceActionRef;
       projectedAction?: {
         kind?: string;
         status?: string;
@@ -534,6 +539,7 @@ export type WorkbenchSettingsProjection = {
       observedAt?: string;
       stale: boolean | null;
       ownerRoute?: string;
+      inventoryAction?: RuntimeMaintenanceActionRef;
       projectedAction?: {
         kind?: string;
         status?: string;
@@ -1962,6 +1968,21 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     const actionId = asString(action.action_id);
     return actionId ? [[actionId, action]] : [];
   }));
+  const projectedMaintenanceAction = (actionId: string | null | undefined): RuntimeMaintenanceActionRef | undefined => {
+    if (!actionId) return undefined;
+    const action = actionRecords.get(actionId);
+    if (!action) return undefined;
+    return {
+      actionId,
+      label: asString(action.label) ?? actionId,
+      payload: {},
+      requiredPayloadFields: asStringArray(action.payload_fields),
+      confirmationRequired: asBoolean(action.confirmation_required),
+      dryRunSupported: asBoolean(action.dry_run_supported),
+      mutates: asString(action.mutates) ?? "unknown",
+      ...(asString(action.danger_level) ? { dangerLevel: asString(action.danger_level) as string } : {})
+    };
+  };
   const settingsControlCenter = asRecord(appState.settings_control_center);
   const appSettingsReadModel = asRecord(settingsControlCenter?.app_settings_read_model);
   const gatewayAccountProjection = asRecord(appSettingsReadModel?.opl_gateway_account);
@@ -1991,6 +2012,10 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
   const gatewayDeviceShortId = asString(gatewayInstallation?.short_id);
   const gatewayObservedAt = asString(gatewayFreshness?.observed_at);
   const gatewayLastErrorCode = asString(gatewayFreshness?.last_error_code);
+  const gatewayAvailableGroups = asRecordArray(gatewayAccountProjection?.available_groups).flatMap((group) => {
+    const id = asString(group.group_id);
+    return id ? [{ id, label: asString(group.label) ?? id }] : [];
+  });
   const gatewayAccount = gatewayAccountProjection?.surface_kind === "opl_gateway_account_read_model.v1"
     && gatewayAccountProjection.connection_mode === "account"
     && asBoolean(gatewayAccountProjection.account_card_visible)
@@ -2025,6 +2050,7 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
               }
             }
           : {}),
+        ...(gatewayAvailableGroups.length ? { availableGroups: gatewayAvailableGroups } : {}),
         ...(gatewayDeviceLabel || gatewayDeviceShortId
           ? {
               installation: {
@@ -2057,6 +2083,14 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
   const storageLifecycle = asRecord(appSettingsReadModel?.storage_lifecycle);
   const agentPackageStore = asRecord(storageLifecycle?.agent_package_store);
   const webuiDataVolume = asRecord(storageLifecycle?.webui_data_volume);
+  const agentPackageInventoryAction = projectedMaintenanceAction(
+    asString(agentPackageStore?.inventory_action_id)
+      ?? (actionRecords.has("settings_inventory_agent_package_store") ? "settings_inventory_agent_package_store" : undefined)
+  );
+  const webuiInventoryAction = projectedMaintenanceAction(
+    asString(webuiDataVolume?.inventory_action_id)
+      ?? (actionRecords.has("settings_inventory_webui_data_volume") ? "settings_inventory_webui_data_volume" : undefined)
+  );
   const codexPersonalization = asRecord(appState.codex_personalization);
   const userAgents = asRecord(codexPersonalization?.user_agents);
   const oplFlowDefaultUserAgents = asRecord(codexPersonalization?.opl_flow_default_user_agents);
@@ -2194,6 +2228,7 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
             ...(asString(agentPackageStore?.observed_at) ? { observedAt: asString(agentPackageStore?.observed_at) as string } : {}),
             stale: asOptionalBoolean(agentPackageStore?.stale),
             ...(asString(agentPackageStore?.owner_route) ? { ownerRoute: asString(agentPackageStore?.owner_route) as string } : {}),
+            ...(agentPackageInventoryAction ? { inventoryAction: agentPackageInventoryAction } : {}),
             ...(asRecord(agentPackageStore?.projected_action) ? {
               projectedAction: {
                 ...(asString(asRecord(agentPackageStore?.projected_action)?.kind) ? { kind: asString(asRecord(agentPackageStore?.projected_action)?.kind) as string } : {}),
@@ -2212,6 +2247,7 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
             ...(asString(webuiDataVolume?.observed_at) ? { observedAt: asString(webuiDataVolume?.observed_at) as string } : {}),
             stale: asOptionalBoolean(webuiDataVolume?.stale),
             ...(asString(webuiDataVolume?.owner_route) ? { ownerRoute: asString(webuiDataVolume?.owner_route) as string } : {}),
+            ...(webuiInventoryAction ? { inventoryAction: webuiInventoryAction } : {}),
             ...(asRecord(webuiDataVolume?.projected_action) ? {
               projectedAction: {
                 ...(asString(asRecord(webuiDataVolume?.projected_action)?.kind) ? { kind: asString(asRecord(webuiDataVolume?.projected_action)?.kind) as string } : {}),

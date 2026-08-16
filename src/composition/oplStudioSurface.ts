@@ -2,7 +2,13 @@ import type { ReactNode } from "react";
 import type { SettingsDestinationId } from "../workbench/SettingsPanel";
 import type { AgentPackageSelectionIntent, WorkbenchProjectGroup } from "../workbench/workbenchModel";
 import type { ResolvedCodexModelOption } from "../workbench/modelPolicy";
+import type { OplInitializeReadback } from "../bridge/oplBridge";
 import type { OplContributionSlotOwner, OplUiContributionsProjection } from "./contributionProjection";
+
+export type OplSetupOperationResult = {
+  status: "completed" | "cancelled" | "error";
+  message?: string;
+};
 
 export type OplStudioSurface = {
   locale: "zh" | "en";
@@ -44,6 +50,15 @@ export type OplStudioSurface = {
   composerOverlay: ReactNode;
   details: ReactNode;
   renderSettings(destination: SettingsDestinationId): ReactNode;
+  initializationStatus: "loading" | "ready" | "error";
+  initialization: OplInitializeReadback | null;
+  refreshInitialization(): void;
+  setupCapabilities: {
+    workspaceRoot: boolean;
+    codexInstall: boolean;
+  };
+  chooseWorkspaceRoot(): Promise<OplSetupOperationResult>;
+  installCodex(): Promise<OplSetupOperationResult>;
   overlay: ReactNode;
   detailsRequestRevision: number;
   startSession(): void;

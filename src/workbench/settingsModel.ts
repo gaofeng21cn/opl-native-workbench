@@ -6,6 +6,8 @@ import {
 
 export const SETTINGS_STORAGE_KEY = "opl.studio.settings.v1";
 const LEGACY_SETTINGS_STORAGE_KEY = "opl.nativeWorkbench.settings.v1";
+export const ADDITIONAL_CONVERSATION_INSTRUCTIONS_KEY = "codex.oplAppSessionContextAdditional";
+const MAX_ADDITIONAL_CONVERSATION_INSTRUCTIONS_BYTES = 65_536;
 
 export type SettingsSectionId =
   | "overview"
@@ -159,4 +161,21 @@ export function writeSetting<Key extends SettingKey>(
   storage = browserStorage()
 ): WorkbenchSettings {
   return writeSettings({ [key]: value } as WorkbenchSettingsPatch, storage);
+}
+
+export function readAdditionalConversationInstructions(storage = browserStorage()): string {
+  const value = storage?.getItem(ADDITIONAL_CONVERSATION_INSTRUCTIONS_KEY) ?? "";
+  return new TextEncoder().encode(value).byteLength <= MAX_ADDITIONAL_CONVERSATION_INSTRUCTIONS_BYTES ? value : "";
+}
+
+export function writeAdditionalConversationInstructions(
+  value: string,
+  storage = browserStorage()
+): string {
+  const normalized = value.trim();
+  if (new TextEncoder().encode(normalized).byteLength > MAX_ADDITIONAL_CONVERSATION_INSTRUCTIONS_BYTES) {
+    throw new Error("Additional conversation instructions exceed 64 KiB");
+  }
+  storage?.setItem(ADDITIONAL_CONVERSATION_INSTRUCTIONS_KEY, normalized);
+  return normalized;
 }

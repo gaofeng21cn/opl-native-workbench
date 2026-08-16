@@ -15,6 +15,7 @@ export type SettingsActionRequest = {
   payload: Record<string, unknown>;
   confirmationRequired: boolean;
   previewOnly?: boolean;
+  dryRunSupported?: boolean;
 };
 
 export type SettingsActionAvailability = "ready" | "payload_required" | "unavailable";

@@ -104,6 +104,20 @@ test("settings projection keeps WebUI action refs, storage inventory reasons, an
         mutates: "none_read_only",
         dry_run_supported: true,
         confirmation_required: false
+      }, {
+        action_id: "settings_inventory_agent_package_store",
+        label: "Refresh Agent Package storage inventory",
+        payload_fields: [],
+        mutates: "opl_storage_owner_inventory_snapshot_cache",
+        dry_run_supported: true,
+        confirmation_required: false
+      }, {
+        action_id: "settings_inventory_webui_data_volume",
+        label: "Refresh WebUI data storage inventory",
+        payload_fields: [],
+        mutates: "opl_storage_owner_inventory_snapshot_cache",
+        dry_run_supported: true,
+        confirmation_required: false
       }],
       codex_personalization: {
         user_agents: {
@@ -146,7 +160,10 @@ test("settings projection keeps WebUI action refs, storage inventory reasons, an
               owner_route: "/settings/agents",
               projected_action: { kind: "navigate", status: "available", route: "/settings/agents" }
             },
-            webui_data_volume: { status: "unavailable", stale: true }
+            webui_data_volume: {
+              status: "unavailable",
+              stale: true
+            }
           }
         }
       }
@@ -157,6 +174,8 @@ test("settings projection keeps WebUI action refs, storage inventory reasons, an
   assert.equal(model.settingsProjection?.dockerWebui.actions[0]?.mutates, "none_read_only");
   assert.equal(model.settingsProjection?.storage.agentPackageStore.reasonCode, "inventory_cache_missing_or_invalid");
   assert.equal(model.settingsProjection?.storage.agentPackageStore.projectedAction?.route, "/settings/agents");
+  assert.equal(model.settingsProjection?.storage.agentPackageStore.inventoryAction?.actionId, "settings_inventory_agent_package_store");
+  assert.equal(model.settingsProjection?.storage.webuiDataVolume.inventoryAction?.actionId, "settings_inventory_webui_data_volume");
   assert.equal(model.settingsProjection?.personalization.userAgents?.content, "User instructions");
   assert.equal(model.settingsProjection?.personalization.oplFlowDefaultUserAgents?.packageVersion, "0.1.0");
   assert.equal(model.settingsProjection?.codex.providerName, "OPL Gateway");

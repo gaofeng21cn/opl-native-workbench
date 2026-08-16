@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compactFastState, createOplPassthrough } from "./opl-passthrough.mjs";
+import { compactFastState, compactInitialize, createOplPassthrough } from "./opl-passthrough.mjs";
 
 test("App state timeout keeps the interactive default and admits a bounded cold-start override", () => {
   assert.doesNotThrow(() => createOplPassthrough({ readStateTimeoutMs: undefined }));
@@ -60,6 +60,114 @@ test("candidate blocks confirmed mutations unless the launcher explicitly enable
   assert.equal(receipt.status, "blocked_read_only");
   assert.equal(receipt.canExecute, false);
   assert.equal(receipt.stderr, "candidate_read_only_policy");
+});
+
+test("candidate admits only the settings operations required by the local Studio control center", async () => {
+  for (const actionId of [
+    "settings_diagnose_docker_webui",
+    "settings_inventory_agent_package_store",
+    "settings_inventory_webui_data_volume",
+    "codex_user_instructions_set",
+    "codex_user_instructions_restore_opl_flow_default"
+  ]) {
+    const passthrough = createOplPassthrough({
+      cwd: process.cwd(),
+      command: process.execPath,
+      allowActions: false
+    });
+    const receipt = await passthrough.executeAction({
+      actionId,
+      dryRun: false,
+      payload: { confirmed: true }
+    });
+    assert.equal(receipt.canExecute, true);
+    assert.notEqual(receipt.receiptKind, "blocked_read_only");
+    assert.notEqual(receipt.stderr, "candidate_read_only_policy");
+  }
+});
+
+test("desktop candidate actions require an explicit host-injected allowlist", async () => {
+  const blocked = createOplPassthrough({
+    command: "/missing/opl-must-not-run",
+    allowActions: false
+  });
+  assert.equal((await blocked.executeAction({
+    actionId: "workspace_root_set",
+    dryRun: false,
+    payload: { path: "/workspace", confirmed: true }
+  })).status, "blocked_read_only");
+
+  const admitted = createOplPassthrough({
+    command: process.execPath,
+    allowActions: false,
+    candidateActionAllowlist: ["workspace_root_set", "codex_install"]
+  });
+  for (const actionId of ["workspace_root_set", "codex_install"]) {
+    const receipt = await admitted.executeAction({
+      actionId,
+      dryRun: false,
+      payload: { confirmed: true }
+    });
+    assert.notEqual(receipt.status, "blocked_read_only");
+  }
+  assert.throws(
+    () => createOplPassthrough({ candidateActionAllowlist: [""] }),
+    /non-empty action IDs/
+  );
+});
+
+test("initialize projection keeps launch readiness while omitting private runtime details", () => {
+  const compact = compactInitialize({
+    system_initialize: {
+      overall_state: "ready_with_background_maintenance",
+      setup_flow: {
+        is_first_run: false,
+        phase: "ready",
+        ready_to_launch: true,
+        progress: {
+          required_completed_count: 3,
+          required_total_count: 3,
+          ready_full_readiness_count: 1,
+          total_full_readiness_count: 2,
+          private_counter: 99
+        },
+        blocking_items: [],
+        maintenance_items: ["family_runtime_provider"],
+        private_plan: { payload: "omit" }
+      },
+      readiness: {
+        core_ready: true,
+        launch_ready: true,
+        full_ready: false,
+        private_probe: "omit"
+      },
+      checklist: [{
+        item_id: "workspace_root",
+        label: "Workspace root",
+        status: "ready",
+        required: true,
+        blocking: false,
+        readiness_layer: "core_launch",
+        private_receipt: "omit"
+      }],
+      family_runtime_provider: {
+        status: "initializing",
+        ready: false,
+        full_readiness_blocking: true,
+        private_process: "omit"
+      },
+      private_runtime: "omit"
+    }
+  });
+
+  assert.equal(compact.system_initialize.setup_flow.ready_to_launch, true);
+  assert.deepEqual(compact.system_initialize.setup_flow.maintenance_items, ["family_runtime_provider"]);
+  assert.equal(compact.system_initialize.checklist[0].item_id, "workspace_root");
+  assert.equal(compact.system_initialize.family_runtime_provider.status, "initializing");
+  const serialized = JSON.stringify(compact);
+  for (const marker of ["private_counter", "private_plan", "private_probe", "private_receipt", "private_process", "private_runtime"]) {
+    assert.equal(serialized.includes(marker), false, `must omit ${marker}`);
+  }
 });
 
 test("fast state keeps GUI package fields without copying deep runtime payloads", () => {
@@ -509,6 +617,7 @@ test("fast state keeps storage reasons, Docker WebUI actions, and safe personali
               bytes: null,
               reason_code: "inventory_cache_missing_or_invalid",
               owner_route: "/settings/agents",
+              inventory_action_id: "settings_inventory_agent_package_store",
               projected_action: { kind: "navigate", status: "available", route: "/settings/agents" }
             }
           }
@@ -522,6 +631,7 @@ test("fast state keeps storage reasons, Docker WebUI actions, and safe personali
   assert.equal(state.codex_personalization.opl_flow_default_user_agents.package_version, "0.1.0");
   assert.equal(state.settings_control_center.app_settings_read_model.docker_webui.ordinary_next_actions[0].action_id, "settings_diagnose_docker_webui");
   assert.equal(state.settings_control_center.app_settings_read_model.storage_lifecycle.agent_package_store.reason_code, "inventory_cache_missing_or_invalid");
+  assert.equal(state.settings_control_center.app_settings_read_model.storage_lifecycle.agent_package_store.inventory_action_id, "settings_inventory_agent_package_store");
   assert.equal(state.settings_control_center.app_settings_read_model.storage_lifecycle.agent_package_store.projected_action.route, "/settings/agents");
   assert.equal(JSON.stringify(state).includes("private_file_stat"), false);
 });

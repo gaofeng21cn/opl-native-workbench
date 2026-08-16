@@ -13,6 +13,7 @@ const ERROR_CODES = new Set([
   "managed_key_conflict",
   "managed_key_identity_drift",
   "disconnect_pending",
+  "codex_configuration_failed",
   "invalid_request",
   "internal_contract_violation",
   "gateway_account_failed"
@@ -58,7 +59,7 @@ function readErrorCode(value) {
     .find(Boolean);
 }
 
-function inferErrorCode(result) {
+function inferErrorCode(result, fallback = "gateway_account_failed") {
   const structured = readErrorCode(result.parsed);
   if (structured) return structured;
   const text = `${result.stderr ?? ""}`.toLowerCase();
@@ -71,10 +72,10 @@ function inferErrorCode(result) {
   if (/turnstile|captcha|totp|two-factor|mfa|challenge/.test(text)) return "mfa_or_challenge_required";
   if (/429|rate limit/.test(text)) return "rate_limited";
   if (/network|enotfound|econn|timeout|timed out/.test(text)) return "network_unreachable";
-  return "gateway_account_failed";
+  return fallback;
 }
 
-function sanitizeResult(result, secretValues = []) {
+function sanitizeResult(result, secretValues = [], fallbackErrorCode = "gateway_account_failed") {
   if (result.outputTruncated) {
     return { ok: false, errorCode: "internal_contract_violation", stateRefreshRequired: false };
   }
@@ -84,7 +85,7 @@ function sanitizeResult(result, secretValues = []) {
   if (!isRecord(result.parsed)) {
     return {
       ok: false,
-      errorCode: result.exitCode === 0 ? "internal_contract_violation" : inferErrorCode(result),
+      errorCode: result.exitCode === 0 ? "internal_contract_violation" : inferErrorCode(result, fallbackErrorCode),
       stateRefreshRequired: false
     };
   }
@@ -92,7 +93,7 @@ function sanitizeResult(result, secretValues = []) {
     return { ok: false, errorCode: "internal_contract_violation", stateRefreshRequired: false };
   }
   if (result.exitCode !== 0 || result.parsed.ok === false) {
-    return { ok: false, errorCode: inferErrorCode(result), stateRefreshRequired: false };
+    return { ok: false, errorCode: inferErrorCode(result, fallbackErrorCode), stateRefreshRequired: false };
   }
   return { ok: true, stateRefreshRequired: true };
 }
@@ -173,6 +174,36 @@ export function createGatewayAccountLogin({
       maxOutputBytes
     });
     return sanitizeResult(result, [password]);
+  };
+}
+
+export function createCodexApiKeyConfiguration({
+  command = process.env.OPL_APP_OPL_BIN ?? "opl",
+  cwd = process.cwd(),
+  env = process.env,
+  spawnImpl = spawn,
+  timeoutMs = 45_000,
+  maxOutputBytes = 65_536
+} = {}) {
+  return async function configureCodexApiKey(request) {
+    if (!isRecord(request) || Object.keys(request).some((field) => field !== "apiKey")) {
+      return { ok: false, errorCode: "invalid_request", stateRefreshRequired: false };
+    }
+    const apiKey = typeof request.apiKey === "string" ? request.apiKey.trim() : "";
+    if (!apiKey || Buffer.byteLength(apiKey, "utf8") > 65_536) {
+      return { ok: false, errorCode: "invalid_request", stateRefreshRequired: false };
+    }
+    const result = await commandResult({
+      command,
+      args: ["system", "configure-codex", "--api-key-stdin", "--json"],
+      cwd,
+      env,
+      stdin: `${apiKey}\n`,
+      spawnImpl,
+      timeoutMs,
+      maxOutputBytes
+    });
+    return sanitizeResult(result, [apiKey], "codex_configuration_failed");
   };
 }
 

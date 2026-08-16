@@ -78,6 +78,25 @@ function agentSelectionInstructions(selection) {
   ].join("\n");
 }
 
+function additionalConversationInstructions(value) {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string") {
+    throw new AppServerTransportError("invalid_request", "Additional conversation instructions must be text");
+  }
+  const text = value.trim();
+  if (!text) return undefined;
+  if (Buffer.byteLength(text, "utf8") > 65_536) {
+    throw new AppServerTransportError("invalid_request", "Additional conversation instructions exceed 64 KiB");
+  }
+  return text;
+}
+
+function threadDeveloperInstructions(selection, additionalInstructions) {
+  return [agentSelectionInstructions(selection), additionalConversationInstructions(additionalInstructions)]
+    .filter(Boolean)
+    .join("\n\n") || undefined;
+}
+
 function agentSelectionContext(selection) {
   return selection ? {
     "opl.standard_agent_selection": {
@@ -576,7 +595,7 @@ export class CodexAppServerTransport extends EventEmitter {
     });
   }
 
-  async sendMessage({ prompt, inputs, threadId, agentSelection, model, reasoningEffort, permissions = DEFAULT_PERMISSION_PROFILE }) {
+  async sendMessage({ prompt, inputs, threadId, agentSelection, additionalInstructions, model, reasoningEffort, permissions = DEFAULT_PERMISSION_PROFILE }) {
     let activeThreadId = threadId;
     const selection = normalizeAgentSelection(agentSelection);
     if (activeThreadId && selection) {
@@ -587,7 +606,7 @@ export class CodexAppServerTransport extends EventEmitter {
     } else {
       const started = await this.startThread({
         model: model || undefined,
-        developerInstructions: agentSelectionInstructions(selection),
+        developerInstructions: threadDeveloperInstructions(selection, additionalInstructions),
         cwd: this.cwd,
         approvalPolicy: "never",
         permissions

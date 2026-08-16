@@ -199,6 +199,44 @@ test("standard Agent selection binds only to a newly created Codex thread", asyn
   assert.equal(requests.filter((request) => request.method === "thread/start").length, 2);
 });
 
+test("App session instructions are injected only when a new Codex conversation is created", async () => {
+  const requests = [];
+  const transport = new CodexAppServerTransport({ cwd: "/tmp/opl-studio-context-fixture" });
+  transport.request = async (method, params) => {
+    requests.push({ method, params });
+    if (method === "thread/start") return { thread: { id: "thread-context" } };
+    if (method === "thread/resume") return { thread: { id: params.threadId } };
+    if (method === "turn/start") return { turn: { id: `turn-${requests.length}` } };
+    throw new Error(`unexpected request: ${method}`);
+  };
+  transport.waitForTurn = async (turnId) => ({
+    finalMessage: `completed ${turnId}`,
+    events: [],
+    notification: { turn: { id: turnId, status: "completed" } }
+  });
+
+  await transport.sendMessage({
+    prompt: "Start with App context",
+    inputs: [],
+    additionalInstructions: "Use the local OPL review conventions."
+  });
+  const started = requests.find((request) => request.method === "thread/start");
+  assert.equal(started.params.developerInstructions, "Use the local OPL review conventions.");
+
+  await transport.sendMessage({
+    prompt: "Continue without rebinding context",
+    inputs: [],
+    threadId: "thread-context",
+    additionalInstructions: "This must not replace existing conversation context."
+  });
+  assert.equal(requests.filter((request) => request.method === "thread/start").length, 1);
+  assert.equal(requests.some((request) => request.method === "thread/resume"), true);
+  await assert.rejects(
+    transport.sendMessage({ prompt: "Oversized", inputs: [], additionalInstructions: "x".repeat(65_537) }),
+    (error) => error?.code === "invalid_request" && /64 KiB/.test(error.message)
+  );
+});
+
 test("turn steering preserves the active thread and expected turn identity", async () => {
   const requests = [];
   let acknowledgedTurnId = "turn-active";
@@ -552,8 +590,15 @@ test("Settings uses the App-owned navigation groups and one shared read model", 
   assert.match(app, /capabilityCatalog=\{capabilityCatalog\}/);
   assert.match(app, /capabilityStatus=\{capabilityStatus\}/);
   assert.match(settingsPanel, /opl-settings-capability-directory/);
-  assert.match(settingsPanel, /opl-settings-instruction-source/);
-  assert.match(settingsPanel, /previewOnly/);
+  assert.match(settingsPanel, /opl-settings-user-instructions-editor/);
+  assert.match(settingsPanel, /opl-settings-additional-instructions-editor/);
+  assert.match(settingsPanel, /codex_user_instructions_restore_opl_flow_default/);
+  assert.match(app, /additionalInstructions: codexThreadId \? undefined : additionalConversationInstructions/);
+  assert.match(app, /dockerDiagnosticFromReceipt\(receipt\)/);
+  assert.match(settingsPanel, /feedbackDestinationRef\.current === selectedDestination/);
+  assert.match(slotHost, /FirstRunOnboardingSlot/);
+  assert.match(desktopPreload, /readInitialize:/);
+  assert.match(hostCore, /case "readInitialize"/);
   assert.match(settingsPanel, /aria-label=\{refreshLabel\}/);
   assert.match(styles, /\.settings-icon-button \{/);
   assert.match(app, /await bridge\.setLogDirectory\(\{ path: selected\.path \}\)/);

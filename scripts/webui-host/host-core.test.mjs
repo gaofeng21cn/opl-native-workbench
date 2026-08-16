@@ -108,15 +108,21 @@ test("shared host core serves desktop and HTTP adapters through one typed method
   });
   const updateOperations = [];
   const logDirectoryUpdates = [];
+  const configuredApiKeys = [];
   const core = await createOplHostCore({
     transport,
     opl: {
       readState: async (profile) => ({ profile }),
+      readInitialize: async () => ({ system_initialize: { setup_flow: { ready_to_launch: true } } }),
       readFullDrilldown: async () => ({ detail: "full" }),
       readContribution: async (request) => ({ request }),
       executeAction: async (request) => ({ request, authorityBoundary: "app_bridge_no_domain_authority" })
     },
     gatewayAccountLogin: async () => ({ ok: true, stateRefreshRequired: true }),
+    codexApiKeyConfiguration: async (request) => {
+      configuredApiKeys.push(request.apiKey);
+      return { ok: true, stateRefreshRequired: true };
+    },
     platform: {
       pickFiles: async () => ["/tmp/one.txt"],
       pickDirectory: async () => "/tmp/project"
@@ -164,6 +170,9 @@ test("shared host core serves desktop and HTTP adapters through one typed method
       setLogDirectorySupported: true
     }
   });
+  assert.deepEqual(await core.invoke("readInitialize"), {
+    system_initialize: { setup_flow: { ready_to_launch: true } }
+  });
   assert.equal((await core.invoke("listThreads", {})).data.length, 5);
   assert.deepEqual(await core.invoke("pickFiles"), ["/tmp/one.txt"]);
   assert.equal(await core.invoke("pickDirectory"), "/tmp/project");
@@ -182,6 +191,11 @@ test("shared host core serves desktop and HTTP adapters through one typed method
   assert.deepEqual(await core.invoke("applyNativeAppUpdate"), { supported: true, operation: "apply" });
   assert.deepEqual(await core.invoke("restartNativeApp"), { supported: true, operation: "restart" });
   assert.deepEqual(updateOperations, ["status", "check", "apply", "restart"]);
+  assert.deepEqual(await core.invoke("configureCodexApiKey", { apiKey: "host-secret" }), {
+    ok: true,
+    stateRefreshRequired: true
+  });
+  assert.deepEqual(configuredApiKeys, ["host-secret"]);
   await assert.rejects(
     core.invoke("unregisteredMethod"),
     (error) => error.code === "host_method_not_found" && error.httpStatus === 404
