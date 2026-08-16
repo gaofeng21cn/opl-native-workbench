@@ -57,6 +57,8 @@ test("hosted macOS qualification installs pinned runtime inputs and reads owner 
   assert.equal(bun.with["bun-version"], "1.3.14");
   assert.match(codex.run, /@openai\/codex@0\.147\.0/);
   assert.match(codex.run, /OPL_CODEX_BIN=/);
+  assert.match(codex.run, /OPL_HEADLESS_TARGET_VERSION=\$\(node -p 'require\("\.\/package\.json"\)\.version'\)/);
+  assert.doesNotMatch(codex.run, /require\(\\"/);
 
   assert.match(install.run, /headless:install/);
   assert.match(install.run, /--readback-timeout-ms 120000/);

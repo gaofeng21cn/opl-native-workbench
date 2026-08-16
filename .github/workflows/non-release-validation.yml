@@ -519,7 +519,7 @@ jobs:
             echo "OPL_HEADLESS_BASE_SOURCE=$base_source"
             echo "OPL_HEADLESS_BASE_VERSION=0.0.0-headless-base"
             echo "OPL_HEADLESS_INSTALL_ROOT=$install_root"
-            echo "OPL_HEADLESS_TARGET_VERSION=$(node -p 'require(\"./package.json\").version')"
+            echo "OPL_HEADLESS_TARGET_VERSION=$(node -p 'require("./package.json").version')"
             echo "OPL_HEADLESS_WORKSPACE_ROOT=$workspace_root"
           } >> "$GITHUB_ENV"
 
