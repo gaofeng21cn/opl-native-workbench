@@ -810,10 +810,10 @@
     "receipt_path": "out/qualification/client-conformance.json",
     "receipt_is_git_ignored": true,
     "external_cohort": {
-      "framework_commit": "67d8276adb95255ce6dd12d7fa7cc70e53f98282",
-      "framework_tree": "16749309878ff3ba1b0cec6f73d17c67ad001d5f",
-      "app_commit": "4989846a53f17524bac8ec214f5dc15c96e993ef",
-      "app_tree": "79be50ed41c302d23161bab3dbed7df041ad9c3f",
+      "framework_commit": "0a34ae51a374477fcd5c0043c05e2c48a04534aa",
+      "framework_tree": "b81abf3adc26791e94a8fd02ca11932a350fb6f0",
+      "app_commit": "70b543869336fb8c29f20cff5fc7e38fceb01754",
+      "app_tree": "70828cec72208c1c8ebdc377858c8d7130623799",
       "aionui_commit": "ecfef2dd74b659f19ad5e04cd33e326259ebc7e5",
       "aionui_tree": "de96a67f6f58a25681e1fc85dd339fff6b41cf85"
     },
