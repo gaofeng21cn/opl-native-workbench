@@ -13,6 +13,8 @@ test("default validation is source-only and does not build a release carrier", a
   const job = workflow.jobs["source-validation"];
   assert.equal(job["runs-on"], "ubuntu-24.04");
   assert.match(JSON.stringify(job), /npm run test:source/);
+  assert.match(JSON.stringify(job), /candidateContractEvidence\.json/);
+  assert.match(JSON.stringify(job), /gaofeng21cn\/one-person-lab-app/);
   assert.doesNotMatch(JSON.stringify(job), /electron-builder|smoke:desktop-live|smoke:docker|headless:install|dist:mac/i);
 });
 

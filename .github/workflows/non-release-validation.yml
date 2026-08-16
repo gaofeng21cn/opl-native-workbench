@@ -20,11 +20,33 @@ jobs:
     name: Source, contract, and unit validation
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    env:
+      OPL_APP_REPO_ROOT: ${{ github.workspace }}/app-product
 
     steps:
       - name: Checkout Studio candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
+
+      - name: Read pinned App product cohort
+        id: app-cohort
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const evidence = JSON.parse(fs.readFileSync("src/candidateContractEvidence.json", "utf8"));
+          const appCommit = evidence.candidate_runtime_qualification?.external_cohort?.app_commit;
+          if (!/^[0-9a-f]{40}$/.test(appCommit ?? "")) throw new Error("missing exact App product cohort commit");
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `sha=${appCommit}\n`);
+          NODE
+
+      - name: Checkout pinned App product contract
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: gaofeng21cn/one-person-lab-app
+          ref: ${{ steps.app-cohort.outputs.sha }}
+          path: app-product
           persist-credentials: false
 
       - name: Set up Node.js
