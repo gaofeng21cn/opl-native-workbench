@@ -124,6 +124,9 @@ test("work-item runtime projection preserves user status semantics and unknown t
                 project_id: "project:one",
                 project_display_name: "Research",
                 work_item_id: "study-one",
+                domain_work_item_id: "study-one",
+                work_item_scope_id: "work-item:study-one",
+                identity_state: "resolved",
                 work_item_display_name: "Study one",
                 work_item_kind: "study"
               },
@@ -171,6 +174,9 @@ test("work-item runtime projection preserves user status semantics and unknown t
 
   assert.equal(model.workItemRuntime?.summary.telemetryMissingCount, 2);
   assert.equal(model.workItemRuntime?.items[0]?.statusLabel, "已暂停");
+  assert.equal(model.workItemRuntime?.items[0]?.domainWorkItemId, "study-one");
+  assert.equal(model.workItemRuntime?.items[0]?.workItemScopeId, "work-item:study-one");
+  assert.equal(model.workItemRuntime?.items[0]?.identityState, "resolved");
   assert.equal(model.workItemRuntime?.items[0]?.nextStageName, "Analysis");
   assert.equal(model.workItemRuntime?.items[0]?.totalTokens, null);
   assert.equal(model.workItemRuntime?.items[0]?.stages[0]?.displayNameI18n.zh, "分析");

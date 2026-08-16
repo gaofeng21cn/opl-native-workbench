@@ -1599,11 +1599,16 @@ export function App({
   const contributionOwner = {
     locale: settings.locale,
     actionAvailable: contributionActionAvailable,
-    ...(selectedRuntimeWorkItem?.domainId ? { runtimeDetailIdentity: {
+    ...(selectedRuntimeWorkItem?.domainId
+      && selectedRuntimeWorkItem.domainWorkItemId
+      && selectedRuntimeWorkItem.workItemScopeId
+      && selectedRuntimeWorkItem.identityState === "resolved" ? { runtimeDetailIdentity: {
       agentId: selectedRuntimeWorkItem.agentId,
       domainId: selectedRuntimeWorkItem.domainId,
       workItemId: selectedRuntimeWorkItem.workItemId,
-      workItemScopeId: selectedRuntimeWorkItem.id
+      domainWorkItemId: selectedRuntimeWorkItem.domainWorkItemId,
+      workItemScopeId: selectedRuntimeWorkItem.workItemScopeId,
+      identityState: "resolved" as const
     } } : {}),
     refreshRevision: contributionRefreshRevision,
     readData: readContributionData,

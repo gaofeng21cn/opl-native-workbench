@@ -191,6 +191,9 @@ export type WorkItemRuntimeItem = {
   projectId: string;
   projectDisplayName: string;
   workItemId: string;
+  domainWorkItemId?: string;
+  workItemScopeId?: string;
+  identityState?: string;
   title: string;
   kind?: string;
   status: string;
@@ -883,6 +886,9 @@ function readWorkItemRuntimeProjection(value: unknown): WorkItemRuntimeProjectio
     const domainId = asString(identity?.domain_id);
     const projectId = asString(identity?.project_id);
     const workItemId = asString(identity?.work_item_id);
+    const domainWorkItemId = asString(identity?.domain_work_item_id);
+    const workItemScopeId = asString(identity?.work_item_scope_id);
+    const identityState = asString(identity?.identity_state);
     const title = asString(identity?.work_item_display_name);
     if (!id || !agentId || !projectId || !workItemId || !title) return [];
     const status = asString(lifecycle?.primary_state) ?? asString(lifecycle?.business_state) ?? "unknown";
@@ -894,6 +900,9 @@ function readWorkItemRuntimeProjection(value: unknown): WorkItemRuntimeProjectio
       projectId,
       projectDisplayName: asString(identity?.project_display_name) ?? projectId,
       workItemId,
+      ...(domainWorkItemId ? { domainWorkItemId } : {}),
+      ...(workItemScopeId ? { workItemScopeId } : {}),
+      ...(identityState ? { identityState } : {}),
       title,
       ...(asString(identity?.work_item_kind) ? { kind: asString(identity?.work_item_kind) as string } : {}),
       status,

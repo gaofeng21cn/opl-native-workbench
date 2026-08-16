@@ -161,11 +161,25 @@ test("standard Agent selection binds only to a newly created Codex thread", asyn
   const requests = [];
   let threadSequence = 0;
   let turnSequence = 0;
+  const turnByThread = new Map();
   const transport = new CodexAppServerTransport({ cwd: "/tmp/opl-studio-agent-fixture" });
   transport.request = async (method, params) => {
     requests.push({ method, params });
     if (method === "thread/start") return { thread: { id: `thread-${++threadSequence}` } };
-    if (method === "turn/start") return { turn: { id: `turn-${++turnSequence}` } };
+    if (method === "turn/start") {
+      const turnId = `turn-${++turnSequence}`;
+      turnByThread.set(params.threadId, turnId);
+      return { turn: { id: turnId } };
+    }
+    if (method === "thread/read") {
+      return {
+        thread: {
+          id: params.threadId,
+          status: { type: "idle" },
+          turns: [{ id: turnByThread.get(params.threadId), status: "completed" }]
+        }
+      };
+    }
     throw new Error(`unexpected request: ${method}`);
   };
   transport.waitForTurn = async (turnId) => ({
@@ -215,12 +229,26 @@ test("standard Agent selection binds only to a newly created Codex thread", asyn
 
 test("App session instructions are injected only when a new Codex conversation is created", async () => {
   const requests = [];
+  const turnByThread = new Map();
   const transport = new CodexAppServerTransport({ cwd: "/tmp/opl-studio-context-fixture" });
   transport.request = async (method, params) => {
     requests.push({ method, params });
     if (method === "thread/start") return { thread: { id: "thread-context" } };
     if (method === "thread/resume") return { thread: { id: params.threadId } };
-    if (method === "turn/start") return { turn: { id: `turn-${requests.length}` } };
+    if (method === "turn/start") {
+      const turnId = `turn-${requests.length}`;
+      turnByThread.set(params.threadId, turnId);
+      return { turn: { id: turnId } };
+    }
+    if (method === "thread/read") {
+      return {
+        thread: {
+          id: params.threadId,
+          status: { type: "idle" },
+          turns: [{ id: turnByThread.get(params.threadId), status: "completed" }]
+        }
+      };
+    }
     throw new Error(`unexpected request: ${method}`);
   };
   transport.waitForTurn = async (turnId) => ({

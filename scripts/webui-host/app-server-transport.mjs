@@ -3,6 +3,7 @@ import { EventEmitter } from "node:events";
 import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
+import { projectCodexThread } from "./thread-adapter.mjs";
 
 export const DEFAULT_PERMISSION_PROFILE = ":danger-full-access";
 export const CHANNEL_CALLBACK_SCHEMA = "opl_channel_canonical_thread_callbacks.v1";
@@ -700,6 +701,26 @@ export class CodexAppServerTransport extends EventEmitter {
       throw new AppServerTransportError("invalid_app_server_response", "turn/start returned no turn id");
     }
     const completed = await this.waitForTurn(turnId);
+    const canonicalThreadReadback = await this.readThread(activeThreadId, true);
+    const rawCanonicalThread = canonicalThreadReadback?.thread;
+    const canonicalTurn = Array.isArray(rawCanonicalThread?.turns)
+      ? rawCanonicalThread.turns.find((turn) => turn?.id === turnId)
+      : undefined;
+    if (rawCanonicalThread?.id !== activeThreadId || !canonicalTurn) {
+      throw new AppServerTransportError(
+        "invalid_app_server_response",
+        "thread/read did not confirm the completed turn on the canonical thread",
+        { threadId: activeThreadId, turnId }
+      );
+    }
+    if (!["completed", "failed", "interrupted", "cancelled"].includes(canonicalTurn.status)) {
+      throw new AppServerTransportError(
+        "invalid_app_server_response",
+        "thread/read returned a non-terminal turn after turn/completed",
+        { threadId: activeThreadId, turnId, status: canonicalTurn.status }
+      );
+    }
+    const canonicalThread = projectCodexThread(rawCanonicalThread);
     return {
       executor: "codex_app_server",
       transport: "stdio_json_rpc",
@@ -708,6 +729,8 @@ export class CodexAppServerTransport extends EventEmitter {
       finalMessage: completed.finalMessage,
       eventCount: completed.events.length,
       completed: completed.notification,
+      canonicalThread,
+      canonicalThreadReadback,
       cwd: this.cwd,
       permissions
     };

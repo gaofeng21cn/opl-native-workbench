@@ -566,6 +566,9 @@ test("fast state keeps a bounded work-item runtime projection without private ex
                 project_id: "project:one",
                 project_display_name: "Research",
                 work_item_id: "study-one",
+                domain_work_item_id: "study-one",
+                work_item_scope_id: "work-item:study-one",
+                identity_state: "resolved",
                 work_item_display_name: "Study one",
                 work_item_root: "/private/study"
               },
@@ -611,6 +614,9 @@ test("fast state keeps a bounded work-item runtime projection without private ex
   assert.equal(projection.agent_catalog[0].display_name, "Med Auto Science");
   assert.equal(projection.project_catalog[0].display_name, "Research");
   assert.equal(projection.items[0].identity.work_item_display_name, "Study one");
+  assert.equal(projection.items[0].identity.domain_work_item_id, "study-one");
+  assert.equal(projection.items[0].identity.work_item_scope_id, "work-item:study-one");
+  assert.equal(projection.items[0].identity.identity_state, "resolved");
   assert.equal(projection.items[0].telemetry.cumulative.total_tokens, null);
   assert.equal(projection.items[0].stage_map[0].display_names["zh-CN"], "分析");
   const serialized = JSON.stringify(projection);

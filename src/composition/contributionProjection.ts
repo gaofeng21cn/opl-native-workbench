@@ -121,7 +121,9 @@ export type OplRuntimeDetailIdentity = {
   agentId: string;
   domainId: string;
   workItemId: string;
+  domainWorkItemId: string;
   workItemScopeId: string;
+  identityState: "resolved";
 };
 export type OplContributionSlotOwner = {
   locale: OplStudioLocale;
@@ -142,9 +144,9 @@ export function createOplContributionReadInput(
       agent_id: identity.agentId,
       domain_id: identity.domainId,
       work_item_id: identity.workItemId,
-      domain_work_item_id: identity.workItemId,
+      domain_work_item_id: identity.domainWorkItemId,
       work_item_scope_id: identity.workItemScopeId,
-      identity_state: "resolved"
+      identity_state: identity.identityState
     }
   };
 }

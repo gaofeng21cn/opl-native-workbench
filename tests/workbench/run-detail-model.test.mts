@@ -227,8 +227,20 @@ const masRuntimeDetail = {
   }
 };
 
+const selectedWorkItemIdentity = {
+  agent_id: "mas",
+  domain_id: "medautoscience",
+  work_item_id: "002-dm-china-us-mortality-attribution",
+  domain_work_item_id: "002-dm-china-us-mortality-attribution",
+  work_item_scope_id: "work-item:dm002",
+  identity_state: "resolved"
+};
+
 test("runtime detail maps the canonical MAS response into declarative sections", () => {
-  const viewModel = buildRuntimeDetailResultViewModel(masRuntimeDetail);
+  const viewModel = buildRuntimeDetailResultViewModel({
+    workItemIdentity: selectedWorkItemIdentity,
+    readback: masRuntimeDetail
+  });
 
   assert.equal(viewModel.state, "ready");
   if (viewModel.state !== "ready") return;
@@ -269,11 +281,17 @@ test("runtime detail accepts standard read and execute response wrappers", () =>
     result: masRuntimeDetail
   };
 
-  assert.equal(buildRuntimeDetailResultViewModel(response).state, "ready");
   assert.equal(buildRuntimeDetailResultViewModel({
-    stdoutJson: {
-      opl_app_contribution: {
-        response
+    workItemIdentity: selectedWorkItemIdentity,
+    readback: response
+  }).state, "ready");
+  assert.equal(buildRuntimeDetailResultViewModel({
+    workItemIdentity: selectedWorkItemIdentity,
+    readback: {
+      stdoutJson: {
+        opl_app_contribution: {
+          response
+        }
       }
     }
   }).state, "ready");
@@ -281,8 +299,8 @@ test("runtime detail accepts standard read and execute response wrappers", () =>
 
 test("runtime detail returns unavailable diagnostics instead of inventing missing business data", () => {
   const missingHypotheses = buildRuntimeDetailResultViewModel({
-    ...masRuntimeDetail,
-    hypotheses: undefined
+    workItemIdentity: selectedWorkItemIdentity,
+    readback: { ...masRuntimeDetail, hypotheses: undefined }
   });
   assert.deepEqual(missingHypotheses, {
     state: "unavailable",
@@ -294,23 +312,30 @@ test("runtime detail returns unavailable diagnostics instead of inventing missin
   });
 
   const mismatchedIdentity = buildRuntimeDetailResultViewModel({
-    ...masRuntimeDetail,
-    identity: {
-      ...masRuntimeDetail.identity,
-      study_id: "another-study"
+    workItemIdentity: selectedWorkItemIdentity,
+    readback: {
+      ...masRuntimeDetail,
+      identity: {
+        ...masRuntimeDetail.identity,
+        work_item_id: "another-study",
+        study_id: "another-study"
+      }
     }
   });
   assert.equal(mismatchedIdentity.state, "unavailable");
   if (mismatchedIdentity.state === "unavailable") {
-    assert.equal(mismatchedIdentity.diagnostic.code, "invalid_identity");
+    assert.equal(mismatchedIdentity.diagnostic.code, "identity_mismatch");
     assert.deepEqual(mismatchedIdentity.sections, []);
   }
 
   const writableProjection = buildRuntimeDetailResultViewModel({
-    ...masRuntimeDetail,
-    authority_boundary: {
-      ...masRuntimeDetail.authority_boundary,
-      writes_runtime_state: true
+    workItemIdentity: selectedWorkItemIdentity,
+    readback: {
+      ...masRuntimeDetail,
+      authority_boundary: {
+        ...masRuntimeDetail.authority_boundary,
+        writes_runtime_state: true
+      }
     }
   });
   assert.equal(writableProjection.state, "unavailable");
@@ -321,10 +346,13 @@ test("runtime detail returns unavailable diagnostics instead of inventing missin
 
 test("runtime detail rejects producer errors and unrelated surfaces", () => {
   const producerError = buildRuntimeDetailResultViewModel({
-    ok: false,
-    error: {
-      code: "mas_runtime_detail_contribution_invalid",
-      message: "input.work_item_identity is unresolved"
+    workItemIdentity: selectedWorkItemIdentity,
+    readback: {
+      ok: false,
+      error: {
+        code: "mas_runtime_detail_contribution_invalid",
+        message: "input.work_item_identity is unresolved"
+      }
     }
   });
   assert.equal(producerError.state, "unavailable");
@@ -332,10 +360,24 @@ test("runtime detail rejects producer errors and unrelated surfaces", () => {
     assert.equal(producerError.diagnostic.code, "producer_error");
   }
 
-  const unrelated = buildRuntimeDetailResultViewModel({ surface_kind: "other_surface" });
+  const unrelated = buildRuntimeDetailResultViewModel({
+    workItemIdentity: selectedWorkItemIdentity,
+    readback: { surface_kind: "other_surface" }
+  });
   assert.equal(unrelated.state, "unavailable");
   if (unrelated.state === "unavailable") {
     assert.equal(unrelated.diagnostic.code, "unsupported_surface");
     assert.deepEqual(unrelated.sections, []);
+  }
+});
+
+test("runtime detail stays unavailable without a complete selected identity", () => {
+  const unavailable = buildRuntimeDetailResultViewModel({
+    workItemIdentity: { ...selectedWorkItemIdentity, work_item_scope_id: "" },
+    readback: masRuntimeDetail
+  });
+  assert.equal(unavailable.state, "unavailable");
+  if (unavailable.state === "unavailable") {
+    assert.equal(unavailable.diagnostic.code, "identity_unavailable");
   }
 });

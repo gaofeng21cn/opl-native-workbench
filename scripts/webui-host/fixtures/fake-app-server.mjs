@@ -6,6 +6,7 @@ const configuredProjectKey = process.env.FAKE_PROJECT_KEY ?? "project-a";
 const projectKey = configuredProjectKey === "__projectless__" ? null : configuredProjectKey;
 const logPath = process.env.FAKE_APP_SERVER_LOG;
 const lifecyclePath = process.env.FAKE_APP_SERVER_LIFECYCLE_LOG;
+const omitCompletedTurnReadback = process.env.FAKE_APP_SERVER_OMIT_COMPLETED_TURN_READBACK === "1";
 const threads = new Map([
   ["thread-source", thread("thread-source", { type: "idle" }, ["src/source.ts"])],
   ["thread-idle", thread("thread-idle", { type: "idle" }, ["src/idle.ts"])],
@@ -81,6 +82,7 @@ function thread(id, status, writeSet = [], turns = [], overrides = {}) {
 }
 
 function send(frame) {
+  log({ direction: "server_to_client", ...frame });
   process.stdout.write(`${JSON.stringify(frame)}\n`);
 }
 
@@ -89,18 +91,25 @@ function log(frame) {
 }
 
 function completeTurn(threadId, turnId, status = "completed") {
+  const completedItem = {
+    type: "agentMessage",
+    id: `message-${turnId}`,
+    text: `completed ${turnId}`
+  };
   const target = threads.get(threadId);
   if (target) {
     target.status = { type: "idle" };
-    target.turns = target.turns.map((item) => item.id === turnId ? { ...item, status, completedAt: 2 } : item);
+    target.turns = target.turns.map((item) => item.id === turnId
+      ? { ...item, items: [...item.items, completedItem], status, completedAt: 2 }
+      : item);
   }
-  send({ method: "item/completed", params: { threadId, turnId, item: { type: "agentMessage", id: `message-${turnId}`, text: `completed ${turnId}` } } });
+  send({ method: "item/completed", params: { threadId, turnId, item: completedItem } });
   send({ method: "turn/completed", params: { threadId, turn: { ...turn(turnId, status), completedAt: 2 } } });
   send({ method: "thread/status/changed", params: { threadId, status: { type: "idle" } } });
 }
 
 async function handle(frame) {
-  log(frame);
+  log({ direction: "client_to_server", ...frame });
   if (frame.id !== undefined && !frame.method) return;
   const { id, method, params = {} } = frame;
   if (id === undefined) return;
@@ -114,7 +123,10 @@ async function handle(frame) {
   if (method === "thread/read") {
     const target = threads.get(params.threadId);
     if (!target) return send({ id, error: { code: -32004, message: "thread not found" } });
-    return send({ id, result: { thread: { ...target, turns: params.includeTurns ? target.turns : [] } } });
+    const turns = params.includeTurns
+      ? target.turns.filter((turn) => !(omitCompletedTurnReadback && turn.status === "completed"))
+      : [];
+    return send({ id, result: { thread: { ...target, turns } } });
   }
   if (method === "thread/resume") {
     const target = threads.get(params.threadId);

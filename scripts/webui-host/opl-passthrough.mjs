@@ -470,7 +470,8 @@ function compactWorkItem(value) {
     ...selectedFields(value, ["item_id"]),
     identity: selectedFields(value.identity, [
       "agent_id", "agent_display_name", "domain_id", "project_id", "project_display_name",
-      "work_item_id", "work_item_display_name", "work_item_kind", "source_kind"
+      "work_item_id", "domain_work_item_id", "work_item_scope_id", "identity_state",
+      "work_item_display_name", "work_item_kind", "source_kind"
     ]),
     lifecycle: selectedFields(value.lifecycle, [
       "business_state", "primary_state", "primary_state_reason", "primary_state_label", "reason",

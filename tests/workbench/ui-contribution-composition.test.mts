@@ -230,7 +230,9 @@ describe("OPL Studio DSH contribution composition", () => {
       agentId: "mas",
       domainId: "medautoscience",
       workItemId: "002-dm-china-us-mortality-attribution",
-      workItemScopeId: "project:test:002-dm-china-us-mortality-attribution"
+      domainWorkItemId: "002-dm-china-us-mortality-attribution",
+      workItemScopeId: "project:test:002-dm-china-us-mortality-attribution",
+      identityState: "resolved"
     })).toEqual({
       work_item_identity: {
         agent_id: "mas",

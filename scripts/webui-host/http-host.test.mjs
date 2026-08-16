@@ -192,6 +192,13 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
   assert.equal(chat.status, 200);
   assert.equal(chat.body.executor, "codex_app_server");
   assert.equal(chat.body.finalMessage.startsWith("completed turn-created-"), true);
+  assert.equal(chat.body.canonicalThread.id, chat.body.threadId);
+  assert.equal(chat.body.canonicalThread.state, "idle");
+  assert.equal(chat.body.canonicalThreadReadback.thread.id, chat.body.threadId);
+  const canonicalTurn = chat.body.canonicalThread.turns.find((turn) => turn.id === chat.body.turnId);
+  assert.equal(canonicalTurn.status, "completed");
+  assert.equal(canonicalTurn.items.at(-1).type, "agentMessage");
+  assert.equal(canonicalTurn.items.at(-1).text, chat.body.finalMessage);
   const frames = (await readFile(appServerLog, "utf8")).trim().split("\n").map(JSON.parse);
   const turnStart = frames.find((frame) => frame.method === "turn/start");
   const turnSteer = frames.find((frame) => frame.method === "turn/steer");
@@ -199,6 +206,48 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
   assert.equal(turnStart.params.permissions, ":danger-full-access");
   assert.equal(turnSteer.params.expectedTurnId, "turn-running");
   assert.equal(turnSteer.params.input[0].text, "Keep the active turn on the accepted route.");
+  const chatThreadStartIndex = frames.findLastIndex((frame) => (
+    frame.direction === "client_to_server" && frame.method === "thread/start"
+  ));
+  const canonicalLaunchSequence = frames
+    .slice(chatThreadStartIndex)
+    .filter((frame, index) => (
+      (index === 0 && frame.method === "thread/start")
+      || (frame.method === "turn/start" && frame.params?.threadId === chat.body.threadId)
+      || (
+        frame.method === "turn/completed"
+        && frame.params?.threadId === chat.body.threadId
+        && frame.params?.turn?.id === chat.body.turnId
+      )
+      || (frame.method === "thread/read" && frame.params?.threadId === chat.body.threadId)
+    ))
+    .map((frame) => frame.method);
+  assert.deepEqual(canonicalLaunchSequence, ["thread/start", "turn/start", "turn/completed", "thread/read"]);
+  const canonicalRead = frames.slice(chatThreadStartIndex).find((frame) => frame.method === "thread/read");
+  assert.equal(canonicalRead.direction, "client_to_server");
+  assert.equal(canonicalRead.params.threadId, chat.body.threadId);
+  assert.equal(canonicalRead.params.includeTurns, true);
+});
+
+test("Agent launch fails closed when canonical thread/read omits the completed turn", async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "opl-webui-canonical-readback-test-"));
+  const transport = new CodexAppServerTransport({
+    command: process.execPath,
+    args: [fixture],
+    cwd: directory,
+    env: { ...process.env, FAKE_APP_SERVER_OMIT_COMPLETED_TURN_READBACK: "1" },
+    requestTimeoutMs: 2_000,
+    turnTimeoutMs: 2_000
+  });
+  t.after(() => transport.stop());
+
+  await assert.rejects(
+    transport.sendMessage({ prompt: "Require canonical completion.", inputs: [] }),
+    (error) => (
+      error.code === "invalid_app_server_response"
+      && error.message === "thread/read did not confirm the completed turn on the canonical thread"
+    )
+  );
 });
 
 test("loopback HTTP host exposes the dedicated Gateway secret route without generic action payloads", async (t) => {

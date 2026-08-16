@@ -78,6 +78,8 @@ export type RuntimeDetailSection = {
 );
 
 export type RuntimeDetailDiagnosticCode =
+  | "identity_unavailable"
+  | "identity_mismatch"
   | "not_object"
   | "producer_error"
   | "unsupported_surface"
@@ -95,6 +97,7 @@ export type RuntimeDetailResultViewModel =
     state: "ready";
     surfaceKind: "mas_runtime_detail_contribution";
     version: "mas-runtime-detail-contribution.v1";
+    workItemIdentity: RuntimeDetailWorkItemIdentity;
     sections: RuntimeDetailSection[];
   }
   | {
@@ -105,6 +108,20 @@ export type RuntimeDetailResultViewModel =
     };
     sections: [];
   };
+
+export type RuntimeDetailWorkItemIdentity = {
+  agent_id: string;
+  domain_id: string;
+  work_item_id: string;
+  domain_work_item_id: string;
+  work_item_scope_id: string;
+  identity_state: "resolved";
+};
+
+export type RuntimeDetailResultModelInput = {
+  workItemIdentity: unknown;
+  readback: unknown;
+};
 
 class RuntimeDetailParseError extends Error {
   constructor(readonly code: RuntimeDetailDiagnosticCode, message: string) {
@@ -128,6 +145,42 @@ function nullableString(value: unknown, code: RuntimeDetailDiagnosticCode, messa
   if (value === null) return null;
   if (typeof value !== "string") throw new RuntimeDetailParseError(code, message);
   return value;
+}
+
+function resolvedWorkItemIdentity(value: unknown): RuntimeDetailWorkItemIdentity {
+  const identity = detailRecord(value, "identity_unavailable", "Selected work-item identity is unavailable");
+  const agentId = nonEmptyString(identity.agent_id, "identity_unavailable", "Selected agent_id is unavailable");
+  const domainId = nonEmptyString(identity.domain_id, "identity_unavailable", "Selected domain_id is unavailable");
+  const workItemId = nonEmptyString(identity.work_item_id, "identity_unavailable", "Selected work_item_id is unavailable");
+  const domainWorkItemId = nonEmptyString(
+    identity.domain_work_item_id,
+    "identity_unavailable",
+    "Selected domain_work_item_id is unavailable"
+  );
+  const workItemScopeId = nonEmptyString(
+    identity.work_item_scope_id,
+    "identity_unavailable",
+    "Selected work_item_scope_id is unavailable"
+  );
+  if (
+    identity.identity_state !== "resolved"
+    || agentId !== "mas"
+    || domainId !== "medautoscience"
+    || workItemId !== domainWorkItemId
+  ) {
+    throw new RuntimeDetailParseError(
+      "identity_unavailable",
+      "Selected work-item identity is unresolved or inconsistent"
+    );
+  }
+  return {
+    agent_id: agentId,
+    domain_id: domainId,
+    work_item_id: workItemId,
+    domain_work_item_id: domainWorkItemId,
+    work_item_scope_id: workItemScopeId,
+    identity_state: "resolved"
+  };
 }
 
 function scalarRows(value: unknown, code: RuntimeDetailDiagnosticCode, message: string): RuntimeDetailRow[] {
@@ -226,9 +279,10 @@ function roadmapRows(value: unknown): RuntimeDetailRow[] {
   return rows;
 }
 
-export function buildRuntimeDetailResultViewModel(input: unknown): RuntimeDetailResultViewModel {
+export function buildRuntimeDetailResultViewModel(input: RuntimeDetailResultModelInput): RuntimeDetailResultViewModel {
   try {
-    const result = unwrapRuntimeDetailResult(input);
+    const selectedIdentity = resolvedWorkItemIdentity(input.workItemIdentity);
+    const result = unwrapRuntimeDetailResult(input.readback);
     if (result.version !== "mas-runtime-detail-contribution.v1") {
       throw new RuntimeDetailParseError("unsupported_version", "MAS runtime detail version is unsupported");
     }
@@ -245,6 +299,17 @@ export function buildRuntimeDetailResultViewModel(input: unknown): RuntimeDetail
       || identity.scope_binding !== "work_item_id_exact_study_id"
     ) {
       throw new RuntimeDetailParseError("invalid_identity", "Runtime detail identity is unresolved or mismatched");
+    }
+    if (
+      agentId !== selectedIdentity.agent_id
+      || domainId !== selectedIdentity.domain_id
+      || workItemId !== selectedIdentity.work_item_id
+      || studyId !== selectedIdentity.domain_work_item_id
+    ) {
+      throw new RuntimeDetailParseError(
+        "identity_mismatch",
+        "Runtime detail readback does not match the selected work item"
+      );
     }
 
     const agent = detailRecord(result.agent, "invalid_agent", "Runtime detail agent is missing");
@@ -276,6 +341,7 @@ export function buildRuntimeDetailResultViewModel(input: unknown): RuntimeDetail
       state: "ready",
       surfaceKind: "mas_runtime_detail_contribution",
       version: "mas-runtime-detail-contribution.v1",
+      workItemIdentity: selectedIdentity,
       sections: [
         {
           id: "identity",

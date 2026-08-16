@@ -212,6 +212,12 @@ function StructuredContributionView({ entry, owner }: {
 
   useEffect(() => {
     if (!view) return;
+    if (entry.slot === "runtime.detail" && !owner.runtimeDetailIdentity) {
+      setResult(null);
+      setError("Selected work-item identity is unavailable");
+      setState("error");
+      return;
+    }
     let active = true;
     setState("loading");
     setError("");
@@ -234,14 +240,24 @@ function StructuredContributionView({ entry, owner }: {
     return <p className="opl-contribution-fallback" role="status"><StateDot state="ongoing" size={10} />{owner.locale === "zh" ? "正在读取模块数据" : "Loading module data"}</p>;
   }
   if (state === "error") {
-    return <p className="opl-contribution-fallback" role="status" title={error}><StateDot state="warning" size={10} />{view.emptyState ? contributionLabel(view.emptyState, owner.locale, "") : (owner.locale === "zh" ? "模块数据当前不可用" : "Module data is unavailable")}</p>;
+    const identityUnavailable = entry.slot === "runtime.detail" && !owner.runtimeDetailIdentity;
+    const errorLabel = identityUnavailable
+      ? (owner.locale === "zh" ? "任务身份当前不可用" : "Work-item identity is unavailable")
+      : (view.emptyState ? contributionLabel(view.emptyState, owner.locale, "") : (owner.locale === "zh" ? "模块数据当前不可用" : "Module data is unavailable"));
+    return <p className="opl-contribution-fallback" role="status" title={error}><StateDot state="warning" size={10} />{errorLabel}</p>;
   }
-  const runtimeDetail = entry.slot === "runtime.detail" ? buildRuntimeDetailResultViewModel(result) : null;
+  const runtimeDetail = entry.slot === "runtime.detail" ? buildRuntimeDetailResultViewModel({
+    workItemIdentity: owner.runtimeDetailIdentity,
+    readback: result
+  }) : null;
   if (runtimeDetail?.state === "ready") {
     return <div className="opl-contribution-result" data-view-type={view.viewType} data-testid={`opl-ui-contribution-result-${entry.contributionKey}`}><RuntimeDetailResult sections={runtimeDetail.sections} locale={owner.locale} /></div>;
   }
   if (runtimeDetail?.state === "unavailable" && runtimeDetail.diagnostic.code !== "unsupported_surface") {
-    return <p className="opl-contribution-fallback" role="status" title={runtimeDetail.diagnostic.message}><StateDot state="warning" size={10} />{owner.locale === "zh" ? "任务详情当前不可用" : "Runtime detail is unavailable"}</p>;
+    const unavailableLabel = runtimeDetail.diagnostic.code === "identity_unavailable"
+      ? (owner.locale === "zh" ? "任务身份当前不可用" : "Work-item identity is unavailable")
+      : (owner.locale === "zh" ? "任务详情当前不可用" : "Runtime detail is unavailable");
+    return <p className="opl-contribution-fallback" role="status" title={runtimeDetail.diagnostic.message}><StateDot state="warning" size={10} />{unavailableLabel}</p>;
   }
   return (
     <div className="opl-contribution-result" data-view-type={view.viewType} data-testid={`opl-ui-contribution-result-${entry.contributionKey}`}>
