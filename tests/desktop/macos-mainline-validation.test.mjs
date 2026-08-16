@@ -6,6 +6,7 @@ import YAML from "yaml";
 const workflowUrl = new URL("../../.github/workflows/non-release-validation.yml", import.meta.url);
 const macosReleaseWorkflowUrl = new URL("../../.github/workflows/macos-desktop-release-qualification.yml", import.meta.url);
 const additionalWorkflowUrl = new URL("../../.github/workflows/additional-carrier-qualification.yml", import.meta.url);
+const packageUrl = new URL("../../package.json", import.meta.url);
 
 test("default validation is source-only and does not build a release carrier", async () => {
   const workflow = YAML.parse(await readFile(workflowUrl, "utf8"));
@@ -16,6 +17,9 @@ test("default validation is source-only and does not build a release carrier", a
   assert.match(JSON.stringify(job), /candidateContractEvidence\.json/);
   assert.match(JSON.stringify(job), /gaofeng21cn\/one-person-lab-app/);
   assert.doesNotMatch(JSON.stringify(job), /electron-builder|smoke:desktop-live|smoke:docker|headless:install|dist:mac/i);
+
+  const packageJson = JSON.parse(await readFile(packageUrl, "utf8"));
+  assert.doesNotMatch(packageJson.scripts["test:source"], /validate:state-model|\bopl\s+app\s+state\b/);
 });
 
 test("macOS arm64 Desktop has an independent manual release qualification", async () => {

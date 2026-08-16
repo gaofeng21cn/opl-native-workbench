@@ -34,7 +34,7 @@ script is the command owner.
 | `npm run test:client-cordis` | Studio Client Cordis policy, typed event/slot lifecycle, and exact contribution action request |
 | `npm run validate:client-conformance` | Fresh four-repository Host -> App -> Studio/AionUI compatibility and wire-ref readback |
 | `npm run validate:candidate` | Required source markers and false-ready guards |
-| `npm run validate:state-model` | App-state projection mapping |
+| `npm run validate:state-model` | Runtime-backed App-state projection mapping; requires a real `opl` CLI/state source and is not part of default PR/main source CI |
 | `npm run smoke:webui` | Local WebUI host/renderer smoke |
 | `npm run smoke:visual` | Source-level visual smoke |
 | `npm run package` | Current-platform Electron directory package construction |
@@ -111,6 +111,8 @@ active-shell adoption, or release readiness.
 `.github/workflows/non-release-validation.yml` is the default PR/main gate. It
 runs source, type, contract, and unit validation only. It does not build a
 Desktop package, install a service, start Electron, or construct a Docker image.
+It also does not call the runtime-backed `validate:state-model` command or
+require an installed OPL Framework CLI.
 
 ## macOS Desktop Release Qualification
 
