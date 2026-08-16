@@ -114,19 +114,24 @@ try {
   }`, cliRoot);
   assert.equal(settingsOpen.open, true);
   assert.equal(settingsOpen.activeLabel, "关闭");
-  assert.deepEqual(settingsOpen.sections, ["概览", "账户与访问", "模型", "资源与连接", "工作目录", "数据与存储", "智能体", "能力", "指令", "服务状态", "更新与修复", "日志与诊断", "偏好", "关于"]);
+  assert.deepEqual(settingsOpen.sections, ["概览", "账户与模型", "连接与访问", "工作区", "智能体与能力", "运行与维护", "偏好", "关于"]);
 
-  await evaluate(`() => {
-    document.querySelector('[role="dialog"] nav button')?.focus();
-    return true;
+  const focusBounds = await evaluate(`() => {
+    const dialog = document.querySelector('[role="dialog"]');
+    const focusable = dialog ? Array.from(dialog.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+      .filter((element) => element.getClientRects().length > 0) : [];
+    const label = (element) => element?.getAttribute('aria-label') ?? element?.textContent?.trim();
+    focusable[0]?.focus();
+    return { count: focusable.length, first: label(focusable[0]), last: label(focusable.at(-1)) };
   }`, cliRoot);
+  assert.ok(focusBounds.count > 1);
   await cli(["press", "Shift+Tab"], cliRoot);
   const trapped = await evaluate(`() => ({
     label: document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.textContent?.trim(),
     insideDialog: Boolean(document.activeElement?.closest('[role="dialog"]'))
   })`, cliRoot);
   assert.equal(trapped.insideDialog, true);
-  assert.equal(trapped.label, "关闭");
+  assert.equal(trapped.label, focusBounds.last);
 
   await cli(["press", "Escape"], cliRoot);
   const restored = await evaluate(`() => ({
@@ -150,7 +155,7 @@ try {
   assert.equal(narrow.root, true);
   assert.equal(narrow.horizontalOverflow, false);
   assert.equal(narrow.promptVisible, true);
-  assert.equal(narrow.selectedModelLabel, "自动");
+  assert.equal(narrow.selectedModelLabel, "自动（推荐）");
   await cli(["screenshot"], cliRoot);
   const narrowScreenshot = await latestScreenshot(cliRoot);
 
