@@ -114,6 +114,10 @@ Desktop package, install a service, start Electron, or construct a Docker image.
 It also does not call the runtime-backed `validate:state-model` command or
 require an installed OPL Framework CLI.
 
+The local default `npm test` uses the same `test:source` boundary. The broader
+`npm run test:full` entry remains available for runtime state, visual smoke,
+Electron package construction, and packaged-artifact validation.
+
 ## macOS Desktop Release Qualification
 
 `.github/workflows/macos-desktop-release-qualification.yml` is a manual release

@@ -216,9 +216,10 @@ npm ci
 npm test
 ```
 
-`npm test` covers typecheck, desktop/headless focused regressions,
-candidate/state validators, WebUI and visual smoke, Electron package
-construction, and package validation.
+`npm test` runs the source gate: typecheck, focused desktop/headless/OCI
+regressions, candidate contracts, and the typed contribution tests. It does not
+start Electron, run visual smoke, construct a package, or validate a packaged
+artifact. Use `npm run test:full` when those broader local checks are needed.
 Run `npm run smoke:desktop-live` separately for local packaged-window evidence.
 Run `npm run smoke:docker` separately for a local OCI build/runtime smoke.
 See [verification](docs/verification.md) before interpreting either result.
