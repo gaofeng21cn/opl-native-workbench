@@ -1,0 +1,24 @@
+{
+  "schema": "opl_app_desktop_release_carrier.v1",
+  "owner_repo": "gaofeng21cn/opl-studio",
+  "carrier_id": "opl-studio",
+  "product_name": "One Person Lab Preview",
+  "bundle_id": "cn.onepersonlab.opl.studio.preview",
+  "release_role": "candidate_preview",
+  "release_repository": "gaofeng21cn/opl-studio",
+  "package_manager": "npm",
+  "commands": {
+    "install": "npm ci",
+    "build_macos": "npm run dist:mac",
+    "qualify_distribution": "npm run qualify:desktop:mac",
+    "qualify_updater": "npm run qualify:desktop:updater:local",
+    "qualify_prepublication": "node scripts/desktop/macos-distribution.mjs --require-release-trust",
+    "qualify_public_release": "node scripts/desktop/macos-distribution.mjs --require-release-trust --require-public-feed"
+  },
+  "artifact_name_template": "one-person-lab-preview-${version}-${os}-${arch}.${ext}",
+  "entitlements": null,
+  "carrier_specific_payload": [
+    "studio_renderer",
+    "app_state_action_bridge"
+  ]
+}

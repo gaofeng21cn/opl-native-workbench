@@ -1,8 +1,13 @@
 # macOS Desktop Distribution Evidence
 
 `opl-studio` remains the side-by-side successor candidate. Its current bundle identity is
-`cn.gflab.opl.studio.preview`; this evidence does not adopt it as the active release shell or replace the
+`cn.onepersonlab.opl.studio.preview`; this evidence does not adopt it as the active release shell or replace the
 installed AionUI-based App.
+
+The carrier-specific release surface is declared in `contracts/desktop-release-carrier.json`. OPL App owns the
+shared Electron toolchain, artifact/update policy, signing/notarization stages, publication, and public readback;
+this repository owns only the Studio bundle, builder configuration, renderer payload, and Studio qualification
+commands. A local package or updater smoke does not create a second release owner.
 
 `npm run dist:mac` builds the shared Electron renderer/host, emits the Developer ID signed updater ZIP and
 ULFO DMG, creates byte-identical `latest-mac.yml` and `latest-arm64-mac.yml`, and validates every feed
