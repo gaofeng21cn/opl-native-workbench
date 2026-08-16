@@ -188,7 +188,7 @@ export async function qualifyLocalUpdater() {
   const baseVersion = pkg.version;
   const targetVersion = nextPatchVersion(baseVersion);
   const runRoot = await mkdtemp(path.join(os.tmpdir(), "opl-desktop-updater-qualification-"));
-  const bundleIdentifier = `cn.gflab.opl.studio.preview.updaterqualification.run${process.pid}`;
+  const bundleIdentifier = `cn.onepersonlab.opl.studio.preview.updaterqualification.run${process.pid}`;
   const baseOutput = path.join(runRoot, "base-output");
   const targetOutput = path.join(runRoot, "target-feed");
   const installRoot = path.join(runRoot, "install");

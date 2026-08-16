@@ -1,4 +1,4 @@
-appId: cn.gflab.opl.studio.preview
+appId: cn.onepersonlab.opl.studio.preview
 productName: One Person Lab Preview
 asar: true
 npmRebuild: false
