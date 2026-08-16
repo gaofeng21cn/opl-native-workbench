@@ -200,6 +200,7 @@ test("browser bridge normalization preserves App-projected Temporal runtime deta
       defaultReasoningEffort: "high",
       visibleModels: [{ id: "test-model" }],
       reasoningEfforts: ["high"],
+      autoLabel: { zh: "自动（推荐）", en: "Auto (recommended)" },
       knownModelReasoningEffortOverrides: {},
       acceptUnknownCatalogDefault: true,
       useHighestSupportedReasoningForUnknown: true

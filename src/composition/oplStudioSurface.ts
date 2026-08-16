@@ -23,11 +23,14 @@ export type OplStudioSurface = {
   uiContributions: OplUiContributionsProjection;
   threadProjects: WorkbenchProjectGroup[];
   threadDirectoryStatus: "loading" | "ready" | "error";
+  threadDirectoryError: string;
   currentThreadId?: string;
   selectedProjectId?: string;
   modelOptions: ResolvedCodexModelOption[];
   modelSelection: string;
   reasoningSelection: string;
+  reasoningOptions: string[];
+  resolvedModelId?: string;
   agentPresets: Array<{
     id: string;
     name: string;
@@ -49,6 +52,7 @@ export type OplStudioSurface = {
   forkThread(threadId: string): void;
   archiveThread(threadId: string): Promise<void>;
   searchThreads(query: string): Promise<Array<{ sessionId: string; snippet?: string }>>;
+  reloadThreadDirectory(): void;
   selectModel(modelId: string, reasoningEffort?: string): Promise<boolean>;
   selectAgentPreset(id: string): Promise<void>;
   updatePrompt(value: string): void;

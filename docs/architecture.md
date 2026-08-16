@@ -194,9 +194,9 @@ Electron and WebUI use one standard adapter for `thread/list`, `thread/read`,
 `collabAgentToolCall`, and `subAgentActivity` are read-only Codex projections;
 the candidate does not infer or own subagent scheduling.
 
-The default directory reads the Codex state DB overview through
-`thread/list { useStateDbOnly: true, sortKey: "updated_at", sortDirection:
-"desc" }`. Opening a conversation performs a read-only
+The default directory reads the same Codex-visible source set as the Codex app
+through `thread/list { sortKey: "updated_at", sortDirection: "desc" }`.
+Opening a conversation performs a read-only
 `thread/read { threadId, includeTurns: true }` against the same canonical thread
 ID. It does not import, copy, synchronize, or rewrite Codex history. Resume is
 an explicit lifecycle action and is not required merely to view history.

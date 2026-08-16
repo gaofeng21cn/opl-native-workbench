@@ -123,7 +123,6 @@ export class CodexThreadAdapter extends EventEmitter {
   async listThreads(request = {}) {
     const requestedWorkspace = typeof request.workspace === "string" ? request.workspace : undefined;
     const params = {
-      useStateDbOnly: true,
       sortKey: "updated_at",
       sortDirection: "desc",
       ...(Number.isFinite(request.limit) ? { limit: request.limit } : {}),

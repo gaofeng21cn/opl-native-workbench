@@ -29,6 +29,10 @@ const syntheticProfile = {
   gui: {
     home: {
       codex_model_display_options: {
+        auto_option: {
+          label_zh: "自动（推荐）",
+          label_en: "Auto (recommended)"
+        },
         visible_models: [
           { id: "codex-future-primary", label_zh: "Future primary zh", label_en: "Future primary" },
           { id: "codex-future-secondary", label_zh: "Future secondary zh", label_en: "Future secondary" }
@@ -72,6 +76,8 @@ assert.deepEqual(
   syntheticProfile.gui.home.codex_model_display_options.user_reasoning_effort_options
 );
 assert.equal(codexModelPolicy.defaultReasoningEffort, syntheticProfile.default_session_profile.reasoning_effort);
+assert.equal(codexModelPolicy.autoLabel.zh, "自动（推荐）");
+assert.equal(codexModelPolicy.autoLabel.en, "Auto (recommended)");
 
 const runtimeOptions = resolveCodexModelOptions([{
   id: "codex-future-secondary",
@@ -87,10 +93,10 @@ assert.equal(runtimeAuto.reasoningEffort, "max");
 assert.equal(reasoningLabel("max", "zh"), "推理最大");
 assert.equal(reasoningLabel("max", "en", true), "Max");
 assert.equal(runtimeAuto.effectiveSelection, "__auto");
-assert.equal(autoModelLabel("zh"), "自动");
-assert.equal(autoModelLabel("en"), "Auto");
-assert.equal(conversationModelLabel("__auto", runtimeAuto.model?.id, "en"), "Auto");
-assert.equal(conversationModelLabel("__auto", undefined, "en"), "Auto");
+assert.equal(autoModelLabel("zh"), "自动（推荐）");
+assert.equal(autoModelLabel("en"), "Auto (recommended)");
+assert.equal(conversationModelLabel("__auto", runtimeAuto.model?.id, "en"), "Auto (recommended)");
+assert.equal(conversationModelLabel("__auto", undefined, "en"), "Auto (recommended)");
 const pinnedSecondary = resolveCodexSelection(runtimeOptions, "codex-future-secondary", "low");
 assert.equal(pinnedSecondary.model.id, "codex-future-secondary");
 assert.equal(pinnedSecondary.reasoningEffort, "low");

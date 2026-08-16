@@ -102,6 +102,12 @@ function createWindow() {
   return window;
 }
 
+function desktopCodexWorkspaceRoot() {
+  return process.env.OPL_NATIVE_WORKBENCH_CODEX_CWD
+    ?? process.env.OPL_STUDIO_CODEX_CWD
+    ?? app.getPath("home");
+}
+
 async function createDesktopHost(appLogDirectory) {
   const updateConfigAvailable = fs.existsSync(path.join(process.resourcesPath, "app-update.yml"));
   updaterQualificationEnabled = configureDesktopUpdaterQualification({
@@ -121,6 +127,7 @@ async function createDesktopHost(appLogDirectory) {
     }
   });
   core = await createOplHostCore({
+    workspaceRoot: desktopCodexWorkspaceRoot(),
     platform: {
       pickFiles: async () => {
         const result = await dialog.showOpenDialog({ properties: ["openFile", "multiSelections"] });

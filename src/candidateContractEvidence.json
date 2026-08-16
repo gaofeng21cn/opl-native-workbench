@@ -121,7 +121,7 @@
     ],
     "aioncore_required": false,
     "disabled_carriers_add_runtime_dependencies": false,
-    "thread_overview": "thread/list useStateDbOnly=true sortKey=updated_at sortDirection=desc",
+    "thread_overview": "thread/list follows the Codex-visible default source set with sortKey=updated_at sortDirection=desc",
     "thread_history": "thread/read includeTurns=true by canonical Codex thread id",
     "thread_store_owner": "codex_core_app_server"
   },
@@ -129,14 +129,14 @@
     "codex_app_server_thread_turn": true,
     "codex_command": "codex app-server --stdio",
     "codex_protocol": "JSON-RPC newline transport with initialize, model/list, permissionProfile/list, skills/list, plugin/installed, app/installed, paginated thread/list, thread/read, thread/resume, thread/fork, thread/archive, thread/unarchive, turn/start, turn/steer, thread/status/changed, item/agentMessage/delta, item/completed, and turn/completed",
-    "codex_model_reasoning_controls": "The build dynamically injects the App product profile default, complete ordered visible-model allowlist, labels, and reasoning options; runtime model/list follows cursors through the terminal page, filters unadvertised fixed alternatives, and keeps unavailable fixed selections blocked but cannot veto the App default route, Auto resolves the injected default model and default reasoning effort as one policy, manual reasoning pins the resolved model and exits Auto, and turn/start receives model and effort overrides",
+    "codex_model_reasoning_controls": "The build dynamically injects the App product profile default, complete ordered visible-model allowlist, labels, and reasoning options; runtime model/list follows cursors through the terminal page, filters unadvertised fixed alternatives, and keeps unavailable fixed selections blocked but cannot veto the App default route, the root Auto recommendation action resolves the injected default model and default reasoning effort as one policy, manual reasoning pins the resolved model and exits Auto, and turn/start receives model and effort overrides",
     "opl_state_bridge": "opl app state --profile fast --json",
     "opl_action_bridge": "opl app action execute --action <action_id> --dry-run --json",
     "native_bridge": "Electron contextBridge window.oplStudio over allowlisted ipcRenderer.invoke",
     "default_agent_permissions_profile": ":danger-full-access",
     "agent_permissions_controls": "The composer exposes Codex permission profiles as Full access, Workspace access, and Read only; Full access is the candidate default, and the selected profile is sent through Desktop and WebUI to thread/start, thread/resume, and turn/start without a parallel sandbox field",
     "conversation_persistence": "codex_app_server_thread_history_authority_with_local_ui_metadata_and_drafts_only",
-    "shared_thread_directory": "canonical Codex state DB overview via thread/list useStateDbOnly=true sorted by updated_at desc; history opens read-only by the same thread id with includeTurns=true",
+    "shared_thread_directory": "Codex-visible conversation overview via thread/list without a Studio-only storage filter, sorted by updated_at desc; history opens read-only by the same thread id with includeTurns=true",
     "settings_persistence": "localStorage model with SETTINGS_STORAGE_KEY, settingsDefaults, readSettings, writeSettings, readRuntimeProfile, and no system write permission",
     "execute_confirmation": "settings_actions_preflight_then_confirm; projected contribution commands use descriptor_confirmation_required then canonical execute with fresh App state readback",
     "typed_runtime_readback_surface": "normalized readState/readFullDrilldown envelopes with runtime profile, app_state/drilldown payload, and command readback metadata",
@@ -638,7 +638,7 @@
           "ConversationRoot",
           "InputBar",
           "AgentPresetSeat",
-          "ModelSelect",
+          "Menu",
           "SettingsRoot"
         ],
         "slot_runtime": [
@@ -711,7 +711,7 @@
     "adopted_patterns": [
       "SlotCore typed slot registry and disposer lifecycle",
       "createSlotRenderer React composition and entry error isolation",
-      "byte-identical AppFrame SidebarRoot WorkspaceBrowser ConversationRoot EmptyHero InputBar AgentPresetSeat ModelSelect and SettingsRoot GUI source",
+      "byte-identical AppFrame SidebarRoot WorkspaceBrowser ConversationRoot EmptyHero InputBar AgentPresetSeat and SettingsRoot GUI source plus the DSH Menu primitive",
       "DSH-owned typography spacing layout color state and interaction without an OPL parallel visual system",
       "project-first persistent left sidebar",
       "single centered conversation canvas",
@@ -755,6 +755,7 @@
       "Tooltip",
       "StateDot",
       "MessageText",
+      "Menu",
       "icons"
     ],
     "brand_override": "vendor_external_text_only_branding",
@@ -765,7 +766,6 @@
       "packages/client/ui-conversation/src/client/skeleton/ConversationRoot.tsx#ConversationRoot+EmptyHero",
       "packages/client/ui-conversation/src/client/skeleton/InputBar.tsx#InputBar",
       "packages/client/ui-agent-preset/src/client/AgentPresetSeat.tsx#AgentPresetSeat",
-      "packages/client/ui-model-selection/src/client/ModelSelect.tsx#ModelSelect",
       "packages/client/ui-settings-general/src/client/SettingsRoot.tsx#SettingsRoot"
     ],
     "other_gui_source_reuse": [],
@@ -810,10 +810,10 @@
     "receipt_path": "out/qualification/client-conformance.json",
     "receipt_is_git_ignored": true,
     "external_cohort": {
-      "framework_commit": "b0811d88051beee0296345a1692bcccfc3971daf",
-      "framework_tree": "e42c8e1ea91a6289f9c0c0b9cb0a754dbe53a7b4",
-      "app_commit": "9a7775704619c4e2d6f607874f8aa20227b103fb",
-      "app_tree": "81ea0981a7d9b8262b12b9d784e77971904d0fb5",
+      "framework_commit": "67d8276adb95255ce6dd12d7fa7cc70e53f98282",
+      "framework_tree": "16749309878ff3ba1b0cec6f73d17c67ad001d5f",
+      "app_commit": "4989846a53f17524bac8ec214f5dc15c96e993ef",
+      "app_tree": "79be50ed41c302d23161bab3dbed7df041ad9c3f",
       "aionui_commit": "ecfef2dd74b659f19ad5e04cd33e326259ebc7e5",
       "aionui_tree": "de96a67f6f58a25681e1fc85dd339fff6b41cf85"
     },
@@ -1261,7 +1261,7 @@
     ],
     "coverage": [
       "Desktop and WebUI thread/list follow every cursor and reject a repeated cursor",
-      "Desktop and WebUI request the canonical Codex state DB overview with useStateDbOnly=true and updated_at descending order",
+      "Desktop and WebUI request the Codex-visible default thread source set without a Studio-only useStateDbOnly filter and preserve updated_at descending order",
       "opening history uses thread/read includeTurns=true without implicitly resuming an unloaded thread",
       "standard list, read, resume, fork, archive, and unarchive lifecycle routes remain available",
       "parentThreadId, agentRole, agentNickname, source kinds, collabAgentToolCall, and subAgentActivity survive projection",

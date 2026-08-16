@@ -107,7 +107,7 @@ test("adapter paginates standard thread/list and exposes only Codex-owned lifecy
 
   assert.deepEqual(result.data.map((item) => item.id), ["parent", "subagent"]);
   assert.equal(transport.calls.filter(([method]) => method === "thread/list").length, 2);
-  assert.equal(transport.calls.every(([, params]) => params.useStateDbOnly === true), true);
+  assert.equal(transport.calls.every(([, params]) => !("useStateDbOnly" in params)), true);
   assert.equal(transport.calls.every(([, params]) => params.sortKey === "updated_at" && params.sortDirection === "desc"), true);
   const capabilities = adapter.capabilities();
   assert.equal(capabilities.threadStoreOwner, "codex_core_app_server");

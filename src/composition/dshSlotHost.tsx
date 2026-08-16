@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
-import { Folder, PanelRight, Settings as SettingsIcon, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Folder, PanelRight, RefreshCw, Settings as SettingsIcon, X } from "lucide-react";
+import { Menu, type MenuEntry } from "@deepseek-ai/dsh-client-ui-primitives";
 import {
   SlotCore,
   type HostObservable,
@@ -15,20 +16,18 @@ import { QueueDock } from "@opl-vendor/dsh-queue-dock";
 import { SettingsRoot } from "@opl-vendor/dsh-settings-root";
 import { WorkspaceBrowser } from "@opl-vendor/dsh-workspace-browser";
 import { AgentPresetSeat } from "@opl-vendor/dsh-agent-preset-seat";
-import { ModelSelect } from "@opl-vendor/dsh-model-select";
 import { createWorkspaceViewStore } from "../vendor/deepseek-harness/packages/client/ui-workspace/src/client/stores.ts";
 import { zh as workspaceZh, en as workspaceEn } from "../vendor/deepseek-harness/packages/client/ui-workspace/src/client/locales.ts";
 import { zh as modelZh, en as modelEn } from "../vendor/deepseek-harness/packages/client/ui-model-selection/src/client/locales.ts";
 import { zh as agentZh, en as agentEn } from "../vendor/deepseek-harness/packages/client/ui-agent-preset/src/client/locales.ts";
 import {
   createSnapshotStore,
-  type ModelProviderGroup,
-  type ModelSelection,
   type SessionListState,
   type WorkspaceListState,
 } from "../integrations/deepseek-harness/runtimeShim";
 import App from "../workbench/App";
 import { settingsDestinations, type SettingsDestinationId } from "../workbench/SettingsPanel";
+import { autoModelLabel, reasoningLabel } from "../workbench/modelPolicy";
 import { ProjectedContribution } from "./contributionComponents";
 import { createOplStudioClientCordisComposition } from "./clientCordis";
 import {
@@ -352,6 +351,16 @@ function SidebarWorkspacesSlot({ wide, expandSidebar }: { wide: boolean; expandS
   }), [studio.threadDirectoryStatus, studio.threadProjects]);
   const actions = workspaceStore.actions as Record<string, (...args: any[]) => void>;
   const dshLocale = (key: string, params?: Record<string, unknown>) => translate(studio.locale, key, params);
+  if (studio.threadDirectoryStatus === "loading") {
+    return <div className="opl-thread-directory-status" role="status">{studio.locale === "zh" ? "正在读取 Codex 会话..." : "Loading Codex conversations..."}</div>;
+  }
+  if (studio.threadDirectoryStatus === "error") {
+    return <div className="opl-thread-directory-error" role="alert">
+      <strong>{studio.locale === "zh" ? "无法连接 Codex App Server" : "Codex App Server is unavailable"}</strong>
+      <span>{studio.threadDirectoryError}</span>
+      <button type="button" onClick={() => studio.reloadThreadDirectory()}><RefreshCw aria-hidden="true" size={14} />{studio.locale === "zh" ? "重试" : "Retry"}</button>
+    </div>;
+  }
   return <WorkspaceBrowser
     wide={wide}
     expandSidebar={expandSidebar}
@@ -421,36 +430,73 @@ function HeroActionsSlot() {
 function ComposerOverlaySlot() { return <>{useStudio().composerOverlay}</>; }
 function ComposerModelSlot() {
   const studio = useStudio();
-  const directory = useMemo(() => createSnapshotStore<{
-    current: ModelSelection | null;
-    routable: boolean | null;
-    groups: ModelProviderGroup[];
-    failures: Array<{ id: string; name: string; message: string }>;
-    status: "idle" | "loading" | "ready" | "selecting" | "error";
-    error: string | null;
-  }>({
-    current: null,
-    routable: true,
-    groups: [],
-    failures: [],
-    status: "ready" as const,
-    error: null,
-  }), []);
-  useEffect(() => {
-    const groups = [{ id: "opl", name: studio.locale === "zh" ? "OPL 模型" : "OPL Models", models: [
-      { id: "__auto", name: studio.locale === "zh" ? "自动" : "Auto", reasoning: { efforts: studio.modelOptions.map(option => ({ id: option.defaultReasoningEffort, name: option.defaultReasoningEffort })), defaultEffort: studio.reasoningSelection } },
-      ...studio.modelOptions.map(option => ({ id: option.id, name: studio.locale === "zh" ? option.label_zh : option.label_en, reasoning: { efforts: option.supportedReasoningEfforts.map(id => ({ id, name: id })), defaultEffort: option.defaultReasoningEffort } }))
-    ] }];
-    const current = studio.modelSelection === "__auto" ? { provider: "opl", model: "__auto", reasoningEffort: studio.reasoningSelection } : { provider: "opl", model: studio.modelSelection, reasoningEffort: studio.reasoningSelection };
-    directory.set({ ...directory.getSnapshot(), current, groups, status: "ready", error: null });
-  }, [directory, studio.locale, studio.modelOptions, studio.modelSelection, studio.reasoningSelection]);
-  return <ModelSelect
-    locked={studio.sending}
-    available
-    directory={directory}
-    load={() => undefined}
-    select={async (selection: { model: string; reasoningEffort?: string }) => studio.selectModel(selection.model, selection.reasoningEffort)}
-    t={(key: string, params?: Record<string, unknown>) => translate(studio.locale, key, params)}
+  const [open, setOpen] = useState(false);
+  const currentOption = studio.modelOptions.find((option) => option.id === studio.resolvedModelId);
+  const modelLabel = studio.modelSelection === "__auto"
+    ? autoModelLabel(studio.locale)
+    : studio.locale === "zh" ? currentOption?.label_zh ?? studio.modelSelection : currentOption?.label_en ?? studio.modelSelection;
+  const effortLabel = reasoningLabel(studio.reasoningSelection, studio.locale, true);
+  const summary = (label: string, value: string) => <span className="opl-model-menu-summary"><span>{label}</span><span className="opl-model-menu-value">{value}</span><ChevronRight aria-hidden="true" size={14} /></span>;
+  const choice = (label: string, selected: boolean) => <span className="opl-model-menu-choice"><span>{label}</span>{selected ? <Check aria-hidden="true" size={14} /> : null}</span>;
+  const items: MenuEntry[] = [
+    {
+      id: "model",
+      label: summary(studio.locale === "zh" ? "模型" : "Model", modelLabel),
+      disabled: !studio.modelOptions.some((option) => option.available),
+      submenu: studio.modelOptions.filter((option) => option.available).map((option) => ({
+        id: `model:${option.id}`,
+        label: choice(studio.locale === "zh" ? option.label_zh : option.label_en, studio.modelSelection === option.id)
+      }))
+    },
+    {
+      id: "reasoning",
+      label: summary(studio.locale === "zh" ? "推理等级" : "Reasoning", effortLabel),
+      disabled: !studio.resolvedModelId || studio.reasoningOptions.length === 0,
+      submenu: studio.reasoningOptions.map((effort) => ({
+        id: `reasoning:${effort}`,
+        label: choice(reasoningLabel(effort, studio.locale, true), studio.reasoningSelection === effort)
+      }))
+    },
+    {
+      id: "automatic",
+      label: autoModelLabel(studio.locale)
+    }
+  ];
+  const select = (id: string) => {
+    setOpen(false);
+    if (id === "automatic") {
+      void studio.selectModel("__auto");
+      return;
+    }
+    if (id.startsWith("model:")) {
+      const modelId = id.slice("model:".length);
+      const option = studio.modelOptions.find((candidate) => candidate.id === modelId);
+      void studio.selectModel(modelId, option?.defaultReasoningEffort);
+      return;
+    }
+    if (id.startsWith("reasoning:") && studio.resolvedModelId) {
+      void studio.selectModel(studio.resolvedModelId, id.slice("reasoning:".length));
+    }
+  };
+  return <Menu
+    open={open}
+    side="top"
+    align="end"
+    items={items}
+    selectedIds={studio.modelSelection === "__auto" ? ["automatic"] : []}
+    onSelect={select}
+    onClose={() => setOpen(false)}
+    anchor={<button
+      type="button"
+      className="opl-model-trigger"
+      data-testid="opl-model-trigger"
+      aria-label={`${studio.locale === "zh" ? "选择模型" : "Select model"}: ${modelLabel}, ${effortLabel}`}
+      aria-haspopup="menu"
+      aria-expanded={open}
+      disabled={studio.sending}
+      title={`${modelLabel} · ${effortLabel}`}
+      onClick={() => setOpen((value) => !value)}
+    ><span>{modelLabel}</span><span className="opl-model-trigger-effort">{effortLabel}</span><ChevronDown aria-hidden="true" size={14} /></button>}
   />;
 }
 

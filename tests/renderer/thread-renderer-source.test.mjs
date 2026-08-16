@@ -113,6 +113,20 @@ test("DSH workspace browser, lifecycle, and Codex subagent projection stay expli
   assert.match(model, /type === "subagentactivity"/);
   assert.match(model, /parentThreadId/);
   assert.match(model, /sourceKind/);
+  assert.match(app, /threadDirectoryError,/);
+  assert.match(app, /reloadThreadDirectory:/);
+  assert.match(slotHost, /opl-thread-directory-error/);
+  assert.match(slotHost, /studio\.reloadThreadDirectory\(\)/);
+});
+
+test("composer exposes Auto as a root recommendation action instead of a fake model", () => {
+  assert.match(slotHost, /@deepseek-ai\/dsh-client-ui-primitives/);
+  assert.match(slotHost, /id:\s*"model"/);
+  assert.match(slotHost, /id:\s*"reasoning"/);
+  assert.match(slotHost, /id:\s*"automatic"/);
+  assert.match(slotHost, /label:\s*autoModelLabel\(studio\.locale\)/);
+  assert.match(slotHost, /studio\.selectModel\("__auto"\)/);
+  assert.doesNotMatch(slotHost, /\{ id: "__auto", name:/);
 });
 
 test("starting a new task clears the previous thread identity and errors", () => {

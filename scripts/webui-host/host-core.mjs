@@ -8,7 +8,7 @@ import { createOplPassthrough } from "./opl-passthrough.mjs";
 import { CodexThreadAdapter, ThreadAdapterError } from "./thread-adapter.mjs";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const workspaceRoot = process.env.OPL_NATIVE_WORKBENCH_CODEX_CWD
+const defaultWorkspaceRoot = process.env.OPL_NATIVE_WORKBENCH_CODEX_CWD
   ?? process.env.OPL_STUDIO_CODEX_CWD
   ?? repositoryRoot;
 
@@ -87,22 +87,23 @@ function defaultCarrierDiagnostics(env) {
 
 export class OplHostCore extends EventEmitter {
   constructor({
-    transport = new CodexAppServerTransport({ cwd: workspaceRoot }),
-    opl = createOplPassthrough({ cwd: workspaceRoot }),
-    gatewayAccountLogin = createGatewayAccountLogin({ cwd: workspaceRoot }),
+    workspaceRoot = defaultWorkspaceRoot,
+    transport,
+    opl,
+    gatewayAccountLogin,
     platform = defaultPlatformServices(),
     nativeUpdater = defaultNativeUpdater(),
     carrierDiagnostics,
     env = process.env
   } = {}) {
     super();
-    this.transport = transport;
-    this.opl = opl;
-    this.gatewayAccountLogin = gatewayAccountLogin;
+    this.transport = transport ?? new CodexAppServerTransport({ cwd: workspaceRoot });
+    this.opl = opl ?? createOplPassthrough({ cwd: workspaceRoot });
+    this.gatewayAccountLogin = gatewayAccountLogin ?? createGatewayAccountLogin({ cwd: workspaceRoot });
     this.platform = { ...defaultPlatformServices(), ...platform };
     this.nativeUpdater = nativeUpdater;
     this.carrierDiagnostics = carrierDiagnostics ?? defaultCarrierDiagnostics(env);
-    this.threads = new CodexThreadAdapter(transport);
+    this.threads = new CodexThreadAdapter(this.transport);
     this.appServerError = null;
 
     this.threads.on("event", (event) => this.emit("event", event));

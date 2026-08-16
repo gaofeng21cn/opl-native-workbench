@@ -1599,7 +1599,9 @@ export function App({
 
   async function selectStudioModel(modelId: string, reasoningEffort?: string) {
     if (modelId !== "__auto" && !modelOptions.some((option) => option.id === modelId && option.available)) return false;
-    const nextReasoning = reasoningEffort ?? resolvedReasoning;
+    const nextReasoning = modelId === "__auto"
+      ? resolveCodexSelection(modelOptions, "__auto", settings.reasoningLevel).reasoningEffort
+      : reasoningEffort ?? resolvedReasoning;
     setSettings(writeSettings({ modelAccess: modelId, reasoningLevel: nextReasoning }));
     return true;
   }
@@ -1921,11 +1923,14 @@ export function App({
     uiContributions: model.uiContributions,
     threadProjects,
     threadDirectoryStatus,
+    threadDirectoryError,
     currentThreadId: codexThreadId,
     selectedProjectId: uiMetadata.selectedProjectId,
     modelOptions,
     modelSelection: effectiveSelection,
     reasoningSelection: resolvedReasoning,
+    reasoningOptions: resolvedReasoningOptions,
+    resolvedModelId: resolvedModel?.id,
     agentPresets: [
       {
         id: "opl-daily-work",
@@ -1972,6 +1977,7 @@ export function App({
     forkThread: (threadId) => { const thread = threadById(threadId); if (thread) void forkThread(thread); },
     archiveThread: archiveThreadById,
     searchThreads,
+    reloadThreadDirectory: () => { void loadThreadDirectory(false); },
     selectModel: selectStudioModel,
     selectAgentPreset: selectStudioAgentPreset,
     updatePrompt,

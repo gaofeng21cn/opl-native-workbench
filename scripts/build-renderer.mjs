@@ -155,6 +155,7 @@ export function createCodexModelPolicy(profile) {
   const gui = requireObject(profileObject.gui, "gui");
   const home = requireObject(gui.home, "gui.home");
   const display = requireObject(home.codex_model_display_options, "gui.home.codex_model_display_options");
+  const autoOption = requireObject(display.auto_option, "gui.home.codex_model_display_options.auto_option");
   const configuredDefault = requireObject(
     autoPolicy?.configured_default,
     "codex.auto_model_policy.configured_default"
@@ -237,6 +238,10 @@ export function createCodexModelPolicy(profile) {
     defaultReasoningEffort,
     visibleModels,
     reasoningEfforts,
+    autoLabel: {
+      zh: requireNonEmptyString(autoOption.label_zh, "gui.home.codex_model_display_options.auto_option.label_zh"),
+      en: requireNonEmptyString(autoOption.label_en, "gui.home.codex_model_display_options.auto_option.label_en")
+    },
     knownModelReasoningEffortOverrides,
     acceptUnknownCatalogDefault: autoPolicy
       ? autoPolicy.unknown_default_model_policy === "accept_catalog_default_even_when_not_in_frontier_model_preference_order"

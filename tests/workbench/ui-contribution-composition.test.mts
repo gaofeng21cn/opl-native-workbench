@@ -13,6 +13,7 @@ import {
   defaultReasoningEffort: "high",
   visibleModels: [{ id: "codex-fixture", label_zh: "Fixture", label_en: "Fixture" }],
   reasoningEfforts: ["high"],
+  autoLabel: { zh: "自动（推荐）", en: "Auto (recommended)" },
   knownModelReasoningEffortOverrides: { "codex-fixture": "high" },
   acceptUnknownCatalogDefault: true,
   useHighestSupportedReasoningForUnknown: true

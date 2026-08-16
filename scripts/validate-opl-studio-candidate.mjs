@@ -200,7 +200,8 @@ assert(
     && JSON.stringify(studioProfile.carrier_policy?.reserved_disabled) === JSON.stringify(["pi", "hermes"])
     && studioProfile.carrier_policy.disabled_carriers_add_runtime_dependencies === false
     && studioProfile.carrier_policy.thread_store_owner === "codex_core_app_server"
-    && studioProfile.carrier_policy.thread_overview.includes("useStateDbOnly=true")
+    && studioProfile.carrier_policy.thread_overview.includes("Codex-visible default source set")
+    && !studioProfile.carrier_policy.thread_overview.includes("useStateDbOnly")
     && studioProfile.carrier_policy.thread_history.includes("includeTurns=true"),
   "candidate profile must keep Codex as the only enabled carrier and reserve Pi/Hermes without dependencies"
 );
@@ -354,7 +355,6 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
     ["InputBar", "@opl-vendor/dsh-input-bar"],
     ["QueueDock", "@opl-vendor/dsh-queue-dock"],
     ["AgentPresetSeat", "@opl-vendor/dsh-agent-preset-seat"],
-    ["ModelSelect", "@opl-vendor/dsh-model-select"],
     ["SettingsRoot", "@opl-vendor/dsh-settings-root"]
   ]) {
     assert(slotHost.includes(`import { ${component} } from "${moduleName}"`), `missing direct ${component} vendor import`);
@@ -449,6 +449,8 @@ function assertCodexModelControls(evidence, app, rendererSource) {
   assert(hostTransport.includes('DEFAULT_PERMISSION_PROFILE = ":danger-full-access"'), "shared host core must default Agent permissions to full access");
   assert(injectedPolicy.defaultModel === appProductProfile.default_session_profile.model, "injected default model must match the App product profile");
   assert(injectedPolicy.defaultReasoningEffort === appProductProfile.default_session_profile.reasoning_effort, "injected default reasoning effort must match the App product profile");
+  assert(injectedPolicy.autoLabel.zh === appProductProfile.gui.home.codex_model_display_options.auto_option.label_zh, "injected Chinese Auto label must match the App product profile");
+  assert(injectedPolicy.autoLabel.en === appProductProfile.gui.home.codex_model_display_options.auto_option.label_en, "injected English Auto label must match the App product profile");
   assert(injectedPolicy.visibleModels.length === profileModels.length, "injected model list length must match the App product profile");
   for (const [index, expected] of profileModels.entries()) {
     const actual = injectedPolicy.visibleModels[index];
@@ -474,8 +476,8 @@ function assertCodexModelControls(evidence, app, rendererSource) {
   assert(evidence.model_list_pagination_regression?.validation_command === "npm run test:webui-host", "candidate evidence must record the model/list pagination command");
   assert(settings.includes('modelAccess: "__auto"'), "settings must default to App-owned Auto model resolution");
   assert(settings.includes("codexModelPolicy.defaultReasoningEffort"), "settings default reasoning must consume the App-derived policy");
-  assert(settingsPanel.includes("modelOptions.map") && slotHost.includes("studio.modelOptions.map"), "DSH composer and Settings must render the App-derived model list");
-  assert(settingsPanel.includes("codexModelPolicy.reasoningOptions.map") && slotHost.includes("supportedReasoningEfforts.map"), "DSH composer and Settings must render the App-derived reasoning list");
+  assert(settingsPanel.includes("modelOptions.map") && slotHost.includes("studio.modelOptions.filter"), "DSH composer and Settings must render the App-derived model list");
+  assert(settingsPanel.includes("codexModelPolicy.reasoningOptions.map") && slotHost.includes("studio.reasoningOptions.map"), "DSH composer and Settings must render the App-derived reasoning list");
   assert(policySource.includes('invalidPolicy("policy is missing")'), "missing App model policy injection must fail explicitly");
   assert(!policySource.includes("fallbackModelOptions") && !policySource.includes("fallbackReasoningOptions"), "source model policy must not keep versioned fallback lists");
   assert(app.includes("bridge.readCodexModels()"), "renderer must read app-server model availability");
@@ -488,8 +490,9 @@ function assertCodexModelControls(evidence, app, rendererSource) {
       && app.includes("replaceEphemeralQueue(ephemeralQueueRef.current.concat(item))"),
     "composer submissions during an active turn must enter the DSH queue"
   );
-  assert(slotHost.includes('import { ModelSelect } from "@opl-vendor/dsh-model-select"') && slotHost.includes("<ModelSelect"), "composer must use the pinned DSH ModelSelect");
-  assert(slotHost.includes('{ id: "__auto", name: studio.locale === "zh" ? "自动" : "Auto"'), "DSH composer must expose one App-owned Auto model row");
+  assert(slotHost.includes('from "@deepseek-ai/dsh-client-ui-primitives"') && slotHost.includes("<Menu"), "composer must build its product menu from the pinned DSH Menu primitive");
+  assert(slotHost.includes('id: "automatic"') && slotHost.includes("label: autoModelLabel(studio.locale)") && slotHost.includes('studio.selectModel("__auto")'), "composer must expose App-owned Auto as the third root recommendation action");
+  assert(!slotHost.includes('{ id: "__auto", name:'), "Auto must not be represented as a model row");
   assert(settingsPanel.includes('<option value="__auto">{autoModelLabel(settings.locale)}</option>'), "Settings must expose Auto model restoration");
   assert(app.includes("model: resolvedModel.id"), "composer must send the App-resolved model");
   assert(app.includes("reasoningEffort: resolvedReasoning"), "composer must send a supported reasoning effort");
@@ -618,14 +621,14 @@ assert(evidence.reused_oss_module_policy.byte_identical === true, "DeepSeek Harn
 assert(evidence.reused_oss_module_policy.byte_identical_to_pinned_ref === true, "DeepSeek Harness vendor source byte identity must bind to the pinned ref");
 assert(evidence.reused_oss_module_policy.vendored_package_roots?.includes("packages/client/ui-primitives/src"), "DeepSeek Harness source reuse must include the complete ui-primitives tree");
 assert(evidence.reused_oss_module_policy.ui_primitives_index === "packages/client/ui-primitives/src/index.ts", "DeepSeek Harness primitive reuse must name the upstream index");
-for (const primitive of ["Button", "Pill", "Input", "Tooltip", "StateDot", "MessageText", "icons"]) {
+  for (const primitive of ["Button", "Pill", "Input", "Tooltip", "StateDot", "MessageText", "Menu", "icons"]) {
   assert(evidence.reused_oss_module_policy.direct_ui_primitives?.includes(primitive), `missing direct DeepSeek Harness primitive evidence ${primitive}`);
 }
 assert(evidence.reused_oss_module_policy.brand_override === "vendor_external_text_only_branding", "OPL branding must stay text-only and outside vendored DSH source");
 for (const rootName of ["AppFrame", "SidebarRoot", "ConversationRoot", "InputBar", "SettingsRoot"]) {
   assert(evidence.reused_oss_module_policy.active_gui_roots.some((entry) => entry.includes(rootName)), `missing active DeepSeek Harness GUI root ${rootName}`);
 }
-for (const rootName of ["WorkspaceBrowser", "AgentPresetSeat", "ModelSelect"]) {
+for (const rootName of ["WorkspaceBrowser", "AgentPresetSeat"]) {
   assert(evidence.reused_oss_module_policy.active_gui_roots.some((entry) => entry.includes(rootName)), `missing active DeepSeek Harness product control ${rootName}`);
 }
 const clientComposition = evidence.client_composition_boundary;

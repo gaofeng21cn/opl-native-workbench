@@ -12,6 +12,8 @@ const settingsPanel = fs.readFileSync(path.join(root, "src", "workbench", "Setti
 
 test("Electron is a thin, isolated adapter over the shared host core", () => {
   assert.match(main, /createOplHostCore/);
+  assert.match(main, /workspaceRoot:\s*desktopCodexWorkspaceRoot\(\)/);
+  assert.match(main, /app\.getPath\("home"\)/);
   assert.match(main, /contextIsolation: true/);
   assert.match(main, /nodeIntegration: false/);
   assert.match(main, /sandbox: true/);

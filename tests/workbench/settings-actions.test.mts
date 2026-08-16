@@ -19,6 +19,7 @@ test("carrier diagnostics keep unavailable states human-readable and attention-t
       defaultReasoningEffort: "high",
       visibleModels: [{ id: "test-model" }],
       reasoningEfforts: ["high"],
+      autoLabel: { zh: "自动（推荐）", en: "Auto (recommended)" },
       knownModelReasoningEffortOverrides: {},
       acceptUnknownCatalogDefault: true,
       useHighestSupportedReasoningForUnknown: true
@@ -49,6 +50,7 @@ test("managed update host actions come only from the App-projected action catalo
       defaultReasoningEffort: "high",
       visibleModels: [{ id: "test-model" }],
       reasoningEfforts: ["high"],
+      autoLabel: { zh: "自动（推荐）", en: "Auto (recommended)" },
       knownModelReasoningEffortOverrides: {},
       acceptUnknownCatalogDefault: true,
       useHighestSupportedReasoningForUnknown: true

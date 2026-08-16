@@ -4,9 +4,14 @@ import path from "node:path";
 import { mkdtemp } from "node:fs/promises";
 import test from "node:test";
 import { CodexAppServerTransport } from "./app-server-transport.mjs";
-import { createOplHostCore } from "./host-core.mjs";
+import { createOplHostCore, OplHostCore } from "./host-core.mjs";
 
 const fixture = new URL("./fixtures/fake-app-server.mjs", import.meta.url).pathname;
+
+test("desktop hosts can supply a real working directory instead of the packaged app.asar path", () => {
+  const core = new OplHostCore({ workspaceRoot: "/Users/opl" });
+  assert.equal(core.transport.cwd, "/Users/opl");
+});
 
 test("shared host core serves desktop and HTTP adapters through one typed method surface", async (t) => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "opl-host-core-test-"));

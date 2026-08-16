@@ -80,8 +80,8 @@ unloads the service and removes both its plist and install root. This is an
 installed user-service baseline, not a supported installer, update channel,
 remote-access boundary, release, or production claim.
 
-The conversation directory is not a Native copy. It reads the canonical Codex
-state DB overview with `thread/list useStateDbOnly=true`, then opens the same
+The conversation directory is not a Native copy. It reads the same
+Codex-visible default source set through `thread/list`, then opens the same
 thread ID with `thread/read includeTurns=true`. Native stores only UI selection,
 settings, and unsent drafts locally.
 

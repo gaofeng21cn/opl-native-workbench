@@ -32,6 +32,7 @@ type InjectedModelPolicy = {
   defaultReasoningEffort?: string;
   visibleModels?: Array<{ id?: string; label_zh?: string; label_en?: string }>;
   reasoningEfforts?: string[];
+  autoLabel?: { zh?: string; en?: string };
   knownModelReasoningEffortOverrides?: Record<string, string>;
   acceptUnknownCatalogDefault?: boolean;
   useHighestSupportedReasoningForUnknown?: boolean;
@@ -85,6 +86,10 @@ function normalizedReasoningOptions(policy: InjectedModelPolicy): CodexReasoning
 const policy = requiredInjectedPolicy();
 const modelOptions = normalizedModelOptions(policy);
 const reasoningOptions = normalizedReasoningOptions(policy);
+const autoLabel = {
+  zh: isReasoningEffort(policy.autoLabel?.zh) ? policy.autoLabel.zh : invalidPolicy("autoLabel.zh must be a non-empty string"),
+  en: isReasoningEffort(policy.autoLabel?.en) ? policy.autoLabel.en : invalidPolicy("autoLabel.en must be a non-empty string")
+};
 const injectedDefaultModel = policy?.defaultModel;
 const injectedDefaultReasoningEffort = policy?.defaultReasoningEffort;
 if (!isModelId(injectedDefaultModel) || !modelOptions.some((option) => option.id === injectedDefaultModel)) {
@@ -121,7 +126,8 @@ export const codexModelPolicy = {
   acceptUnknownCatalogDefault: policy.acceptUnknownCatalogDefault,
   useHighestSupportedReasoningForUnknown: policy.useHighestSupportedReasoningForUnknown,
   modelOptions,
-  reasoningOptions
+  reasoningOptions,
+  autoLabel
 };
 
 function catalogModelGroup(
@@ -249,7 +255,7 @@ export function modelLabel(model: CodexModelId, locale: WorkbenchLocale): string
 }
 
 export function autoModelLabel(locale: WorkbenchLocale): string {
-  return locale === "zh" ? "自动" : "Auto";
+  return codexModelPolicy.autoLabel[locale];
 }
 
 export function conversationModelLabel(

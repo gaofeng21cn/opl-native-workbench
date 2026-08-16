@@ -84,7 +84,7 @@
       "hermes"
     ],
     "disabled_carriers_add_runtime_dependencies": false,
-    "thread_overview": "thread/list useStateDbOnly=true sortKey=updated_at sortDirection=desc",
+    "thread_overview": "thread/list follows the Codex-visible default source set with sortKey=updated_at sortDirection=desc",
     "thread_history": "thread/read includeTurns=true by canonical Codex thread id",
     "thread_store_owner": "codex_core_app_server"
   },
