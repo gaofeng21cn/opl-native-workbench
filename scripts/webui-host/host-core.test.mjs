@@ -25,6 +25,7 @@ test("optional channel provider receives canonical App Server callbacks without 
     command: process.execPath,
     args: [fixture],
     cwd: directory,
+    host: "local",
     env: process.env,
     requestTimeoutMs: 2_000,
     turnTimeoutMs: 2_000
@@ -60,31 +61,35 @@ test("optional channel provider receives canonical App Server callbacks without 
     ["function", "function", "function", "function"]
   );
 
-  const started = await callbacks.startThread({ cwd: directory });
-  assert.match(started.threadId, /^thread-created-/);
-  assert.deepEqual(await callbacks.resumeThread({ threadId: started.threadId, cwd: directory }), started);
+  const started = await callbacks.startThread({
+    provider_id: "opl-channel-weixin",
+    account_id: "account-1",
+    channel_session_id: "session-1"
+  });
+  assert.equal(started.canonical_thread_host, "local");
+  assert.match(started.canonical_thread_id, /^thread-created-/);
+  assert.equal(await callbacks.resumeThread(started), undefined);
   const turn = await callbacks.startTurn({
-    threadId: started.threadId,
-    cwd: directory,
-    prompt: "Reply through the canonical channel callback."
+    ...started,
+    text: "Reply through the canonical channel callback."
   });
   let subscription;
   const terminal = await new Promise((resolve) => {
     subscription = callbacks.subscribeTurn(turn, { onTerminal: resolve });
   });
   assert.deepEqual(terminal, {
-    schema: "opl_channel_codex_turn_terminal.v1",
-    threadId: started.threadId,
-    turnId: turn.turnId,
+    canonical_thread_host: "local",
+    canonical_thread_id: started.canonical_thread_id,
+    canonical_turn_id: turn.canonical_turn_id,
     status: "completed",
-    finalMessage: `completed ${turn.turnId}`
+    response_text: `completed ${turn.canonical_turn_id}`
   });
   assert.equal(typeof subscription.dispose, "function");
   subscription.dispose();
 
   await assert.rejects(
-    callbacks.startThread({ cwd: "relative/workspace" }),
-    (error) => error.code === "invalid_request" && /absolute path/.test(error.message)
+    callbacks.resumeThread({ ...started, canonical_thread_host: "other-host" }),
+    (error) => error.code === "invalid_app_server_response" && /different canonical thread/.test(error.message)
   );
   await core.close();
   closed = true;

@@ -1,11 +1,11 @@
 import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
+import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
 
 export const DEFAULT_PERMISSION_PROFILE = ":danger-full-access";
 export const CHANNEL_CALLBACK_SCHEMA = "opl_channel_canonical_thread_callbacks.v1";
-export const CHANNEL_TERMINAL_SCHEMA = "opl_channel_codex_turn_terminal.v1";
 
 export class AppServerTransportError extends Error {
   constructor(code, message, details = {}) {
@@ -95,27 +95,44 @@ function requiredChannelObject(value, label) {
 }
 
 function requiredChannelString(value, label) {
-  if (typeof value !== "string" || !value.trim()) {
+  if (typeof value !== "string" || value.length === 0 || value.length > 512) {
     throw new AppServerTransportError("invalid_request", `${label} must be a non-empty string`);
   }
-  return value.trim();
+  return value;
 }
 
-function channelCwd(value, fallback) {
-  if (value === undefined || value === null) return fallback;
-  const cwd = requiredChannelString(value, "cwd");
-  if (!path.isAbsolute(cwd)) {
-    throw new AppServerTransportError("invalid_request", "cwd must be an absolute path");
-  }
-  return cwd;
-}
-
-function channelInputs(value) {
-  if (value === undefined) return [];
-  if (!Array.isArray(value)) {
-    throw new AppServerTransportError("invalid_request", "inputs must be an array");
+function requiredChannelText(value) {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new AppServerTransportError("invalid_request", "text must be a non-empty string");
   }
   return value;
+}
+
+function channelThreadRef(value, label) {
+  const request = requiredChannelObject(value, label);
+  return {
+    canonical_thread_host: requiredChannelString(request.canonical_thread_host, "canonical_thread_host"),
+    canonical_thread_id: requiredChannelString(request.canonical_thread_id, "canonical_thread_id")
+  };
+}
+
+function assertChannelThreadReadback(expected, response, operation, host) {
+  const thread = response?.thread;
+  const actual = {
+    canonical_thread_host: requiredChannelString(host, `${operation} thread host`),
+    canonical_thread_id: requiredChannelString(thread?.id, `${operation} thread id`)
+  };
+  if (
+    actual.canonical_thread_host !== expected.canonical_thread_host
+    || actual.canonical_thread_id !== expected.canonical_thread_id
+  ) {
+    throw new AppServerTransportError(
+      "invalid_app_server_response",
+      `${operation} returned a different canonical thread`,
+      { expected, actual }
+    );
+  }
+  return actual;
 }
 
 export class CodexAppServerTransport extends EventEmitter {
@@ -123,6 +140,7 @@ export class CodexAppServerTransport extends EventEmitter {
     command = process.env.OPL_CODEX_BIN ?? process.env.CODEX_APP_SERVER_COMMAND ?? "codex",
     args = process.env.CODEX_APP_SERVER_ARGS?.split(" ").filter(Boolean) ?? ["app-server", "--stdio"],
     cwd = process.env.OPL_STUDIO_CODEX_CWD ?? process.cwd(),
+    host = os.hostname(),
     env = process.env,
     requestTimeoutMs = 45_000,
     turnTimeoutMs = 180_000
@@ -131,6 +149,7 @@ export class CodexAppServerTransport extends EventEmitter {
     this.command = command;
     this.args = args;
     this.cwd = cwd;
+    this.host = requiredChannelString(host, "host");
     this.env = env;
     this.requestTimeoutMs = requestTimeoutMs;
     this.turnTimeoutMs = turnTimeoutMs;
@@ -369,47 +388,40 @@ export class CodexAppServerTransport extends EventEmitter {
     return Object.freeze({
       startThread: async (request = {}) => {
         const value = requiredChannelObject(request, "startThread request");
-        const response = await transport.startThread({
-          cwd: channelCwd(value.cwd, transport.cwd),
-          approvalPolicy: "never",
-          permissions: DEFAULT_PERMISSION_PROFILE
-        });
-        const threadId = response.thread?.id;
-        if (typeof threadId !== "string" || !threadId.trim()) {
-          throw new AppServerTransportError(
-            "invalid_app_server_response",
-            "thread/start returned no thread id"
-          );
-        }
-        return { threadId: threadId.trim() };
+        requiredChannelString(value.provider_id, "provider_id");
+        requiredChannelString(value.account_id, "account_id");
+        requiredChannelString(value.channel_session_id, "channel_session_id");
+        const response = await transport.startThread();
+        const canonicalThread = {
+          canonical_thread_host: transport.host,
+          canonical_thread_id: requiredChannelString(response.thread?.id, "thread/start thread id")
+        };
+        const readback = await transport.readThread(canonicalThread.canonical_thread_id);
+        assertChannelThreadReadback(canonicalThread, readback, "thread/start readback", transport.host);
+        return canonicalThread;
       },
       resumeThread: async (request = {}) => {
-        const value = requiredChannelObject(request, "resumeThread request");
-        const threadId = requiredChannelString(value.threadId, "threadId");
-        const response = await transport.resumeThread(threadId, {
-          cwd: channelCwd(value.cwd, transport.cwd),
+        const canonicalThread = channelThreadRef(request, "resumeThread request");
+        const readback = await transport.readThread(canonicalThread.canonical_thread_id);
+        assertChannelThreadReadback(canonicalThread, readback, "thread/resume readback", transport.host);
+        const response = await transport.resumeThread(canonicalThread.canonical_thread_id, {
+          cwd: transport.cwd,
           approvalPolicy: "never",
           permissions: DEFAULT_PERMISSION_PROFILE
         });
-        const responseThreadId = response.thread?.id;
-        if (responseThreadId !== undefined && responseThreadId !== threadId) {
-          throw new AppServerTransportError(
-            "invalid_app_server_response",
-            "thread/resume acknowledged a different thread",
-            { expectedThreadId: threadId, receivedThreadId: responseThreadId }
-          );
-        }
-        return { threadId };
+        assertChannelThreadReadback(canonicalThread, response, "thread/resume", transport.host);
       },
       startTurn: async (request = {}) => {
         const value = requiredChannelObject(request, "startTurn request");
-        const threadId = requiredChannelString(value.threadId, "threadId");
+        const canonicalThread = channelThreadRef(value, "startTurn request");
+        const readback = await transport.readThread(canonicalThread.canonical_thread_id);
+        assertChannelThreadReadback(canonicalThread, readback, "turn/start readback", transport.host);
         const response = await transport.startTurn(
-          threadId,
-          value.prompt,
-          channelInputs(value.inputs),
+          canonicalThread.canonical_thread_id,
+          requiredChannelText(value.text),
+          [],
           {
-            cwd: channelCwd(value.cwd, transport.cwd),
+            cwd: transport.cwd,
             approvalPolicy: "never",
             permissions: DEFAULT_PERMISSION_PROFILE
           }
@@ -421,23 +433,30 @@ export class CodexAppServerTransport extends EventEmitter {
             "turn/start returned no turn id"
           );
         }
-        return { threadId, turnId: turnId.trim() };
+        return {
+          ...canonicalThread,
+          canonical_turn_id: turnId
+        };
       },
       subscribeTurn(request = {}, observer) {
         const value = requiredChannelObject(request, "subscribeTurn request");
-        const threadId = requiredChannelString(value.threadId, "threadId");
-        const turnId = requiredChannelString(value.turnId, "turnId");
+        const canonicalThread = channelThreadRef(value, "subscribeTurn request");
+        const canonicalTurnId = requiredChannelString(value.canonical_turn_id, "canonical_turn_id");
         if (!observer || typeof observer !== "object" || typeof observer.onTerminal !== "function") {
           throw new AppServerTransportError("invalid_request", "subscribeTurn observer requires onTerminal");
         }
-        return transport.subscribeChannelTurn({ threadId, turnId }, observer);
+        return transport.subscribeChannelTurn({
+          ...canonicalThread,
+          canonical_turn_id: canonicalTurnId
+        }, observer);
       }
     });
   }
 
-  subscribeChannelTurn({ threadId, turnId }, observer) {
-    const normalizedThreadId = requiredChannelString(threadId, "threadId");
-    const normalizedTurnId = requiredChannelString(turnId, "turnId");
+  subscribeChannelTurn({ canonical_thread_host, canonical_thread_id, canonical_turn_id }, observer) {
+    const normalizedThreadHost = requiredChannelString(canonical_thread_host, "canonical_thread_host");
+    const normalizedThreadId = requiredChannelString(canonical_thread_id, "canonical_thread_id");
+    const normalizedTurnId = requiredChannelString(canonical_turn_id, "canonical_turn_id");
     if (!observer || typeof observer !== "object" || typeof observer.onTerminal !== "function") {
       throw new AppServerTransportError("invalid_request", "channel turn observer requires onTerminal");
     }
@@ -451,13 +470,24 @@ export class CodexAppServerTransport extends EventEmitter {
       if (eventThreadId && eventThreadId !== normalizedThreadId) return;
       settled = true;
       this.off("event", onEvent);
-      const event = {
-        schema: CHANNEL_TERMINAL_SCHEMA,
-        threadId: normalizedThreadId,
-        turnId: normalizedTurnId,
-        status: notification?.turn?.status ?? notification?.status ?? "completed",
-        finalMessage: result?.finalMessage ?? ""
+      const status = notification?.turn?.status ?? notification?.status ?? "completed";
+      const base = {
+        canonical_thread_host: normalizedThreadHost,
+        canonical_thread_id: normalizedThreadId,
+        canonical_turn_id: normalizedTurnId
       };
+      const event = status === "failed"
+        ? {
+            ...base,
+            status: "failed",
+            error: {
+              code: notification?.turn?.error?.code ?? "codex_turn_failed",
+              message: notification?.turn?.error?.message ?? "Canonical Codex turn failed."
+            }
+          }
+        : status === "interrupted" || status === "cancelled"
+          ? { ...base, status: "cancelled" }
+          : { ...base, status: "completed", response_text: result?.finalMessage ?? "" };
       void Promise.resolve(observer.onTerminal(event)).catch(() => {
         // Provider callback errors must not change the canonical turn result.
       });
