@@ -83,9 +83,10 @@ test("macOS installs and controls a per-user launchd service with fixed argv", a
 
 test("Linux uses systemd --user and removes only the user unit", async () => {
   const { manager, calls, files } = harness("linux", {
+    headlessEntry: "/opt/one person lab/scripts/headless/run.mjs",
     serviceEnvironment: {
       OPL_HEADLESS_PORT: "4180",
-      OPL_NATIVE_APP_UPDATE_CHECK_ARGS_JSON: '["/opt/one-person-lab/scripts/headless/update-runner.mjs","check"]'
+      OPL_NATIVE_APP_UPDATE_CHECK_ARGS_JSON: '["/opt/one person lab/scripts/headless/update-runner.mjs","check"]'
     }
   });
 
@@ -109,9 +110,10 @@ test("Linux uses systemd --user and removes only the user unit", async () => {
   const unit = files.find((file) => file.operation === "writeFile");
   assert.equal(unit.target, "/home/opl/.config/systemd/user/one-person-lab-headless.service");
   assert.match(unit.contents, /^\[Unit\]/);
-  assert.match(unit.contents, /ExecStart="\/usr\/bin\/node" "\/opt\/one-person-lab\/scripts\/headless\/run\.mjs"/);
+  assert.match(unit.contents, /WorkingDirectory=\/opt\/one\\x20person\\x20lab/);
+  assert.match(unit.contents, /ExecStart="\/usr\/bin\/node" "\/opt\/one person lab\/scripts\/headless\/run\.mjs"/);
   assert.match(unit.contents, /Environment="OPL_HEADLESS_PORT=4180"/);
-  assert.match(unit.contents, /Environment="OPL_NATIVE_APP_UPDATE_CHECK_ARGS_JSON=\[\\"\/opt\/one-person-lab\/scripts\/headless\/update-runner\.mjs\\",\\"check\\"\]"/);
+  assert.match(unit.contents, /Environment="OPL_NATIVE_APP_UPDATE_CHECK_ARGS_JSON=\[\\"\/opt\/one person lab\/scripts\/headless\/update-runner\.mjs\\",\\"check\\"\]"/);
   assert.doesNotMatch(unit.contents, /--headless|ExecStart=.*(?:ba)?sh/);
   assert.ok(files.some((file) => file.operation === "rm" && file.target === unit.target));
   assertNoShell(calls);

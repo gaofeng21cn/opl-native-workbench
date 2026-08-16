@@ -18,6 +18,9 @@ test("package scripts expose the supported headless install surface", async () =
   const packageJson = JSON.parse(await readFile(path.join(repositoryRoot, "package.json"), "utf8"));
   assert.equal(packageJson.scripts["headless:install"], "node scripts/install-headless.mjs install");
   assert.equal(packageJson.scripts["headless:status"], "node scripts/install-headless.mjs status");
+  assert.equal(packageJson.scripts["headless:start"], "node scripts/install-headless.mjs start");
+  assert.equal(packageJson.scripts["headless:stop"], "node scripts/install-headless.mjs stop");
+  assert.equal(packageJson.scripts["headless:restart"], "node scripts/install-headless.mjs restart");
   assert.equal(packageJson.scripts["headless:update"], "node scripts/install-headless.mjs update");
   assert.equal(packageJson.scripts["headless:rollback"], "node scripts/install-headless.mjs rollback");
   assert.equal(packageJson.scripts["headless:uninstall"], "node scripts/install-headless.mjs uninstall");
@@ -77,6 +80,49 @@ test("hosted macOS qualification installs pinned runtime inputs and reads owner 
   assert.match(binding.run, /current\/scripts\/headless\/run\.mjs/);
   assert.match(binding.run, /EnvironmentVariables\.OPL_APP_OPL_BIN/);
   assert.match(binding.run, /EnvironmentVariables\.OPL_APP_STATE_TIMEOUT_MS/);
+});
+
+test("hosted Linux qualification proves the systemd user-service lifecycle and cleanup", async () => {
+  const workflowSource = await readFile(workflowPath, "utf8");
+  const workflow = YAML.parse(workflowSource);
+  const job = workflow.jobs["headless-installed-linux"];
+  assert.ok(job, "missing hosted Linux headless installed job");
+  assert.equal(job["runs-on"], "ubuntu-latest");
+
+  const userManager = named(job.steps, "Prepare Linux user service manager");
+  const install = named(job.steps, "Install headless Linux user service");
+  const stop = named(job.steps, "Stop and inspect headless Linux user service");
+  const start = named(job.steps, "Start headless Linux user service");
+  const restart = named(job.steps, "Restart headless Linux user service");
+  const update = named(job.steps, "Update and restart installed headless Linux runtime");
+  const rollback = named(job.steps, "Roll back and restart installed headless Linux runtime");
+  const binding = named(job.steps, "Verify installed systemd user-service binding");
+  const cleanup = named(job.steps, "Uninstall headless Linux user service and verify cleanup");
+
+  assert.match(userManager.run, /loginctl enable-linger/);
+  assert.match(userManager.run, /user@\$\{user_id\}\.service/);
+  assert.match(install.run, /headless:install/);
+  assert.match(install.run, /surfaceKind !== "opl_app_state\.v1"/);
+  assert.match(stop.run, /headless:stop/);
+  assert.match(stop.run, /ActiveState=inactive/);
+  assert.match(start.run, /headless:start/);
+  assert.match(restart.run, /headless:restart/);
+  assert.match(update.run, /headless:update/);
+  assert.match(update.run, /version !== process\.env\.OPL_HEADLESS_TARGET_VERSION/);
+  assert.match(rollback.run, /headless:rollback/);
+  assert.match(rollback.run, /version !== process\.env\.OPL_HEADLESS_BASE_VERSION/);
+  assert.match(binding.run, /property=ExecStart/);
+  assert.match(binding.run, /OPL_APP_OPL_BIN=/);
+  assert.match(cleanup.if, /always\(\)/);
+  assert.match(cleanup.run, /journalctl --user-unit=one-person-lab-headless\.service/);
+  assert.match(cleanup.run, /headless:uninstall/);
+  assert.match(cleanup.run, /property=LoadState/);
+  assert.match(cleanup.run, /test "\$load_state" = not-found/);
+  assert.match(cleanup.run, /loginctl disable-linger/);
+
+  const serializedJob = JSON.stringify(job);
+  assert.doesNotMatch(serializedJob, /--no-sandbox/);
+  assert.doesNotMatch(serializedJob, /(?:release|publish|deploy|notary)\s*:/i);
 });
 
 test("hosted macOS qualification always removes service definition and installed payload", async () => {

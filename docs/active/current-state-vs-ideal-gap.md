@@ -52,7 +52,7 @@ release admission, and is explicitly adopted.
 | Product brand | `one_person_lab_only` | `OPL Studio` remains an internal repo/codename and is not a user-facing product brand or logo |
 | Renderer/hosts | `shared_renderer_and_node_host_core_implemented` | Electron IPC and HTTP/SSE adapt one host core and one renderer; release-cohort equivalence is not proven |
 | Desktop host | `electron_hosted_installer_native_api_accessibility_baseline` | macOS directory packaging is proven locally; hosted Windows x64 and Linux x64 build two unsigned package cohorts and prove install/update/rollback/uninstall of NSIS and DEB with exact running-version, state-preservation, and process-bound UIA/AT-SPI tree readback. DEB is the only admitted Linux native carrier; AppImage is rejected because its sandbox requirements conflict with direct portable execution on Ubuntu 24.04. Dedicated clean-VM, NVDA/Orca experience, signing, release, and platform support remain unqualified |
-| Headless/WebUI host | `macos_user_service_installed_baseline` | Candidate WebUI starts Codex App Server directly; formal install/status/uninstall commands manage a per-user service, and hosted macOS proves exact pinned runtime paths, readiness, App-state readback, and complete launchd/plist/payload removal. Linux installed lifecycle, update/rollback, remote access, and release remain open; no Electron/AionCore or Desktop database is used |
+| Headless/WebUI host | `posix_user_service_qualification_wired` | Candidate WebUI starts Codex App Server directly. Formal install/status/stop/start/restart/update/rollback/uninstall commands manage only the current user's launchd or systemd service. The hosted jobs bind exact pinned runtime paths, readiness and App-state readback, then prove native service-definition and payload removal. Supported installers, remote access, signing and release remain open; no Electron/AionCore or Desktop database is used |
 | Docker carrier | `successor_oci_hosted_qualification_wired` | Dockerfile/Compose reuse the shared Node host core and renderer with pinned inputs and persistent volumes; the non-release lane builds a local-only amd64/arm64 OCI layout with SBOM/provenance and runs install/update/recreate/rollback/uninstall on both architectures. Registry identity, signing, public distribution, clean-host and release admission remain open |
 | AionUI/AionCore dependency | `false` | Native starts Codex App Server directly and consumes only Framework App state/action contracts |
 | Enabled carrier | `codex_app_server_stdio` | The candidate has one runtime carrier and one App Server child per native window or Web host |
@@ -71,7 +71,7 @@ release admission, and is explicitly adopted.
 | Run detail | `identity_scoped_composition` | Agent activity, work status, runtime detail, files, and results are scoped to the active thread/work item; unknown modules degrade locally |
 | Local launcher | `implemented_candidate_path` | Isolated bundle; actions dry-run-only by default |
 | Minimum product baseline | `eight_source_outcomes_complete` | Thread/turn lifecycle, run detail, files/results, settings/diagnostics, dynamic Agents, capabilities/contributions, three-object maintenance, and service recovery are source-complete; later evidence axes remain independent |
-| Validation | `source_local_and_hosted_installer_native_accessibility_gates_green` | Focused/full tests, local macOS package/live Electron, hosted macOS Headless install/status/uninstall with owner-state readback, hosted Windows/Linux unsigned package install/update/rollback/uninstall plus exact running-version, state-preservation, Chromium AX, native UIA/AT-SPI, and cleanup readback, Docker, and desktop/mobile browser checks prove only their exact candidate bytes and named carriers |
+| Validation | `source_local_and_hosted_installer_native_accessibility_gates_green` | Focused/full tests, local macOS package/live Electron, hosted macOS/Linux Headless user-service lifecycles with owner-state readback, hosted Windows/Linux unsigned package install/update/rollback/uninstall plus exact running-version, state-preservation, Chromium AX, native UIA/AT-SPI, and cleanup readback, Docker, and desktop/mobile browser checks prove only their exact candidate bytes and named carriers |
 | Adoption and readiness | `false` | No active-shell adoption, release, clean-VM, domain, owner-acceptance, or production claim |
 
 ## Current Gaps
@@ -80,7 +80,7 @@ release admission, and is explicitly adopted.
 | --- | --- | --- | --- |
 | App contract currentness must be re-read before any change | `structural_currentness_gate` | App contracts and GUI docs | Stop if the candidate write set conflicts with a newer App decision or active owner lane |
 | Desktop App updater feed is not qualified | `release_admission_p0` | App release producer plus desktop package owner | Electron updater state/operations are implemented; produce signed artifacts and a dedicated signed feed, then prove check/download/apply/restart/version readback without consuming AionUI update metadata |
-| Headless service distribution is incomplete | `delivery_p0` | App install owner plus shared-host owner | Preserve the hosted macOS install/status/uninstall and fresh App-state baseline; next prove the Linux installed user-service path plus start/stop/restart/update/rollback, then admit supported installers separately |
+| Headless service distribution is incomplete | `delivery_p0` | App install owner plus shared-host owner | Preserve the hosted macOS/Linux user-service lifecycle and fresh App-state baseline, then admit supported installers, authenticated remote access, signed update sources, and release cohorts separately |
 | Successor OCI carrier release admission is incomplete | `delivery_p0` | App release/install owner plus host-core owner | Preserve the hosted non-public multi-arch layout and manager lifecycle proof, then qualify immutable registry identity, signatures, vulnerability policy, clean-host installation and release without Electron or AionCore |
 | Windows/Linux dedicated clean-VM and screen-reader qualification remain incomplete | `delivery_p1` | Platform package owners | Hosted-runner NSIS and DEB lifecycle plus process-bound UIA/AT-SPI trees are proven; next qualify dedicated clean VMs, NVDA/Orca user experience, and supported-user-path behavior. AppImage is a closed non-admission decision, not an open delivery promise |
 | Exact-cohort Pixel and accessibility acceptance are absent | `evidence_p1` | App GUI acceptance owner | Capture the tested Desktop and WebUI cohorts across target viewports, keyboard and screen-reader paths; source screenshots do not close installed Pixel |
@@ -146,9 +146,9 @@ carrier.
 
 1. Complete the macOS Desktop cohort with signed distributable artifacts, a
    dedicated update feed, and installed check/apply/restart/version readback.
-2. Extend the hosted macOS Headless install/update/rollback/uninstall baseline
-   to a Linux user-service lifecycle, then bind qualified paths to supported
-   installers through separate App release admission.
+2. Preserve the hosted macOS/Linux Headless user-service lifecycles, then bind
+   qualified paths to supported installers, authenticated remote access, signed
+   update sources, and separate App release admission.
 3. Complete Docker/OCI distribution, host-managed image recreate/rollback,
    multi-arch, supply-chain, and remote-access security qualification.
 4. Extend the hosted Windows/Linux NSIS/DEB lifecycle and UIA/AT-SPI baseline to

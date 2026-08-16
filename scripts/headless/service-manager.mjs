@@ -46,6 +46,18 @@ function systemdArgument(value) {
   return `"${safe}"`;
 }
 
+function systemdPath(value) {
+  const safe = assertServiceValue(value, "systemd path");
+  if (!path.posix.isAbsolute(safe)) throw new Error("systemd path must be absolute");
+  return safe
+    .replaceAll("\\", "\\x5c")
+    .replaceAll(" ", "\\x20")
+    .replaceAll("\t", "\\x09")
+    .replaceAll('"', "\\x22")
+    .replaceAll("'", "\\x27")
+    .replaceAll("%", "%%");
+}
+
 function normalizedEnvironment(environment) {
   if (!environment || typeof environment !== "object" || Array.isArray(environment)) {
     throw new Error("serviceEnvironment must be an object");
@@ -107,7 +119,7 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=${systemdArgument(workingDirectory)}
+WorkingDirectory=${systemdPath(workingDirectory)}
 ExecStart=${systemdArgument(nodeExecutable)} ${systemdArgument(headlessEntry)}
 ${environment.map(([name, value]) => `Environment=${systemdArgument(`${name}=${value}`)}`).join("\n")}
 Restart=on-failure

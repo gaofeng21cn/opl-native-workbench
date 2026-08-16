@@ -72,13 +72,14 @@ SBOM/provenance attestations, then runs the existing install/update/recreate/
 rollback/uninstall lifecycle on both architectures. It does not log in to a
 registry, push an image, or create a release cohort.
 
-The macOS non-release lane also installs the standalone Headless WebUI as a
-per-user LaunchAgent from the exact candidate Framework/App/Codex inputs. It
-reads `/readyz` and `opl_app_state.v1` through the installed payload, verifies
-that launchd is bound to that payload and those absolute runtime paths, then
-unloads the service and removes both its plist and install root. This is an
-installed user-service baseline, not a supported installer, update channel,
-remote-access boundary, release, or production claim.
+The macOS and Linux non-release lanes also install the standalone Headless
+WebUI as a per-user LaunchAgent or systemd user service from the exact candidate
+Framework/App/Codex inputs. They read `/readyz` and `opl_app_state.v1` through
+the installed payload, verify the native service definition and absolute
+runtime paths, exercise stop/start/restart/update/rollback, then remove the
+service definition and install root. These are installed user-service
+qualification paths, not supported installers, update channels, remote-access
+boundaries, release, or production claims.
 
 The conversation directory is not a Native copy. It reads the same
 Codex-visible default source set through `thread/list`, then opens the same
@@ -135,24 +136,28 @@ is process liveness; `/readyz` is successful Codex App Server initialization.
 SIGINT and SIGTERM close HTTP/SSE and the child App Server within the configured
 shutdown bound.
 
-On macOS, after building the WebUI and supplying absolute `OPL_APP_OPL_BIN`,
-`OPL_APP_REPO_ROOT`, `OPL_CODEX_BIN`, and `CODEX_HOME` paths, the supported
-candidate service commands are:
+On macOS or Linux, after building the WebUI and supplying absolute
+`OPL_APP_OPL_BIN`, `OPL_APP_REPO_ROOT`, `OPL_CODEX_BIN`, and `CODEX_HOME` paths,
+the candidate service commands are:
 
 ```bash
 npm run headless:install
 npm run headless:status
+npm run headless:stop
+npm run headless:start
+npm run headless:restart
 npm run headless:update
 npm run headless:rollback
 npm run headless:uninstall
 ```
 
-They manage only the current user's `com.onepersonlab.headless` LaunchAgent and
-default to loopback. The installed payload lives under the user's Application
-Support directory; update keeps one previous payload and rollback restores it,
-with both transitions restarting and reading back the same service. Command
-options can select a different absolute install root, workspace, port, and
-loopback host.
+They manage only the current user's `com.onepersonlab.headless` LaunchAgent or
+`one-person-lab-headless.service` systemd unit and default to loopback. The
+installed payload lives under the user's Application Support directory on
+macOS or local data directory on Linux; update keeps one previous payload and
+rollback restores it, with both transitions restarting and reading back the
+same service. Command options can select a different absolute install root,
+workspace, port, and loopback host.
 
 ### Docker Candidate
 
