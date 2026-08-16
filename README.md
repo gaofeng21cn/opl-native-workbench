@@ -142,13 +142,17 @@ candidate service commands are:
 ```bash
 npm run headless:install
 npm run headless:status
+npm run headless:update
+npm run headless:rollback
 npm run headless:uninstall
 ```
 
 They manage only the current user's `com.onepersonlab.headless` LaunchAgent and
 default to loopback. The installed payload lives under the user's Application
-Support directory; command options can select a different absolute install root,
-workspace, port, and loopback host.
+Support directory; update keeps one previous payload and rollback restores it,
+with both transitions restarting and reading back the same service. Command
+options can select a different absolute install root, workspace, port, and
+loopback host.
 
 ### Docker Candidate
 

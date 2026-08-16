@@ -97,7 +97,7 @@ test("installer binds the installed runtime, fixed updater argv, and fresh host/
   assert.equal(JSON.parse(await readFile(path.join(installRoot, "installation.json"), "utf8")).version, "1.0.0");
 });
 
-test("installer delegates lifecycle actions, restarts only an applied update, and uninstalls its payload", async () => {
+test("installer restarts applied updates and rollbacks, then uninstalls its payload", async () => {
   const sourceRoot = await sourceFixture();
   const installRoot = await mkdtemp(path.join(os.tmpdir(), "opl-headless-install-"));
   const serviceActions = [];
@@ -120,9 +120,9 @@ test("installer delegates lifecycle actions, restarts only an applied update, an
         return {
           schema: "opl_native_app_updater.v1",
           supported: true,
-          state: "applied",
-          currentVersion: "1.0.0",
-          targetVersion: "1.1.0",
+          state: operation === "rollback" ? "rolled_back" : "applied",
+          currentVersion: operation === "rollback" ? "1.1.0" : "1.0.0",
+          targetVersion: operation === "rollback" ? "1.0.0" : "1.1.0",
           restartRequired: true
         };
       }
@@ -138,9 +138,10 @@ test("installer delegates lifecycle actions, restarts only an applied update, an
   await installer.run("stop");
   await installer.run("start");
   await installer.run("restart");
-  await installer.run("update");
-  assert.deepEqual(updateOperations, ["apply"]);
-  assert.deepEqual(serviceActions, ["install", "status", "stop", "start", "restart", "restart"]);
+  assert.equal((await installer.run("update")).version, "1.1.0");
+  assert.equal((await installer.run("rollback")).version, "1.0.0");
+  assert.deepEqual(updateOperations, ["apply", "rollback"]);
+  assert.deepEqual(serviceActions, ["install", "status", "stop", "start", "restart", "restart", "restart"]);
   await installer.run("uninstall");
   assert.equal(serviceActions.at(-1), "uninstall");
   await assert.rejects(readFile(path.join(installRoot, "installation.json"), "utf8"), /ENOENT/);

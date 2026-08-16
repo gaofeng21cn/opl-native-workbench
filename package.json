@@ -66,6 +66,8 @@
     "start:headless": "node scripts/headless/run.mjs",
     "headless:install": "node scripts/install-headless.mjs install",
     "headless:status": "node scripts/install-headless.mjs status",
+    "headless:update": "node scripts/install-headless.mjs update",
+    "headless:rollback": "node scripts/install-headless.mjs rollback",
     "headless:uninstall": "node scripts/install-headless.mjs uninstall",
     "build": "node scripts/build-renderer.mjs",
     "build:webui": "node scripts/build-webui.mjs",

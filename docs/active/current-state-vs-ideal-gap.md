@@ -146,9 +146,9 @@ carrier.
 
 1. Complete the macOS Desktop cohort with signed distributable artifacts, a
    dedicated update feed, and installed check/apply/restart/version readback.
-2. Extend the hosted macOS Headless install/status/uninstall baseline to Linux
-   user-service installation and update/rollback, then bind qualified paths to
-   supported installers through separate App release admission.
+2. Extend the hosted macOS Headless install/update/rollback/uninstall baseline
+   to a Linux user-service lifecycle, then bind qualified paths to supported
+   installers through separate App release admission.
 3. Complete Docker/OCI distribution, host-managed image recreate/rollback,
    multi-arch, supply-chain, and remote-access security qualification.
 4. Extend the hosted Windows/Linux NSIS/DEB lifecycle and UIA/AT-SPI baseline to

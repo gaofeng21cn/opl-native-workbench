@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { restartLoadedHeadlessService } from "./service-manager.mjs";
 
 const modulePath = fileURLToPath(import.meta.url);
-const operations = new Set(["status", "check", "apply", "restart"]);
+const operations = new Set(["status", "check", "apply", "rollback", "restart"]);
 const installRecordName = "installation.json";
 
 function sameFile(left, right) {
@@ -162,6 +162,55 @@ export async function installHeadlessPayload({ sourceRoot, installRoot }) {
   }
 }
 
+async function rollbackHeadlessPayload(installRoot, installed) {
+  const root = absolute(installRoot, "installRoot");
+  const current = path.join(root, "current");
+  const previous = path.join(root, "previous");
+  if (!await exists(previous)) return null;
+  await validatePayload(current);
+  await validatePayload(previous);
+
+  const targetVersion = await sourceVersion(previous);
+  const staging = path.join(root, `.rollback-${process.pid}-${Date.now()}`);
+  const recordPath = path.join(root, installRecordName);
+  const recordStaging = `${recordPath}.rollback-${process.pid}`;
+  const nextRecord = {
+    ...installed,
+    version: targetVersion,
+    currentPath: current,
+    rolledBackAt: new Date().toISOString()
+  };
+  await writeFile(recordStaging, `${JSON.stringify(nextRecord, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+
+  try {
+    await rename(current, staging);
+    try {
+      await rename(previous, current);
+      try {
+        await rename(staging, previous);
+      } catch (error) {
+        await rename(current, previous);
+        throw error;
+      }
+    } catch (error) {
+      await rename(staging, current);
+      throw error;
+    }
+    try {
+      await rename(recordStaging, recordPath);
+    } catch (error) {
+      await rename(previous, staging);
+      await rename(current, previous);
+      await rename(staging, current);
+      throw error;
+    }
+    return { currentVersion: installed.version, targetVersion };
+  } finally {
+    await rm(staging, { recursive: true, force: true });
+    await rm(recordStaging, { force: true });
+  }
+}
+
 function result(state, fields = {}) {
   return {
     schema: "opl_native_app_updater.v1",
@@ -231,6 +280,18 @@ export function createHeadlessUpdateRunner({
           await scheduleRestart();
           return result("restart_scheduled", { accepted: true });
         }
+        if (operation === "rollback") {
+          const installed = await readInstallRecord(root);
+          const rolledBack = await rollbackHeadlessPayload(root, installed);
+          if (!rolledBack) {
+            return unsupported("rollback_unavailable", { currentVersion: installed.version });
+          }
+          return result("rolled_back", {
+            ...rolledBack,
+            restartRequired: true,
+            accepted: true
+          });
+        }
         const checked = await availability();
         if (operation === "check" || checked.response.state !== "available") return checked.response;
         const installed = await installHeadlessPayload({ sourceRoot: checked.values.source, installRoot: root });
@@ -253,7 +314,7 @@ export function createHeadlessUpdateRunner({
 
 function parseArguments(argv) {
   const [operation, ...rest] = argv;
-  if (!operations.has(operation)) throw new Error("Headless updater requires status, check, apply, or restart");
+  if (!operations.has(operation)) throw new Error("Headless updater requires status, check, apply, rollback, or restart");
   const options = {};
   for (let index = 0; index < rest.length; index += 2) {
     const flag = rest[index];

@@ -18,6 +18,8 @@ test("package scripts expose the supported headless install surface", async () =
   const packageJson = JSON.parse(await readFile(path.join(repositoryRoot, "package.json"), "utf8"));
   assert.equal(packageJson.scripts["headless:install"], "node scripts/install-headless.mjs install");
   assert.equal(packageJson.scripts["headless:status"], "node scripts/install-headless.mjs status");
+  assert.equal(packageJson.scripts["headless:update"], "node scripts/install-headless.mjs update");
+  assert.equal(packageJson.scripts["headless:rollback"], "node scripts/install-headless.mjs rollback");
   assert.equal(packageJson.scripts["headless:uninstall"], "node scripts/install-headless.mjs uninstall");
 });
 
@@ -34,6 +36,8 @@ test("hosted macOS qualification installs pinned runtime inputs and reads owner 
   const bun = named(job.steps, "Set up Bun");
   const codex = named(job.steps, "Install pinned Codex CLI");
   const install = named(job.steps, "Install headless macOS user service");
+  const update = named(job.steps, "Update and restart installed headless runtime");
+  const rollback = named(job.steps, "Roll back and restart installed headless runtime");
   const inspect = named(job.steps, "Inspect installed headless runtime");
   const binding = named(job.steps, "Verify installed LaunchAgent binding");
 
@@ -59,6 +63,12 @@ test("hosted macOS qualification installs pinned runtime inputs and reads owner 
   assert.match(install.run, /ready\?\.status !== "ready"/);
   assert.match(install.run, /appServerAvailable !== true/);
   assert.match(install.run, /surfaceKind !== "opl_app_state\.v1"/);
+  assert.match(update.run, /headless:update/);
+  assert.match(update.run, /status !== "updated"/);
+  assert.match(update.run, /version !== process\.env\.OPL_HEADLESS_TARGET_VERSION/);
+  assert.match(rollback.run, /headless:rollback/);
+  assert.match(rollback.run, /status !== "rolled_back"/);
+  assert.match(rollback.run, /version !== process\.env\.OPL_HEADLESS_BASE_VERSION/);
   assert.match(inspect.run, /headless:status/);
   assert.match(inspect.run, /readback\?\.exitCode !== 0/);
   assert.match(binding.run, /ProgramArguments\.1/);

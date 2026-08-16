@@ -511,21 +511,43 @@ jobs:
           codex_home="$RUNNER_TEMP/codex-home"
           install_root="$RUNNER_TEMP/one-person-lab-headless"
           workspace_root="$RUNNER_TEMP/opl-workspace"
+          base_source="$RUNNER_TEMP/opl-headless-base-source"
           mkdir -p "$codex_home" "$workspace_root"
           {
             echo "CODEX_HOME=$codex_home"
             echo "OPL_CODEX_BIN=$codex_path"
+            echo "OPL_HEADLESS_BASE_SOURCE=$base_source"
+            echo "OPL_HEADLESS_BASE_VERSION=0.0.0-headless-base"
             echo "OPL_HEADLESS_INSTALL_ROOT=$install_root"
+            echo "OPL_HEADLESS_TARGET_VERSION=$(node -p 'require(\"./package.json\").version')"
             echo "OPL_HEADLESS_WORKSPACE_ROOT=$workspace_root"
           } >> "$GITHUB_ENV"
 
       - name: Build shared WebUI
         run: npm run build:webui
 
+      - name: Prepare base headless payload
+        shell: bash
+        run: |
+          mkdir -p "$OPL_HEADLESS_BASE_SOURCE/dist" "$OPL_HEADLESS_BASE_SOURCE/scripts"
+          cp package.json "$OPL_HEADLESS_BASE_SOURCE/package.json"
+          cp -R dist/webui "$OPL_HEADLESS_BASE_SOURCE/dist/webui"
+          cp -R scripts/headless "$OPL_HEADLESS_BASE_SOURCE/scripts/headless"
+          cp -R scripts/webui-host "$OPL_HEADLESS_BASE_SOURCE/scripts/webui-host"
+          cp scripts/install-headless.mjs "$OPL_HEADLESS_BASE_SOURCE/scripts/install-headless.mjs"
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const path = `${process.env.OPL_HEADLESS_BASE_SOURCE}/package.json`;
+          const value = JSON.parse(fs.readFileSync(path, "utf8"));
+          value.version = process.env.OPL_HEADLESS_BASE_VERSION;
+          fs.writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+          NODE
+
       - name: Install headless macOS user service
         shell: bash
         run: |
           npm run --silent headless:install -- \
+            --source "$OPL_HEADLESS_BASE_SOURCE" \
             --install-root "$OPL_HEADLESS_INSTALL_ROOT" \
             --workspace "$OPL_HEADLESS_WORKSPACE_ROOT" \
             --readback-timeout-ms 120000 \
@@ -538,6 +560,40 @@ jobs:
           if (result.readback.ready.appServerAvailable !== true) throw new Error("installed Codex App Server is unavailable");
           if (result.readback?.appState?.readback?.exitCode !== 0) throw new Error("installed App state readback failed");
           if (result.readback.appState.surfaceKind !== "opl_app_state.v1") throw new Error("installed App state surface is not opl_app_state.v1");
+          if (result.version !== process.env.OPL_HEADLESS_BASE_VERSION) throw new Error("headless base version is not installed");
+          NODE
+
+      - name: Update and restart installed headless runtime
+        shell: bash
+        run: |
+          npm run --silent headless:update -- \
+            --source "$GITHUB_WORKSPACE" \
+            --install-root "$OPL_HEADLESS_INSTALL_ROOT" \
+            --workspace "$OPL_HEADLESS_WORKSPACE_ROOT" \
+            --readback-timeout-ms 120000 \
+            | tee "$RUNNER_TEMP/opl-headless-update.json"
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const result = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/opl-headless-update.json`, "utf8"));
+          if (result.status !== "updated" || result.version !== process.env.OPL_HEADLESS_TARGET_VERSION) throw new Error("installed headless update did not reach target version");
+          if (result.update?.state !== "applied" || result.service?.native?.exitCode !== 0) throw new Error("installed headless update did not restart its service");
+          if (result.readback?.status !== "ready" || result.readback?.appState?.readback?.exitCode !== 0) throw new Error("updated headless runtime readback failed");
+          NODE
+
+      - name: Roll back and restart installed headless runtime
+        shell: bash
+        run: |
+          npm run --silent headless:rollback -- \
+            --install-root "$OPL_HEADLESS_INSTALL_ROOT" \
+            --workspace "$OPL_HEADLESS_WORKSPACE_ROOT" \
+            --readback-timeout-ms 120000 \
+            | tee "$RUNNER_TEMP/opl-headless-rollback.json"
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const result = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/opl-headless-rollback.json`, "utf8"));
+          if (result.status !== "rolled_back" || result.version !== process.env.OPL_HEADLESS_BASE_VERSION) throw new Error("installed headless rollback did not restore base version");
+          if (result.update?.state !== "rolled_back" || result.service?.native?.exitCode !== 0) throw new Error("installed headless rollback did not restart its service");
+          if (result.readback?.status !== "ready" || result.readback?.appState?.readback?.exitCode !== 0) throw new Error("rolled-back headless runtime readback failed");
           NODE
 
       - name: Inspect installed headless runtime
@@ -551,6 +607,7 @@ jobs:
           import fs from "node:fs";
           const result = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/opl-headless-status.json`, "utf8"));
           if (result.status !== "inspected" || result.service?.native?.exitCode !== 0) throw new Error("installed launchd service is not active");
+          if (result.version !== process.env.OPL_HEADLESS_BASE_VERSION) throw new Error("headless status did not retain rolled-back version");
           if (result.readback?.status !== "ready" || result.readback?.appState?.readback?.exitCode !== 0) throw new Error("installed runtime readback failed");
           NODE
 

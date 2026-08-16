@@ -7,7 +7,7 @@ import { createHeadlessUpdateRunner, installHeadlessPayload } from "./update-run
 
 const modulePath = fileURLToPath(import.meta.url);
 const repositoryRoot = path.resolve(path.dirname(modulePath), "../..");
-const actions = new Set(["install", "status", "start", "stop", "restart", "update", "uninstall"]);
+const actions = new Set(["install", "status", "start", "stop", "restart", "update", "rollback", "uninstall"]);
 
 function integer(value, fallback, { name, minimum, maximum }) {
   const parsed = value === undefined || value === "" ? fallback : Number(value);
@@ -188,18 +188,21 @@ export function createHeadlessInstaller({
         await rm(root, { recursive: true, force: true });
         return { schema: "opl_headless_installer_result.v1", action, status: "uninstalled", service: native };
       }
-      if (action === "update") {
-        const update = await createUpdateRunner({ installRoot: root, sourceRoot: source }).perform("apply");
+      if (action === "update" || action === "rollback") {
+        const operation = action === "rollback" ? "rollback" : "apply";
+        const successState = action === "rollback" ? "rolled_back" : "applied";
+        const update = await createUpdateRunner({ installRoot: root, sourceRoot: source }).perform(operation);
         let native = null;
         let freshReadback = null;
-        if (update.state === "applied") {
+        if (update.state === successState) {
           native = await service.manager.run("restart");
           freshReadback = await readback(true);
         }
         return {
           schema: "opl_headless_installer_result.v1",
           action,
-          status: update.state === "applied" ? "updated" : "not_updated",
+          status: update.state === successState ? (action === "rollback" ? "rolled_back" : "updated") : `not_${action}`,
+          version: update.state === successState ? update.targetVersion : service.record.version,
           update,
           service: native,
           readback: freshReadback
@@ -220,7 +223,7 @@ export function createHeadlessInstaller({
 function parseArguments(argv) {
   const [action, ...rest] = argv;
   if (!actions.has(action)) {
-    throw new Error("Usage: install-headless.mjs <install|status|start|stop|restart|update|uninstall> [options]");
+    throw new Error("Usage: install-headless.mjs <install|status|start|stop|restart|update|rollback|uninstall> [options]");
   }
   const options = {};
   const env = { ...process.env };

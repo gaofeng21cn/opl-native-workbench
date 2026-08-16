@@ -62,8 +62,33 @@ test("headless updater stages a newer runtime, keeps one previous payload, and r
 
   assert.equal((await updater.perform("status")).currentVersion, "1.1.0");
   assert.equal((await updater.perform("check")).state, "not_available");
+
+  const rolledBack = await updater.perform("rollback");
+  assert.equal(rolledBack.schema, "opl_native_app_updater.v1");
+  assert.equal(rolledBack.state, "rolled_back");
+  assert.equal(rolledBack.currentVersion, "1.1.0");
+  assert.equal(rolledBack.targetVersion, "1.0.0");
+  assert.equal(rolledBack.restartRequired, true);
+  assert.match(await readFile(path.join(installRoot, "current", "dist", "webui", "index.html"), "utf8"), /v1/);
+  assert.match(await readFile(path.join(installRoot, "previous", "dist", "webui", "index.html"), "utf8"), /v2/);
+  assert.equal((await updater.perform("status")).currentVersion, "1.0.0");
+
   assert.equal((await updater.perform("restart")).state, "restart_scheduled");
   assert.deepEqual(scheduled, ["restart"]);
+});
+
+test("headless updater rejects rollback when no previous payload exists", async () => {
+  const installRoot = await mkdtemp(path.join(os.tmpdir(), "opl-headless-install-"));
+  const source = await sourceFixture("1.0.0", "current");
+  await installHeadlessPayload({ sourceRoot: source, installRoot });
+
+  const updater = createHeadlessUpdateRunner({ installRoot, sourceRoot: source });
+  const rolledBack = await updater.perform("rollback");
+  assert.equal(rolledBack.supported, false);
+  assert.equal(rolledBack.state, "unsupported");
+  assert.equal(rolledBack.reasonCode, "rollback_unavailable");
+  assert.equal(rolledBack.currentVersion, "1.0.0");
+  assert.match(await readFile(path.join(installRoot, "current", "dist", "webui", "index.html"), "utf8"), /current/);
 });
 
 test("headless updater refuses a downgrade and preserves the current payload", async () => {
