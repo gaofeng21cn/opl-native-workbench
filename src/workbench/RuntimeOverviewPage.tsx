@@ -4,19 +4,26 @@ import {
   Archive,
   ChevronDown,
   Clock3,
+  CircleAlert,
   RefreshCw,
+  RotateCcw,
   UserRound,
   X
 } from "lucide-react";
 import type { WorkItemRuntimeItem, WorkItemRuntimeProjection } from "./workbenchModel";
+import type { ServiceRecoveryAction, ServiceRecoveryModel } from "./serviceRecoveryModel";
 
 type RuntimeOverviewPageProps = {
   locale: "zh" | "en";
   projection?: WorkItemRuntimeProjection;
+  serviceRecovery?: ServiceRecoveryModel;
+  serviceRecoveryBusy: boolean;
+  serviceRecoveryFeedback: { tone: "success" | "attention"; message: string } | null;
   selectedWorkItemId?: string;
   stateStatus: "loading" | "ready" | "error";
   stateError: string;
   onRefresh(): void;
+  onRunServiceRecovery(action: ServiceRecoveryAction): void;
   onOpenWorkItem(item: WorkItemRuntimeItem): void;
 };
 
@@ -66,10 +73,14 @@ function localizedStageName(item: WorkItemRuntimeItem, stageId: string, locale: 
 export function RuntimeOverviewPage({
   locale,
   projection,
+  serviceRecovery,
+  serviceRecoveryBusy,
+  serviceRecoveryFeedback,
   selectedWorkItemId,
   stateStatus,
   stateError,
   onRefresh,
+  onRunServiceRecovery,
   onOpenWorkItem
 }: RuntimeOverviewPageProps) {
   const [agentId, setAgentId] = useState("all");
@@ -77,6 +88,7 @@ export function RuntimeOverviewPage({
   const [status, setStatus] = useState<StatusFilter>("all");
   const [showArchived, setShowArchived] = useState(false);
   const [openStagesFor, setOpenStagesFor] = useState<string | null>(null);
+  const [pendingRecoveryAction, setPendingRecoveryAction] = useState<ServiceRecoveryAction | null>(null);
   const copy = locale === "zh" ? {
     title: "项目运行总览",
     scope: "查看范围",
@@ -112,7 +124,13 @@ export function RuntimeOverviewPage({
     cumulativeUsage: "累计",
     stageMap: "阶段进度",
     close: "关闭阶段进度",
-    openDetails: "查看详情"
+    openDetails: "查看详情",
+    serviceRecovery: "服务恢复",
+    causalRoot: "当前根因",
+    mutationGuard: "变更保护",
+    noRecoveryAction: "当前没有可安全执行的恢复操作",
+    confirmRecovery: "确认执行",
+    cancelRecovery: "取消"
   } : {
     title: "Project runtime overview",
     scope: "Scope",
@@ -148,7 +166,13 @@ export function RuntimeOverviewPage({
     cumulativeUsage: "Total",
     stageMap: "Stage progress",
     close: "Close stage progress",
-    openDetails: "Open details"
+    openDetails: "Open details",
+    serviceRecovery: "Service recovery",
+    causalRoot: "Current root cause",
+    mutationGuard: "Mutation guard",
+    noRecoveryAction: "No safe recovery action is currently available",
+    confirmRecovery: "Confirm",
+    cancelRecovery: "Cancel"
   };
   const projects = useMemo(() => (projection?.projects ?? []).filter((project) => (
     agentId === "all" || project.agentId === agentId
@@ -212,6 +236,46 @@ export function RuntimeOverviewPage({
         <div><dt>{copy.running}</dt><dd data-tone={projection?.summary.runningCount ? "active" : "muted"}>{projection?.summary.runningCount ?? "-"}</dd></div>
         <div><dt>{copy.attention}</dt><dd data-tone={attentionCount ? "attention" : "muted"}>{projection ? attentionCount : "-"}</dd></div>
       </dl>
+
+      {serviceRecovery ? (
+        <section className="runtime-recovery-band" aria-labelledby="runtime-recovery-title" data-status={serviceRecovery.causalRoot.status}>
+          <div className="runtime-recovery-heading">
+            <CircleAlert aria-hidden="true" size={17} />
+            <div>
+              <h2 id="runtime-recovery-title">{copy.serviceRecovery}</h2>
+              <p>{copy.causalRoot}: {serviceRecovery.causalRoot.component} · {serviceRecovery.causalRoot.reasonCode}</p>
+            </div>
+          </div>
+          <dl>
+            <div><dt>{copy.mutationGuard}</dt><dd>{serviceRecovery.mutationGuard.status}</dd></div>
+            <div><dt>{locale === "zh" ? "服务状态" : "Service state"}</dt><dd>{serviceRecovery.causalRoot.rawStatus}</dd></div>
+          </dl>
+          <div className="runtime-recovery-action">
+            {serviceRecovery.primaryAction ? (
+              pendingRecoveryAction?.actionId === serviceRecovery.primaryAction.actionId ? (
+                <div className="runtime-recovery-confirmation" role="group" aria-label={copy.confirmRecovery}>
+                  <span>{serviceRecovery.primaryAction.label}</span>
+                  <button type="button" disabled={serviceRecoveryBusy} onClick={() => setPendingRecoveryAction(null)}>{copy.cancelRecovery}</button>
+                  <button type="button" className="primary" disabled={serviceRecoveryBusy} onClick={() => {
+                    const action = pendingRecoveryAction;
+                    setPendingRecoveryAction(null);
+                    if (action) onRunServiceRecovery(action);
+                  }}>{copy.confirmRecovery}</button>
+                </div>
+              ) : (
+                <button type="button" disabled={serviceRecoveryBusy} onClick={() => {
+                  if (serviceRecovery.primaryAction?.confirmationRequired) setPendingRecoveryAction(serviceRecovery.primaryAction);
+                  else if (serviceRecovery.primaryAction) onRunServiceRecovery(serviceRecovery.primaryAction);
+                }}>
+                  <RotateCcw className={serviceRecoveryBusy ? "spin" : undefined} aria-hidden="true" size={15} />
+                  {serviceRecovery.primaryAction.label}
+                </button>
+              )
+            ) : <span>{copy.noRecoveryAction}</span>}
+            {serviceRecoveryFeedback ? <p role={serviceRecoveryFeedback.tone === "attention" ? "alert" : "status"} data-tone={serviceRecoveryFeedback.tone}>{serviceRecoveryFeedback.message}</p> : null}
+          </div>
+        </section>
+      ) : null}
 
       <div className="runtime-list-heading">
         <div><h2>{copy.tasks}</h2><span>{copy.currentCount} {items.length} {copy.workItems}</span></div>

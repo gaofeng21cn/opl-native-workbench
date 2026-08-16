@@ -68,6 +68,7 @@ import {
 } from "./settingsModel";
 import { codexWorkbenchStyles } from "./codexWorkbenchStyles";
 import { RuntimeOverviewPage } from "./RuntimeOverviewPage";
+import type { ServiceRecoveryAction } from "./serviceRecoveryModel";
 import {
   codexModelPolicy,
   resolveCodexModelOptions,
@@ -757,6 +758,11 @@ export function App({
   const [composerSelections, setComposerSelections] = useState<ComposerSelection[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<AgentPackageSelectionIntent | null>(null);
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
+  const [serviceRecoveryBusy, setServiceRecoveryBusy] = useState(false);
+  const [serviceRecoveryFeedback, setServiceRecoveryFeedback] = useState<{
+    tone: "success" | "attention";
+    message: string;
+  } | null>(null);
   const [ephemeralQueue, setEphemeralQueue] = useState<EphemeralQueueItem[]>([]);
   const [composerSubmissionError, setComposerSubmissionError] = useState("");
   const [threadInputFiles, setThreadInputFiles] = useState<Record<string, WorkbenchArtifactRef[]>>({});
@@ -1388,12 +1394,19 @@ export function App({
         ?? uiMetadata.selectedProjectId
     });
     setPrompt(drafts.prompts[thread.id] ?? "");
+    activeTurnRef.current = null;
+    setActiveTurnId(null);
     setSendState("idle");
     setComposerSelections([]);
     setComposerPaletteOpen(false);
     try {
       const readback = await bridge.readThread({ threadId: thread.id, includeTurns: true });
       const nextMessages = deriveThreadMessages(readback);
+      const readbackThreadId = readback.id || thread.id;
+      const readbackTurnId = readback.activeTurnId;
+      activeTurnRef.current = readbackTurnId ? { threadId: readbackThreadId, turnId: readbackTurnId } : null;
+      setActiveTurnId(readbackTurnId ?? null);
+      setSendState(readbackTurnId ? "running" : "idle");
       setMessages(nextMessages);
       messagesRef.current = nextMessages;
       setThreadDetail(null);
@@ -1401,6 +1414,45 @@ export function App({
       setThreadActionError(String(error));
     } finally {
       setThreadActionBusy(false);
+    }
+  }
+
+  async function runServiceRecoveryAction(action: ServiceRecoveryAction) {
+    setServiceRecoveryBusy(true);
+    setServiceRecoveryFeedback(null);
+    try {
+      const refreshedModel = await loadState(settings.runtimeProfile);
+      const refreshedRecovery = refreshedModel?.serviceRecovery;
+      if (
+        !refreshedRecovery
+        || refreshedRecovery.primaryAction?.actionId !== action.actionId
+        || refreshedRecovery.primaryAction.mutates !== action.mutates
+        || (action.mutates && refreshedRecovery.mutationGuard.allowed === false)
+      ) {
+        setServiceRecoveryFeedback({
+          tone: "attention",
+          message: settings.locale === "zh"
+            ? "服务状态已经变化，请查看刷新后的恢复建议。"
+            : "Service state changed; review the refreshed recovery action."
+        });
+        return;
+      }
+      const receipt = await bridge.executeAction({
+        actionId: action.actionId,
+        payload: { confirmed: true },
+        dryRun: false
+      });
+      await loadState(settings.runtimeProfile);
+      setServiceRecoveryFeedback({
+        tone: receipt.status === "executed" ? "success" : "attention",
+        message: receipt.status === "executed"
+          ? (settings.locale === "zh" ? "恢复操作已完成，服务状态已重新读取。" : "Recovery completed and service state was re-read.")
+          : (receipt.blockedReason ?? (settings.locale === "zh" ? "恢复操作未执行。" : "Recovery was not executed."))
+      });
+    } catch (error) {
+      setServiceRecoveryFeedback({ tone: "attention", message: String(error) });
+    } finally {
+      setServiceRecoveryBusy(false);
     }
   }
 
@@ -2324,10 +2376,14 @@ export function App({
     runtimeOverview: <RuntimeOverviewPage
       locale={settings.locale}
       projection={model.workItemRuntime}
+      serviceRecovery={model.serviceRecovery}
+      serviceRecoveryBusy={serviceRecoveryBusy}
+      serviceRecoveryFeedback={serviceRecoveryFeedback}
       selectedWorkItemId={detailWorkItemId}
       stateStatus={stateStatus}
       stateError={stateError}
       onRefresh={() => { void loadState(settings.runtimeProfile); }}
+      onRunServiceRecovery={(action) => { void runServiceRecoveryAction(action); }}
       onOpenWorkItem={(item) => {
         setSelectedRuntimeWorkItemId(item.workItemId);
         requestDetails("opl-runtime-status-panel");

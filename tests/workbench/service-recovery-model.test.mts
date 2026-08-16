@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { deriveServiceRecoveryModel } from "../../src/workbench/serviceRecoveryModel.ts";
+import { deriveWorkbenchModelFromState } from "../../src/workbench/workbenchModel.ts";
 
 const action = (actionId: string, mutates = "none_read_only") => ({
   action_id: actionId,
@@ -162,6 +163,24 @@ test("a worker mutation guard preserves the blocker and reduces the primary acti
   assert.equal(model.primaryAction?.mutates, false);
 });
 
+test("an unknown worker mutation guard never exposes a mutating recovery action", () => {
+  const model = deriveServiceRecoveryModel({
+    temporal: temporalState({
+      workerReady: false,
+      workerStatus: "worker_source_stale",
+      workerRepairActionId: "restart_temporal_worker",
+      mutationGuard: { mutation_guard_status: "unknown" }
+    }),
+    actions,
+    stateFresh: true
+  });
+
+  assert.equal(model.mutationGuard.allowed, null);
+  assert.equal(model.primaryAction?.actionId, "provider_worker_status");
+  assert.equal(model.primaryAction?.kind, "status");
+  assert.equal(model.primaryAction?.mutates, false);
+});
+
 test("the worker guard does not block repair of the upstream service", () => {
   const model = deriveServiceRecoveryModel({
     temporal: temporalState({
@@ -246,4 +265,23 @@ test("a stale projection must be rechecked before any mutation", () => {
   assert.equal(model.primaryAction?.actionId, "provider_worker_status");
   assert.equal(model.primaryAction?.kind, "status");
   assert.equal(model.freshRecheck.beforeMutation, true);
+});
+
+test("workbench state projects the recovery model from the same App state and action catalog", () => {
+  const model = deriveWorkbenchModelFromState({
+    app_state: {
+      provider: {
+        temporal: temporalState({
+          workerReady: false,
+          workerStatus: "worker_source_stale",
+          workerRepairActionId: "restart_temporal_worker"
+        })
+      },
+      actions
+    }
+  });
+
+  assert.equal(model.serviceRecovery?.causalRoot.component, "worker");
+  assert.equal(model.serviceRecovery?.primaryAction?.actionId, "provider_worker_restart");
+  assert.equal(model.serviceRecovery?.authorityBoundary.role, "derived_view_model_only");
 });

@@ -223,7 +223,7 @@ export function deriveServiceRecoveryModel(input: ServiceRecoveryInput): Service
 
   const diagnosticActionId = statusActionId(component);
   const diagnosticAction = executableAction(actions, diagnosticActionId, "status");
-  const workerMutationBlocked = guardBlocked && component === "worker";
+  const workerMutationBlocked = component === "worker" && guardAllowed !== true;
   let primaryAction: ServiceRecoveryAction | null = null;
 
   if (input.stateFresh === false || status === "unknown" || workerMutationBlocked) {

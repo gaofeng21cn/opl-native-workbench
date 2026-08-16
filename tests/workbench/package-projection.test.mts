@@ -67,8 +67,8 @@ test("current Package directory entries replace retired private lifecycle fields
               },
               readiness: {
                 status: "verification_deferred",
-                operational_ready: false,
-                launch_allowed: false,
+                operational_ready: true,
+                launch_allowed: true,
                 verification_deferred: true,
                 reason: "live_verification_deferred",
                 detail_surface: "opl packages status --package-id future.agent --json"
@@ -192,7 +192,7 @@ test("current Package directory entries replace retired private lifecycle fields
   assert.deepEqual(item.requiredSkillIds, ["future-agent"]);
   assert.deepEqual(item.optionalSkillRefs, ["future-agent:optional"]);
   assert.equal(item.readiness.status, "verification_deferred");
-  assert.equal(item.readiness.launchAllowed, false);
+  assert.equal(item.readiness.launchAllowed, true);
   assert.equal(item.readiness.selectionStatus, "available");
   assert.equal(item.readiness.selectable, true);
   assert.equal(item.searchMetadata.tags.includes("required_skill:future-agent"), true);
@@ -309,14 +309,26 @@ test("package projection keeps the complete dynamic catalog and separates OPL ro
   assert.equal(model.packageLifecycle.filter((item) => item.roleGroup === "other").length, 3);
 });
 
-test("selection availability fails open for unknown diagnostics and blocks explicit absence", () => {
+test("selection availability fails open for unknown diagnostics and blocks explicit owner rejection", () => {
   const model = deriveWorkbenchModelFromState({
     app_state: {
       agent_packages: {
         directory: {
           entries: [
             { package_id: "future.checking", package_role: "standard_agent", installed: true },
-            { package_id: "future.missing", package_role: "standard_agent", installed: false }
+            { package_id: "future.missing", package_role: "standard_agent", installed: false },
+            {
+              package_id: "future.launch-blocked",
+              package_role: "standard_agent",
+              installed: true,
+              readiness: { operational_ready: true, launch_allowed: false }
+            },
+            {
+              package_id: "future.not-ready",
+              package_role: "standard_agent",
+              installed: true,
+              readiness: { operational_ready: false, launch_allowed: true }
+            }
           ]
         },
         status_index: {
@@ -324,6 +336,14 @@ test("selection availability fails open for unknown diagnostics and blocks expli
             "future.missing": {
               package_id: "future.missing",
               presence: { present: false, callable: false }
+            },
+            "future.launch-blocked": {
+              package_id: "future.launch-blocked",
+              presence: { present: true, callable: true }
+            },
+            "future.not-ready": {
+              package_id: "future.not-ready",
+              presence: { present: true, callable: true }
             }
           }
         }
@@ -333,9 +353,17 @@ test("selection availability fails open for unknown diagnostics and blocks expli
 
   const checking = model.packageLifecycle.find((item) => item.packageId === "future.checking");
   const missing = model.packageLifecycle.find((item) => item.packageId === "future.missing");
+  const launchBlocked = model.packageLifecycle.find((item) => item.packageId === "future.launch-blocked");
+  const notReady = model.packageLifecycle.find((item) => item.packageId === "future.not-ready");
   assert.equal(checking?.packageRole, "standard_agent");
   assert.equal(checking?.readiness.selectionStatus, "checking");
   assert.equal(checking?.readiness.selectable, true);
   assert.equal(missing?.readiness.selectionStatus, "unavailable");
   assert.equal(missing?.readiness.selectable, false);
+  assert.equal(launchBlocked?.readiness.launchAllowed, false);
+  assert.equal(launchBlocked?.readiness.selectionStatus, "unavailable");
+  assert.equal(launchBlocked?.readiness.selectable, false);
+  assert.equal(notReady?.readiness.operationalReady, false);
+  assert.equal(notReady?.readiness.selectionStatus, "unavailable");
+  assert.equal(notReady?.readiness.selectable, false);
 });

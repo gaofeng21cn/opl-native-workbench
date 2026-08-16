@@ -64,26 +64,23 @@ release admission, and is explicitly adopted.
 | Client composition | `host_derived_client_cordis` | AionUI and Native consume the same App Client Contribution ABI, product profile, and slot policy. Native's Client Cordis occupants derive only from the Framework Host projection; no shell discovers Packages or owns another graph |
 | OPL state/actions | `canonical_producer_consumer_conformance` | Framework Cordis composition, Package graph, and public App state/action producer are canonical; Native has one bounded consumer bridge and no second registry, currentness, session, state, or action authority |
 | Conversation | `chat_first_with_on_demand_detail` | Primary surface is the DSH conversation; run status, roadmap/detail contributions, files, and results open on demand instead of becoming static home cards |
-| Standard Agents | `selection_present_readiness_correction_pending` | Composer separates OPL-owned `standard_agent` packages from skills/plugins/connections and preserves real Codex routes. The current readiness gate still needs to reject explicit `launch_allowed=false` or `operational_ready=false` projections |
-| Active turn | `direct_steer_present_reopen_recovery_pending` | Active submissions use Codex `turn/steer`, and the DSH queue remains renderer-only state. Launch still needs canonical `thread/read(includeTurns=true)` readback, while reopening an active thread must restore its active turn before steer is available |
-| Settings | `active_lane_not_yet_canonical` | Account/Gateway, model, workspace, storage, capabilities, instructions, services, updates, diagnostics, preferences, first-run checks, runtime overview, and the macOS tray are being completed by the registered Settings owner. Existing source and a recovery checkpoint do not prove the current lane is canonical or user-accepted |
+| Standard Agents | `explicit_owner_readiness_enforced` | Composer separates OPL-owned `standard_agent` packages from skills/plugins/connections and preserves real Codex routes. Unknown diagnostics remain selectable, while explicit `launch_allowed=false`, `operational_ready=false`, physical absence, or non-callability reject selection |
+| Active turn | `canonical_reopen_and_steer` | Active submissions use Codex `turn/steer`, and the DSH queue remains renderer-only state. Launch confirms the terminal turn through `thread/read(includeTurns=true)`; reopening a thread restores only the canonical `activeTurnId` before steer is enabled |
+| Settings | `canonical_functional_surface` | Account/Gateway, model, workspace, storage, capabilities, instructions, services, updates, diagnostics, preferences, first-run checks, Runtime Overview, and the macOS tray are canonical. The current full functional cohort still requires one rebuilt local Preview and user acceptance |
 | Updates | `desktop_and_headless_callers_present_owner_projection_incomplete` | Electron Desktop and standalone Headless updater callers exist. Framework fast App state still needs the App/Base/Packages managed-update and Flow dependency projection required for an immediate owner-currentness view; Docker host-side update remains deliberately deferred rather than exposing the container runtime socket |
-| Run detail | `real_producer_canonical_consumer_pending` | MAS now has a canonical read-only producer backed by a real workspace and trajectory. Studio still must pass the resolved work-item identity into `runtime.detail` reads and render allowlisted dynamic results; unresolved or mismatched identity must not invoke a producer |
+| Run detail | `real_producer_consumer_e2e` | MAS has a canonical read-only producer backed by a real workspace and trajectory. Studio passes the selected resolved six-field identity into `runtime.detail`, does not invoke the producer when identity is unresolved, rejects mismatched producer identity, and renders the allowlisted result as eight structured sections |
+| Service recovery | `app_state_derived_action_closed_loop` | Runtime Overview derives one causal root and one safe action from the same App state/action projection. Mutating and read-only actions are revalidated against a fresh App state immediately before execution, respect the mutation guard, and always refresh App state afterward |
 | Local launcher | `implemented_candidate_path` | Isolated bundle; actions dry-run-only by default |
-| Minimum product baseline | `active_functional_closure` | Distribution qualification paths are independently green, but the user-facing functional baseline remains open on Settings/runtime overview, Agent correctness, identity-scoped runtime detail, managed-update currentness, service recovery wiring, contribution consumption, and local Preview acceptance |
-| Validation | `distribution_gates_green_functional_acceptance_pending` | Default PR/main CI remains source-only, and carrier qualification remains manual. Existing checks prove only their exact candidate bytes; they do not prove the active Settings lane, remaining Agent/runtime-detail callers, service recovery UI, or the next locally installed Preview |
+| Minimum product baseline | `active_functional_closure` | Distribution qualification paths are independently green. The remaining user-facing baseline is managed-update/Flow producer currentness, generic capability/managed-companion consumption from `opl-glt.58`, and a rebuilt local Preview acceptance pass |
+| Validation | `distribution_and_core_functional_gates_green_preview_pending` | Default PR/main CI remains source-only, and carrier qualification remains manual. Source and hosted checks cover Settings, Runtime Overview, Agent/turn correctness, identity-scoped Runtime Detail, and service recovery; they do not replace the next locally installed Preview interaction and user acceptance |
 | Adoption and readiness | `false` | No active-shell adoption, release, clean-VM, domain, owner-acceptance, or production claim |
 
 ## Current Gaps
 
 | Gap | Class | Owner route | Stop condition |
 | --- | --- | --- | --- |
-| Settings, first-run, runtime overview, and macOS tray are not canonical | `functional_p0_active` | Registered Studio Settings owner | Replay the active lane on fresh main, run its focused/full and packaged-local checks, then absorb and read back the exact bytes before claiming the control plane is available |
-| Agent launch and resumed-turn correctness are incomplete | `functional_p0` | Studio App Server transport and workbench owner | After the Settings lane closes, require explicit Agent readiness, canonical launch readback, and active-turn recovery on reopen; prove launch, reopen, and steer through the real host path |
-| Runtime detail is producer-only | `functional_p0` | App Contribution ABI owner plus Studio consumer | Preserve the canonical MAS producer, inject the selected resolved work-item identity into the read request, reject unresolved or mismatched identity, and render its allowlisted result without static domain-specific cards |
-| Managed update and capability currentness are incomplete in fast state | `functional_p0` | Framework/App-state producer owner, then Studio consumer | Project App/Base/Packages managed-update status, Flow dependencies, and managed companions through the existing Host-derived App state; Studio consumes that projection without a second registry or updater authority |
-| Service recovery is model-only | `functional_p0` | Studio workbench owner | The causal recovery model is canonical and exact-head CI-green. Wire its one root cause, one App-projected safe action, mutation guard, and mandatory fresh recheck into the runtime/settings surface |
-| Canonical capability contributions still need user-path consumption | `functional_p1` | `opl-glt.55` producer owner plus Studio consumer | Consume the canonical Channel Access, WeChat, Computer Use, and Fleet projections through typed slots/actions; do not hard-code a fixed brand capability list |
+| Managed update and Flow currentness are incomplete in fast state | `functional_p0` | Framework/App-state producer owner, then Studio consumer | Project the already authoritative App/Base/Packages update status and typed Flow dependency catalog through the existing fast App state. Studio already parses managed-update state and must consume the Host projection without a second registry or updater authority |
+| Canonical capability and managed-companion contributions still need user-path consumption | `functional_p1` | `opl-glt.58` producer/consumer owner plus Studio integrator | Consume Channel Access, WeChat, Computer Use, Fleet, Browser Automation, and future managed companions through typed slots/actions and a generic directory; do not hard-code a fixed brand capability list |
 | Current Preview has not passed this functional cohort | `acceptance_p0` | Studio product controller and user | After all functional bytes are canonical, rebuild and install the macOS Preview, run local interaction/readback checks, and leave it open for user acceptance |
 
 Signing, notarization, public update feeds, public OCI publication, dedicated
@@ -150,17 +147,12 @@ carrier.
 
 ### Required Actions
 
-1. Absorb and verify the active Settings, onboarding, context, updater, runtime
-   overview, and macOS tray lane on fresh Studio main.
-2. Close Agent correctness through explicit readiness rejection, canonical
-   launch readback, active-turn recovery, and real reopen/steer verification.
-3. Connect the canonical MAS runtime-detail producer using the resolved
-   work-item identity and a generic allowlisted result renderer.
-4. Consume Host-derived managed-update, Flow dependency, managed-companion,
+1. Project Host-derived managed-update and typed Flow dependency currentness
+   through fast App state, then consume the existing Studio parser and Settings UI.
+2. Consume Host-derived managed-companion,
    Channel Access, WeChat, Computer Use, and Fleet projections without adding a
    Studio registry, Package discovery path, or action authority.
-5. Wire the canonical service-recovery model, run the full local candidate
-   gates, rebuild the macOS Preview, and complete local interaction/readback
+3. Run the full local candidate gates, rebuild the macOS Preview, and complete local interaction/readback
    before asking for user acceptance.
 
 ### Verification Commands

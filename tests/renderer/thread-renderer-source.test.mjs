@@ -95,6 +95,12 @@ test("Studio exposes an App-projected first-level runtime overview", () => {
   assert.match(runtimePage, /value === null/);
   assert.match(runtimePage, /aria-expanded=\{stagesOpen\}/);
   assert.match(runtimePage, /showArchived/);
+  assert.match(runtimePage, /runtime-recovery-band/);
+  assert.match(runtimePage, /serviceRecovery\.mutationGuard\.status/);
+  assert.match(app, /const refreshedModel = await loadState\(settings\.runtimeProfile\)/);
+  assert.match(app, /refreshedRecovery\.primaryAction\?\.actionId !== action\.actionId/);
+  assert.match(app, /await bridge\.executeAction/);
+  assert.match(app, /await loadState\(settings\.runtimeProfile\)/);
 });
 
 test("local storage keeps only UI metadata and drafts after one-way legacy backup", () => {
@@ -125,6 +131,8 @@ test("DSH workspace browser, lifecycle, and Codex subagent projection stay expli
   assert.match(app, /assistantDisplayMarkdown\(/);
   assert.doesNotMatch(app, /opl-assistant-artifact-card/);
   assert.match(app, /bridge\.readThread\(\{ threadId: thread\.id, includeTurns: true \}\)/);
+  assert.match(app, /activeTurnRef\.current = readbackTurnId \? \{ threadId: readbackThreadId, turnId: readbackTurnId \} : null/);
+  assert.match(app, /setActiveTurnId\(readbackTurnId \?\? null\)/);
   assert.doesNotMatch(app, /const resumed = thread\.status === "unloaded"/);
   assert.match(app, /async function resumeThreadAndOpen/);
   assert.match(app, /thread-read-error/);

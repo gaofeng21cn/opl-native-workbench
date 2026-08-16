@@ -11,6 +11,10 @@ import {
   readManagedComputerUse,
   type ManagedComputerUseViewModel
 } from "./managedComputerUse";
+import {
+  deriveServiceRecoveryModel,
+  type ServiceRecoveryModel
+} from "./serviceRecoveryModel";
 
 export type WorkbenchPurpose = "research" | "grant" | "presentation" | "review";
 export type WorkbenchPreviewKind = RendererPreviewKind;
@@ -639,6 +643,7 @@ export type WorkbenchModel = {
   gatewayAccount?: WorkbenchGatewayAccount;
   settingsProjection?: WorkbenchSettingsProjection;
   runtimeOverview?: RuntimeOverviewRef;
+  serviceRecovery?: ServiceRecoveryModel;
   workItemRuntime?: WorkItemRuntimeProjection;
   managedComputerUse: ManagedComputerUseViewModel | null;
   uiContributions: OplUiContributionsProjection;
@@ -1634,12 +1639,18 @@ function packageReadiness(record: Record<string, unknown>, installed: boolean | 
   const presence = asRecord(record.presence);
   const present = asOptionalBoolean(presence?.present);
   const callable = asOptionalBoolean(presence?.callable);
-  const unavailable = installed === false || present === false || callable === false;
+  const operationalReady = asOptionalBoolean(readiness?.operational_ready);
+  const launchAllowed = asOptionalBoolean(readiness?.launch_allowed);
+  const unavailable = installed === false
+    || present === false
+    || callable === false
+    || operationalReady === false
+    || launchAllowed === false;
   const available = installed === true && present === true && callable === true;
   return {
     status: asString(readiness?.status) ?? "unknown",
-    operationalReady: asOptionalBoolean(readiness?.operational_ready),
-    launchAllowed: asOptionalBoolean(readiness?.launch_allowed),
+    operationalReady,
+    launchAllowed,
     verificationDeferred: asOptionalBoolean(readiness?.verification_deferred),
     ...(asString(readiness?.reason) ? { reason: asString(readiness?.reason) as string } : {}),
     ...(asString(readiness?.detail_surface) ? { detailSurface: asString(readiness?.detail_surface) as string } : {}),
@@ -1647,7 +1658,7 @@ function packageReadiness(record: Record<string, unknown>, installed: boolean | 
     present,
     callable,
     selectionStatus: unavailable ? "unavailable" : available ? "available" : "checking",
-    // Unknown launch readiness does not block an ordinary new-conversation selection.
+    // Unknown readiness remains selectable, but an explicit owner rejection is authoritative.
     selectable: !unavailable
   };
 }
@@ -3215,6 +3226,7 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     gatewayAccount,
     settingsProjection,
     runtimeOverview,
+    serviceRecovery: deriveServiceRecoveryModel({ temporal, actions, stateFresh: true }),
     workItemRuntime,
     managedComputerUse: readManagedComputerUse(appState),
     uiContributions: readUiContributionsProjection(state),
