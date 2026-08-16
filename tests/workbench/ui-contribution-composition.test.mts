@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
   OPL_UI_CONTRIBUTION_SLOTS,
+  createOplContributionActionRequest,
+  readChannelAccessResult,
   readUiContributionsProjection,
   type OplUiContributionsProjection
 } from "../../src/composition/contributionProjection.ts";
@@ -181,6 +183,76 @@ describe("OPL Studio DSH contribution composition", () => {
   test("keeps malformed or absent projections unavailable", () => {
     const unavailable: OplUiContributionsProjection = readUiContributionsProjection({ app_state: {} });
     expect(unavailable).toEqual({ surfaceKind: "unavailable", entries: [] });
+  });
+
+  test("validates channel_access results and preserves only scoped contribution action input", () => {
+    const result = readChannelAccessResult({
+      schema_version: "opl-app-channel-access.v1",
+      status: "available",
+      channel_id: "weixin",
+      connection: {
+        state: "qr_ready",
+        qr_challenge: { payload: "data:image/png;base64,fixture", expires_at_ms: 2_000 }
+      },
+      actions: [{ command_id: "disconnect", input: { channel_id: "weixin" } }],
+      pending_pairings: [{
+        pairing_id: "pairing-1",
+        display_name: "Researcher",
+        requested_at_ms: 1_000,
+        expires_at_ms: 3_000,
+        actions: [{ command_id: "approve", input: { channel_id: "weixin", pairing_id: "pairing-1" } }]
+      }],
+      authorized_users: [{
+        user_id: "user-1",
+        display_name: "Editor",
+        authorized_at_ms: 900,
+        actions: [{ command_id: "revoke", input: { channel_id: "weixin", user_id: "user-1" } }]
+      }],
+      refresh_after_ms: 1_000
+    });
+    expect(result?.channelId).toBe("weixin");
+    expect(result?.pendingPairings[0]?.actions[0]?.input).toEqual({ channel_id: "weixin", pairing_id: "pairing-1" });
+    expect(result?.authorizedUsers[0]?.actions[0]?.input).toEqual({ channel_id: "weixin", user_id: "user-1" });
+
+    const projection = readUiContributionsProjection(projectionState);
+    const entry = projection.entries[0]!;
+    const command = entry.commands[0]!;
+    expect(createOplContributionActionRequest(entry, command, true, { channel_id: "weixin" }).payload).toEqual({
+      package_id: entry.packageId,
+      ref: command.actionRef,
+      input: { channel_id: "weixin" },
+      confirmed: true
+    });
+    expect(readChannelAccessResult({
+      schema_version: "opl-app-channel-access.v1",
+      status: "available",
+      channel_id: "weixin",
+      connection: { state: "connected" },
+      actions: [{ command_id: "disconnect", input: { channel_id: "weixin", secret: "forbidden" } }],
+      pending_pairings: [],
+      authorized_users: []
+    })).toBeNull();
+    expect(readChannelAccessResult({
+      schema_version: "opl-app-channel-access.v1",
+      status: "available",
+      channel_id: "weixin",
+      connection: { state: "connected" },
+      actions: [],
+      pending_pairings: [{
+        pairing_id: "pairing-1",
+        requested_at_ms: 1_000,
+        expires_at_ms: 3_000,
+        actions: [{ command_id: "approve", input: { channel_id: "weixin", user_id: "wrong-scope" } }]
+      }],
+      authorized_users: []
+    })).toBeNull();
+    expect(readChannelAccessResult({
+      schema_version: "opl-app-channel-access.v1",
+      status: "unavailable",
+      channel_id: "weixin",
+      unavailable_reason: "producer_absent",
+      refresh_after_ms: 1_000
+    })).toBeNull();
   });
 
   test("collapses alias-linked catalog rows into one App-owned model option", () => {

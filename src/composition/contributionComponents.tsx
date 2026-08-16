@@ -1,9 +1,12 @@
 import { Button, Pill, StateDot, Tooltip, type StateDotState } from "@deepseek-ai/dsh-client-ui-primitives";
-import { Boxes, Play } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { Boxes, Play, QrCode, ShieldCheck, Users } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   contributionLabel,
+  readChannelAccessResult,
   type OplContributionSlotOwner,
+  type OplChannelAccessAction,
+  type OplChannelAccessResult,
   type OplUiContribution,
   type OplUiContributionBadge
 } from "./contributionProjection";
@@ -148,6 +151,15 @@ function ContributionView({ entry, owner }: {
   entry: OplUiContribution;
   owner: OplContributionSlotOwner;
 }) {
+  return entry.view?.viewType === "channel_access"
+    ? <ChannelAccessView entry={entry} owner={owner} />
+    : <StructuredContributionView entry={entry} owner={owner} />;
+}
+
+function StructuredContributionView({ entry, owner }: {
+  entry: OplUiContribution;
+  owner: OplContributionSlotOwner;
+}) {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [result, setResult] = useState<unknown>(null);
   const [error, setError] = useState("");
@@ -185,6 +197,160 @@ function ContributionView({ entry, owner }: {
   );
 }
 
+function ChannelAccessActions({
+  actions,
+  entry,
+  owner,
+  onScopedAction
+}: {
+  actions: OplChannelAccessAction[];
+  entry: OplUiContribution;
+  owner: OplContributionSlotOwner;
+  onScopedAction: (action: OplChannelAccessAction) => void;
+}) {
+  const available = actions.flatMap((action) => {
+    const command = entry.commands.find((candidate) => candidate.commandId === action.commandId);
+    return command ? [{ action, command }] : [];
+  });
+  if (!available.length) return null;
+  return (
+    <div className="opl-contribution-actions">
+      {available.map(({ action, command }) => (
+        <Button
+          key={`${command.commandId}:${JSON.stringify(action.input)}`}
+          variant={command.confirmationRequired ? "outline" : "ghost"}
+          size="sm"
+          icon={<Play aria-hidden="true" size={13} />}
+          disabled={!owner.actionAvailable}
+          onClick={() => onScopedAction(action)}
+        >
+          {contributionLabel(command.label, owner.locale, command.commandId)}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+function channelStatusLabel(result: OplChannelAccessResult, locale: OplContributionSlotOwner["locale"]): string {
+  const status = result.connection?.state ?? result.status;
+  const labels: Record<string, [string, string]> = {
+    available: ["可用", "Available"],
+    unavailable: ["不可用", "Unavailable"],
+    disconnected: ["未连接", "Disconnected"],
+    connecting: ["正在连接", "Connecting"],
+    qr_ready: ["等待扫码", "Scan required"],
+    qr_scanned: ["已扫码，等待确认", "Scanned; awaiting confirmation"],
+    connected: ["已连接", "Connected"],
+    attention: ["需要处理", "Needs attention"]
+  };
+  return labels[status]?.[locale === "zh" ? 0 : 1] ?? status;
+}
+
+function ChannelAccessView({ entry, owner }: {
+  entry: OplUiContribution;
+  owner: OplContributionSlotOwner;
+}) {
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [result, setResult] = useState<OplChannelAccessResult | null>(null);
+  const [error, setError] = useState("");
+  const [timerRevision, setTimerRevision] = useState(0);
+  const scopedInputRef = useRef<Record<string, unknown>>({});
+  const view = entry.view!;
+
+  useEffect(() => {
+    let active = true;
+    if (!result) setState("loading");
+    setError("");
+    void owner.readData(entry, scopedInputRef.current).then((value) => {
+      if (!active) return;
+      const parsed = readChannelAccessResult(value);
+      if (!parsed) throw new Error("invalid channel_access contribution result");
+      setResult(parsed);
+      setState("ready");
+    }).catch((reason) => {
+      if (!active) return;
+      setResult(null);
+      setError(String(reason));
+      setState("error");
+    });
+    return () => { active = false; };
+  }, [entry.packageId, owner.readData, owner.refreshRevision, timerRevision, view.dataRef]);
+
+  useEffect(() => {
+    if (state !== "ready" || !result?.refreshAfterMs) return;
+    const timeout = window.setTimeout(() => {
+      scopedInputRef.current = { channel_id: result.channelId };
+      setTimerRevision((revision) => revision + 1);
+    }, result.refreshAfterMs);
+    return () => window.clearTimeout(timeout);
+  }, [result?.channelId, result?.refreshAfterMs, state]);
+
+  const runAction = (action: OplChannelAccessAction) => {
+    const command = entry.commands.find((candidate) => candidate.commandId === action.commandId);
+    if (!command) return;
+    scopedInputRef.current = action.input;
+    owner.onAction(entry, command, action.input);
+  };
+
+  if (state === "loading") {
+    return <p className="opl-contribution-fallback" role="status"><StateDot state="ongoing" size={10} />{owner.locale === "zh" ? "正在读取渠道" : "Loading channel"}</p>;
+  }
+  if (state === "error" || !result) {
+    return <p className="opl-contribution-fallback" role="status" title={error}><StateDot state="warning" size={10} />{view.emptyState ? contributionLabel(view.emptyState, owner.locale, "") : (owner.locale === "zh" ? "渠道当前不可用" : "The channel is unavailable")}</p>;
+  }
+  if (result.status === "unavailable") {
+    return <p className="opl-contribution-fallback" role="status"><StateDot state="warning" size={10} />{owner.locale === "zh" ? "渠道当前不可用" : "The channel is unavailable"}</p>;
+  }
+
+  const qr = result.connection?.qrChallenge && result.connection.qrChallenge.expiresAtMs > Date.now()
+    ? result.connection.qrChallenge
+    : undefined;
+  return (
+    <div className="opl-contribution-result" data-view-type="channel_access" data-testid={`opl-ui-contribution-result-${entry.contributionKey}`}>
+      <div className="opl-contribution-badges">
+        <Pill><StateDot state={result.connection?.state === "connected" ? "done" : "ongoing"} size={9} />{channelStatusLabel(result, owner.locale)}</Pill>
+        {result.connection?.accountDisplayName ? <Pill>{result.connection.accountDisplayName}</Pill> : null}
+      </div>
+      {qr ? (
+        <section className="opl-structured-fields" data-testid="opl-channel-access-qr">
+          <div><dt><QrCode aria-hidden="true" size={15} />{owner.locale === "zh" ? "扫码登录" : "Scan to connect"}</dt><dd>
+            {qr.payload.startsWith("data:image/")
+              ? <img src={qr.payload} alt={owner.locale === "zh" ? "渠道登录二维码" : "Channel login QR code"} />
+              : <code>{qr.payload}</code>}
+          </dd></div>
+        </section>
+      ) : null}
+      <ChannelAccessActions actions={result.actions} entry={entry} owner={owner} onScopedAction={runAction} />
+      <section data-testid="opl-channel-access-pairings">
+        <h3><Users aria-hidden="true" size={15} />{owner.locale === "zh" ? "待处理配对" : "Pending pairings"}</h3>
+        {result.pendingPairings.length ? (
+          <div className="opl-structured-fields">
+            {result.pendingPairings.map((pairing) => (
+              <div key={pairing.pairingId}>
+                <dt>{pairing.displayName ?? pairing.platformUserId ?? pairing.pairingId}</dt>
+                <dd><ChannelAccessActions actions={pairing.actions} entry={entry} owner={owner} onScopedAction={runAction} /></dd>
+              </div>
+            ))}
+          </div>
+        ) : <p className="opl-structured-empty">{owner.locale === "zh" ? "暂无待处理配对" : "No pending pairings"}</p>}
+      </section>
+      <section data-testid="opl-channel-access-users">
+        <h3><ShieldCheck aria-hidden="true" size={15} />{owner.locale === "zh" ? "已授权用户" : "Authorized users"}</h3>
+        {result.authorizedUsers.length ? (
+          <div className="opl-structured-fields">
+            {result.authorizedUsers.map((user) => (
+              <div key={user.userId}>
+                <dt>{user.displayName ?? user.platformUserId ?? user.userId}</dt>
+                <dd><ChannelAccessActions actions={user.actions} entry={entry} owner={owner} onScopedAction={runAction} /></dd>
+              </div>
+            ))}
+          </div>
+        ) : <p className="opl-structured-empty">{owner.locale === "zh" ? "暂无已授权用户" : "No authorized users"}</p>}
+      </section>
+    </div>
+  );
+}
+
 export function ProjectedContribution({ entry, owner }: {
   entry: OplUiContribution;
   owner: OplContributionSlotOwner;
@@ -202,7 +368,7 @@ export function ProjectedContribution({ entry, owner }: {
         <>
           <ContributionView entry={entry} owner={owner} />
           <ContributionBadges entry={entry} owner={owner} />
-          <ContributionActions entry={entry} owner={owner} />
+          {entry.view?.viewType === "channel_access" ? null : <ContributionActions entry={entry} owner={owner} />}
         </>
       ) : (
         <p className="opl-contribution-fallback" role="status">

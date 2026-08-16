@@ -7,6 +7,10 @@ import {
   readUiContributionsProjection,
   type OplUiContributionsProjection
 } from "../composition/contributionProjection";
+import {
+  readManagedComputerUse,
+  type ManagedComputerUseViewModel
+} from "./managedComputerUse";
 
 export type WorkbenchPurpose = "research" | "grant" | "presentation" | "review";
 export type WorkbenchPreviewKind = RendererPreviewKind;
@@ -518,6 +522,7 @@ export type WorkbenchModel = {
   gatewayAccount?: WorkbenchGatewayAccount;
   settingsProjection?: WorkbenchSettingsProjection;
   runtimeOverview?: RuntimeOverviewRef;
+  managedComputerUse: ManagedComputerUseViewModel | null;
   uiContributions: OplUiContributionsProjection;
   stateGeneratedAt?: string;
 };
@@ -529,6 +534,7 @@ export const workbenchBridgeUnavailableDiagnostic = {
 
 export const initialWorkbenchModel: WorkbenchModel = {
   purposes: ["research", "grant", "presentation", "review"],
+  managedComputerUse: null,
   uiContributions: emptyUiContributionsProjection,
   sessions: [],
   results: [],
@@ -2849,6 +2855,7 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     gatewayAccount,
     settingsProjection,
     runtimeOverview,
+    managedComputerUse: readManagedComputerUse(appState),
     uiContributions: readUiContributionsProjection(state),
     stateGeneratedAt: asString(meta?.generated_at) ?? fallback.stateGeneratedAt
   };

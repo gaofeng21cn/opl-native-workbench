@@ -101,6 +101,7 @@ import type {
   RenderOplContributionSlot
 } from "../composition/contributionProjection";
 import { createOplContributionActionRequest } from "../composition/contributionProjection";
+import { isManagedComputerUseActionId } from "./managedComputerUse";
 import type { RenderOplStudioShell } from "../composition/oplStudioSurface";
 
 const contextTabs = [
@@ -636,9 +637,11 @@ export function App({
   const [detailsRequestRevision, setDetailsRequestRevision] = useState(0);
   const [lastDryRun, setLastDryRun] = useState("");
   const [contributionActionBusy, setContributionActionBusy] = useState(false);
+  const [contributionRefreshRevision, setContributionRefreshRevision] = useState(0);
   const [contributionActionConfirmation, setContributionActionConfirmation] = useState<{
     entry: OplUiContribution;
     command: OplUiContributionCommand;
+    input: Record<string, unknown>;
   } | null>(null);
   const [settingsActionBusyKey, setSettingsActionBusyKey] = useState<string | null>(null);
   const [settingsActionFeedback, setSettingsActionFeedback] = useState<SettingsActionFeedback | null>(null);
@@ -935,7 +938,8 @@ export function App({
       });
       if (receipt.status === "executed") {
         captureManagedUpdateReceipt(receipt);
-        await loadState(settings.runtimeProfile);
+        if (isManagedComputerUseActionId(request.actionId)) await loadState("full");
+        else await loadState(settings.runtimeProfile);
       }
       setSettingsActionFeedback(settingsReceiptFeedback(receipt, request.label));
     } catch (error) {
@@ -958,7 +962,8 @@ export function App({
       });
       if (receipt.status === "executed") {
         captureManagedUpdateReceipt(receipt);
-        await loadState(settings.runtimeProfile);
+        if (isManagedComputerUseActionId(confirmation.request.actionId)) await loadState("full");
+        else await loadState(settings.runtimeProfile);
       }
       setSettingsActionFeedback(settingsReceiptFeedback(receipt, confirmation.request.label));
       setSettingsActionConfirmation(null);
@@ -1235,15 +1240,21 @@ export function App({
   async function executeContributionAction(
     entry: OplUiContribution,
     command: OplUiContributionCommand,
-    confirmed: boolean
+    confirmed: boolean,
+    input: Record<string, unknown> = {}
   ) {
     setContributionActionBusy(true);
     setContributionActionConfirmation(null);
     requestDetails("opl-files-results-panel");
     try {
-      const receipt = await bridge.executeAction(createOplContributionActionRequest(entry, command, confirmed));
+      const actionRequest = createOplContributionActionRequest(entry, command, confirmed);
+      actionRequest.payload.input = input;
+      const receipt = await bridge.executeAction(actionRequest);
       setLastDryRun(formatReceipt(receipt));
-      if (receipt.status === "executed") await loadState(settings.runtimeProfile);
+      if (receipt.status === "executed") {
+        await loadState(settings.runtimeProfile);
+        setContributionRefreshRevision((revision) => revision + 1);
+      }
     } catch (error) {
       setLastDryRun(formatReceipt({
         actionId: "package_contribution_execute",
@@ -1254,21 +1265,22 @@ export function App({
       setContributionActionBusy(false);
     }
   }
-  const handleContributionAction: OplContributionAction = (entry, command) => {
+  const handleContributionAction: OplContributionAction = (entry, command, input = {}) => {
     if (!contributionActionAvailable) return;
     if (command.confirmationRequired) {
-      setContributionActionConfirmation({ entry, command });
+      setContributionActionConfirmation({ entry, command, input });
       return;
     }
-    void executeContributionAction(entry, command, false);
+    void executeContributionAction(entry, command, false, input);
   };
-  const readContributionData = useCallback((entry: OplUiContributionsProjection["entries"][number]) => {
+  const readContributionData = useCallback((entry: OplUiContributionsProjection["entries"][number], input: Record<string, unknown> = {}) => {
     if (!entry.view) return Promise.reject(new Error("Contribution view is unavailable"));
-    return bridge.readContribution({ packageId: entry.packageId, ref: entry.view.dataRef }).then((readback) => readback.result);
+    return bridge.readContribution({ packageId: entry.packageId, ref: entry.view.dataRef, input }).then((readback) => readback.result);
   }, [bridge]);
   const contributionOwner = {
     locale: settings.locale,
     actionAvailable: contributionActionAvailable,
+    refreshRevision: contributionRefreshRevision,
     readData: readContributionData,
     onAction: handleContributionAction
   };
@@ -1942,7 +1954,7 @@ export function App({
     composerOverlay: studioComposerOverlay,
     details: studioDetails,
     renderSettings: renderStudioSettings,
-    overlay: <><style>{codexWorkbenchStyles}</style><ThreadDetailPopover thread={threadDetail} locale={settings.locale} busy={threadActionBusy} onClose={() => setThreadDetail(null)} onResume={(thread) => void resumeThreadAndOpen(thread)} onFork={(thread) => void forkThread(thread)} onRequestArchive={(thread, archived) => { setLifecycleConfirmation({ thread, action: archived ? "archive" : "unarchive" }); setThreadActionError(""); setThreadDetail(null); }} /><ThreadLifecycleConfirmationDialog thread={lifecycleConfirmation?.thread ?? null} action={lifecycleConfirmation?.action ?? "archive"} locale={settings.locale} busy={threadActionBusy} error={threadActionError} onClose={() => setLifecycleConfirmation(null)} onConfirm={() => void confirmThreadLifecycle()} /><Modal open={contributionActionConfirmation !== null} onClose={() => setContributionActionConfirmation(null)} title={settings.locale === "zh" ? "确认执行能力操作" : "Confirm capability action"} description={contributionActionConfirmation ? (settings.locale === "zh" ? `此操作将由 ${contributionActionConfirmation.entry.packageId} 通过 OPL App 执行。` : `This action will be executed by ${contributionActionConfirmation.entry.packageId} through OPL App.`) : ""} footer={<><Button variant="outline" onClick={() => setContributionActionConfirmation(null)}>{settings.locale === "zh" ? "取消" : "Cancel"}</Button><Button variant="primary" disabled={contributionActionBusy || !contributionActionConfirmation} onClick={() => { const pending = contributionActionConfirmation; if (pending) void executeContributionAction(pending.entry, pending.command, true); }}>{settings.locale === "zh" ? "确认执行" : "Confirm"}</Button></>} /></>,
+    overlay: <><style>{codexWorkbenchStyles}</style><ThreadDetailPopover thread={threadDetail} locale={settings.locale} busy={threadActionBusy} onClose={() => setThreadDetail(null)} onResume={(thread) => void resumeThreadAndOpen(thread)} onFork={(thread) => void forkThread(thread)} onRequestArchive={(thread, archived) => { setLifecycleConfirmation({ thread, action: archived ? "archive" : "unarchive" }); setThreadActionError(""); setThreadDetail(null); }} /><ThreadLifecycleConfirmationDialog thread={lifecycleConfirmation?.thread ?? null} action={lifecycleConfirmation?.action ?? "archive"} locale={settings.locale} busy={threadActionBusy} error={threadActionError} onClose={() => setLifecycleConfirmation(null)} onConfirm={() => void confirmThreadLifecycle()} /><Modal open={contributionActionConfirmation !== null} onClose={() => setContributionActionConfirmation(null)} title={settings.locale === "zh" ? "确认执行能力操作" : "Confirm capability action"} description={contributionActionConfirmation ? (settings.locale === "zh" ? `此操作将由 ${contributionActionConfirmation.entry.packageId} 通过 OPL App 执行。` : `This action will be executed by ${contributionActionConfirmation.entry.packageId} through OPL App.`) : ""} footer={<><Button variant="outline" onClick={() => setContributionActionConfirmation(null)}>{settings.locale === "zh" ? "取消" : "Cancel"}</Button><Button variant="primary" disabled={contributionActionBusy || !contributionActionConfirmation} onClick={() => { const pending = contributionActionConfirmation; if (pending) void executeContributionAction(pending.entry, pending.command, true, pending.input); }}>{settings.locale === "zh" ? "确认执行" : "Confirm"}</Button></>} /></>,
     detailsRequestRevision,
     startSession: startNewChat,
     startSessionInProject: startNewChatInProject,

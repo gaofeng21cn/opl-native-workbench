@@ -31,6 +31,7 @@ const composerPalette = read("src/workbench/ComposerCapabilityPalette.tsx");
 const settings = read("src/workbench/settingsModel.ts");
 const gatewayCache = read("src/workbench/gatewayAccountCache.ts");
 const contributionComponents = read("src/composition/contributionComponents.tsx");
+const contributionProjection = read("src/composition/contributionProjection.ts");
 const primitiveIndex = read("src/vendor/deepseek-harness/packages/client/ui-primitives/src/index.ts");
 const sourceManifest = JSON.parse(read("src/composition/deepseekHarnessSourceManifest.json"));
 const candidateEvidence = JSON.parse(read("src/candidateContractEvidence.json"));
@@ -304,6 +305,27 @@ test("Framework managed updates reuse the projected App action bus", () => {
   assert.match(settingsActionFlow, /captureManagedUpdateReceipt\(receipt\)/);
   assert.match(settingsActionFlow, /await loadState\(settings\.runtimeProfile\)/);
   assert.doesNotMatch(app, /Framework 尚未投影此更新操作|Framework has not projected this update operation/);
+});
+
+test("Framework managed Computer Use is projected into Capabilities through the App action bus", () => {
+  assert.match(settingsPanel, /model\.managedComputerUse/);
+  assert.match(settingsPanel, /data-testid="opl-managed-computer-use-installation"/);
+  assert.match(settingsPanel, /opl-managed-computer-use-action-/);
+  assert.match(app, /isManagedComputerUseActionId\(request\.actionId\)\) await loadState\("full"\)/);
+  assert.match(app, /isManagedComputerUseActionId\(confirmation\.request\.actionId\)\) await loadState\("full"\)/);
+});
+
+test("channel_access stays declarative and forwards only owner-projected scoped input", () => {
+  assert.match(contributionComponents, /viewType === "channel_access"/);
+  assert.match(contributionComponents, /readChannelAccessResult/);
+  assert.match(contributionComponents, /owner\.onAction\(entry, command, action\.input\)/);
+  assert.match(contributionComponents, /entry\.view\?\.viewType === "channel_access" \? null : <ContributionActions/);
+  assert.match(contributionComponents, /data-testid="opl-channel-access-pairings"/);
+  assert.match(contributionComponents, /data-testid="opl-channel-access-users"/);
+  assert.match(app, /createOplContributionActionRequest\(entry, command, confirmed\)/);
+  assert.match(app, /actionRequest\.payload\.input = input/);
+  assert.match(app, /bridge\.readContribution\(\{ packageId: entry\.packageId, ref: entry\.view\.dataRef, input \}\)/);
+  assert.doesNotMatch(`${contributionComponents}\n${contributionProjection}`, /transport_bindings|canonical_thread_id|AionCore/);
 });
 
 test("search, composer attachments, and Agent permissions route to real renderer and bridge behavior", () => {

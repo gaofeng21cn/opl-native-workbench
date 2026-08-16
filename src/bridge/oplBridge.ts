@@ -78,9 +78,13 @@ export type OplActionDescriptor = Record<string, unknown> & {
   action_id: string;
   label: string;
   route: string;
+  surface?: string;
+  submit_via?: string;
   payload_fields: string[];
   mutates: string;
   dry_run_supported: boolean;
+  confirmation_required?: boolean;
+  danger_level?: string;
   owner: string;
   delegated_surface: string;
   can_submit_to_safe_action_shell: boolean;
@@ -114,6 +118,7 @@ export type OplAppState = Record<string, unknown> & {
   provider: Record<string, unknown> & {
     status: string;
   };
+  managed_companions: Record<string, unknown>[];
   active_project_lines: OplActiveProjectLine[];
   ui_contributions?: Record<string, unknown>;
 };
@@ -776,6 +781,7 @@ function defaultStateReadback(profile: OplStateProfile): OplStateReadback {
       },
       modules: { items: [] },
       actions: defaultStateActions(),
+      managed_companions: [],
       meta: {
         profile,
         generated_at: generatedAt
@@ -953,11 +959,15 @@ function normalizeStateObject(value: unknown, fallback: OplStateReadback): OplAp
             action_id: id,
             label: asString(action?.label) ?? id,
             route: asString(action?.route) ?? `opl app action execute --action ${id}`,
+            ...(asString(action?.surface) ? { surface: asString(action?.surface) as string } : {}),
+            ...(asString(action?.submit_via) ? { submit_via: asString(action?.submit_via) as string } : {}),
             payload_fields: Array.isArray(action?.payload_fields)
               ? action.payload_fields.map((field) => String(field))
               : [],
             mutates: asString(action?.mutates) ?? "unknown",
             dry_run_supported: asBoolean(action?.dry_run_supported) ?? false,
+            confirmation_required: asBoolean(action?.confirmation_required) ?? false,
+            ...(asString(action?.danger_level) ? { danger_level: asString(action?.danger_level) as string } : {}),
             owner: asString(action?.owner) ?? "",
             delegated_surface: asString(action?.delegated_surface) ?? "",
             can_submit_to_safe_action_shell: asBoolean(action?.can_submit_to_safe_action_shell) ?? false,
@@ -965,6 +975,11 @@ function normalizeStateObject(value: unknown, fallback: OplStateReadback): OplAp
           };
         }).filter((action) => Boolean(action.action_id))
       : fallback.app_state.actions,
+    managed_companions: Array.isArray(appState.managed_companions)
+      ? appState.managed_companions
+          .map(asRecord)
+          .filter((item): item is Record<string, unknown> => item !== null)
+      : fallback.app_state.managed_companions,
     meta: {
       profile: normalizeProfile(asRecord(appState.meta)?.profile ?? fallback.profile),
       generated_at: asString(asRecord(appState.meta)?.generated_at) ?? fallback.app_state.meta.generated_at

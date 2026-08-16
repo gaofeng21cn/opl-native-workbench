@@ -32,6 +32,7 @@ import {
   type ResolvedCodexModelOption
 } from "./modelPolicy";
 import type { SettingKey, WorkbenchSettings } from "./settingsModel";
+import type { ManagedComputerUseAction, ManagedComputerUseViewModel } from "./managedComputerUse";
 import {
   actionPayloadComplete,
   buildSettingsActionViewModel,
@@ -302,6 +303,8 @@ function formatStatus(status: string | undefined, locale: WorkbenchSettings["loc
     active: ["正常", "Active"],
     ready: ["正常", "Ready"],
     compatible: ["兼容", "Compatible"],
+    required: ["需要授权", "Required"],
+    permission_required: ["需要授权", "Permission required"],
     unavailable: ["不可用", "Unavailable"],
     attention_needed: ["需要处理", "Needs attention"],
     action_available: ["可配置", "Action available"],
@@ -669,6 +672,85 @@ function RuntimeActionButton({
       {busyKey === key ? <LoaderCircle className="spin" aria-hidden="true" size={13} /> : <RefreshCw aria-hidden="true" size={13} />}
       {label}
     </button>
+  );
+}
+
+function ManagedComputerUseGroup({
+  companion,
+  locale,
+  busyKey,
+  onAction
+}: {
+  companion: ManagedComputerUseViewModel;
+  locale: WorkbenchSettings["locale"];
+  busyKey: string | null;
+  onAction: (request: SettingsActionRequest) => void;
+}) {
+  const yesNo = (value: boolean) => value
+    ? (locale === "zh" ? "是" : "Yes")
+    : (locale === "zh" ? "否" : "No");
+  const actionLabel = (action: ManagedComputerUseAction): string => {
+    const labels: Record<string, [string, string]> = {
+      settings_request_computer_use_permissions: ["授予权限", "Allow permissions"],
+      settings_recheck_computer_use: ["重新检查", "Recheck"],
+      settings_repair_computer_use: ["修复", "Repair"],
+      settings_reinstall_computer_use: ["重新安装", "Reinstall"]
+    };
+    return labels[action.actionId]?.[locale === "zh" ? 0 : 1] ?? action.label;
+  };
+
+  return (
+    <SettingsGroup title={locale === "zh" ? "OPL 托管" : "OPL managed"}>
+      <SettingRow
+        label={`${companion.productName}${companion.version ? ` ${companion.version}` : ""}`}
+        detail={companion.providerId}
+      >
+        <StatusValue status={companion.status} locale={locale} />
+      </SettingRow>
+      <SettingRow label={locale === "zh" ? "安装与启用" : "Install and enablement"}>
+        <span data-testid="opl-managed-computer-use-installation">
+          {locale === "zh"
+            ? `已安装 ${yesNo(companion.installed)} · 已注册 ${yesNo(companion.registered)} · 已启用 ${yesNo(companion.enabled)}`
+            : `Installed ${yesNo(companion.installed)} · Registered ${yesNo(companion.registered)} · Enabled ${yesNo(companion.enabled)}`}
+        </span>
+      </SettingRow>
+      <SettingRow label={locale === "zh" ? "权限" : "Permissions"} detail={companion.healthRef}>
+        <StatusValue status={companion.permission} locale={locale} />
+      </SettingRow>
+      {companion.actions.length ? (
+        <SettingRow label={locale === "zh" ? "操作" : "Actions"}>
+          <span className="runtime-setting-control" data-testid="opl-managed-computer-use-actions">
+            {companion.actions.map((action) => {
+              const key = `managed-computer-use:${action.actionId}`;
+              const label = actionLabel(action);
+              return (
+                <button
+                  key={action.actionId}
+                  className={`settings-action-button ${action.dangerLevel === "medium" ? "danger" : ""}`}
+                  type="button"
+                  data-testid={`opl-managed-computer-use-action-${action.actionId}`}
+                  disabled={busyKey !== null}
+                  onClick={() => onAction({
+                    key,
+                    actionId: action.actionId,
+                    label,
+                    payload: {},
+                    confirmationRequired: action.confirmationRequired
+                  })}
+                >
+                  {busyKey === key
+                    ? <LoaderCircle className="spin" aria-hidden="true" size={13} />
+                    : action.actionId === "settings_recheck_computer_use"
+                      ? <RefreshCw aria-hidden="true" size={13} />
+                      : <Wrench aria-hidden="true" size={13} />}
+                  {label}
+                </button>
+              );
+            })}
+          </span>
+        </SettingRow>
+      ) : null}
+    </SettingsGroup>
   );
 }
 
@@ -1097,6 +1179,14 @@ export function SettingsPanel({
             <SettingRow label={settings.locale === "zh" ? "本地默认入口" : "Local starter defaults"}>{renderSettingControl("professionalStarterDefaults")}</SettingRow>
             <SettingRow label={settings.locale === "zh" ? "能力包读取" : "Package readback"}><span>{model.packageLifecycle.length}</span></SettingRow>
           </SettingsGroup>
+          {model.managedComputerUse ? (
+            <ManagedComputerUseGroup
+              companion={model.managedComputerUse}
+              locale={settings.locale}
+              busyKey={actionBusyKey}
+              onAction={onAction}
+            />
+          ) : null}
           {contributions ? (
             <section className="settings-contribution-section" data-testid="opl-settings-contributions">
               <h2>{settings.locale === "zh" ? "模块设置" : "Module settings"}</h2>

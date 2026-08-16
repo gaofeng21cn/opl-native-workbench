@@ -227,7 +227,29 @@ test("browser bridge normalization preserves App-projected Temporal runtime deta
               scheduler: { status: "attention_needed", ready: false }
             }
           }
-        }
+        },
+        managed_companions: [{
+          surface_kind: "opl_managed_computer_use_projection",
+          provider_id: "kimi-cu",
+          product_name: "KimiCU",
+          available_actions: ["settings_reinstall_computer_use"]
+        }],
+        actions: [{
+          action_id: "settings_reinstall_computer_use",
+          label: "Reinstall Computer Use",
+          route: "opl app action execute --action settings_reinstall_computer_use",
+          surface: "opl app action execute",
+          submit_via: "opl app action execute",
+          payload_fields: [],
+          mutates: "opl_managed_kimi_cu_bundle_service_and_codex_mcp_registration",
+          dry_run_supported: true,
+          confirmation_required: true,
+          danger_level: "medium",
+          owner: "one-person-lab",
+          delegated_surface: "OPL managed KimiCU reinstall",
+          can_submit_to_safe_action_shell: true,
+          route_requires_domain_or_app_payload: false
+        }]
       }
     },
     carrierDiagnostics: {
@@ -244,6 +266,24 @@ test("browser bridge normalization preserves App-projected Temporal runtime deta
   assert.equal(model.runtimeOverview?.temporal.serviceStatus, "loaded_running");
   assert.equal(model.runtimeOverview?.temporal.workerStatus, "ready");
   assert.equal(model.runtimeOverview?.temporal.schedulerStatus, "attention_needed");
+  assert.equal(model.managedComputerUse?.providerId, "kimi-cu");
+  assert.deepEqual(readback.app_state.managed_companions.map((item) => item.provider_id), ["kimi-cu"]);
+  assert.deepEqual(readback.app_state.actions[0], {
+    action_id: "settings_reinstall_computer_use",
+    label: "Reinstall Computer Use",
+    route: "opl app action execute --action settings_reinstall_computer_use",
+    surface: "opl app action execute",
+    submit_via: "opl app action execute",
+    payload_fields: [],
+    mutates: "opl_managed_kimi_cu_bundle_service_and_codex_mcp_registration",
+    dry_run_supported: true,
+    confirmation_required: true,
+    danger_level: "medium",
+    owner: "one-person-lab",
+    delegated_surface: "OPL managed KimiCU reinstall",
+    can_submit_to_safe_action_shell: true,
+    route_requires_domain_or_app_payload: false
+  });
   assert.deepEqual(readback.carrierDiagnostics, {
     schema: "opl_app_carrier_diagnostics.v1",
     owner: "one-person-lab-app_desktop_host",
