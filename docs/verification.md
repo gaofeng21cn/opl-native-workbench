@@ -106,10 +106,26 @@ output is candidate evidence only. It does not establish an installer flow,
 clean-VM behavior, shared Runtime parity, native screen-reader behavior,
 active-shell adoption, or release readiness.
 
-## Hosted Windows And Linux Candidate Qualification
+## Daily Source Validation
 
-`.github/workflows/non-release-validation.yml` builds and checks exact-head
-unsigned candidates on GitHub-hosted Windows x64 and Linux x64 runners:
+`.github/workflows/non-release-validation.yml` is the default PR/main gate. It
+runs source, type, contract, and unit validation only. It does not build a
+Desktop package, install a service, start Electron, or construct a Docker image.
+
+## macOS Desktop Release Qualification
+
+`.github/workflows/macos-desktop-release-qualification.yml` is a manual release
+qualification for the primary macOS arm64 Desktop carrier. It constructs the
+unsigned arm64 DMG/ZIP, validates the package and disk image, checks the exact
+executable architecture, launches the packaged app, reads its interaction tree,
+and proves child-process cleanup. Release signing, notarization, publication,
+and public feed readback remain separate App-owned release gates.
+
+## Additional Carrier Qualification
+
+`.github/workflows/additional-carrier-qualification.yml` runs manually. It
+builds and checks exact-head unsigned candidates on
+GitHub-hosted Windows x64 and Linux x64 runners:
 
 - Windows requires two unsigned unpacked/NSIS/ZIP cohorts under the same fixed
   product identity, then proves base install, newer-version update, old-version

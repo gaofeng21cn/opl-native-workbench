@@ -71,7 +71,7 @@ release admission, and is explicitly adopted.
 | Run detail | `identity_scoped_composition` | Agent activity, work status, runtime detail, files, and results are scoped to the active thread/work item; unknown modules degrade locally |
 | Local launcher | `implemented_candidate_path` | Isolated bundle; actions dry-run-only by default |
 | Minimum product baseline | `eight_source_outcomes_complete` | Thread/turn lifecycle, run detail, files/results, settings/diagnostics, dynamic Agents, capabilities/contributions, three-object maintenance, and service recovery are source-complete; later evidence axes remain independent |
-| Validation | `source_local_and_hosted_installer_native_accessibility_gates_green` | Focused/full tests, local macOS package/live Electron, hosted macOS/Linux Headless user-service lifecycles with owner-state readback, hosted Windows/Linux unsigned package install/update/rollback/uninstall plus exact running-version, state-preservation, Chromium AX, native UIA/AT-SPI, and cleanup readback, Docker, and desktop/mobile browser checks prove only their exact candidate bytes and named carriers |
+| Validation | `daily_source_release_carriers_independent` | Default PR/main CI runs source, type, contract, and unit validation only. The macOS arm64 Desktop primary carrier has its own manual release qualification; Windows/Linux Desktop, macOS/Linux Headless, and native amd64/arm64 OCI lifecycles have a separate manual additional-carrier qualification. No packaging or carrier lifecycle blocks daily development. These checks prove only their exact candidate bytes and named carriers |
 | Adoption and readiness | `false` | No active-shell adoption, release, clean-VM, domain, owner-acceptance, or production claim |
 
 ## Current Gaps

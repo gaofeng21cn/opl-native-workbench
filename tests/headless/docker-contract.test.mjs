@@ -8,7 +8,7 @@ test("OCI carrier runs only the Node headless host with persistent non-root defa
     readFile(new URL("../../Dockerfile", import.meta.url), "utf8"),
     readFile(new URL("../../compose.yaml", import.meta.url), "utf8"),
     readFile(new URL("../../docker-compose.distribution.yaml", import.meta.url), "utf8"),
-    readFile(new URL("../../.github/workflows/non-release-validation.yml", import.meta.url), "utf8"),
+    readFile(new URL("../../.github/workflows/additional-carrier-qualification.yml", import.meta.url), "utf8"),
     readFile(new URL("../../scripts/oci/build-plan.mjs", import.meta.url), "utf8")
   ]);
   assert.match(dockerfile, /node:22-bookworm-slim@sha256:[a-f0-9]{64}/);
