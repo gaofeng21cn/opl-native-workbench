@@ -3,6 +3,7 @@ import { Boxes, Play, QrCode, ShieldCheck, Users } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   contributionLabel,
+  createOplContributionReadInput,
   readChannelAccessResult,
   type OplContributionSlotOwner,
   type OplChannelAccessAction,
@@ -10,6 +11,7 @@ import {
   type OplUiContribution,
   type OplUiContributionBadge
 } from "./contributionProjection";
+import { buildRuntimeDetailResultViewModel, type RuntimeDetailSection } from "../workbench/runDetailModel";
 
 function badgeState(badge: OplUiContributionBadge): StateDotState {
   if (badge.tone === "success") return "done";
@@ -105,11 +107,53 @@ function fieldLabel(value: string, locale: OplContributionSlotOwner["locale"]): 
     owner: ["负责人", "Owner"],
     blockers: ["阻塞项", "Blockers"],
     evidence: ["证据", "Evidence"],
-    updated_at: ["更新时间", "Updated"]
+    updated_at: ["更新时间", "Updated"],
+    work_item_id: ["任务", "Work item"],
+    study_id: ["研究", "Study"],
+    business_status: ["业务状态", "Business status"],
+    lifecycle_state: ["生命周期", "Lifecycle"],
+    stage_id: ["阶段", "Stage"],
+    stage_status: ["阶段状态", "Stage status"],
+    current_judgment: ["当前判断", "Current judgment"],
+    next_research_step: ["下一研究步骤", "Next research step"]
   };
   const localized = labels[value.toLowerCase()];
   if (localized) return localized[locale === "zh" ? 0 : 1];
   return value.replaceAll("_", " ");
+}
+
+function runtimeDetailSectionLabel(section: RuntimeDetailSection, locale: OplContributionSlotOwner["locale"]): string {
+  const labels: Record<RuntimeDetailSection["id"], [string, string]> = {
+    identity: ["任务", "Work item"],
+    agent: ["智能体", "Agent"],
+    phase: ["当前阶段", "Current phase"],
+    "work.active": ["进行中", "Active"],
+    "work.queued": ["待执行", "Queued"],
+    "work.pending": ["待处理", "Pending"],
+    hypotheses: ["研究假设", "Hypotheses"],
+    roadmap: ["路线图", "Roadmap"]
+  };
+  return labels[section.id][locale === "zh" ? 0 : 1];
+}
+
+function RuntimeDetailResult({ sections, locale }: {
+  sections: RuntimeDetailSection[];
+  locale: OplContributionSlotOwner["locale"];
+}) {
+  return <div className="opl-runtime-detail-result">
+    {sections.map((section) => <section key={section.id}>
+      <h4>{runtimeDetailSectionLabel(section, locale)}</h4>
+      {section.kind === "rows" ? (
+        <dl className="opl-structured-fields">
+          {section.rows.map((row) => <div key={row.id}><dt>{fieldLabel(row.id, locale)}</dt><dd><StructuredValue value={row.value} locale={locale} /></dd></div>)}
+        </dl>
+      ) : section.items.length ? (
+        <ul className="opl-structured-list">
+          {section.items.map((item) => <li key={item.id}><strong>{item.id}</strong><dl className="opl-structured-fields">{item.rows.map((row) => <div key={row.id}><dt>{fieldLabel(row.id, locale)}</dt><dd><StructuredValue value={row.value} locale={locale} /></dd></div>)}</dl></li>)}
+        </ul>
+      ) : <p className="opl-structured-empty">{locale === "zh" ? "暂无内容" : "No items"}</p>}
+    </section>)}
+  </div>;
 }
 
 function StructuredValue({ value, locale, depth = 0 }: {
@@ -170,7 +214,8 @@ function StructuredContributionView({ entry, owner }: {
     let active = true;
     setState("loading");
     setError("");
-    void owner.readData(entry).then((value) => {
+    const input = createOplContributionReadInput(entry, owner.runtimeDetailIdentity);
+    void owner.readData(entry, input).then((value) => {
       if (!active) return;
       setResult(value);
       setState("ready");
@@ -181,7 +226,7 @@ function StructuredContributionView({ entry, owner }: {
       setState("error");
     });
     return () => { active = false; };
-  }, [entry.packageId, owner.readData, view?.dataRef]);
+  }, [entry.packageId, owner.readData, owner.runtimeDetailIdentity?.agentId, owner.runtimeDetailIdentity?.domainId, owner.runtimeDetailIdentity?.workItemId, owner.runtimeDetailIdentity?.workItemScopeId, view?.dataRef]);
 
   if (!view) return null;
   if (state === "loading") {
@@ -189,6 +234,13 @@ function StructuredContributionView({ entry, owner }: {
   }
   if (state === "error") {
     return <p className="opl-contribution-fallback" role="status" title={error}><StateDot state="warning" size={10} />{view.emptyState ? contributionLabel(view.emptyState, owner.locale, "") : (owner.locale === "zh" ? "模块数据当前不可用" : "Module data is unavailable")}</p>;
+  }
+  const runtimeDetail = entry.slot === "runtime.detail" ? buildRuntimeDetailResultViewModel(result) : null;
+  if (runtimeDetail?.state === "ready") {
+    return <div className="opl-contribution-result" data-view-type={view.viewType} data-testid={`opl-ui-contribution-result-${entry.contributionKey}`}><RuntimeDetailResult sections={runtimeDetail.sections} locale={owner.locale} /></div>;
+  }
+  if (runtimeDetail?.state === "unavailable" && runtimeDetail.diagnostic.code !== "unsupported_surface") {
+    return <p className="opl-contribution-fallback" role="status" title={runtimeDetail.diagnostic.message}><StateDot state="warning" size={10} />{owner.locale === "zh" ? "任务详情当前不可用" : "Runtime detail is unavailable"}</p>;
   }
   return (
     <div className="opl-contribution-result" data-view-type={view.viewType} data-testid={`opl-ui-contribution-result-${entry.contributionKey}`}>

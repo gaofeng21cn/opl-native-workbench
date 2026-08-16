@@ -117,13 +117,38 @@ export type OplContributionActionRequest = {
   };
   dryRun: false;
 };
+export type OplRuntimeDetailIdentity = {
+  agentId: string;
+  domainId: string;
+  workItemId: string;
+  workItemScopeId: string;
+};
 export type OplContributionSlotOwner = {
   locale: OplStudioLocale;
   actionAvailable: boolean;
+  runtimeDetailIdentity?: OplRuntimeDetailIdentity;
   readData(entry: OplUiContribution, input?: OplContributionInput): Promise<unknown>;
   refreshRevision: number;
   onAction: OplContributionAction;
 };
+
+export function createOplContributionReadInput(
+  entry: OplUiContribution,
+  identity?: OplRuntimeDetailIdentity
+): OplContributionInput | undefined {
+  if (entry.slot !== "runtime.detail" || !identity) return undefined;
+  return {
+    work_item_identity: {
+      agent_id: identity.agentId,
+      domain_id: identity.domainId,
+      work_item_id: identity.workItemId,
+      domain_work_item_id: identity.workItemId,
+      work_item_scope_id: identity.workItemScopeId,
+      identity_state: "resolved"
+    }
+  };
+}
+
 export type RenderOplContributionSlot = (
   slot: OplUiContributionSlot,
   owner: OplContributionSlotOwner

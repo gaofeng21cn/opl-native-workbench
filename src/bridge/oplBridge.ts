@@ -106,6 +106,7 @@ export type OplAppState = Record<string, unknown> & {
   operator: {
     summary: OplOperatorSummary;
     refs: OplOperatorRef[];
+    workbench?: Record<string, unknown>;
   };
   modules: {
     items: OplModuleItem[];
@@ -1053,6 +1054,7 @@ function normalizeStateObject(value: unknown, fallback: OplStateReadback): OplAp
   const root = asRecord(value);
   const appState = asRecord(root?.app_state) ?? root;
   if (!appState) return fallback.app_state;
+  const operator = asRecord(appState.operator);
   return {
     ...fallback.app_state,
     ...appState,
@@ -1061,13 +1063,15 @@ function normalizeStateObject(value: unknown, fallback: OplStateReadback): OplAp
       ...asRecord(appState.runtime_source)
     },
     operator: {
+      ...operator,
       summary: {
         ...fallback.app_state.operator.summary,
-        ...asRecord(asRecord(appState.operator)?.summary)
+        ...asRecord(operator?.summary)
       },
-      refs: Array.isArray(asRecord(appState.operator)?.refs)
-        ? (asRecord(appState.operator)?.refs as unknown[]).map((item) => asRecord(item) ?? {})
-        : fallback.app_state.operator.refs
+      refs: Array.isArray(operator?.refs)
+        ? (operator.refs as unknown[]).map((item) => asRecord(item) ?? {})
+        : fallback.app_state.operator.refs,
+      ...(asRecord(operator?.workbench) ? { workbench: asRecord(operator?.workbench) as Record<string, unknown> } : {})
     },
     modules: {
       items: Array.isArray(asRecord(appState.modules)?.items)

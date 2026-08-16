@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray } from "electron";
 import updaterPackage from "electron-updater";
 import fs from "node:fs";
 import path from "node:path";
@@ -7,6 +7,7 @@ import { createOplHostCore } from "../scripts/webui-host/host-core.mjs";
 import { captureDesktopAccessibility } from "./accessibility-qualification.mjs";
 import { createAppLogDirectoryController } from "./app-log-directory.mjs";
 import { createShutdownController } from "./shutdown.mjs";
+import { createDesktopTray } from "./tray.mjs";
 import {
   configureDesktopUpdaterQualification,
   configureDesktopUpdaterQualificationState,
@@ -18,7 +19,10 @@ const desktopRoot = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(desktopRoot, "..");
 const rendererIndex = path.join(repositoryRoot, "dist", "desktop", "index.html");
 let hostCore;
+let mainWindow;
+let desktopTray;
 let installingUpdate = false;
+let quittingApplication = false;
 let updaterQualificationEnabled = false;
 const nativeAccessibilityQualificationEnabled = process.env.OPL_DESKTOP_NATIVE_ACCESSIBILITY_QUALIFICATION === "1";
 if (nativeAccessibilityQualificationEnabled) {
@@ -33,6 +37,8 @@ configureDesktopUpdaterQualificationState({
 });
 const shutdown = createShutdownController({
   close: async () => {
+    desktopTray?.destroy();
+    desktopTray = null;
     ipcMain.removeHandler("opl:invoke");
     await hostCore?.close();
   },
@@ -67,6 +73,7 @@ function createWindow() {
       webSecurity: true
     }
   });
+  mainWindow = window;
   window.once("ready-to-show", async () => {
     window.show();
     if (typeof process.send === "function") {
@@ -98,8 +105,33 @@ function createWindow() {
     if (/^https:\/\//.test(url)) void shell.openExternal(url);
     return { action: "deny" };
   });
+  window.on("close", (event) => {
+    if (desktopTray && !quittingApplication && !installingUpdate) {
+      event.preventDefault();
+      window.hide();
+    }
+  });
+  window.on("closed", () => {
+    if (mainWindow === window) mainWindow = null;
+  });
   void window.loadFile(rendererIndex);
   return window;
+}
+
+function sendDesktopRendererEvent(method, params = {}) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send("opl:event", { method, params });
+}
+
+function restartApplication() {
+  quittingApplication = true;
+  app.relaunch();
+  app.quit();
+}
+
+function quitApplication() {
+  quittingApplication = true;
+  app.quit();
 }
 
 function desktopCodexWorkspaceRoot() {
@@ -179,8 +211,24 @@ app.whenReady().then(async () => {
   const desktopHost = await createDesktopHost(appLogDirectory);
   hostCore = desktopHost.core;
   createWindow();
+  desktopTray = await createDesktopTray({
+    electron: { app, dialog, Menu, nativeImage, Tray },
+    repositoryRoot,
+    resourcesPath: process.resourcesPath,
+    isPackaged: app.isPackaged,
+    invokeHost: (method, payload) => hostCore.invoke(method, payload),
+    checkForUpdates: () => desktopHost.desktopUpdater.perform("check"),
+    getWindow: () => mainWindow,
+    sendRendererEvent: sendDesktopRendererEvent,
+    restart: restartApplication,
+    quit: quitApplication
+  });
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (!mainWindow || mainWindow.isDestroyed()) createWindow();
+    else {
+      mainWindow.show();
+      mainWindow.focus();
+    }
   });
   if (desktopHost.desktopUpdater.snapshot().supported && !updaterQualificationEnabled) {
     void desktopHost.desktopUpdater.perform("check").catch(() => undefined);
@@ -192,6 +240,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", (event) => {
+  quittingApplication = true;
   if (installingUpdate) return;
   if (!shutdown.exitAllowed) void shutdown.request(event);
 });

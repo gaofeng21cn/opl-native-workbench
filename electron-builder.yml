@@ -9,6 +9,12 @@ files:
   - dist/desktop/**/*
   - scripts/webui-host/**/*
   - package.json
+extraResources:
+  - from: resources/opl-branding
+    to: branding
+    filter:
+      - trayTemplate.png
+      - trayTemplate@2x.png
 mac:
   icon: assets/branding/opl-studio.icns
   category: public.app-category.developer-tools

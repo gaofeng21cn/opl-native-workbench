@@ -10,6 +10,8 @@ export type OplSetupOperationResult = {
   message?: string;
 };
 
+export type OplStudioPrimaryView = "conversation" | "runtime";
+
 export type OplStudioSurface = {
   locale: "zh" | "en";
   projectTitle: string;
@@ -46,6 +48,9 @@ export type OplStudioSurface = {
   selectedAgentPresetId: string;
   conversationHeader: ReactNode;
   conversationBody: ReactNode;
+  primaryView: OplStudioPrimaryView;
+  runtimeOverview: ReactNode;
+  openPrimaryView(view: OplStudioPrimaryView): void;
   composerAccessory: ReactNode;
   composerOverlay: ReactNode;
   details: ReactNode;

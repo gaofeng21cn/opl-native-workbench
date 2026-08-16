@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
-import { AlertCircle, Check, CheckCircle2, ChevronDown, ChevronRight, Folder, LoaderCircle, PanelRight, RefreshCw, Settings as SettingsIcon, X } from "lucide-react";
+import { Activity, AlertCircle, Check, CheckCircle2, ChevronDown, ChevronRight, Folder, LoaderCircle, MessagesSquare, PanelRight, RefreshCw, Settings as SettingsIcon, X } from "lucide-react";
 import { Menu, OnboardingSurface, type MenuEntry } from "@deepseek-ai/dsh-client-ui-primitives";
 import {
   SlotCore,
@@ -207,6 +207,10 @@ function StudioFrame({ surface, renderSlot }: { surface: OplStudioSurface; rende
     ...surface,
     narrow: panels.narrow,
     detailsOpen: panels.details > 0,
+    openPrimaryView: (view: OplStudioSurface["primaryView"]) => {
+      if (view === "runtime") actions.closeDetails();
+      surface.openPrimaryView(view);
+    },
     toggleSidebar: actions.toggleSidebar,
     toggleDetails: () => setPanels((current) => ({ ...current, details: current.details === 0 ? 360 : 0 })),
     closeDetails: actions.closeDetails
@@ -388,12 +392,42 @@ function SidebarWorkspacesSlot({ wide, expandSidebar }: { wide: boolean; expandS
 
 function ConversationSlot({ renderSlot }: { renderSlot: any }) {
   const studio = useStudio();
+  if (studio.primaryView === "runtime") return <>{studio.runtimeOverview}</>;
   const sessionId = "opl-current";
   const session = { openState: "open", composerPhase: studio.conversationBlank ? "blank" : "active", pending: [], promptError: null, running: studio.sending, subagent: null, removed: false };
   const sessions = { phase: "ready", current: sessionId, byId: { [sessionId]: { blank: studio.conversationBlank, cwd: studio.workspacePath } } };
   const workspaces = { phase: "ready", items: [{ workspaceId: "opl-workspace", title: studio.projectTitle, sessionIds: [sessionId] }] };
   const input = { draft: studio.prompt, imageIds: [], draftRev: studio.promptRevision, phase: "plain", occurrences: [], queue: studio.queue };
   return <ConversationRoot sessionId={sessionId} useSession={(selector: any) => selector(session)} useSessions={(selector: any) => selector(sessions)} useWorkspaces={(selector: any) => selector(workspaces)} useInput={(selector: any) => selector(input)} useComposerBlock={(selector: any) => selector(undefined)} renderSlot={renderSlot} renderSlotChain={(_key: string, _owner: unknown, options: { fallback: ReactNode }) => options.fallback} selectWorkspace={async () => undefined} t={(key: string, params?: Record<string, unknown>) => translate(studio.locale, key, params)} />;
+}
+
+function SidebarPrimaryNavigationSlot({ wide }: { wide: boolean }) {
+  const studio = useStudio();
+  const entries = [
+    {
+      id: "conversation" as const,
+      label: studio.locale === "zh" ? "对话" : "Conversations",
+      icon: MessagesSquare
+    },
+    {
+      id: "runtime" as const,
+      label: studio.locale === "zh" ? "运行状态" : "Run status",
+      icon: Activity
+    }
+  ];
+  return <nav className="opl-primary-nav" data-wide={wide} aria-label={studio.locale === "zh" ? "主导航" : "Primary navigation"}>
+    {entries.map((entry) => {
+      const Icon = entry.icon;
+      return <button
+        type="button"
+        key={entry.id}
+        title={entry.label}
+        aria-label={entry.label}
+        aria-current={studio.primaryView === entry.id ? "page" : undefined}
+        onClick={() => studio.openPrimaryView(entry.id)}
+      ><Icon aria-hidden="true" size={16} />{wide ? <span>{entry.label}</span> : null}</button>;
+    })}
+  </nav>;
 }
 
 function ConversationHeaderSlot() {
@@ -730,6 +764,7 @@ export class OplStudioDshSlotHost {
     register({ name: "root", registrant: "opl-studio", children: { sidebar: { kind: "single", scope: "root" }, conversation: { kind: "single", scope: "root" }, details: { kind: "single", scope: "root" }, "shell.overlay": { kind: "list", scope: "root" }, "composer.palette": { kind: "list", scope: "root" } } }, OplStudioRoot);
     register({ name: "sidebar", registrant: "dsh-ui-sidebar", children: { "sidebar.workspaces": { kind: "single", scope: "root" }, "sidebar.settings": { kind: "single", scope: "root" }, "sidebar.footer.action": { kind: "list", scope: "root" } } }, SidebarSlot);
     register({ name: "sidebar.workspaces", registrant: "opl-studio" }, SidebarWorkspacesSlot);
+    register({ name: "sidebar.footer.action", id: "opl-primary-navigation", order: 0, registrant: "opl-studio" }, SidebarPrimaryNavigationSlot);
     register({ name: "sidebar.settings", registrant: "dsh-ui-settings", children: { "settings.trigger": { kind: "single", scope: "root" }, "settings.header": { kind: "single", scope: "root" }, "settings.action": { kind: "list", scope: "root" }, "settings.close": { kind: "single", scope: "root" }, "settings.section": { kind: "list", scope: "root" }, "settings.onboarding": { kind: "list", scope: "root" } } }, SettingsSlot);
     register({ name: "settings.trigger", registrant: "opl-studio" }, SettingsTriggerSlot);
     register({ name: "settings.header", registrant: "opl-studio" }, SettingsHeaderSlot);

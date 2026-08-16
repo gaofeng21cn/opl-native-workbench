@@ -67,6 +67,7 @@ import {
   type WorkbenchSettings
 } from "./settingsModel";
 import { codexWorkbenchStyles } from "./codexWorkbenchStyles";
+import { RuntimeOverviewPage } from "./RuntimeOverviewPage";
 import {
   codexModelPolicy,
   resolveCodexModelOptions,
@@ -107,7 +108,7 @@ import type {
 } from "../composition/contributionProjection";
 import { createOplContributionActionRequest } from "../composition/contributionProjection";
 import { isManagedComputerUseActionId } from "./managedComputerUse";
-import type { OplSetupOperationResult, RenderOplStudioShell } from "../composition/oplStudioSurface";
+import type { OplSetupOperationResult, OplStudioPrimaryView, RenderOplStudioShell } from "../composition/oplStudioSurface";
 
 const contextTabs = [
   "opl-runtime-status-panel",
@@ -259,6 +260,12 @@ function threadRuntimeStatusLabel(status: string | undefined, locale: "zh" | "en
     notLoaded: ["未加载", "Not loaded"],
     idle: ["空闲", "Idle"],
     running: ["运行中", "Running"],
+    paused: ["已暂停", "Paused"],
+    delivered: ["已交付", "Delivered"],
+    delivered_paused: ["已交付，自动暂停", "Delivered and paused"],
+    completed: ["已完成", "Completed"],
+    stopped: ["已停止", "Stopped"],
+    failed: ["运行失败", "Failed"],
     system_error: ["运行异常", "System error"],
     systemError: ["运行异常", "System error"]
   };
@@ -755,6 +762,7 @@ export function App({
   const [threadInputFiles, setThreadInputFiles] = useState<Record<string, WorkbenchArtifactRef[]>>({});
   const [pendingInputFiles, setPendingInputFiles] = useState<WorkbenchArtifactRef[]>([]);
   const [activeContextTab, setActiveContextTab] = useState<ContextTabId>("opl-runtime-status-panel");
+  const [primaryView, setPrimaryView] = useState<OplStudioPrimaryView>("conversation");
   const t = uiCopy[settings.locale];
   const contextTabLabels: Record<ContextTabId, string> = {
     "opl-runtime-status-panel": settings.locale === "zh" ? "运行状态" : "Run status",
@@ -787,6 +795,7 @@ export function App({
   const activeThreads = useMemo(() => threadProjects.flatMap((project) => project.threads), [threadProjects]);
   const archivedThreads = useMemo(() => archivedThreadProjects.flatMap((project) => project.threads), [archivedThreadProjects]);
   const allThreads = useMemo(() => [...activeThreads, ...archivedThreads], [activeThreads, archivedThreads]);
+  const allThreadsRef = useRef(allThreads);
   const currentSession = allThreads.find((thread) => thread.id === codexThreadId);
   const currentAgentStatus = sendState === "running"
     ? (settings.locale === "zh" ? "运行中" : "Running")
@@ -795,12 +804,19 @@ export function App({
     ?? threadProjects.find((project) => project.threads.some((thread) => thread.id === codexThreadId))
     ?? threadProjects[0];
   const currentProject = selectedProject?.label ?? settings.defaultWorkspace ?? "Current project";
-  const selectedWorkItemId = model.activeProjectLines.find((line) => line.status === "running")?.activeRunId
+  const defaultWorkItemId = model.activeProjectLines.find((line) => line.status === "running")?.activeRunId
     ?? model.activeProjectLines[0]?.activeRunId
     ?? undefined;
+  const [selectedRuntimeWorkItemId, setSelectedRuntimeWorkItemId] = useState<string | undefined>();
+  const selectedWorkItemId = selectedRuntimeWorkItemId ?? defaultWorkItemId;
+  const selectedRuntimeWorkItem = selectedWorkItemId
+    ? model.workItemRuntime?.items.find((item) => item.workItemId === selectedWorkItemId || item.id === selectedWorkItemId)
+    : undefined;
+  const detailWorkItemId = selectedRuntimeWorkItem?.workItemId ?? selectedWorkItemId;
   const runDetail = useMemo(() => buildRunDetailViewModel({
     thread: currentSession,
-    workItemId: selectedWorkItemId,
+    workItem: selectedRuntimeWorkItem,
+    workItemId: detailWorkItemId,
     running: sendState === "running",
     activeLines: model.activeProjectLines,
     files: [
@@ -811,7 +827,7 @@ export function App({
     ],
     results: model.artifactPreviews.map((value) => ({ scope: "root" as const, value })),
     contributions: model.uiContributions
-  }), [codexThreadId, currentSession, model.activeProjectLines, model.artifactPreviews, model.uiContributions, pendingInputFiles, selectedWorkItemId, sendState, threadInputFiles]);
+  }), [codexThreadId, currentSession, detailWorkItemId, model.activeProjectLines, model.artifactPreviews, model.uiContributions, pendingInputFiles, selectedRuntimeWorkItem, sendState, threadInputFiles]);
   const previewItems = useMemo(() => [...runDetail.results].sort((left, right) => {
     if (left.previewKind === right.previewKind) return 0;
     if (left.previewKind === "markdown") return -1;
@@ -901,6 +917,10 @@ export function App({
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  useEffect(() => {
+    allThreadsRef.current = allThreads;
+  }, [allThreads]);
 
   useEffect(() => {
     ephemeralQueueRef.current = ephemeralQueue;
@@ -1357,6 +1377,8 @@ export function App({
   }
 
   async function openThread(thread: WorkbenchThreadItem) {
+    setPrimaryView("conversation");
+    setSelectedRuntimeWorkItemId(undefined);
     setThreadActionBusy(true);
     setThreadActionError("");
     setCodexThreadId(thread.id);
@@ -1465,6 +1487,16 @@ export function App({
     const method = eventMethod(event);
     const params = eventParams(event);
     setEventFeed((items) => [formatEvent(event), ...items].slice(0, 8));
+    if (method === "desktop/navigate" && (params.view === "conversation" || params.view === "runtime")) {
+      setPrimaryView(params.view);
+    }
+    if (method === "desktop/new-task") {
+      startNewChat();
+    }
+    if (method === "desktop/open-thread" && typeof params.threadId === "string") {
+      const thread = allThreadsRef.current.find((candidate) => candidate.id === params.threadId);
+      if (thread) void openThread(thread);
+    }
     if (method === "turn/started" && pendingAssistantIdRef.current) {
       const turn = typeof params.turn === "object" && params.turn ? params.turn as Record<string, unknown> : {};
       const threadId = typeof params.threadId === "string" ? params.threadId : "";
@@ -1567,6 +1599,12 @@ export function App({
   const contributionOwner = {
     locale: settings.locale,
     actionAvailable: contributionActionAvailable,
+    ...(selectedRuntimeWorkItem?.domainId ? { runtimeDetailIdentity: {
+      agentId: selectedRuntimeWorkItem.agentId,
+      domainId: selectedRuntimeWorkItem.domainId,
+      workItemId: selectedRuntimeWorkItem.workItemId,
+      workItemScopeId: selectedRuntimeWorkItem.id
+    } } : {}),
     refreshRevision: contributionRefreshRevision,
     readData: readContributionData,
     onAction: handleContributionAction
@@ -1838,6 +1876,8 @@ export function App({
   }
 
   function startNewChat() {
+    setPrimaryView("conversation");
+    setSelectedRuntimeWorkItemId(undefined);
     const currentWorkspaceProject = threadProjects.find((project) => project.threads.some((thread) => thread.currentWorkspace));
     const nextMessages = createIntroMessages();
     messagesRef.current = nextMessages;
@@ -2275,6 +2315,20 @@ export function App({
     selectedAgentPresetId: selectedAgent?.packageId ?? "opl-daily-work",
     conversationHeader: <><Folder aria-hidden="true" size={15} /><h1>{localizedSessionTitle(currentSession?.title || t.newTaskTitle, settings.locale)}</h1><button type="button" aria-label={t.conversationMenu} disabled={!currentSession} onClick={() => setThreadDetail(currentSession ?? null)}><CircleEllipsis aria-hidden="true" size={16} /></button></>,
     conversationBody: studioConversationBody,
+    primaryView,
+    runtimeOverview: <RuntimeOverviewPage
+      locale={settings.locale}
+      projection={model.workItemRuntime}
+      selectedWorkItemId={detailWorkItemId}
+      stateStatus={stateStatus}
+      stateError={stateError}
+      onRefresh={() => { void loadState(settings.runtimeProfile); }}
+      onOpenWorkItem={(item) => {
+        setSelectedRuntimeWorkItemId(item.workItemId);
+        requestDetails("opl-runtime-status-panel");
+      }}
+    />,
+    openPrimaryView: setPrimaryView,
     composerAccessory: studioComposerAccessory,
     composerOverlay: studioComposerOverlay,
     details: studioDetails,

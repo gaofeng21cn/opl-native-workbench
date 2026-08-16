@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   OPL_UI_CONTRIBUTION_SLOTS,
   createOplContributionActionRequest,
+  createOplContributionReadInput,
   readChannelAccessResult,
   readUiContributionsProjection,
   type OplUiContributionsProjection
@@ -223,6 +224,21 @@ describe("OPL Studio DSH contribution composition", () => {
       ref: command.actionRef,
       input: { channel_id: "weixin" },
       confirmed: true
+    });
+    expect(createOplContributionReadInput(projection.entries.find((candidate) => candidate.slot === "runtime.detail")!, {
+      agentId: "mas",
+      domainId: "medautoscience",
+      workItemId: "002-dm-china-us-mortality-attribution",
+      workItemScopeId: "project:test:002-dm-china-us-mortality-attribution"
+    })).toEqual({
+      work_item_identity: {
+        agent_id: "mas",
+        domain_id: "medautoscience",
+        work_item_id: "002-dm-china-us-mortality-attribution",
+        domain_work_item_id: "002-dm-china-us-mortality-attribution",
+        work_item_scope_id: "project:test:002-dm-china-us-mortality-attribution",
+        identity_state: "resolved"
+      }
     });
     expect(readChannelAccessResult({
       schema_version: "opl-app-channel-access.v1",

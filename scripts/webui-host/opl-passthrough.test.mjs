@@ -425,6 +425,100 @@ test("fast state keeps the bounded public UI contribution projection", () => {
   }
 });
 
+test("fast state keeps a bounded work-item runtime projection without private execution payloads", () => {
+  const compact = compactFastState({
+    app_state: {
+      operator: {
+        workbench: {
+          work_item_projection_v2: {
+            surface_kind: "opl_work_item_projection",
+            schema_version: "work-item-projection.v2",
+            profile: "fast",
+            generated_at: "2026-08-16T08:58:46.549Z",
+            summary: {
+              agent_count: 1,
+              project_count: 1,
+              work_item_count: 1,
+              running_count: 0,
+              telemetry_missing_count: 1,
+              private_counter: 99
+            },
+            agent_catalog: [{
+              agent_id: "mas",
+              display_name: "Med Auto Science",
+              package_id: "mas",
+              private_launch_payload: "omit"
+            }],
+            project_catalog: [{
+              project_id: "project:one",
+              agent_id: "mas",
+              display_name: "Research",
+              workspace_path: "/private/workspace"
+            }],
+            items: [{
+              item_id: "project:one:study-one",
+              identity: {
+                agent_id: "mas",
+                agent_display_name: "Med Auto Science",
+                project_id: "project:one",
+                project_display_name: "Research",
+                work_item_id: "study-one",
+                work_item_display_name: "Study one",
+                work_item_root: "/private/study"
+              },
+              lifecycle: {
+                primary_state: "paused",
+                primary_state_label: "已暂停",
+                current_stage_id: null,
+                lifecycle_ref: "private://lifecycle"
+              },
+              visibility: { state: "visible", control_ref: "private://control" },
+              execution: {
+                state: "idle",
+                current_stage_display_name: null,
+                next_stage_display_name: "Analysis",
+                workflow_id: "private-workflow",
+                review_chain: { total_tokens_observed: null, token_observation_status: "missing", receipt_ref: "private" }
+              },
+              telemetry: {
+                state: "missing",
+                missing_reason: "no_stage_attempt_usage_telemetry_observed",
+                cumulative: { state: "missing", total_tokens: null, missing_reason: "not_observed", source_refs: ["private"] }
+              },
+              action: { title: "等待明确后续方向", owner_display_name: "你", action_ref: "wait" },
+              stage_map: [{
+                stage_id: "analysis",
+                display_name: "Analysis",
+                display_names: { "zh-CN": "分析", "en-US": "Analysis" },
+                state: "pending",
+                internal_receipt: "private"
+              }],
+              source_refs: [{ ref: "private://source" }]
+            }],
+            diagnostics: { raw_payload: "private" }
+          }
+        }
+      }
+    }
+  });
+
+  const projection = compact.app_state.operator.workbench.work_item_projection_v2;
+  assert.equal(projection.schema_version, "work-item-projection.v2");
+  assert.equal(projection.summary.telemetry_missing_count, 1);
+  assert.equal(projection.agent_catalog[0].display_name, "Med Auto Science");
+  assert.equal(projection.project_catalog[0].display_name, "Research");
+  assert.equal(projection.items[0].identity.work_item_display_name, "Study one");
+  assert.equal(projection.items[0].telemetry.cumulative.total_tokens, null);
+  assert.equal(projection.items[0].stage_map[0].display_names["zh-CN"], "分析");
+  const serialized = JSON.stringify(projection);
+  for (const marker of [
+    "private_counter", "private_launch_payload", "workspace_path", "work_item_root", "lifecycle_ref",
+    "control_ref", "workflow_id", "receipt_ref", "source_refs", "internal_receipt", "diagnostics"
+  ]) {
+    assert.equal(serialized.includes(marker), false, `must omit ${marker}`);
+  }
+});
+
 test("fast state exposes only the Settings read model fields needed by the shared renderer", () => {
   const compact = compactFastState({
     app_state: {

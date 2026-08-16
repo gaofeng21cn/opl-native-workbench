@@ -13,6 +13,7 @@ const main = read("src/main.tsx");
 const bridge = read("src/bridge/oplBridge.ts");
 const webTransport = read("src/bridge/webTransport.ts");
 const model = read("src/workbench/workbenchModel.ts");
+const runtimePage = read("src/workbench/RuntimeOverviewPage.tsx");
 const settingsPanel = read("src/workbench/SettingsPanel.tsx");
 const styles = read("src/workbench/codexWorkbenchStyles.ts");
 const adapterStyles = read("src/integrations/deepseek-harness/oplAdapter.css");
@@ -81,6 +82,19 @@ test("primary settings actions keep readable contrast on hover", () => {
     styles,
     /\.settings-action-button\.primary:hover:not\(:disabled\)\s*\{[\s\S]*?background:\s*color-mix\(in srgb, var\(--opl-text\) 88%, var\(--opl-canvas\)\);[\s\S]*?color:\s*var\(--opl-canvas\);/
   );
+});
+
+test("Studio exposes an App-projected first-level runtime overview", () => {
+  assert.match(slotHost, /SidebarPrimaryNavigationSlot/);
+  assert.match(slotHost, /studio\.primaryView === "runtime"/);
+  assert.match(app, /<RuntimeOverviewPage/);
+  assert.match(bridge, /workbench\?: Record<string, unknown>/);
+  assert.match(model, /work_item_projection_v2/);
+  assert.match(runtimePage, /data-testid="opl-runtime-overview-page"/);
+  assert.match(runtimePage, /formatTokens/);
+  assert.match(runtimePage, /value === null/);
+  assert.match(runtimePage, /aria-expanded=\{stagesOpen\}/);
+  assert.match(runtimePage, /showArchived/);
 });
 
 test("local storage keeps only UI metadata and drafts after one-way legacy backup", () => {

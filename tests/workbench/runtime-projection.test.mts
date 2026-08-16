@@ -94,6 +94,89 @@ test("runtime projection keeps component health, carriers, and only App-projecte
   assert.equal(model.runtimeOverview?.recommendedActionId, "provider_scheduler_status");
 });
 
+test("work-item runtime projection preserves user status semantics and unknown telemetry", () => {
+  const model = deriveWorkbenchModelFromState({
+    app_state: {
+      operator: {
+        workbench: {
+          work_item_projection_v2: {
+            schema_version: "work-item-projection.v2",
+            generated_at: "2026-08-16T08:58:46.549Z",
+            summary: {
+              agent_count: 1,
+              project_count: 1,
+              work_item_count: 2,
+              archived_work_item_count: 1,
+              running_count: 0,
+              active_session_count: 0,
+              user_attention_count: 1,
+              system_attention_count: 0,
+              telemetry_observed_count: 0,
+              telemetry_missing_count: 2
+            },
+            agent_catalog: [{ agent_id: "mas", display_name: "Med Auto Science" }],
+            project_catalog: [{ project_id: "project:one", agent_id: "mas", display_name: "Research" }],
+            items: [{
+              item_id: "project:one:study-one",
+              identity: {
+                agent_id: "mas",
+                agent_display_name: "Med Auto Science",
+                project_id: "project:one",
+                project_display_name: "Research",
+                work_item_id: "study-one",
+                work_item_display_name: "Study one",
+                work_item_kind: "study"
+              },
+              lifecycle: { primary_state: "paused", primary_state_label: "已暂停", primary_state_reason: "paused_until_new_direction" },
+              visibility: { state: "visible" },
+              execution: {
+                state: "idle",
+                next_stage_id: "analysis",
+                next_stage_display_name: "Analysis",
+                quality_budget: { elapsed_ms: null, tokens_used: null }
+              },
+              session_activity: { state: "inactive", active_session_count: 0 },
+              attention: { kind: "user", owner: "user" },
+              telemetry: {
+                state: "missing",
+                current_stage: { state: "missing", total_tokens: null },
+                cumulative: { state: "missing", total_tokens: null, missing_reason: "not_observed" }
+              },
+              action: { title: "等待明确后续方向", owner_display_name: "你" },
+              stage_map: [{
+                stage_id: "analysis",
+                display_name: "Analysis",
+                display_names: { "zh-CN": "分析", "en-US": "Analysis" },
+                state: "pending",
+                elapsed_seconds: null,
+                usage: null
+              }]
+            }, {
+              item_id: "project:one:archived",
+              identity: {
+                agent_id: "mas",
+                project_id: "project:one",
+                work_item_id: "archived",
+                work_item_display_name: "Archived study"
+              },
+              lifecycle: { primary_state: "stopped" },
+              visibility: { state: "archived" },
+              execution: { state: "idle" }
+            }]
+          }
+        }
+      }
+    }
+  });
+
+  assert.equal(model.workItemRuntime?.summary.telemetryMissingCount, 2);
+  assert.equal(model.workItemRuntime?.items[0]?.statusLabel, "已暂停");
+  assert.equal(model.workItemRuntime?.items[0]?.nextStageName, "Analysis");
+  assert.equal(model.workItemRuntime?.items[0]?.totalTokens, null);
+  assert.equal(model.workItemRuntime?.items[0]?.stages[0]?.displayNameI18n.zh, "分析");
+  assert.equal(model.workItemRuntime?.items[1]?.archived, true);
+});
+
 test("settings projection keeps WebUI action refs, storage inventory reasons, and instruction sources", () => {
   const model = deriveWorkbenchModelFromState({
     app_state: {
@@ -299,6 +382,28 @@ test("browser bridge normalization preserves App-projected Temporal runtime deta
     profile: "fast",
     app_state: {
       app_state: {
+        operator: {
+          workbench: {
+            work_item_projection_v2: {
+              schema_version: "work-item-projection.v2",
+              summary: { work_item_count: 1, telemetry_missing_count: 1 },
+              agent_catalog: [{ agent_id: "mas", display_name: "Med Auto Science" }],
+              project_catalog: [{ project_id: "project:one", agent_id: "mas", display_name: "Research" }],
+              items: [{
+                item_id: "project:one:study-one",
+                identity: {
+                  agent_id: "mas",
+                  project_id: "project:one",
+                  work_item_id: "study-one",
+                  work_item_display_name: "Study one"
+                },
+                lifecycle: { primary_state: "paused" },
+                visibility: { state: "visible" },
+                execution: { state: "idle" }
+              }]
+            }
+          }
+        },
         provider: {
           selected_provider: "temporal",
           temporal: {
@@ -356,6 +461,7 @@ test("browser bridge normalization preserves App-projected Temporal runtime deta
   assert.equal(model.runtimeOverview?.temporal.workerStatus, "ready");
   assert.equal(model.runtimeOverview?.temporal.schedulerStatus, "attention_needed");
   assert.equal(model.managedComputerUse?.providerId, "kimi-cu");
+  assert.equal(model.workItemRuntime?.items[0]?.title, "Study one");
   assert.deepEqual(readback.app_state.managed_companions.map((item) => item.provider_id), ["kimi-cu"]);
   assert.deepEqual(readback.app_state.actions[0], {
     action_id: "settings_reinstall_computer_use",

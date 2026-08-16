@@ -172,6 +172,71 @@ export type ActiveProjectLine = {
   nextForcedDelta: string;
 };
 
+export type WorkItemRuntimeStage = {
+  stageId: string;
+  displayName: string;
+  displayNameI18n: AgentPackageLocalizedText;
+  state: string;
+  owner?: string;
+  ownerDisplayName?: string;
+  elapsedSeconds: number | null;
+  totalTokens: number | null;
+};
+
+export type WorkItemRuntimeItem = {
+  id: string;
+  agentId: string;
+  agentDisplayName: string;
+  domainId?: string;
+  projectId: string;
+  projectDisplayName: string;
+  workItemId: string;
+  title: string;
+  kind?: string;
+  status: string;
+  statusLabel: string;
+  statusReason?: string;
+  currentStageId?: string;
+  currentStageName?: string;
+  nextStageId?: string;
+  nextStageName?: string;
+  executionState: string;
+  activeSessionCount: number;
+  attentionKind: string;
+  nextActionTitle?: string;
+  nextActionSummary?: string;
+  nextActionOwner?: string;
+  startedAt?: string;
+  updatedAt?: string;
+  elapsedMs: number | null;
+  stageTokens: number | null;
+  totalTokens: number | null;
+  telemetryState: string;
+  telemetryMissingReason?: string;
+  archived: boolean;
+  stages: WorkItemRuntimeStage[];
+};
+
+export type WorkItemRuntimeProjection = {
+  schemaVersion: "work-item-projection.v2";
+  generatedAt?: string;
+  summary: {
+    agentCount: number;
+    projectCount: number;
+    workItemCount: number;
+    archivedWorkItemCount: number;
+    runningCount: number;
+    activeSessionCount: number;
+    userAttentionCount: number;
+    systemAttentionCount: number;
+    telemetryObservedCount: number;
+    telemetryMissingCount: number;
+  };
+  agents: Array<{ id: string; label: string }>;
+  projects: Array<{ id: string; agentId: string; label: string }>;
+  items: WorkItemRuntimeItem[];
+};
+
 export type DeliveryPackage = {
   id: string;
   title: string;
@@ -571,6 +636,7 @@ export type WorkbenchModel = {
   gatewayAccount?: WorkbenchGatewayAccount;
   settingsProjection?: WorkbenchSettingsProjection;
   runtimeOverview?: RuntimeOverviewRef;
+  workItemRuntime?: WorkItemRuntimeProjection;
   managedComputerUse: ManagedComputerUseViewModel | null;
   uiContributions: OplUiContributionsProjection;
   stateGeneratedAt?: string;
@@ -778,6 +844,127 @@ function asLocalizedText(value: unknown): AgentPackageLocalizedText {
   return {
     ...(zh ? { zh } : {}),
     ...(en ? { en } : {})
+  };
+}
+
+function readWorkItemRuntimeProjection(value: unknown): WorkItemRuntimeProjection | undefined {
+  const projection = asRecord(value);
+  if (!projection || asString(projection.schema_version) !== "work-item-projection.v2") return undefined;
+  const summary = asRecord(projection?.summary);
+  const numberOrZero = (candidate: unknown) => asFiniteNumber(candidate) ?? 0;
+  const agents = asRecordArray(projection?.agent_catalog).flatMap((agent) => {
+    const id = asString(agent.agent_id);
+    if (!id) return [];
+    return [{ id, label: asString(agent.display_name) ?? id }];
+  });
+  const projects = asRecordArray(projection?.project_catalog).flatMap((project) => {
+    const id = asString(project.project_id);
+    if (!id) return [];
+    return [{
+      id,
+      agentId: asString(project.agent_id) ?? "unknown",
+      label: asString(project.display_name) ?? id
+    }];
+  });
+  const items = asRecordArray(projection?.items).flatMap((item): WorkItemRuntimeItem[] => {
+    const identity = asRecord(item.identity);
+    const lifecycle = asRecord(item.lifecycle);
+    const visibility = asRecord(item.visibility);
+    const execution = asRecord(item.execution);
+    const qualityBudget = asRecord(execution?.quality_budget);
+    const sessionActivity = asRecord(item.session_activity);
+    const attention = asRecord(item.attention);
+    const telemetry = asRecord(item.telemetry);
+    const currentStageTelemetry = asRecord(telemetry?.current_stage);
+    const cumulativeTelemetry = asRecord(telemetry?.cumulative);
+    const action = asRecord(item.action);
+    const id = asString(item.item_id);
+    const agentId = asString(identity?.agent_id);
+    const domainId = asString(identity?.domain_id);
+    const projectId = asString(identity?.project_id);
+    const workItemId = asString(identity?.work_item_id);
+    const title = asString(identity?.work_item_display_name);
+    if (!id || !agentId || !projectId || !workItemId || !title) return [];
+    const status = asString(lifecycle?.primary_state) ?? asString(lifecycle?.business_state) ?? "unknown";
+    return [{
+      id,
+      agentId,
+      agentDisplayName: asString(identity?.agent_display_name) ?? agentId,
+      ...(domainId ? { domainId } : {}),
+      projectId,
+      projectDisplayName: asString(identity?.project_display_name) ?? projectId,
+      workItemId,
+      title,
+      ...(asString(identity?.work_item_kind) ? { kind: asString(identity?.work_item_kind) as string } : {}),
+      status,
+      statusLabel: asString(lifecycle?.primary_state_label) ?? status,
+      ...(asString(lifecycle?.primary_state_reason) ?? asString(lifecycle?.reason)
+        ? { statusReason: (asString(lifecycle?.primary_state_reason) ?? asString(lifecycle?.reason)) as string }
+        : {}),
+      ...(asString(lifecycle?.current_stage_id) ?? asString(execution?.current_stage_id)
+        ? { currentStageId: (asString(lifecycle?.current_stage_id) ?? asString(execution?.current_stage_id)) as string }
+        : {}),
+      ...(asString(lifecycle?.current_stage_display_name) ?? asString(execution?.current_stage_display_name)
+        ? { currentStageName: (asString(lifecycle?.current_stage_display_name) ?? asString(execution?.current_stage_display_name)) as string }
+        : {}),
+      ...(asString(execution?.next_stage_id) ? { nextStageId: asString(execution?.next_stage_id) as string } : {}),
+      ...(asString(execution?.next_stage_display_name) ? { nextStageName: asString(execution?.next_stage_display_name) as string } : {}),
+      executionState: asString(execution?.state) ?? "unknown",
+      activeSessionCount: numberOrZero(sessionActivity?.active_session_count),
+      attentionKind: asString(attention?.kind) ?? "none",
+      ...(asString(action?.title) ? { nextActionTitle: asString(action?.title) as string } : {}),
+      ...(asString(action?.summary) ? { nextActionSummary: asString(action?.summary) as string } : {}),
+      ...(asString(action?.owner_display_name) ?? asString(action?.owner)
+        ? { nextActionOwner: (asString(action?.owner_display_name) ?? asString(action?.owner)) as string }
+        : {}),
+      ...(asString(execution?.started_at) ? { startedAt: asString(execution?.started_at) as string } : {}),
+      ...(asString(execution?.updated_at) ?? asString(lifecycle?.last_transition_at)
+        ? { updatedAt: (asString(execution?.updated_at) ?? asString(lifecycle?.last_transition_at)) as string }
+        : {}),
+      elapsedMs: asFiniteNumber(qualityBudget?.elapsed_ms),
+      stageTokens: asFiniteNumber(currentStageTelemetry?.total_tokens),
+      totalTokens: asFiniteNumber(cumulativeTelemetry?.total_tokens),
+      telemetryState: asString(telemetry?.state) ?? "missing",
+      ...(asString(telemetry?.missing_reason) ?? asString(cumulativeTelemetry?.missing_reason)
+        ? { telemetryMissingReason: (asString(telemetry?.missing_reason) ?? asString(cumulativeTelemetry?.missing_reason)) as string }
+        : {}),
+      archived: asString(visibility?.state) === "archived",
+      stages: asRecordArray(item.stage_map).flatMap((stage): WorkItemRuntimeStage[] => {
+        const stageId = asString(stage.stage_id);
+        if (!stageId) return [];
+        const usage = asRecord(stage.usage);
+        return [{
+          stageId,
+          displayName: asString(stage.display_name) ?? stageId,
+          displayNameI18n: asLocalizedText(stage.display_names),
+          state: asString(stage.state) ?? "unknown",
+          ...(asString(stage.owner) ? { owner: asString(stage.owner) as string } : {}),
+          ...(asString(stage.owner_display_name) ? { ownerDisplayName: asString(stage.owner_display_name) as string } : {}),
+          elapsedSeconds: asFiniteNumber(stage.elapsed_seconds),
+          totalTokens: asFiniteNumber(usage?.total_tokens)
+        }];
+      })
+    }];
+  });
+
+  return {
+    schemaVersion: "work-item-projection.v2",
+    ...(asString(projection.generated_at) ? { generatedAt: asString(projection.generated_at) as string } : {}),
+    summary: {
+      agentCount: numberOrZero(summary?.agent_count),
+      projectCount: numberOrZero(summary?.project_count),
+      workItemCount: numberOrZero(summary?.work_item_count),
+      archivedWorkItemCount: numberOrZero(summary?.archived_work_item_count),
+      runningCount: numberOrZero(summary?.running_count),
+      activeSessionCount: numberOrZero(summary?.active_session_count),
+      userAttentionCount: numberOrZero(summary?.user_attention_count),
+      systemAttentionCount: numberOrZero(summary?.system_attention_count),
+      telemetryObservedCount: numberOrZero(summary?.telemetry_observed_count),
+      telemetryMissingCount: numberOrZero(summary?.telemetry_missing_count)
+    },
+    agents,
+    projects,
+    items
   };
 }
 
@@ -2263,6 +2450,7 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     : undefined;
   const moduleItems = asRecordArray(modules?.items);
   const taskDrilldowns = asRecordArray(workbench?.task_drilldowns);
+  const workItemRuntime = readWorkItemRuntimeProjection(workbench?.work_item_projection_v2);
   const settingsTaskEntries = asRecordArray(settingsControlCenter?.task_entries);
   const settingsSections = asRecordArray(settingsControlCenter?.action_sections);
   const safeActionRoutes = asRecordArray(workbench?.safe_action_routes);
@@ -3018,6 +3206,7 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     gatewayAccount,
     settingsProjection,
     runtimeOverview,
+    workItemRuntime,
     managedComputerUse: readManagedComputerUse(appState),
     uiContributions: readUiContributionsProjection(state),
     stateGeneratedAt: asString(meta?.generated_at) ?? fallback.stateGeneratedAt

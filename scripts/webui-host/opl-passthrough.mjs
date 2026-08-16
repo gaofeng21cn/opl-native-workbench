@@ -448,6 +448,97 @@ function compactRuntimeSourceCarriers(value) {
   };
 }
 
+function compactWorkItemStage(value) {
+  if (!value || typeof value !== "object") return {};
+  return {
+    ...selectedFields(value, [
+      "stage_id", "display_name", "state", "owner", "owner_display_name", "elapsed_seconds"
+    ]),
+    display_names: compactLocalizedText(value.display_names, 8),
+    usage: selectedFields(value.usage, [
+      "state", "input_tokens", "output_tokens", "total_tokens", "observed_at", "missing_reason"
+    ]),
+    next_action: selectedFields(value.next_action, ["title", "summary", "owner", "action_ref"])
+  };
+}
+
+function compactWorkItem(value) {
+  if (!value || typeof value !== "object") return {};
+  const execution = value.execution && typeof value.execution === "object" ? value.execution : undefined;
+  const telemetry = value.telemetry && typeof value.telemetry === "object" ? value.telemetry : undefined;
+  return {
+    ...selectedFields(value, ["item_id"]),
+    identity: selectedFields(value.identity, [
+      "agent_id", "agent_display_name", "domain_id", "project_id", "project_display_name",
+      "work_item_id", "work_item_display_name", "work_item_kind", "source_kind"
+    ]),
+    lifecycle: selectedFields(value.lifecycle, [
+      "business_state", "primary_state", "primary_state_reason", "primary_state_label", "reason",
+      "last_transition_at", "current_stage_id", "current_stage_display_name", "current_stage_status"
+    ]),
+    visibility: selectedFields(value.visibility, ["state", "updated_at"]),
+    execution: execution ? {
+      ...selectedFields(execution, [
+        "state", "current_stage_id", "current_stage_display_name", "next_stage_id",
+        "next_stage_display_name", "started_at", "updated_at", "running_proof_status"
+      ]),
+      review_chain: selectedFields(execution.review_chain, [
+        "stage_run_count", "total_attempt_count", "total_repair_rounds", "total_tokens_observed",
+        "token_observation_status"
+      ]),
+      quality_budget: selectedFields(execution.quality_budget, [
+        "state", "elapsed_ms", "max_elapsed_ms", "tokens_used", "max_tokens", "token_observation_status",
+        "stop_reason"
+      ])
+    } : undefined,
+    session_activity: selectedFields(value.session_activity, [
+      "state", "active_session_count", "latest_activity_kind", "latest_activity_state", "latest_activity_at"
+    ]),
+    attention: selectedFields(value.attention, [
+      "kind", "reason", "owner", "responsible_component", "issue", "impact", "repair_action", "expected_outcome"
+    ]),
+    telemetry: telemetry ? {
+      ...selectedFields(telemetry, ["state", "missing_reason"]),
+      current_stage: selectedFields(telemetry.current_stage, [
+        "state", "input_tokens", "output_tokens", "total_tokens", "observed_at", "missing_reason"
+      ]),
+      cumulative: selectedFields(telemetry.cumulative, [
+        "state", "input_tokens", "output_tokens", "total_tokens", "observed_at", "missing_reason"
+      ])
+    } : undefined,
+    action: selectedFields(value.action, [
+      "kind", "title", "summary", "owner", "owner_kind", "owner_display_name", "action_ref"
+    ]),
+    stage_map: Array.isArray(value.stage_map) ? value.stage_map.slice(0, 64).map(compactWorkItemStage) : [],
+    freshness: selectedFields(value.freshness, [
+      "state", "inventory_observed_at", "execution_observed_at", "last_transition_time", "reason"
+    ])
+  };
+}
+
+function compactWorkItemProjection(value) {
+  if (!value || typeof value !== "object") return undefined;
+  return {
+    ...selectedFields(value, ["surface_kind", "schema_version", "profile", "generated_at"]),
+    summary: selectedFields(value.summary, [
+      "agent_count", "project_count", "work_item_count", "visible_work_item_count", "archived_work_item_count",
+      "total_work_item_count", "running_count", "active_session_count", "user_attention_count",
+      "system_attention_count", "telemetry_observed_count", "telemetry_missing_count"
+    ]),
+    agent_catalog: Array.isArray(value.agent_catalog)
+      ? value.agent_catalog.slice(0, 64).map((agent) => selectedFields(agent, [
+          "agent_id", "domain_id", "display_name", "short_label", "package_id"
+        ]) ?? {})
+      : [],
+    project_catalog: Array.isArray(value.project_catalog)
+      ? value.project_catalog.slice(0, 256).map((project) => selectedFields(project, [
+          "project_id", "agent_id", "agent_display_name", "domain_id", "display_name", "binding_status"
+        ]) ?? {})
+      : [],
+    items: Array.isArray(value.items) ? value.items.slice(0, 512).map(compactWorkItem) : []
+  };
+}
+
 function compactFastState(value) {
   const root = value && typeof value === "object" ? value : {};
   const appState = root.app_state && typeof root.app_state === "object" ? root.app_state : root;
@@ -480,6 +571,7 @@ function compactFastState(value) {
         refs: firstRecords(operator.refs, 16) ?? [],
         workbench: workbench ? {
           task_drilldowns: firstRecords(workbench.task_drilldowns, 8) ?? [],
+          work_item_projection_v2: compactWorkItemProjection(workbench.work_item_projection_v2),
           safe_action_routes: firstRecords(workbench.safe_action_routes, 32) ?? [],
           current_owner_delta: workbench.current_owner_delta,
           current_owner_delta_next_action: workbench.current_owner_delta_next_action
