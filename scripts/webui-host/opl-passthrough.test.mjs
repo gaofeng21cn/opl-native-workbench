@@ -29,6 +29,20 @@ test("channel callbacks stay dormant unless an optional provider registrar is co
   let disposeCount = 0;
   const hostCalls = [];
   const hostPatch = {
+    transport_bindings: {
+      surface_kind: "opl_app_transport_bindings_projection.v1",
+      status: "available",
+      bindings: [{
+        binding_id: "binding-1",
+        provider_id: "opl-channel-weixin",
+        account_id: "account-1",
+        channel_session_id: "session-1",
+        canonical_thread_host: "studio",
+        canonical_thread_id: "thread-1",
+        project_affinity: "projectless",
+        status: "bound"
+      }]
+    },
     ui_contributions: {
       surface_kind: "opl_app_ui_contributions_projection.v1",
       contribution_count: 1,
@@ -94,6 +108,7 @@ test("channel callbacks stay dormant unless an optional provider registrar is co
     merged.app_state.ui_contributions.entries.map((entry) => entry.package_id),
     ["opl-fleet-agent", "opl-channel-weixin"]
   );
+  assert.equal(merged.app_state.transport_bindings.bindings[0].canonical_thread_id, "thread-1");
   await configured.dispose();
   await configured.dispose();
   assert.equal(disposeCount, 1);
@@ -334,6 +349,20 @@ test("fast state keeps GUI package fields without copying deep runtime payloads"
 test("fast state keeps the bounded public UI contribution projection", () => {
   const compact = compactFastState({
     app_state: {
+      transport_bindings: {
+        surface_kind: "opl_app_transport_bindings_projection.v1",
+        status: "available",
+        bindings: [{
+          binding_id: "binding-1",
+          provider_id: "opl-channel-weixin",
+          account_id: "account-1",
+          channel_session_id: "session-1",
+          canonical_thread_host: "studio",
+          canonical_thread_id: "thread-1",
+          project_affinity: "projectless",
+          status: "bound"
+        }]
+      },
       ui_contributions: {
         surface_kind: "opl_app_ui_contributions_projection.v1",
         contribution_count: 1,
@@ -383,6 +412,7 @@ test("fast state keeps the bounded public UI contribution projection", () => {
   assert.equal(projection.entries[0].view.data_ref, "future.activity.v1#current");
   assert.equal(projection.entries[0].commands[0].action_ref, "future.refresh");
   assert.equal(projection.entries[0].badges[0].tone, "success");
+  assert.equal(compact.app_state.transport_bindings.bindings[0].canonical_thread_id, "thread-1");
   const serialized = JSON.stringify(projection);
   for (const marker of ["private_view_payload", "private_command_payload", "private_badge_payload", "executable_plugin_bytes", "private_receipts"]) {
     assert.equal(serialized.includes(marker), false, `must omit ${marker}`);

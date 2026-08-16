@@ -431,6 +431,7 @@ function compactFastState(value) {
       provider: compactProvider(appState.provider),
       runtime_source_carriers: compactRuntimeSourceCarriers(appState.runtime_source_carriers),
       ui_contributions: compactUiContributions(appState.ui_contributions),
+      transport_bindings: appState.transport_bindings,
       active_project_lines: firstRecords(appState.active_project_lines, 12),
       home_agent_shortcuts: compactHomeShortcutPreferences(appState.home_agent_shortcuts, 16),
       modules: { items: firstRecords(appState.modules?.items, 8) ?? [] },
@@ -539,25 +540,35 @@ export function mergeChannelProviderState(value, host) {
   if (!host || !value?.app_state || typeof value.app_state !== "object") return value;
   const patch = host.appStatePatch();
   const hostProjection = patch?.ui_contributions;
-  if (!hostProjection || typeof hostProjection !== "object") return value;
-  const currentProjection = value.app_state.ui_contributions;
-  const currentEntries = Array.isArray(currentProjection?.entries) ? currentProjection.entries : [];
-  const hostEntries = Array.isArray(hostProjection.entries) ? hostProjection.entries : [];
-  const entries = [
-    ...currentEntries.filter((entry) => entry?.view?.view_type !== "channel_access"),
-    ...hostEntries
-  ];
-  return {
-    ...value,
-    app_state: {
-      ...value.app_state,
+  const transportBindings = patch?.transport_bindings;
+  const hasHostProjection = hostProjection && typeof hostProjection === "object";
+  const hasTransportBindings = transportBindings && typeof transportBindings === "object";
+  if (!hasHostProjection && !hasTransportBindings) return value;
+  let appState = {
+    ...value.app_state,
+    ...(hasTransportBindings ? { transport_bindings: transportBindings } : {})
+  };
+  if (hasHostProjection) {
+    const currentProjection = value.app_state.ui_contributions;
+    const currentEntries = Array.isArray(currentProjection?.entries) ? currentProjection.entries : [];
+    const hostEntries = Array.isArray(hostProjection.entries) ? hostProjection.entries : [];
+    const entries = [
+      ...currentEntries.filter((entry) => entry?.view?.view_type !== "channel_access"),
+      ...hostEntries
+    ];
+    appState = {
+      ...appState,
       ui_contributions: {
         ...(currentProjection && typeof currentProjection === "object" ? currentProjection : {}),
         ...hostProjection,
         contribution_count: entries.length,
         entries
       }
-    }
+    };
+  }
+  return {
+    ...value,
+    app_state: appState
   };
 }
 
