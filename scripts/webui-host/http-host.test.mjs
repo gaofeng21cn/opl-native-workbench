@@ -76,6 +76,11 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
   assert.equal(capabilities.threadAdapter.available, true);
   assert.equal(capabilities.threadAdapter.threadStoreOwner, "codex_core_app_server");
   assert.equal(capabilities.threadAdapter.privateCoordinationLayer, false);
+  assert.deepEqual(capabilities.oplPassthrough.channelCallback, {
+    schema: "opl_channel_canonical_thread_callbacks.v1",
+    status: "dormant",
+    registered: false
+  });
   assert.deepEqual(
     capabilities.threadAdapter.subagentProjection.itemTypes,
     ["collabAgentToolCall", "subAgentActivity"]

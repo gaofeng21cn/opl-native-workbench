@@ -8,6 +8,44 @@ test("App state timeout keeps the interactive default and admits a bounded cold-
   assert.throws(() => createOplPassthrough({ readStateTimeoutMs: 120_001 }), /100 through 120000/);
 });
 
+test("channel callbacks stay dormant unless an optional provider registrar is configured", async () => {
+  const adapter = {
+    schema: "opl_channel_canonical_thread_callbacks.v1",
+    startThread: async () => {},
+    resumeThread: async () => {},
+    startTurn: async () => {},
+    subscribeTerminal: () => () => {}
+  };
+  const dormant = createOplPassthrough().registerChannelCallbackAdapter(adapter);
+  assert.deepEqual(
+    { status: dormant.status, registered: dormant.registered },
+    { status: "dormant", registered: false }
+  );
+
+  let received;
+  let disposeCount = 0;
+  const configured = createOplPassthrough({
+    channelCallbackRegistrar: (value) => {
+      received = value;
+      return () => { disposeCount += 1; };
+    }
+  }).registerChannelCallbackAdapter(adapter);
+  assert.equal(received, adapter);
+  assert.equal(configured.status, "registered");
+  assert.equal(configured.registered, true);
+  await configured.dispose();
+  assert.equal(disposeCount, 1);
+
+  assert.throws(
+    () => createOplPassthrough().registerChannelCallbackAdapter({ ...adapter, subscribeTerminal: undefined }),
+    /missing subscribeTerminal/
+  );
+  assert.throws(
+    () => createOplPassthrough({ channelCallbackRegistrar: "enabled" }),
+    /registrar must be a function/
+  );
+});
+
 test("candidate blocks confirmed mutations unless the launcher explicitly enables actions", async () => {
   const blocked = createOplPassthrough({
     cwd: process.cwd(),

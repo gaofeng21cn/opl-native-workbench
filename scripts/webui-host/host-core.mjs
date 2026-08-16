@@ -104,6 +104,13 @@ export class OplHostCore extends EventEmitter {
     this.nativeUpdater = nativeUpdater;
     this.carrierDiagnostics = carrierDiagnostics ?? defaultCarrierDiagnostics(env);
     this.threads = new CodexThreadAdapter(this.transport);
+    this.channelCallbackAdapter = typeof this.transport.createChannelCallbackAdapter === "function"
+      ? this.transport.createChannelCallbackAdapter()
+      : null;
+    this.channelCallbackRegistration = this.channelCallbackAdapter
+      && typeof this.opl.registerChannelCallbackAdapter === "function"
+      ? this.opl.registerChannelCallbackAdapter(this.channelCallbackAdapter)
+      : { status: "dormant", registered: false, dispose: async () => {} };
     this.appServerError = null;
 
     this.threads.on("event", (event) => this.emit("event", event));
@@ -137,7 +144,15 @@ export class OplHostCore extends EventEmitter {
       appServerAvailable: this.transport.initialized === true && this.appServerError === null,
       threadAdapter: this.threads.capabilities(),
       appServerError: this.appServerError,
-      oplPassthrough: { available: true, authorityBoundary: "app_bridge_no_domain_authority" }
+      oplPassthrough: {
+        available: true,
+        authorityBoundary: "app_bridge_no_domain_authority",
+        channelCallback: {
+          schema: this.channelCallbackAdapter?.schema ?? null,
+          status: this.channelCallbackRegistration?.status ?? "dormant",
+          registered: this.channelCallbackRegistration?.registered === true
+        }
+      }
     };
   }
 
@@ -192,6 +207,7 @@ export class OplHostCore extends EventEmitter {
   }
 
   async close() {
+    await this.channelCallbackRegistration?.dispose?.();
     await this.transport.stop();
   }
 }

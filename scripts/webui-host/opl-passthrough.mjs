@@ -491,6 +491,21 @@ function boundedReadback(args, result) {
   };
 }
 
+function validateChannelCallbackAdapter(adapter) {
+  if (!adapter || typeof adapter !== "object" || Array.isArray(adapter)) {
+    throw Object.assign(new Error("channel callback adapter must be an object"), { code: "invalid_request" });
+  }
+  if (adapter.schema !== "opl_channel_canonical_thread_callbacks.v1") {
+    throw Object.assign(new Error("unsupported channel callback adapter schema"), { code: "invalid_request" });
+  }
+  for (const method of ["startThread", "resumeThread", "startTurn", "subscribeTerminal"]) {
+    if (typeof adapter[method] !== "function") {
+      throw Object.assign(new Error(`channel callback adapter is missing ${method}`), { code: "invalid_request" });
+    }
+  }
+  return adapter;
+}
+
 export { compactFastState };
 
 export function createOplPassthrough({
@@ -498,10 +513,30 @@ export function createOplPassthrough({
   command = process.env.OPL_APP_OPL_BIN ?? process.env.OPL_COMMAND ?? "opl",
   readStateTimeoutMs = process.env.OPL_APP_STATE_TIMEOUT_MS,
   allowActions = process.env.OPL_NATIVE_WORKBENCH_READ_ONLY === "0"
-    || process.env.OPL_STUDIO_READ_ONLY === "0"
+    || process.env.OPL_STUDIO_READ_ONLY === "0",
+  channelCallbackRegistrar
 } = {}) {
   const stateTimeoutMs = boundedTimeout(readStateTimeoutMs, 30_000);
+  if (channelCallbackRegistrar !== undefined && typeof channelCallbackRegistrar !== "function") {
+    throw Object.assign(new Error("channel callback registrar must be a function"), { code: "invalid_request" });
+  }
   return {
+    registerChannelCallbackAdapter(adapter) {
+      const validated = validateChannelCallbackAdapter(adapter);
+      if (typeof channelCallbackRegistrar !== "function") {
+        return { status: "dormant", registered: false, dispose: async () => {} };
+      }
+      const dispose = channelCallbackRegistrar(validated);
+      if (dispose !== undefined && typeof dispose !== "function") {
+        throw Object.assign(new Error("channel callback registrar must return a dispose function"), { code: "invalid_request" });
+      }
+      return {
+        status: "registered",
+        registered: true,
+        dispose: async () => { await dispose?.(); }
+      };
+    },
+
     async readState(profile = "fast") {
       const normalizedProfile = profile === "full" ? "full" : "fast";
       const args = [command, "app", "state", "--profile", normalizedProfile, "--json"];

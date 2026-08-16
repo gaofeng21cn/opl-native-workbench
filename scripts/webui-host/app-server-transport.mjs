@@ -4,6 +4,8 @@ import path from "node:path";
 import readline from "node:readline";
 
 export const DEFAULT_PERMISSION_PROFILE = ":danger-full-access";
+export const CHANNEL_CALLBACK_SCHEMA = "opl_channel_canonical_thread_callbacks.v1";
+export const CHANNEL_TERMINAL_SCHEMA = "opl_channel_codex_turn_terminal.v1";
 
 export class AppServerTransportError extends Error {
   constructor(code, message, details = {}) {
@@ -83,6 +85,37 @@ function agentSelectionContext(selection) {
       value: JSON.stringify(selection)
     }
   } : undefined;
+}
+
+function requiredChannelObject(value, label) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new AppServerTransportError("invalid_request", `${label} must be an object`);
+  }
+  return value;
+}
+
+function requiredChannelString(value, label) {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new AppServerTransportError("invalid_request", `${label} must be a non-empty string`);
+  }
+  return value.trim();
+}
+
+function channelCwd(value, fallback) {
+  if (value === undefined || value === null) return fallback;
+  const cwd = requiredChannelString(value, "cwd");
+  if (!path.isAbsolute(cwd)) {
+    throw new AppServerTransportError("invalid_request", "cwd must be an absolute path");
+  }
+  return cwd;
+}
+
+function channelInputs(value) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) {
+    throw new AppServerTransportError("invalid_request", "inputs must be an array");
+  }
+  return value;
 }
 
 export class CodexAppServerTransport extends EventEmitter {
@@ -329,6 +362,120 @@ export class CodexAppServerTransport extends EventEmitter {
       input: buildUserInputs(prompt, inputs),
       ...overrides
     });
+  }
+
+  createChannelCallbackAdapter() {
+    const transport = this;
+    return Object.freeze({
+      schema: CHANNEL_CALLBACK_SCHEMA,
+      startThread: async (request = {}) => {
+        const value = requiredChannelObject(request, "startThread request");
+        const response = await transport.startThread({
+          cwd: channelCwd(value.cwd, transport.cwd),
+          approvalPolicy: "never",
+          permissions: DEFAULT_PERMISSION_PROFILE
+        });
+        const threadId = response.thread?.id;
+        if (typeof threadId !== "string" || !threadId.trim()) {
+          throw new AppServerTransportError(
+            "invalid_app_server_response",
+            "thread/start returned no thread id"
+          );
+        }
+        return { threadId: threadId.trim() };
+      },
+      resumeThread: async (request = {}) => {
+        const value = requiredChannelObject(request, "resumeThread request");
+        const threadId = requiredChannelString(value.threadId, "threadId");
+        const response = await transport.resumeThread(threadId, {
+          cwd: channelCwd(value.cwd, transport.cwd),
+          approvalPolicy: "never",
+          permissions: DEFAULT_PERMISSION_PROFILE
+        });
+        const responseThreadId = response.thread?.id;
+        if (responseThreadId !== undefined && responseThreadId !== threadId) {
+          throw new AppServerTransportError(
+            "invalid_app_server_response",
+            "thread/resume acknowledged a different thread",
+            { expectedThreadId: threadId, receivedThreadId: responseThreadId }
+          );
+        }
+        return { threadId };
+      },
+      startTurn: async (request = {}) => {
+        const value = requiredChannelObject(request, "startTurn request");
+        const threadId = requiredChannelString(value.threadId, "threadId");
+        const response = await transport.startTurn(
+          threadId,
+          value.prompt,
+          channelInputs(value.inputs),
+          {
+            cwd: channelCwd(value.cwd, transport.cwd),
+            approvalPolicy: "never",
+            permissions: DEFAULT_PERMISSION_PROFILE
+          }
+        );
+        const turnId = response.turn?.id;
+        if (typeof turnId !== "string" || !turnId.trim()) {
+          throw new AppServerTransportError(
+            "invalid_app_server_response",
+            "turn/start returned no turn id"
+          );
+        }
+        return { threadId, turnId: turnId.trim() };
+      },
+      subscribeTerminal(request = {}, listener) {
+        const value = requiredChannelObject(request, "subscribeTerminal request");
+        const threadId = requiredChannelString(value.threadId, "threadId");
+        const turnId = requiredChannelString(value.turnId, "turnId");
+        if (typeof listener !== "function") {
+          throw new AppServerTransportError("invalid_request", "subscribeTerminal listener must be a function");
+        }
+        return transport.subscribeTurnTerminal({ threadId, turnId }, listener);
+      }
+    });
+  }
+
+  subscribeTurnTerminal({ threadId, turnId }, listener) {
+    const normalizedThreadId = requiredChannelString(threadId, "threadId");
+    const normalizedTurnId = requiredChannelString(turnId, "turnId");
+    if (typeof listener !== "function") {
+      throw new AppServerTransportError("invalid_request", "terminal listener must be a function");
+    }
+
+    let settled = false;
+    const terminal = () => {
+      if (settled) return;
+      const result = this.turnResult(normalizedTurnId);
+      const notification = result?.completed;
+      const eventThreadId = notification?.threadId ?? notification?.thread?.id;
+      if (eventThreadId && eventThreadId !== normalizedThreadId) return;
+      settled = true;
+      this.off("event", onEvent);
+      listener({
+        schema: CHANNEL_TERMINAL_SCHEMA,
+        threadId: normalizedThreadId,
+        turnId: normalizedTurnId,
+        status: notification?.turn?.status ?? notification?.status ?? "completed",
+        finalMessage: result?.finalMessage ?? ""
+      });
+    };
+    const onEvent = (event) => {
+      if (event?.method !== "turn/completed") return;
+      const params = event.params ?? {};
+      const eventThreadId = params.threadId ?? params.thread?.id;
+      const eventTurnId = params.turnId ?? params.turn?.id;
+      if (eventTurnId !== normalizedTurnId || (eventThreadId && eventThreadId !== normalizedThreadId)) return;
+      terminal();
+    };
+
+    this.on("event", onEvent);
+    if (this.turnResult(normalizedTurnId)?.completed) queueMicrotask(terminal);
+    return () => {
+      if (settled) return;
+      settled = true;
+      this.off("event", onEvent);
+    };
   }
 
   async steerTurn(threadId, expectedTurnId, prompt, inputs = []) {
