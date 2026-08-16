@@ -881,6 +881,10 @@ jobs:
         if: ${{ always() }}
         shell: bash
         run: |
+          if test -f "$HOME/.config/systemd/user/one-person-lab-headless.service"; then
+            systemctl --user status one-person-lab-headless.service --no-pager || true
+            journalctl --user-unit=one-person-lab-headless.service --no-pager --lines=200 || true
+          fi
           if test -f "$OPL_HEADLESS_INSTALL_ROOT/installation.json"; then
             npm run --silent headless:uninstall -- \
               --install-root "$OPL_HEADLESS_INSTALL_ROOT" \

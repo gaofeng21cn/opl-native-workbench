@@ -114,6 +114,7 @@ test("hosted Linux qualification proves the systemd user-service lifecycle and c
   assert.match(binding.run, /property=ExecStart/);
   assert.match(binding.run, /OPL_APP_OPL_BIN=/);
   assert.match(cleanup.if, /always\(\)/);
+  assert.match(cleanup.run, /journalctl --user-unit=one-person-lab-headless\.service/);
   assert.match(cleanup.run, /headless:uninstall/);
   assert.match(cleanup.run, /property=LoadState/);
   assert.match(cleanup.run, /test "\$load_state" = not-found/);
