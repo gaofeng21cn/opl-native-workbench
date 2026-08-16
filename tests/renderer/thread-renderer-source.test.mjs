@@ -322,6 +322,8 @@ test("channel_access stays declarative and forwards only owner-projected scoped 
   assert.match(contributionComponents, /entry\.view\?\.viewType === "channel_access" \? null : <ContributionActions/);
   assert.match(contributionComponents, /data-testid="opl-channel-access-pairings"/);
   assert.match(contributionComponents, /data-testid="opl-channel-access-users"/);
+  assert.match(contributionComponents, /result\.connection\?\.state === "qr_ready"/);
+  assert.match(contributionComponents, /qrChallenge\.expiresAtMs > Date\.now\(\)/);
   assert.match(app, /createOplContributionActionRequest\(entry, command, confirmed\)/);
   assert.match(app, /actionRequest\.payload\.input = input/);
   assert.match(app, /bridge\.readContribution\(\{ packageId: entry\.packageId, ref: entry\.view\.dataRef, input \}\)/);

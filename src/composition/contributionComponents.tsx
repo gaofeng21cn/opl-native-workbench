@@ -302,7 +302,9 @@ function ChannelAccessView({ entry, owner }: {
     return <p className="opl-contribution-fallback" role="status"><StateDot state="warning" size={10} />{owner.locale === "zh" ? "渠道当前不可用" : "The channel is unavailable"}</p>;
   }
 
-  const qr = result.connection?.qrChallenge && result.connection.qrChallenge.expiresAtMs > Date.now()
+  const qr = result.connection?.state === "qr_ready"
+    && result.connection.qrChallenge
+    && result.connection.qrChallenge.expiresAtMs > Date.now()
     ? result.connection.qrChallenge
     : undefined;
   return (
