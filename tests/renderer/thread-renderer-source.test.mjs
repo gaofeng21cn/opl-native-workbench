@@ -76,6 +76,13 @@ test("ordinary fallback data and example content stay out of the renderer", () =
   assert.match(lifecycle, /data-testid="opl-thread-lifecycle-confirmation"/);
 });
 
+test("primary settings actions keep readable contrast on hover", () => {
+  assert.match(
+    styles,
+    /\.settings-action-button\.primary:hover:not\(:disabled\)\s*\{[\s\S]*?background:\s*color-mix\(in srgb, var\(--opl-text\) 88%, var\(--opl-canvas\)\);[\s\S]*?color:\s*var\(--opl-canvas\);/
+  );
+});
+
 test("local storage keeps only UI metadata and drafts after one-way legacy backup", () => {
   assert.match(app, /legacyChatSessionsBackupKey/);
   assert.match(app, /storage\.removeItem\(legacyChatSessionsStorageKey\)/);

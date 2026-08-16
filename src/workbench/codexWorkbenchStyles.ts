@@ -2174,6 +2174,12 @@ export const codexWorkbenchStyles = `
     background: var(--opl-hover);
   }
 
+  .settings-action-button.primary:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--opl-text) 88%, var(--opl-canvas));
+    background: color-mix(in srgb, var(--opl-text) 88%, var(--opl-canvas));
+    color: var(--opl-canvas);
+  }
+
   .settings-action-button.primary {
     border-color: var(--opl-text);
     background: var(--opl-text);
