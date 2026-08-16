@@ -562,6 +562,7 @@ function compactFastState(value) {
       runtime_source_carriers: compactRuntimeSourceCarriers(appState.runtime_source_carriers),
       codex_personalization: compactCodexPersonalization(appState.codex_personalization),
       ui_contributions: compactUiContributions(appState.ui_contributions),
+      transport_bindings: appState.transport_bindings,
       active_project_lines: firstRecords(appState.active_project_lines, 12),
       home_agent_shortcuts: compactHomeShortcutPreferences(appState.home_agent_shortcuts, 16),
       modules: { items: firstRecords(appState.modules?.items, 8) ?? [] },
@@ -676,6 +677,95 @@ function validateChannelCallbackAdapter(adapter) {
   return adapter;
 }
 
+function validateChannelProviderHost(host) {
+  if (!host || typeof host !== "object" || Array.isArray(host)) {
+    throw Object.assign(new Error("channel callback registrar must return a Host handle"), { code: "invalid_request" });
+  }
+  for (const method of ["appStatePatch", "readChannelAccess", "executeChannelAccessAction", "dispose"]) {
+    if (typeof host[method] !== "function") {
+      throw Object.assign(new Error(`channel provider Host is missing ${method}`), { code: "invalid_request" });
+    }
+  }
+  return host;
+}
+
+function channelAccessEntries(host) {
+  if (!host) return [];
+  const patch = host.appStatePatch();
+  const entries = patch?.ui_contributions?.entries;
+  if (!Array.isArray(entries)) return [];
+  return entries.filter((entry) => entry?.view?.view_type === "channel_access");
+}
+
+function channelAccessEntry(host, packageId, ref, operation) {
+  return channelAccessEntries(host).find((entry) => {
+    if (
+      entry?.package_id !== packageId
+      || entry?.action_boundary !== "opl.connect.channel-provider-host"
+    ) return false;
+    if (operation === "read") return entry.view?.data_ref === ref;
+    return Array.isArray(entry.commands)
+      && entry.commands.some((command) => command?.action_ref === ref);
+  });
+}
+
+export function mergeChannelProviderState(value, host) {
+  if (!host || !value?.app_state || typeof value.app_state !== "object") return value;
+  const patch = host.appStatePatch();
+  const hostProjection = patch?.ui_contributions;
+  const transportBindings = patch?.transport_bindings;
+  const hasHostProjection = hostProjection && typeof hostProjection === "object";
+  const hasTransportBindings = transportBindings && typeof transportBindings === "object";
+  if (!hasHostProjection && !hasTransportBindings) return value;
+  let appState = {
+    ...value.app_state,
+    ...(hasTransportBindings ? { transport_bindings: transportBindings } : {})
+  };
+  if (hasHostProjection) {
+    const currentProjection = value.app_state.ui_contributions;
+    const currentEntries = Array.isArray(currentProjection?.entries) ? currentProjection.entries : [];
+    const hostEntries = Array.isArray(hostProjection.entries) ? hostProjection.entries : [];
+    const entries = [
+      ...currentEntries.filter((entry) => entry?.view?.view_type !== "channel_access"),
+      ...hostEntries
+    ];
+    appState = {
+      ...appState,
+      ui_contributions: {
+        ...(currentProjection && typeof currentProjection === "object" ? currentProjection : {}),
+        ...hostProjection,
+        contribution_count: entries.length,
+        entries
+      }
+    };
+  }
+  return {
+    ...value,
+    app_state: appState
+  };
+}
+
+function hostActionReceipt(request, result) {
+  return {
+    actionId: request.actionId,
+    dryRun: false,
+    confirmationRequired: false,
+    canExecute: true,
+    receiptKind: "execute",
+    authorityBoundary: "app_bridge_no_domain_authority",
+    requestedMode: "execute",
+    status: "executed",
+    command: "opl.connect.channel-provider-host",
+    commandArgs: [],
+    exitCode: 0,
+    stdout: "",
+    stderr: "",
+    timedOut: false,
+    payload: request.payload,
+    stdoutJson: result
+  };
+}
+
 export { compactFastState };
 
 export function createOplPassthrough({
@@ -702,20 +792,32 @@ export function createOplPassthrough({
   if (channelCallbackRegistrar !== undefined && typeof channelCallbackRegistrar !== "function") {
     throw Object.assign(new Error("channel callback registrar must be a function"), { code: "invalid_request" });
   }
+  let channelProviderHost = null;
   return {
-    registerChannelCallbackAdapter(adapter) {
+    async registerChannelCallbackAdapter(adapter) {
       const validated = validateChannelCallbackAdapter(adapter);
       if (typeof channelCallbackRegistrar !== "function") {
         return { status: "dormant", registered: false, dispose: async () => {} };
       }
-      const dispose = channelCallbackRegistrar(validated);
-      if (dispose !== undefined && typeof dispose !== "function") {
-        throw Object.assign(new Error("channel callback registrar must return a dispose function"), { code: "invalid_request" });
+      const candidate = await channelCallbackRegistrar(validated);
+      let registration;
+      try {
+        registration = validateChannelProviderHost(candidate);
+      } catch (error) {
+        await candidate?.dispose?.();
+        throw error;
       }
+      channelProviderHost = registration;
+      let disposed = false;
       return {
-        status: "registered",
+        status: registration?.status ?? "registered",
         registered: true,
-        dispose: async () => { await dispose?.(); }
+        dispose: async () => {
+          if (disposed) return;
+          disposed = true;
+          if (channelProviderHost === registration) channelProviderHost = null;
+          await registration.dispose();
+        }
       };
     },
 
@@ -723,7 +825,7 @@ export function createOplPassthrough({
       const normalizedProfile = profile === "full" ? "full" : "fast";
       const args = [command, "app", "state", "--profile", normalizedProfile, "--json"];
       const result = await run(command, args.slice(1), { cwd, timeoutMs: stateTimeoutMs });
-      const parsed = jsonValue(result.stdout);
+      const parsed = mergeChannelProviderState(jsonValue(result.stdout), channelProviderHost);
       return {
         profile: normalizedProfile,
         app_state: normalizedProfile === "fast" ? compactFastState(parsed) : parsed,
@@ -751,6 +853,22 @@ export function createOplPassthrough({
       const ref = typeof request.ref === "string" ? request.ref.trim() : "";
       if (!packageId || !ref) throw Object.assign(new Error("missing packageId or ref"), { code: "invalid_request" });
       const input = request.input && typeof request.input === "object" ? request.input : {};
+      if (channelAccessEntry(channelProviderHost, packageId, ref, "read")) {
+        const stdoutJson = await channelProviderHost.readChannelAccess({
+          package_id: packageId,
+          ref,
+          input
+        });
+        return {
+          command: "opl.connect.channel-provider-host",
+          commandArgs: [],
+          exitCode: 0,
+          stdout: "",
+          stderr: "",
+          timedOut: false,
+          stdoutJson
+        };
+      }
       const args = [command, "app", "contribution", "read", "--package-id", packageId, "--ref", ref, "--input", JSON.stringify(input), "--json"];
       const result = await run(command, args.slice(1), { cwd, timeoutMs: 45_000 });
       return { ...commandReadback(args, result), stdoutJson: jsonValue(result.stdout) };
@@ -760,6 +878,23 @@ export function createOplPassthrough({
       const actionId = typeof request.actionId === "string" ? request.actionId.trim() : "";
       if (!actionId) throw Object.assign(new Error("missing actionId"), { code: "invalid_request" });
       const payload = request.payload && typeof request.payload === "object" ? request.payload : {};
+      const packageId = typeof payload.package_id === "string" ? payload.package_id.trim() : "";
+      const ref = typeof payload.ref === "string" ? payload.ref.trim() : "";
+      if (
+        actionId === "package_contribution_execute"
+        && request.dryRun === false
+        && packageId
+        && ref
+        && channelAccessEntry(channelProviderHost, packageId, ref, "execute")
+      ) {
+        const result = await channelProviderHost.executeChannelAccessAction({
+          package_id: packageId,
+          ref,
+          input: payload.input && typeof payload.input === "object" ? payload.input : {},
+          confirmed: payload.confirmed === true
+        });
+        return hostActionReceipt(request, result);
+      }
       const dryRun = request.dryRun !== false;
       const confirmed = payload.confirmed === true;
       const rollbackRef = typeof payload.rollbackRef === "string" ? payload.rollbackRef : undefined;

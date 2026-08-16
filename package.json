@@ -45,6 +45,7 @@
     "micromark-util-symbol": "2.0.1",
     "micromark-util-types": "2.0.2",
     "pdfjs-dist": "^6.2.108",
+    "qrcode.react": "4.2.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "shiki": "4.3.1",
@@ -113,6 +114,7 @@
     "smoke:visual": "node scripts/smoke-visual.mjs",
     "smoke:docker": "node tests/headless/docker-smoke.mjs",
     "smoke:docker:lifecycle": "node tests/headless/docker-lifecycle-smoke.mjs",
-    "test": "npm run typecheck && npm run test:desktop && npm run test:headless && npm run test:oci && npm run test:gateway-account-projection && npm run test:package-projection && npm run test:runtime-projection && npm run test:ui-contributions && npm run test:client-cordis && npm run test:storage-migration && npm run test:threads && npm run validate:candidate && npm run validate:state-model && npm run smoke:webui && npm run smoke:visual && npm run package && npm run validate:package"
+    "test": "npm run test:source",
+    "test:full": "npm run test:source && npm run validate:state-model && npm run smoke:webui && npm run smoke:visual && npm run package && npm run validate:package"
   }
 }

@@ -64,27 +64,32 @@ release admission, and is explicitly adopted.
 | Client composition | `host_derived_client_cordis` | AionUI and Native consume the same App Client Contribution ABI, product profile, and slot policy. Native's Client Cordis occupants derive only from the Framework Host projection; no shell discovers Packages or owns another graph |
 | OPL state/actions | `canonical_producer_consumer_conformance` | Framework Cordis composition, Package graph, and public App state/action producer are canonical; Native has one bounded consumer bridge and no second registry, currentness, session, state, or action authority |
 | Conversation | `chat_first_with_on_demand_detail` | Primary surface is the DSH conversation; run status, roadmap/detail contributions, files, and results open on demand instead of becoming static home cards |
-| Standard Agents | `typed_dynamic_selection` | Composer separates OPL-owned `standard_agent` packages from skills/plugins/connections and requires selectable readiness plus a real Codex route |
-| Active turn | `direct_steer_with_renderer_queue` | Active submissions use Codex `turn/steer`; the DSH queue is temporary renderer state and is not a second persistent scheduler or queue |
-| Settings | `minimum_complete_control_plane_wired` | Account/Gateway, model, resources, working directory, storage, Agents, capabilities, instructions, services, updates, diagnostics, preferences, and About consume typed owner actions |
-| Updates | `separate_app_base_packages_model` | Base and Packages execute projected Framework actions through dry-run, confirmation, receipt, and fresh readback. Electron and fixed host-managed headless/OCI command plans share one App updater ABI; distribution command injection and signed feeds remain open |
-| Run detail | `identity_scoped_composition` | Agent activity, work status, runtime detail, files, and results are scoped to the active thread/work item; unknown modules degrade locally |
+| Standard Agents | `selection_present_readiness_correction_pending` | Composer separates OPL-owned `standard_agent` packages from skills/plugins/connections and preserves real Codex routes. The current readiness gate still needs to reject explicit `launch_allowed=false` or `operational_ready=false` projections |
+| Active turn | `direct_steer_present_reopen_recovery_pending` | Active submissions use Codex `turn/steer`, and the DSH queue remains renderer-only state. Launch still needs canonical `thread/read(includeTurns=true)` readback, while reopening an active thread must restore its active turn before steer is available |
+| Settings | `active_lane_not_yet_canonical` | Account/Gateway, model, workspace, storage, capabilities, instructions, services, updates, diagnostics, preferences, first-run checks, runtime overview, and the macOS tray are being completed by the registered Settings owner. Existing source and a recovery checkpoint do not prove the current lane is canonical or user-accepted |
+| Updates | `desktop_and_headless_callers_present_owner_projection_incomplete` | Electron Desktop and standalone Headless updater callers exist. Framework fast App state still needs the App/Base/Packages managed-update and Flow dependency projection required for an immediate owner-currentness view; Docker host-side update remains deliberately deferred rather than exposing the container runtime socket |
+| Run detail | `real_producer_canonical_consumer_pending` | MAS now has a canonical read-only producer backed by a real workspace and trajectory. Studio still must pass the resolved work-item identity into `runtime.detail` reads and render allowlisted dynamic results; unresolved or mismatched identity must not invoke a producer |
 | Local launcher | `implemented_candidate_path` | Isolated bundle; actions dry-run-only by default |
-| Minimum product baseline | `eight_source_outcomes_complete` | Thread/turn lifecycle, run detail, files/results, settings/diagnostics, dynamic Agents, capabilities/contributions, three-object maintenance, and service recovery are source-complete; later evidence axes remain independent |
-| Validation | `daily_source_release_carriers_independent` | Default PR/main CI runs source, type, contract, and unit validation only. The macOS arm64 Desktop primary carrier has its own manual release qualification; Windows/Linux Desktop, macOS/Linux Headless, and native amd64/arm64 OCI lifecycles have a separate manual additional-carrier qualification. No packaging or carrier lifecycle blocks daily development. These checks prove only their exact candidate bytes and named carriers |
+| Minimum product baseline | `active_functional_closure` | Distribution qualification paths are independently green, but the user-facing functional baseline remains open on Settings/runtime overview, Agent correctness, identity-scoped runtime detail, managed-update currentness, service recovery wiring, contribution consumption, and local Preview acceptance |
+| Validation | `distribution_gates_green_functional_acceptance_pending` | Default PR/main CI remains source-only, and carrier qualification remains manual. Existing checks prove only their exact candidate bytes; they do not prove the active Settings lane, remaining Agent/runtime-detail callers, service recovery UI, or the next locally installed Preview |
 | Adoption and readiness | `false` | No active-shell adoption, release, clean-VM, domain, owner-acceptance, or production claim |
 
 ## Current Gaps
 
 | Gap | Class | Owner route | Stop condition |
 | --- | --- | --- | --- |
-| App contract currentness must be re-read before any change | `structural_currentness_gate` | App contracts and GUI docs | Stop if the candidate write set conflicts with a newer App decision or active owner lane |
-| Desktop App updater feed is not qualified | `release_admission_p0` | App release producer plus desktop package owner | Electron updater state/operations are implemented; produce signed artifacts and a dedicated signed feed, then prove check/download/apply/restart/version readback without consuming AionUI update metadata |
-| Headless service distribution is incomplete | `delivery_p0` | App install owner plus shared-host owner | Preserve the hosted macOS/Linux user-service lifecycle and fresh App-state baseline, then admit supported installers, authenticated remote access, signed update sources, and release cohorts separately |
-| Successor OCI carrier release admission is incomplete | `delivery_p0` | App release/install owner plus host-core owner | Preserve the hosted non-public multi-arch layout and manager lifecycle proof, then qualify immutable registry identity, signatures, vulnerability policy, clean-host installation and release without Electron or AionCore |
-| Windows/Linux dedicated clean-VM and screen-reader qualification remain incomplete | `delivery_p1` | Platform package owners | Hosted-runner NSIS and DEB lifecycle plus process-bound UIA/AT-SPI trees are proven; next qualify dedicated clean VMs, NVDA/Orca user experience, and supported-user-path behavior. AppImage is a closed non-admission decision, not an open delivery promise |
-| Exact-cohort Pixel and accessibility acceptance are absent | `evidence_p1` | App GUI acceptance owner | Capture the tested Desktop and WebUI cohorts across target viewports, keyboard and screen-reader paths; source screenshots do not close installed Pixel |
-| Security, Release, and cutover proof are absent | `non_blocking_candidate_evidence_gap` | App release owner and owning runtime/release surfaces | Qualify signed artifacts, dedicated clean-VM installs, OCI supply chain, update/rollback, and release cohorts independently; switch AionUI only through a final explicit adoption decision |
+| Settings, first-run, runtime overview, and macOS tray are not canonical | `functional_p0_active` | Registered Studio Settings owner | Replay the active lane on fresh main, run its focused/full and packaged-local checks, then absorb and read back the exact bytes before claiming the control plane is available |
+| Agent launch and resumed-turn correctness are incomplete | `functional_p0` | Studio App Server transport and workbench owner | After the Settings lane closes, require explicit Agent readiness, canonical launch readback, and active-turn recovery on reopen; prove launch, reopen, and steer through the real host path |
+| Runtime detail is producer-only | `functional_p0` | App Contribution ABI owner plus Studio consumer | Preserve the canonical MAS producer, inject the selected resolved work-item identity into the read request, reject unresolved or mismatched identity, and render its allowlisted result without static domain-specific cards |
+| Managed update and capability currentness are incomplete in fast state | `functional_p0` | Framework/App-state producer owner, then Studio consumer | Project App/Base/Packages managed-update status, Flow dependencies, and managed companions through the existing Host-derived App state; Studio consumes that projection without a second registry or updater authority |
+| Service recovery is model-only | `functional_p0` | Studio workbench owner | The causal recovery model is canonical and exact-head CI-green. Wire its one root cause, one App-projected safe action, mutation guard, and mandatory fresh recheck into the runtime/settings surface |
+| Canonical capability contributions still need user-path consumption | `functional_p1` | `opl-glt.55` producer owner plus Studio consumer | Consume the canonical Channel Access, WeChat, Computer Use, and Fleet projections through typed slots/actions; do not hard-code a fixed brand capability list |
+| Current Preview has not passed this functional cohort | `acceptance_p0` | Studio product controller and user | After all functional bytes are canonical, rebuild and install the macOS Preview, run local interaction/readback checks, and leave it open for user acceptance |
+
+Signing, notarization, public update feeds, public OCI publication, dedicated
+clean-VM certification, and the final AionUI cutover remain separate deferred
+delivery/adoption work. They are not prerequisites for the current local
+functional baseline and must not be moved back into default development CI.
 
 Remote cross-machine coordination, model-driven permission/write-set decisions,
 private thread runtimes, and candidate-owned delivery ledgers are explicitly not
@@ -97,9 +102,10 @@ does not depend on Team mode.
 
 ### Goal
 
-For successor product development, turn the source-complete minimum product
-into supported Desktop, Headless, and Docker delivery cohorts while preserving
-the Codex-only thin-consumer boundary.
+For successor product development, finish the minimum user-facing functional
+baseline and produce a current locally installed macOS Preview for acceptance,
+while preserving the Codex-only thin-consumer boundary. Distribution and
+release qualification stay independent and deferred in this round.
 Do not reproduce AionUI-only inherited surfaces, create a speculative
 multi-backend framework, or duplicate the renderer/host core for another
 carrier.
@@ -144,19 +150,18 @@ carrier.
 
 ### Required Actions
 
-1. Complete the macOS Desktop cohort with signed distributable artifacts, a
-   dedicated update feed, and installed check/apply/restart/version readback.
-2. Preserve the hosted macOS/Linux Headless user-service lifecycles, then bind
-   qualified paths to supported installers, authenticated remote access, signed
-   update sources, and separate App release admission.
-3. Complete Docker/OCI distribution, host-managed image recreate/rollback,
-   multi-arch, supply-chain, and remote-access security qualification.
-4. Extend the hosted Windows/Linux NSIS/DEB lifecycle and UIA/AT-SPI baseline to
-   dedicated clean-VM, NVDA/Orca, and exact-cohort Desktop/WebUI Pixel and
-   accessibility acceptance.
-5. Keep AionUI active until Source, Pixel, Install, Security, and Release are
-   all admitted; perform the adapter/release cutover only as one explicit final
-   App-owner decision.
+1. Absorb and verify the active Settings, onboarding, context, updater, runtime
+   overview, and macOS tray lane on fresh Studio main.
+2. Close Agent correctness through explicit readiness rejection, canonical
+   launch readback, active-turn recovery, and real reopen/steer verification.
+3. Connect the canonical MAS runtime-detail producer using the resolved
+   work-item identity and a generic allowlisted result renderer.
+4. Consume Host-derived managed-update, Flow dependency, managed-companion,
+   Channel Access, WeChat, Computer Use, and Fleet projections without adding a
+   Studio registry, Package discovery path, or action authority.
+5. Wire the canonical service-recovery model, run the full local candidate
+   gates, rebuild the macOS Preview, and complete local interaction/readback
+   before asking for user acceptance.
 
 ### Verification Commands
 

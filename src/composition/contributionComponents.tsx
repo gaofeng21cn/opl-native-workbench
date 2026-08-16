@@ -1,5 +1,6 @@
 import { Button, Pill, StateDot, Tooltip, type StateDotState } from "@deepseek-ai/dsh-client-ui-primitives";
 import { Boxes, Play, QrCode, ShieldCheck, Users } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   contributionLabel,
@@ -370,7 +371,13 @@ function ChannelAccessView({ entry, owner }: {
           <div><dt><QrCode aria-hidden="true" size={15} />{owner.locale === "zh" ? "扫码登录" : "Scan to connect"}</dt><dd>
             {qr.payload.startsWith("data:image/")
               ? <img src={qr.payload} alt={owner.locale === "zh" ? "渠道登录二维码" : "Channel login QR code"} />
-              : <code>{qr.payload}</code>}
+              : <QRCodeSVG
+                  value={qr.payload}
+                  size={192}
+                  level="M"
+                  marginSize={2}
+                  title={owner.locale === "zh" ? "渠道登录二维码" : "Channel login QR code"}
+                />}
           </dd></div>
         </section>
       ) : null}

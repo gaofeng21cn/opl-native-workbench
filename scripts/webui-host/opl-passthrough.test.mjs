@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compactFastState, compactInitialize, createOplPassthrough } from "./opl-passthrough.mjs";
+import {
+  compactFastState,
+  compactInitialize,
+  createOplPassthrough,
+  mergeChannelProviderState
+} from "./opl-passthrough.mjs";
 
 test("App state timeout keeps the interactive default and admits a bounded cold-start override", () => {
   assert.doesNotThrow(() => createOplPassthrough({ readStateTimeoutMs: undefined }));
@@ -15,7 +20,7 @@ test("channel callbacks stay dormant unless an optional provider registrar is co
     startTurn: async () => {},
     subscribeTurn: () => ({ dispose() {} })
   };
-  const dormant = createOplPassthrough().registerChannelCallbackAdapter(adapter);
+  const dormant = await createOplPassthrough().registerChannelCallbackAdapter(adapter);
   assert.deepEqual(
     { status: dormant.status, registered: dormant.registered },
     { status: "dormant", registered: false }
@@ -23,26 +28,109 @@ test("channel callbacks stay dormant unless an optional provider registrar is co
 
   let received;
   let disposeCount = 0;
-  const configured = createOplPassthrough({
-    channelCallbackRegistrar: (value) => {
-      received = value;
-      return () => { disposeCount += 1; };
+  const hostCalls = [];
+  const hostPatch = {
+    transport_bindings: {
+      surface_kind: "opl_app_transport_bindings_projection.v1",
+      status: "available",
+      bindings: [{
+        binding_id: "binding-1",
+        provider_id: "opl-channel-weixin",
+        account_id: "account-1",
+        channel_session_id: "session-1",
+        canonical_thread_host: "studio",
+        canonical_thread_id: "thread-1",
+        project_affinity: "projectless",
+        status: "bound"
+      }]
+    },
+    ui_contributions: {
+      surface_kind: "opl_app_ui_contributions_projection.v1",
+      contribution_count: 1,
+      entries: [{
+        contribution_key: "opl-channel-weixin:weixin-channel-access",
+        package_id: "opl-channel-weixin",
+        action_boundary: "opl.connect.channel-provider-host",
+        view: { view_type: "channel_access", data_ref: "weixin.channel-access#state" },
+        commands: [{ action_ref: "weixin.channel-access#connect" }]
+      }]
     }
-  }).registerChannelCallbackAdapter(adapter);
+  };
+  const passthrough = createOplPassthrough({
+    channelCallbackRegistrar: async (value) => {
+      received = value;
+      return {
+        appStatePatch: () => hostPatch,
+        readChannelAccess: async (request) => {
+          hostCalls.push(["read", request]);
+          return { opl_app_contribution: { response: { result: { connection: { state: "connected" } } } } };
+        },
+        executeChannelAccessAction: async (request) => {
+          hostCalls.push(["execute", request]);
+          return { opl_app_contribution: { response: { result: { connection: { state: "connecting" } } } } };
+        },
+        dispose: () => { disposeCount += 1; }
+      };
+    }
+  });
+  const configured = await passthrough.registerChannelCallbackAdapter(adapter);
   assert.equal(received, adapter);
   assert.equal(configured.status, "registered");
   assert.equal(configured.registered, true);
+  const readback = await passthrough.readContribution({
+    packageId: "opl-channel-weixin",
+    ref: "weixin.channel-access#state",
+    input: { channel_id: "weixin" }
+  });
+  assert.equal(readback.command, "opl.connect.channel-provider-host");
+  const receipt = await passthrough.executeAction({
+    actionId: "package_contribution_execute",
+    dryRun: false,
+    payload: {
+      package_id: "opl-channel-weixin",
+      ref: "weixin.channel-access#connect",
+      input: { channel_id: "weixin" },
+      confirmed: false
+    }
+  });
+  assert.equal(receipt.status, "executed");
+  assert.deepEqual(hostCalls.map(([operation]) => operation), ["read", "execute"]);
+  const merged = mergeChannelProviderState({
+    app_state: {
+      ui_contributions: {
+        entries: [
+          { package_id: "legacy", view: { view_type: "channel_access" } },
+          { package_id: "opl-fleet-agent", view: { view_type: "list_detail" } }
+        ]
+      }
+    }
+  }, { appStatePatch: () => hostPatch });
+  assert.deepEqual(
+    merged.app_state.ui_contributions.entries.map((entry) => entry.package_id),
+    ["opl-fleet-agent", "opl-channel-weixin"]
+  );
+  assert.equal(merged.app_state.transport_bindings.bindings[0].canonical_thread_id, "thread-1");
+  await configured.dispose();
   await configured.dispose();
   assert.equal(disposeCount, 1);
 
-  assert.throws(
-    () => createOplPassthrough().registerChannelCallbackAdapter({ ...adapter, subscribeTurn: undefined }),
+  await assert.rejects(
+    createOplPassthrough().registerChannelCallbackAdapter({ ...adapter, subscribeTurn: undefined }),
     /missing subscribeTurn/
   );
   assert.throws(
     () => createOplPassthrough({ channelCallbackRegistrar: "enabled" }),
     /registrar must be a function/
   );
+  let invalidDisposeCount = 0;
+  await assert.rejects(
+    createOplPassthrough({
+      channelCallbackRegistrar: async () => ({ dispose() { invalidDisposeCount += 1; } })
+    })
+      .registerChannelCallbackAdapter(adapter),
+    /Host is missing appStatePatch/
+  );
+  assert.equal(invalidDisposeCount, 1);
 });
 
 test("candidate blocks confirmed mutations unless the launcher explicitly enables actions", async () => {
@@ -370,6 +458,20 @@ test("fast state keeps GUI package fields without copying deep runtime payloads"
 test("fast state keeps the bounded public UI contribution projection", () => {
   const compact = compactFastState({
     app_state: {
+      transport_bindings: {
+        surface_kind: "opl_app_transport_bindings_projection.v1",
+        status: "available",
+        bindings: [{
+          binding_id: "binding-1",
+          provider_id: "opl-channel-weixin",
+          account_id: "account-1",
+          channel_session_id: "session-1",
+          canonical_thread_host: "studio",
+          canonical_thread_id: "thread-1",
+          project_affinity: "projectless",
+          status: "bound"
+        }]
+      },
       ui_contributions: {
         surface_kind: "opl_app_ui_contributions_projection.v1",
         contribution_count: 1,
@@ -419,6 +521,7 @@ test("fast state keeps the bounded public UI contribution projection", () => {
   assert.equal(projection.entries[0].view.data_ref, "future.activity.v1#current");
   assert.equal(projection.entries[0].commands[0].action_ref, "future.refresh");
   assert.equal(projection.entries[0].badges[0].tone, "success");
+  assert.equal(compact.app_state.transport_bindings.bindings[0].canonical_thread_id, "thread-1");
   const serialized = JSON.stringify(projection);
   for (const marker of ["private_view_payload", "private_command_payload", "private_badge_payload", "executable_plugin_bytes", "private_receipts"]) {
     assert.equal(serialized.includes(marker), false, `must omit ${marker}`);

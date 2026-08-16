@@ -114,8 +114,13 @@ function requiredChannelObject(value, label) {
 }
 
 function requiredChannelString(value, label) {
-  if (typeof value !== "string" || value.length === 0 || value.length > 512) {
-    throw new AppServerTransportError("invalid_request", `${label} must be a non-empty string`);
+  if (
+    typeof value !== "string"
+    || value.length === 0
+    || value.length > 512
+    || value.trim() !== value
+  ) {
+    throw new AppServerTransportError("invalid_request", `${label} must be an exact non-empty string`);
   }
   return value;
 }
@@ -154,6 +159,22 @@ function assertChannelThreadReadback(expected, response, operation, host) {
   return actual;
 }
 
+function assertChannelThreadHost(expected, operation, host) {
+  if (expected.canonical_thread_host !== host) {
+    throw new AppServerTransportError(
+      "invalid_app_server_response",
+      `${operation} returned a different canonical thread`,
+      {
+        expected,
+        actual: {
+          canonical_thread_host: host,
+          canonical_thread_id: expected.canonical_thread_id
+        }
+      }
+    );
+  }
+}
+
 export class CodexAppServerTransport extends EventEmitter {
   constructor({
     command = process.env.OPL_CODEX_BIN ?? process.env.CODEX_APP_SERVER_COMMAND ?? "codex",
@@ -161,6 +182,7 @@ export class CodexAppServerTransport extends EventEmitter {
     cwd = process.env.OPL_STUDIO_CODEX_CWD ?? process.cwd(),
     host = os.hostname(),
     env = process.env,
+    channelBindingStore,
     requestTimeoutMs = 45_000,
     turnTimeoutMs = 180_000
   } = {}) {
@@ -170,11 +192,13 @@ export class CodexAppServerTransport extends EventEmitter {
     this.cwd = cwd;
     this.host = requiredChannelString(host, "host");
     this.env = env;
+    this.channelBindingStore = channelBindingStore;
     this.requestTimeoutMs = requestTimeoutMs;
     this.turnTimeoutMs = turnTimeoutMs;
     this.process = null;
     this.pending = new Map();
     this.turns = new Map();
+    this.channelTurns = new Set();
     this.nextRequestId = 1;
     this.initialized = false;
     this.startPromise = null;
@@ -404,23 +428,49 @@ export class CodexAppServerTransport extends EventEmitter {
 
   createChannelCallbackAdapter() {
     const transport = this;
+    const bindingStore = transport.channelBindingStore;
+    if (
+      !bindingStore
+      || typeof bindingStore.getOrCreate !== "function"
+      || typeof bindingStore.assertKnownThread !== "function"
+      || typeof bindingStore.readBindings !== "function"
+    ) {
+      throw new AppServerTransportError(
+        "channel_binding_store_unavailable",
+        "channel callbacks require an exact transport binding store"
+      );
+    }
     return Object.freeze({
+      readTransportBindings: () => bindingStore.readBindings(),
       startThread: async (request = {}) => {
         const value = requiredChannelObject(request, "startThread request");
-        requiredChannelString(value.provider_id, "provider_id");
-        requiredChannelString(value.account_id, "account_id");
-        requiredChannelString(value.channel_session_id, "channel_session_id");
-        const response = await transport.startThread();
-        const canonicalThread = {
-          canonical_thread_host: transport.host,
-          canonical_thread_id: requiredChannelString(response.thread?.id, "thread/start thread id")
+        const channelIdentity = {
+          provider_id: requiredChannelString(value.provider_id, "provider_id"),
+          account_id: requiredChannelString(value.account_id, "account_id"),
+          channel_session_id: requiredChannelString(value.channel_session_id, "channel_session_id")
         };
-        const readback = await transport.readThread(canonicalThread.canonical_thread_id);
-        assertChannelThreadReadback(canonicalThread, readback, "thread/start readback", transport.host);
+        const binding = await bindingStore.getOrCreate(channelIdentity, async () => {
+          const response = await transport.startThread();
+          const startedThread = {
+            canonical_thread_host: transport.host,
+            canonical_thread_id: requiredChannelString(response.thread?.id, "thread/start thread id")
+          };
+          const readback = await transport.readThread(startedThread.canonical_thread_id);
+          assertChannelThreadReadback(startedThread, readback, "thread/start readback", transport.host);
+          return startedThread;
+        });
+        const canonicalThread = channelThreadRef(binding.thread, "channel binding");
+        assertChannelThreadHost(canonicalThread, "channel binding", transport.host);
+        if (!binding.created) {
+          const readback = await transport.readThread(canonicalThread.canonical_thread_id);
+          assertChannelThreadReadback(canonicalThread, readback, "channel binding readback", transport.host);
+        }
         return canonicalThread;
       },
       resumeThread: async (request = {}) => {
         const canonicalThread = channelThreadRef(request, "resumeThread request");
+        assertChannelThreadHost(canonicalThread, "thread/resume", transport.host);
+        await bindingStore.assertKnownThread(canonicalThread);
         const readback = await transport.readThread(canonicalThread.canonical_thread_id);
         assertChannelThreadReadback(canonicalThread, readback, "thread/resume readback", transport.host);
         const response = await transport.resumeThread(canonicalThread.canonical_thread_id, {
@@ -433,6 +483,8 @@ export class CodexAppServerTransport extends EventEmitter {
       startTurn: async (request = {}) => {
         const value = requiredChannelObject(request, "startTurn request");
         const canonicalThread = channelThreadRef(value, "startTurn request");
+        assertChannelThreadHost(canonicalThread, "turn/start", transport.host);
+        await bindingStore.assertKnownThread(canonicalThread);
         const readback = await transport.readThread(canonicalThread.canonical_thread_id);
         assertChannelThreadReadback(canonicalThread, readback, "turn/start readback", transport.host);
         const response = await transport.startTurn(
@@ -452,10 +504,12 @@ export class CodexAppServerTransport extends EventEmitter {
             "turn/start returned no turn id"
           );
         }
-        return {
+        const canonicalTurn = {
           ...canonicalThread,
           canonical_turn_id: turnId
         };
+        transport.channelTurns.add(JSON.stringify(canonicalTurn));
+        return canonicalTurn;
       },
       subscribeTurn(request = {}, observer) {
         const value = requiredChannelObject(request, "subscribeTurn request");
@@ -476,6 +530,21 @@ export class CodexAppServerTransport extends EventEmitter {
     const normalizedThreadHost = requiredChannelString(canonical_thread_host, "canonical_thread_host");
     const normalizedThreadId = requiredChannelString(canonical_thread_id, "canonical_thread_id");
     const normalizedTurnId = requiredChannelString(canonical_turn_id, "canonical_turn_id");
+    assertChannelThreadHost({
+      canonical_thread_host: normalizedThreadHost,
+      canonical_thread_id: normalizedThreadId
+    }, "turn/subscribe", this.host);
+    const canonicalTurnKey = JSON.stringify({
+      canonical_thread_host: normalizedThreadHost,
+      canonical_thread_id: normalizedThreadId,
+      canonical_turn_id: normalizedTurnId
+    });
+    if (!this.channelTurns.has(canonicalTurnKey)) {
+      throw new AppServerTransportError(
+        "channel_binding_unknown",
+        "canonical turn was not created through the exact channel binding"
+      );
+    }
     if (!observer || typeof observer !== "object" || typeof observer.onTerminal !== "function") {
       throw new AppServerTransportError("invalid_request", "channel turn observer requires onTerminal");
     }
@@ -489,6 +558,7 @@ export class CodexAppServerTransport extends EventEmitter {
       if (eventThreadId && eventThreadId !== normalizedThreadId) return;
       settled = true;
       this.off("event", onEvent);
+      this.channelTurns.delete(canonicalTurnKey);
       const status = notification?.turn?.status ?? notification?.status ?? "completed";
       const base = {
         canonical_thread_host: normalizedThreadHost,
@@ -527,6 +597,7 @@ export class CodexAppServerTransport extends EventEmitter {
         if (settled) return;
         settled = true;
         this.off("event", onEvent);
+        this.channelTurns.delete(canonicalTurnKey);
       }
     });
   }
