@@ -8,6 +8,7 @@ import {
   FileText,
   Folder,
   Puzzle,
+  RefreshCw,
   Search,
   X
 } from "lucide-react";
@@ -900,6 +901,12 @@ export function App({
   }
 
   function settingsReceiptFeedback(receipt: OplActionReceipt, label: string): SettingsActionFeedback {
+    if (receipt.status === "preview_ready") {
+      return {
+        tone: "success",
+        message: settings.locale === "zh" ? `${label}已完成，只读检查结果已生成。` : `${label} completed and produced a read-only check result.`
+      };
+    }
     if (receipt.status === "executed") {
       return {
         tone: "success",
@@ -922,6 +929,11 @@ export function App({
     setSettingsActionBusyKey(request.key);
     setSettingsActionFeedback(null);
     try {
+      if (request.previewOnly) {
+        const preview = await bridge.executeAction({ actionId: request.actionId, payload: request.payload, dryRun: true });
+        setSettingsActionFeedback(settingsReceiptFeedback(preview, request.label));
+        return;
+      }
       if (request.confirmationRequired) {
         const preview = await bridge.executeAction({ actionId: request.actionId, payload: request.payload, dryRun: true });
         if (preview.status === "error" || preview.status === "timed_out") {
@@ -1777,7 +1789,7 @@ export function App({
         <section data-testid="opl-runtime-status-panel" className="context-block runtime-status-panel" hidden={activeContextTab !== "opl-runtime-status-panel"}>
           <div className="context-list-head">
             <strong>{settings.locale === "zh" ? "当前运行" : "Current run"}</strong>
-            <button type="button" aria-label={t.refresh} title={t.refresh} onClick={() => void loadState(settings.runtimeProfile)}><Activity aria-hidden="true" size={14} /></button>
+            <button type="button" aria-label={t.refresh} title={t.refresh} onClick={() => void loadState(settings.runtimeProfile)}><RefreshCw aria-hidden="true" size={14} /></button>
           </div>
           <div className="runtime-current-agent" data-testid="opl-agent-run-status" data-status={runDetail.status.state}>
             <span className="runtime-status-dot" aria-hidden="true" />
@@ -1841,7 +1853,7 @@ export function App({
         <section data-testid="opl-agents-capabilities-panel" className="context-block" aria-label="Agents and capabilities" hidden={activeContextTab !== "opl-agents-capabilities-panel"}>
           <div className="context-list-head">
             <strong>{settings.locale === "zh" ? "当前能力" : "Current capabilities"}</strong>
-            <button type="button" aria-label={t.refresh} title={t.refresh} onClick={() => void loadCapabilities()}><Activity aria-hidden="true" size={14} /></button>
+            <button type="button" aria-label={t.refresh} title={t.refresh} onClick={() => void loadCapabilities()}><RefreshCw aria-hidden="true" size={14} /></button>
           </div>
           <div className="runtime-current-agent" data-testid="opl-current-agent-capabilities" data-status={sendState === "running" ? "running" : currentSession?.status ?? "idle"}>
             <span className="runtime-status-dot" aria-hidden="true" />
@@ -1893,6 +1905,10 @@ export function App({
       stateStatus={stateStatus}
       stateError={stateError}
       carrierDiagnostics={carrierDiagnostics}
+      capabilityCatalog={capabilityCatalog}
+      capabilityStatus={capabilityStatus}
+      capabilityError={capabilityError}
+      onRefreshCapabilities={() => void loadCapabilities()}
       activeDestination={activeDestination}
       onRefresh={() => void loadState(settings.runtimeProfile)}
       onChangeLogDirectory={() => void changeLogDirectory()}

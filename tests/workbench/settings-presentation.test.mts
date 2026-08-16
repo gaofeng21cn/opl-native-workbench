@@ -72,3 +72,14 @@ test("internal status and package role identifiers are projected as user-facing 
   assert.notEqual(presentation.packageRoleLabel("standard_agent", "zh"), "standard_agent");
   assert.notEqual(presentation.formatUpdateChannel("private_canary", "zh"), "private_canary");
 });
+
+test("Gateway model access action is needed only when a different source is known", () => {
+  const projection = (providerName?: string, modelAccessSource?: string) => ({
+    codex: { providerName, modelAccessSource }
+  }) as never;
+
+  assert.equal(presentation.gatewayModelAccessState(projection("OPL Gateway", "codex_login")), "current");
+  assert.equal(presentation.gatewayModelAccessState(projection(undefined, "gateway_account")), "current");
+  assert.equal(presentation.gatewayModelAccessState(projection("Other provider", "api_key")), "different");
+  assert.equal(presentation.gatewayModelAccessState(projection()), "unknown");
+});

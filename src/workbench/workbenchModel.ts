@@ -340,6 +340,7 @@ export type AgentPackageSelectionIntent = {
 export type RuntimeMaintenanceActionRef = {
   actionId: string;
   label: string;
+  state?: string;
   payload: Record<string, unknown>;
   requiredPayloadFields: string[];
   confirmationRequired: boolean;
@@ -447,6 +448,7 @@ export type WorkbenchSettingsProjection = {
     reasoningEffort?: string;
     providerName?: string;
     providerBaseUrl?: string;
+    modelAccessSource?: string;
     accessStatus?: string;
     configPath?: string;
     apiKeyPresent: boolean | null;
@@ -485,6 +487,27 @@ export type WorkbenchSettingsProjection = {
     status?: string;
     runtimeStatus?: string;
     recoveryStatus?: string;
+    actions: RuntimeMaintenanceActionRef[];
+  };
+  personalization: {
+    userAgents?: {
+      status: string;
+      path?: string;
+      content?: string;
+      sha256?: string;
+      sizeBytes?: number;
+      maxEditableBytes?: number;
+      source?: string;
+    };
+    oplFlowDefaultUserAgents?: {
+      status: string;
+      content?: string;
+      sha256?: string;
+      sourcePath?: string;
+      packageVersion?: string;
+      source?: string;
+      reason?: string;
+    };
   };
   storage: {
     agentPackageStore: {
@@ -492,12 +515,32 @@ export type WorkbenchSettingsProjection = {
       bytes?: number;
       reclaimableBytes?: number;
       reasonCode?: string;
+      observedAt?: string;
+      stale: boolean | null;
+      ownerRoute?: string;
+      projectedAction?: {
+        kind?: string;
+        status?: string;
+        route?: string;
+        actionId?: string;
+        dryRunRequired: boolean | null;
+      };
     };
     webuiDataVolume: {
       status?: string;
       bytes?: number;
       reclaimableBytes?: number;
       reasonCode?: string;
+      observedAt?: string;
+      stale: boolean | null;
+      ownerRoute?: string;
+      projectedAction?: {
+        kind?: string;
+        status?: string;
+        route?: string;
+        actionId?: string;
+        dryRunRequired: boolean | null;
+      };
     };
   };
 };
@@ -1914,6 +1957,11 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
   const temporalManagement = asRecord(temporal?.management);
   const runtimeSourceCarriers = asRecord(appState.runtime_source_carriers);
   const runtimeCarrierSummary = asRecord(runtimeSourceCarriers?.summary);
+  const actions = asRecordArray(appState.actions);
+  const actionRecords = new Map(actions.flatMap((action): [string, Record<string, unknown>][] => {
+    const actionId = asString(action.action_id);
+    return actionId ? [[actionId, action]] : [];
+  }));
   const settingsControlCenter = asRecord(appState.settings_control_center);
   const appSettingsReadModel = asRecord(settingsControlCenter?.app_settings_read_model);
   const gatewayAccountProjection = asRecord(appSettingsReadModel?.opl_gateway_account);
@@ -2009,7 +2057,31 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
   const storageLifecycle = asRecord(appSettingsReadModel?.storage_lifecycle);
   const agentPackageStore = asRecord(storageLifecycle?.agent_package_store);
   const webuiDataVolume = asRecord(storageLifecycle?.webui_data_volume);
+  const codexPersonalization = asRecord(appState.codex_personalization);
+  const userAgents = asRecord(codexPersonalization?.user_agents);
+  const oplFlowDefaultUserAgents = asRecord(codexPersonalization?.opl_flow_default_user_agents);
   const statusSummary = asRecord(settingsControlCenter?.status_summary);
+  const dockerActions = asRecordArray(dockerWebui?.ordinary_next_actions).flatMap((projected): RuntimeMaintenanceActionRef[] => {
+    const actionId = asString(projected.action_id);
+    if (!actionId) return [];
+    const action = actionRecords.get(actionId);
+    const dangerLevel = asString(projected.danger_level) ?? asString(action?.danger_level);
+    return [{
+      actionId,
+      label: asString(projected.label) ?? asString(action?.label) ?? actionId,
+      ...(asString(projected.state) ? { state: asString(projected.state) as string } : {}),
+      payload: {},
+      requiredPayloadFields: asStringArray(projected.payload_fields).length
+        ? asStringArray(projected.payload_fields)
+        : asStringArray(action?.payload_fields),
+      confirmationRequired: asOptionalBoolean(projected.confirmation_required)
+        ?? asOptionalBoolean(action?.confirmation_required)
+        ?? false,
+      dryRunSupported: Boolean(asString(projected.dry_run_route)) || asBoolean(action?.dry_run_supported),
+      mutates: asString(action?.mutates) ?? "unknown",
+      ...(dangerLevel ? { dangerLevel } : {})
+    }];
+  });
   const externalConnections = asRecordArray(connectionsReadModel?.connections)
     .filter((connection) => {
       const type = asString(connection.connection_type);
@@ -2039,8 +2111,15 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
           ...(firstString(codexModelPolicy, ["reasoning_effort"]) ?? firstString(coreCodex, ["default_reasoning_effort"])
             ? { reasoningEffort: (firstString(codexModelPolicy, ["reasoning_effort"]) ?? firstString(coreCodex, ["default_reasoning_effort"])) as string }
             : {}),
-          ...(asString(codexModelPolicy?.provider_name) ? { providerName: asString(codexModelPolicy?.provider_name) as string } : {}),
-          ...(asString(codexModelPolicy?.provider_base_url) ? { providerBaseUrl: asString(codexModelPolicy?.provider_base_url) as string } : {}),
+          ...(firstString(codexModelPolicy, ["provider_name"]) ?? firstString(coreCodex, ["provider_name"])
+            ? { providerName: (firstString(codexModelPolicy, ["provider_name"]) ?? firstString(coreCodex, ["provider_name"])) as string }
+            : {}),
+          ...(firstString(codexModelPolicy, ["provider_base_url"]) ?? firstString(coreCodex, ["provider_base_url"])
+            ? { providerBaseUrl: (firstString(codexModelPolicy, ["provider_base_url"]) ?? firstString(coreCodex, ["provider_base_url"])) as string }
+            : {}),
+          ...(firstString(codexModelPolicy, ["model_access_source"]) ?? firstString(coreCodex, ["model_access_source"])
+            ? { modelAccessSource: (firstString(codexModelPolicy, ["model_access_source"]) ?? firstString(coreCodex, ["model_access_source"])) as string }
+            : {}),
           ...(firstString(codexModelPolicy, ["access_status", "model_access_status"]) ?? firstString(coreCodex, ["model_access_status"])
             ? { accessStatus: (firstString(codexModelPolicy, ["access_status", "model_access_status"]) ?? firstString(coreCodex, ["model_access_status"])) as string }
             : {}),
@@ -2079,26 +2158,74 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
         dockerWebui: {
           ...(asString(dockerWebui?.ordinary_status) ? { status: asString(dockerWebui?.ordinary_status) as string } : {}),
           ...(asString(dockerRuntimeProxy?.status) ? { runtimeStatus: asString(dockerRuntimeProxy?.status) as string } : {}),
-          ...(asString(dockerFailureRecovery?.status) ? { recoveryStatus: asString(dockerFailureRecovery?.status) as string } : {})
+          ...(asString(dockerFailureRecovery?.status) ? { recoveryStatus: asString(dockerFailureRecovery?.status) as string } : {}),
+          actions: dockerActions
+        },
+        personalization: {
+          ...(asString(userAgents?.status) ? {
+            userAgents: {
+              status: asString(userAgents?.status) as string,
+              ...(asString(userAgents?.path) ? { path: asString(userAgents?.path) as string } : {}),
+              ...(typeof userAgents?.content === "string" ? { content: userAgents.content } : {}),
+              ...(asString(userAgents?.sha256) ? { sha256: asString(userAgents?.sha256) as string } : {}),
+              ...(asFiniteNumber(userAgents?.size_bytes) !== null ? { sizeBytes: asFiniteNumber(userAgents?.size_bytes) as number } : {}),
+              ...(asFiniteNumber(userAgents?.max_editable_bytes) !== null ? { maxEditableBytes: asFiniteNumber(userAgents?.max_editable_bytes) as number } : {}),
+              ...(asString(userAgents?.source) ? { source: asString(userAgents?.source) as string } : {})
+            }
+          } : {}),
+          ...(asString(oplFlowDefaultUserAgents?.status) ? {
+            oplFlowDefaultUserAgents: {
+              status: asString(oplFlowDefaultUserAgents?.status) as string,
+              ...(typeof oplFlowDefaultUserAgents?.content === "string" ? { content: oplFlowDefaultUserAgents.content } : {}),
+              ...(asString(oplFlowDefaultUserAgents?.sha256) ? { sha256: asString(oplFlowDefaultUserAgents?.sha256) as string } : {}),
+              ...(asString(oplFlowDefaultUserAgents?.source_path) ? { sourcePath: asString(oplFlowDefaultUserAgents?.source_path) as string } : {}),
+              ...(asString(oplFlowDefaultUserAgents?.package_version) ? { packageVersion: asString(oplFlowDefaultUserAgents?.package_version) as string } : {}),
+              ...(asString(oplFlowDefaultUserAgents?.source) ? { source: asString(oplFlowDefaultUserAgents?.source) as string } : {}),
+              ...(asString(oplFlowDefaultUserAgents?.reason) ? { reason: asString(oplFlowDefaultUserAgents?.reason) as string } : {})
+            }
+          } : {})
         },
         storage: {
           agentPackageStore: {
             ...(asString(agentPackageStore?.status) ? { status: asString(agentPackageStore?.status) as string } : {}),
             ...(asFiniteNumber(agentPackageStore?.bytes) !== null ? { bytes: asFiniteNumber(agentPackageStore?.bytes) as number } : {}),
             ...(asFiniteNumber(agentPackageStore?.reclaimable_bytes) !== null ? { reclaimableBytes: asFiniteNumber(agentPackageStore?.reclaimable_bytes) as number } : {}),
-            ...(asString(agentPackageStore?.reason_code) ? { reasonCode: asString(agentPackageStore?.reason_code) as string } : {})
+            ...(asString(agentPackageStore?.reason_code) ? { reasonCode: asString(agentPackageStore?.reason_code) as string } : {}),
+            ...(asString(agentPackageStore?.observed_at) ? { observedAt: asString(agentPackageStore?.observed_at) as string } : {}),
+            stale: asOptionalBoolean(agentPackageStore?.stale),
+            ...(asString(agentPackageStore?.owner_route) ? { ownerRoute: asString(agentPackageStore?.owner_route) as string } : {}),
+            ...(asRecord(agentPackageStore?.projected_action) ? {
+              projectedAction: {
+                ...(asString(asRecord(agentPackageStore?.projected_action)?.kind) ? { kind: asString(asRecord(agentPackageStore?.projected_action)?.kind) as string } : {}),
+                ...(asString(asRecord(agentPackageStore?.projected_action)?.status) ? { status: asString(asRecord(agentPackageStore?.projected_action)?.status) as string } : {}),
+                ...(asString(asRecord(agentPackageStore?.projected_action)?.route) ? { route: asString(asRecord(agentPackageStore?.projected_action)?.route) as string } : {}),
+                ...(asString(asRecord(agentPackageStore?.projected_action)?.action_id) ? { actionId: asString(asRecord(agentPackageStore?.projected_action)?.action_id) as string } : {}),
+                dryRunRequired: asOptionalBoolean(asRecord(agentPackageStore?.projected_action)?.dry_run_required)
+              }
+            } : {})
           },
           webuiDataVolume: {
             ...(asString(webuiDataVolume?.status) ? { status: asString(webuiDataVolume?.status) as string } : {}),
             ...(asFiniteNumber(webuiDataVolume?.bytes) !== null ? { bytes: asFiniteNumber(webuiDataVolume?.bytes) as number } : {}),
             ...(asFiniteNumber(webuiDataVolume?.reclaimable_bytes) !== null ? { reclaimableBytes: asFiniteNumber(webuiDataVolume?.reclaimable_bytes) as number } : {}),
-            ...(asString(webuiDataVolume?.reason_code) ? { reasonCode: asString(webuiDataVolume?.reason_code) as string } : {})
+            ...(asString(webuiDataVolume?.reason_code) ? { reasonCode: asString(webuiDataVolume?.reason_code) as string } : {}),
+            ...(asString(webuiDataVolume?.observed_at) ? { observedAt: asString(webuiDataVolume?.observed_at) as string } : {}),
+            stale: asOptionalBoolean(webuiDataVolume?.stale),
+            ...(asString(webuiDataVolume?.owner_route) ? { ownerRoute: asString(webuiDataVolume?.owner_route) as string } : {}),
+            ...(asRecord(webuiDataVolume?.projected_action) ? {
+              projectedAction: {
+                ...(asString(asRecord(webuiDataVolume?.projected_action)?.kind) ? { kind: asString(asRecord(webuiDataVolume?.projected_action)?.kind) as string } : {}),
+                ...(asString(asRecord(webuiDataVolume?.projected_action)?.status) ? { status: asString(asRecord(webuiDataVolume?.projected_action)?.status) as string } : {}),
+                ...(asString(asRecord(webuiDataVolume?.projected_action)?.route) ? { route: asString(asRecord(webuiDataVolume?.projected_action)?.route) as string } : {}),
+                ...(asString(asRecord(webuiDataVolume?.projected_action)?.action_id) ? { actionId: asString(asRecord(webuiDataVolume?.projected_action)?.action_id) as string } : {}),
+                dryRunRequired: asOptionalBoolean(asRecord(webuiDataVolume?.projected_action)?.dry_run_required)
+              }
+            } : {})
           }
         }
       }
     : undefined;
   const moduleItems = asRecordArray(modules?.items);
-  const actions = asRecordArray(appState.actions);
   const taskDrilldowns = asRecordArray(workbench?.task_drilldowns);
   const settingsTaskEntries = asRecordArray(settingsControlCenter?.task_entries);
   const settingsSections = asRecordArray(settingsControlCenter?.action_sections);

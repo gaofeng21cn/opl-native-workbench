@@ -291,6 +291,45 @@ function compactGatewayAccount(value) {
   };
 }
 
+function compactProjectedAction(value) {
+  if (!value || typeof value !== "object") return undefined;
+  return {
+    ...selectedFields(value, [
+      "kind", "status", "action_id", "label", "state", "route", "dry_run_route", "dry_run_required",
+      "payload_required", "payload_fields", "confirmation_required", "danger_level", "execution_owner"
+    ]),
+    host_action_abi: selectedFields(value.host_action_abi, [
+      "capability_id", "endpoint_status", "endpoint_availability", "plan_action_id", "execute_action_id", "restore_action_id"
+    ])
+  };
+}
+
+function compactStorageProjection(value) {
+  if (!value || typeof value !== "object") return undefined;
+  return {
+    ...selectedFields(value, [
+      "status", "observed_at", "stale", "bytes", "reclaimable_bytes", "reason_code", "owner_route"
+    ]),
+    projected_action: compactProjectedAction(value.projected_action)
+  };
+}
+
+function compactCodexPersonalization(value) {
+  if (!value || typeof value !== "object") return undefined;
+  return {
+    ...selectedFields(value, ["surface_kind"]),
+    user_agents: selectedFields(value.user_agents, [
+      "surface_kind", "status", "path", "exists", "content", "sha256", "size_bytes", "max_editable_bytes", "source"
+    ]),
+    opl_flow_default_user_agents: selectedFields(value.opl_flow_default_user_agents, [
+      "surface_kind", "status", "content", "sha256", "source_path", "package_version", "source", "reason"
+    ]),
+    authority_boundary: selectedFields(value.authority_boundary, [
+      "user_agents_owner", "app_edit_action", "app_restore_action", "opl_flow_role", "opl_app_session_context_owner"
+    ])
+  };
+}
+
 function compactSettingsReadModel(value) {
   if (!value || typeof value !== "object") return undefined;
   const connections = value.connections && typeof value.connections === "object" ? value.connections : undefined;
@@ -329,18 +368,17 @@ function compactSettingsReadModel(value) {
         : []
     } : undefined,
     docker_webui: dockerWebui ? {
-      ...selectedFields(dockerWebui, ["surface_kind", "ordinary_status"]),
+      ...selectedFields(dockerWebui, ["surface_kind", "ordinary_status", "doctor_read_model_ref", "action_ids", "issue_ids"]),
       runtime_proxy: selectedFields(dockerWebui.runtime_proxy, ["status"]),
-      failure_recovery: selectedFields(dockerWebui.failure_recovery, ["status"])
+      failure_recovery: selectedFields(dockerWebui.failure_recovery, ["status"]),
+      ordinary_next_actions: Array.isArray(dockerWebui.ordinary_next_actions)
+        ? dockerWebui.ordinary_next_actions.slice(0, 16).map(compactProjectedAction)
+        : []
     } : undefined,
     storage_lifecycle: storageLifecycle ? {
       ...selectedFields(storageLifecycle, ["surface_kind", "snapshot_updated_at"]),
-      agent_package_store: selectedFields(storageLifecycle.agent_package_store, [
-        "status", "observed_at", "stale", "bytes", "reclaimable_bytes", "reason_code"
-      ]),
-      webui_data_volume: selectedFields(storageLifecycle.webui_data_volume, [
-        "status", "observed_at", "stale", "bytes", "reclaimable_bytes", "reason_code"
-      ])
+      agent_package_store: compactStorageProjection(storageLifecycle.agent_package_store),
+      webui_data_volume: compactStorageProjection(storageLifecycle.webui_data_volume)
     } : undefined
   };
 }
@@ -352,7 +390,7 @@ function compactCore(value) {
       "installed", "version", "parsed_version", "minimum_version", "version_status", "latest_version",
       "latest_version_status", "update_available", "binary_path", "default_model", "default_reasoning_effort",
       "config_path", "api_key_present", "opl_gateway_configured", "model_access_ready", "model_access_status",
-      "model_access_source"
+      "model_access_source", "provider_name", "provider_base_url"
     ])
   };
 }
@@ -430,6 +468,7 @@ function compactFastState(value) {
       core: compactCore(appState.core),
       provider: compactProvider(appState.provider),
       runtime_source_carriers: compactRuntimeSourceCarriers(appState.runtime_source_carriers),
+      codex_personalization: compactCodexPersonalization(appState.codex_personalization),
       ui_contributions: compactUiContributions(appState.ui_contributions),
       active_project_lines: firstRecords(appState.active_project_lines, 12),
       home_agent_shortcuts: compactHomeShortcutPreferences(appState.home_agent_shortcuts, 16),

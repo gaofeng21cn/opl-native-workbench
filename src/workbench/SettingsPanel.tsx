@@ -6,6 +6,7 @@ import {
   Boxes,
   CheckCircle2,
   ChevronDown,
+  Copy,
   FolderOpen,
   LoaderCircle,
   PackageOpen,
@@ -16,6 +17,7 @@ import {
   Wrench
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import type { CodexCapabilityCatalog } from "../bridge/oplBridge";
 import type { CarrierDiagnosticsReadback } from "../bridge/oplBridge";
 import type {
   AgentPackageLifecycleRef,
@@ -23,7 +25,8 @@ import type {
   ManagedUpdateProjection,
   PackageLifecycleActionRef,
   RuntimeMaintenanceActionRef,
-  WorkbenchModel
+  WorkbenchModel,
+  WorkbenchSettingsProjection
 } from "./workbenchModel";
 import {
   autoModelLabel,
@@ -90,6 +93,10 @@ type SettingsPanelProps = {
   stateStatus: "loading" | "ready" | "error";
   stateError: string;
   carrierDiagnostics: CarrierDiagnosticsReadback;
+  capabilityCatalog: CodexCapabilityCatalog;
+  capabilityStatus: "idle" | "loading" | "ready" | "error";
+  capabilityError: string;
+  onRefreshCapabilities: () => void;
   activeDestination: SettingsDestinationId;
   onRefresh: () => void;
   onChangeLogDirectory: () => void;
@@ -337,6 +344,10 @@ export function formatStatus(status: string | undefined, locale: WorkbenchSettin
     setup_required: ["需要设置", "Setup required"],
     reauth_required: ["需要重新登录", "Sign in again"],
     verification_deferred: ["待确认", "Pending verification"],
+    not_inventoried: ["尚未盘点", "Not inventoried"],
+    awaiting_inventory: ["等待盘点", "Awaiting inventory"],
+    usage_unavailable: ["用量不可用", "Usage unavailable"],
+    not_configured: ["尚未配置", "Not configured"],
     unknown: ["待确认", "Not available"],
     app_state_projection: ["待确认", "Not available"],
     preview_legacy_modules_fallback: ["信息有限", "Limited information"],
@@ -388,11 +399,53 @@ function formatDate(value: string | undefined, locale: string): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
+type StorageProjection = WorkbenchSettingsProjection["storage"][keyof WorkbenchSettingsProjection["storage"]];
+
+function storagePresentationStatus(entry: StorageProjection | undefined): string | undefined {
+  if (!entry) return undefined;
+  if (entry.reasonCode === "inventory_cache_missing_or_invalid" && !entry.observedAt) return "not_inventoried";
+  if (entry.status === "unavailable" && entry.observedAt) return "usage_unavailable";
+  return entry.status;
+}
+
+function storageReason(entry: StorageProjection | undefined, locale: WorkbenchSettings["locale"]): string {
+  if (!entry) return locale === "zh" ? "尚未收到存储状态" : "Storage status has not been received";
+  if (entry.reasonCode === "inventory_cache_missing_or_invalid") {
+    return entry.observedAt
+      ? (locale === "zh" ? "上次盘点结果已不可用，现有数据不受影响" : "The previous inventory is unavailable; existing data is unaffected")
+      : (locale === "zh" ? "尚未完成首次用量盘点，现有数据不受影响" : "The first usage inventory has not completed; existing data is unaffected");
+  }
+  if (entry.reasonCode) {
+    return locale === "zh" ? "当前无法读取用量，稍后刷新可重新检查" : "Usage cannot be read right now; refresh to check again";
+  }
+  return entry.observedAt
+    ? (locale === "zh" ? `盘点于 ${formatDate(entry.observedAt, "zh-CN")}` : `Inventoried ${formatDate(entry.observedAt, "en-US")}`)
+    : (locale === "zh" ? "等待用量盘点" : "Awaiting usage inventory");
+}
+
+function storageAmount(value: number | undefined, entry: StorageProjection | undefined, locale: string): string {
+  return value === undefined
+    ? (locale.startsWith("zh") ? "等待盘点" : "Awaiting inventory")
+    : formatBytes(value, locale);
+}
+
 export function gatewayAccountInitials(name: string | undefined): string {
   if (!name) return "OP";
   const characters = Array.from(name.trim());
   if (characters.some((character) => /\p{Script=Han}/u.test(character))) return characters.find((character) => /\p{Script=Han}/u.test(character)) ?? "OP";
   return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "OP";
+}
+
+export type GatewayModelAccessState = "current" | "different" | "unknown";
+
+export function gatewayModelAccessState(projection: WorkbenchSettingsProjection | undefined): GatewayModelAccessState {
+  const provider = projection?.codex.providerName?.trim().toLocaleLowerCase();
+  const source = projection?.codex.modelAccessSource?.trim().toLocaleLowerCase();
+  if (provider?.includes("opl gateway") || ["opl_gateway", "gateway", "gateway_account"].includes(source ?? "")) {
+    return "current";
+  }
+  if (provider || source) return "different";
+  return "unknown";
 }
 
 function SettingRow({ label, detail, children }: { label: string; detail?: string; children: ReactNode }) {
@@ -676,18 +729,175 @@ function PackageCatalog({
   );
 }
 
+function CapabilityDirectory({
+  catalog,
+  status,
+  error,
+  locale,
+  showTechnicalDetails,
+  onRefresh
+}: {
+  catalog: CodexCapabilityCatalog;
+  status: "idle" | "loading" | "ready" | "error";
+  error: string;
+  locale: WorkbenchSettings["locale"];
+  showTechnicalDetails: boolean;
+  onRefresh: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLowerCase();
+  const groups = [
+    {
+      id: "skills",
+      label: locale === "zh" ? "技能" : "Skills",
+      items: catalog.skills.map((item) => ({
+        id: item.name,
+        name: item.name,
+        description: item.description,
+        status: item.enabled ? "enabled" : "disabled",
+        detail: item.scope,
+        technical: item.path
+      }))
+    },
+    {
+      id: "plugins",
+      label: locale === "zh" ? "插件" : "Plugins",
+      items: catalog.plugins.map((item) => ({
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        status: item.enabled && item.callable ? "available" : item.enabled ? "attention_needed" : "disabled",
+        detail: item.callable ? (locale === "zh" ? "可调用" : "Callable") : (locale === "zh" ? "当前不可调用" : "Not callable"),
+        technical: item.id
+      }))
+    },
+    {
+      id: "apps",
+      label: locale === "zh" ? "连接应用" : "Connected apps",
+      items: catalog.apps.map((item) => ({
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        status: item.enabled && item.callable ? "available" : item.enabled ? "attention_needed" : "disabled",
+        detail: item.callable ? (locale === "zh" ? "可调用" : "Callable") : (locale === "zh" ? "当前不可调用" : "Not callable"),
+        technical: item.id
+      }))
+    }
+  ].map((group) => ({
+    ...group,
+    visible: group.items.filter((item) => !normalizedQuery || `${item.name} ${item.description} ${item.detail}`.toLowerCase().includes(normalizedQuery))
+  }));
+  const total = groups.reduce((sum, group) => sum + group.items.length, 0);
+  const visibleTotal = groups.reduce((sum, group) => sum + group.visible.length, 0);
+  const refreshLabel = locale === "zh" ? "刷新能力目录" : "Refresh capability directory";
+
+  return (
+    <section className="settings-capability-directory" data-testid="opl-settings-capability-directory">
+      <div className="settings-capability-toolbar">
+        <label className="settings-search-field">
+          <Search aria-hidden="true" size={14} />
+          <input value={query} onChange={(event) => setQuery(event.currentTarget.value)} placeholder={locale === "zh" ? "搜索技能、插件和应用" : "Search skills, plugins, and apps"} />
+        </label>
+        <button className="settings-icon-button" type="button" aria-label={refreshLabel} title={refreshLabel} disabled={status === "loading"} onClick={onRefresh}>
+          {status === "loading" ? <LoaderCircle className="spin" aria-hidden="true" size={15} /> : <RefreshCw aria-hidden="true" size={15} />}
+        </button>
+      </div>
+      <div className="settings-capability-summary">
+        <span>{locale === "zh" ? `${visibleTotal} / ${total} 项` : `${visibleTotal} / ${total} items`}</span>
+        <span>{catalog.source === "codex_app_server" ? (locale === "zh" ? "来自本机能力目录" : "From the local capability catalog") : (locale === "zh" ? "能力目录尚未连接" : "Capability catalog is not connected")}</span>
+      </div>
+      {status === "error" ? <div className="settings-inline-notice" role="alert"><AlertCircle aria-hidden="true" size={15} /><span>{error || (locale === "zh" ? "能力目录读取失败" : "Capability catalog could not be read")}</span></div> : null}
+      {status !== "loading" && total === 0 ? (
+        <div className="settings-empty-state"><Boxes aria-hidden="true" size={18} /><span>{locale === "zh" ? "当前没有可显示的技能、插件或应用" : "No skills, plugins, or apps are available"}</span></div>
+      ) : null}
+      {groups.map((group) => group.visible.length ? (
+        <section className="settings-capability-group" key={group.id}>
+          <h2>{group.label}<span>{group.visible.length}</span></h2>
+          <div className="settings-capability-list">
+            {group.visible.map((item) => (
+              <details className="settings-capability-row" key={`${group.id}:${item.id}`}>
+                <summary>
+                  <span className="settings-capability-copy"><strong>{item.name}</strong><small>{item.description || item.detail}</small></span>
+                  <span className="settings-capability-state"><StatusValue status={item.status} locale={locale} /><ChevronDown aria-hidden="true" size={14} /></span>
+                </summary>
+                <div className="settings-capability-details">
+                  <span>{item.description || (locale === "zh" ? "该能力没有附加说明" : "No additional description is available")}</span>
+                  <small>{item.detail}</small>
+                  {showTechnicalDetails ? <code>{item.technical}</code> : null}
+                </div>
+              </details>
+            ))}
+          </div>
+        </section>
+      ) : null)}
+    </section>
+  );
+}
+
+function InstructionSource({
+  title,
+  status,
+  content,
+  detail,
+  locale
+}: {
+  title: string;
+  status?: string;
+  content?: string;
+  detail?: string;
+  locale: WorkbenchSettings["locale"];
+}) {
+  const [copied, setCopied] = useState(false);
+  const copyLabel = copied
+    ? (locale === "zh" ? "已复制" : "Copied")
+    : (locale === "zh" ? `复制${title}` : `Copy ${title}`);
+  const firstLine = content?.split(/\r?\n/).find((line) => line.trim())?.trim();
+  return (
+    <details className="settings-instruction-source" data-testid="opl-settings-instruction-source">
+      <summary>
+        <span className="settings-capability-copy"><strong>{title}</strong><small>{firstLine || detail || (locale === "zh" ? "暂无内容" : "No content")}</small></span>
+        <span className="settings-capability-state"><StatusValue status={status} locale={locale} /><ChevronDown aria-hidden="true" size={14} /></span>
+      </summary>
+      <div className="settings-instruction-content">
+        <div className="settings-instruction-toolbar">
+          {detail ? <small>{detail}</small> : <span />}
+          <button
+            className="settings-icon-button"
+            type="button"
+            aria-label={copyLabel}
+            title={copyLabel}
+            disabled={!content}
+            onClick={() => {
+              if (!content || !navigator.clipboard) return;
+              void navigator.clipboard.writeText(content).then(() => {
+                setCopied(true);
+                globalThis.setTimeout(() => setCopied(false), 1600);
+              });
+            }}
+          >
+            <Copy aria-hidden="true" size={15} />
+          </button>
+        </div>
+        <pre>{content || (locale === "zh" ? "当前没有可显示的指令内容。" : "No instruction content is available.")}</pre>
+      </div>
+    </details>
+  );
+}
+
 function RuntimeActionButton({
   action,
   locale,
   busyKey,
   onAction,
-  primary = false
+  primary = false,
+  previewOnly = false
 }: {
   action?: RuntimeMaintenanceActionRef;
   locale: WorkbenchSettings["locale"];
   busyKey: string | null;
   onAction: (request: SettingsActionRequest) => void;
   primary?: boolean;
+  previewOnly?: boolean;
 }) {
   if (!action || !actionPayloadComplete(action.payload, action.requiredPayloadFields)) return null;
   const key = `runtime:${action.actionId}`;
@@ -704,18 +914,32 @@ function RuntimeActionButton({
     provider_worker_restart: ["重启任务处理", "Restart task processing"],
     provider_scheduler_status: ["检查定时任务", "Check scheduled tasks"],
     provider_scheduler_install: ["启用定时任务", "Enable scheduled tasks"],
-    provider_scheduler_trigger: ["立即运行", "Run now"]
+    provider_scheduler_trigger: ["立即运行", "Run now"],
+    settings_install_docker_webui: ["安装网页端", "Install WebUI"],
+    settings_configure_webui_api_key: ["配置访问密钥", "Configure access key"],
+    settings_run_webui_startup_maintenance: ["运行启动维护", "Run startup maintenance"],
+    settings_open_docker_webui: ["打开网页端", "Open WebUI"],
+    settings_diagnose_docker_webui: ["运行诊断", "Run diagnostics"]
   };
   const label = labels[action.actionId]?.[locale === "zh" ? 0 : 1] ?? action.label;
+  const refreshOnly = [
+    "settings_check_app_update",
+    "settings_sync_capabilities",
+    "provider_service_status",
+    "provider_worker_status",
+    "provider_scheduler_status"
+  ].includes(action.actionId);
   return (
     <button
-      className={`settings-action-button ${primary ? "primary" : ""}`}
+      className={`${refreshOnly ? "settings-icon-button" : "settings-action-button"} ${primary ? "primary" : ""}`}
       type="button"
+      aria-label={label}
+      title={label}
       disabled={busyKey !== null}
-      onClick={() => onAction({ key, actionId: action.actionId, label, payload: action.payload, confirmationRequired: action.confirmationRequired })}
+      onClick={() => onAction({ key, actionId: action.actionId, label, payload: action.payload, confirmationRequired: action.confirmationRequired, previewOnly })}
     >
-      {busyKey === key ? <LoaderCircle className="spin" aria-hidden="true" size={13} /> : <RefreshCw aria-hidden="true" size={13} />}
-      {label}
+      {busyKey === key ? <LoaderCircle className="spin" aria-hidden="true" size={13} /> : refreshOnly ? <RefreshCw aria-hidden="true" size={13} /> : null}
+      {refreshOnly ? <span className="visually-hidden">{label}</span> : label}
     </button>
   );
 }
@@ -768,11 +992,14 @@ function ManagedComputerUseGroup({
             {companion.actions.map((action) => {
               const key = `managed-computer-use:${action.actionId}`;
               const label = actionLabel(action);
+              const refreshOnly = action.actionId === "settings_recheck_computer_use";
               return (
                 <button
                   key={action.actionId}
-                  className={`settings-action-button ${action.dangerLevel === "medium" ? "danger" : ""}`}
+                  className={`${refreshOnly ? "settings-icon-button" : "settings-action-button"} ${action.dangerLevel === "medium" ? "danger" : ""}`}
                   type="button"
+                  aria-label={label}
+                  title={label}
                   data-testid={`opl-managed-computer-use-action-${action.actionId}`}
                   disabled={busyKey !== null}
                   onClick={() => onAction({
@@ -785,10 +1012,10 @@ function ManagedComputerUseGroup({
                 >
                   {busyKey === key
                     ? <LoaderCircle className="spin" aria-hidden="true" size={13} />
-                    : action.actionId === "settings_recheck_computer_use"
+                    : refreshOnly
                       ? <RefreshCw aria-hidden="true" size={13} />
                       : <Wrench aria-hidden="true" size={13} />}
-                  {label}
+                  {refreshOnly ? <span className="visually-hidden">{label}</span> : label}
                 </button>
               );
             })}
@@ -806,7 +1033,7 @@ function settingsIntentLabel(intent: SettingsExecutableIntent, locale: Workbench
     disconnect: ["断开连接", "Disconnect"],
     repair: ["修复", "Repair"],
     complete_setup: ["完成设置", "Complete setup"],
-    use_for_model_access: ["设为模型访问方式", "Use for model access"]
+    use_for_model_access: ["切换为 OPL Gateway", "Switch to OPL Gateway"]
   };
   return (intent.semantic ? semanticLabels[intent.semantic]?.[locale === "zh" ? 0 : 1] : undefined) ?? intent.label;
 }
@@ -833,15 +1060,17 @@ function SettingsIntentButton({
     : intent.operation === "status" || intent.operation === "check";
   return (
     <button
-      className={`settings-action-button ${primary ? "primary" : ""}`}
+      className={`${isRefresh ? "settings-icon-button" : "settings-action-button"} ${primary ? "primary" : ""}`}
       type="button"
+      aria-label={label}
+      title={label}
       disabled={busyKey !== null}
       onClick={() => intent.transport === "app_action" ? onAction(intent) : onHostAction?.(intent)}
     >
       {busyKey === intent.key
         ? <LoaderCircle className="spin" aria-hidden="true" size={13} />
         : isRefresh ? <RefreshCw aria-hidden="true" size={13} /> : <Play aria-hidden="true" size={13} />}
-      {label}
+      {isRefresh ? <span className="visually-hidden">{label}</span> : label}
     </button>
   );
 }
@@ -926,6 +1155,10 @@ export function SettingsPanel({
   stateStatus,
   stateError,
   carrierDiagnostics,
+  capabilityCatalog,
+  capabilityStatus,
+  capabilityError,
+  onRefreshCapabilities,
   activeDestination,
   onRefresh,
   onChangeLogDirectory,
@@ -980,6 +1213,11 @@ export function SettingsPanel({
       : (settings.locale === "zh" ? "连接账户后可同步用量与访问状态" : "Connect an account to sync usage and access status");
   const readbackStatus = stateLoading ? "loading" : stateFailed ? "attention_needed" : "ready";
   const gatewayAction = (kind: GatewayActionViewModel["kind"]) => actionViewModel.gatewayActions.find((action) => action.kind === kind);
+  const modelAccessState = gatewayModelAccessState(projection);
+
+  useEffect(() => {
+    if (selectedDestination === "capabilities" && capabilityStatus === "idle") onRefreshCapabilities();
+  }, [capabilityStatus, onRefreshCapabilities, selectedDestination]);
 
   useEffect(() => {
     if (!confirmationOpen) return;
@@ -1083,8 +1321,12 @@ export function SettingsPanel({
     if (selectedDestination === "account") {
       const refreshAction = gatewayAction("refresh");
       const disconnectAction = gatewayAction("disconnect");
+      const useForModelAccessAction = gatewayAction("use_for_model_access");
       const exceptionActions = actionViewModel.gatewayActions.filter((action) => (
-        action.availability === "ready" && action.kind !== "refresh" && action.kind !== "disconnect"
+        action.availability === "ready"
+        && action.kind !== "refresh"
+        && action.kind !== "disconnect"
+        && action.kind !== "use_for_model_access"
       ));
       const gatewayLoginVisible = Boolean(onGatewayLogin) && (!gateway || gateway.status === "reauth_required" || gateway.status === "setup_required");
       return (
@@ -1146,6 +1388,27 @@ export function SettingsPanel({
             <SettingRow label={settings.locale === "zh" ? "累计用量" : "Total usage"}><span>{formatNumber(gateway?.usage?.totalTokens, locale, true)} {settings.locale === "zh" ? "令牌" : "tokens"} · {formatAmount(gateway?.usage?.totalCost, gateway?.usage?.currency, locale)}</span></SettingRow>
           </SettingsGroup>
           <SettingsGroup title={settings.locale === "zh" ? "此设备" : "This device"}>
+            <SettingRow
+              label={settings.locale === "zh" ? "本机默认模型来源" : "Default model source on this device"}
+              detail={modelAccessState === "unknown"
+                ? (settings.locale === "zh" ? "刷新状态后确认" : "Refresh status to confirm")
+                : modelAccessState === "different"
+                  ? (settings.locale === "zh" ? "当前不是 OPL Gateway" : "OPL Gateway is not the current source")
+                  : undefined}
+            >
+              <span className="runtime-setting-control" data-testid="opl-settings-model-access-source">
+                {modelAccessState === "current" ? (
+                  <span className="settings-status" data-tone="ready"><span aria-hidden="true" />OPL Gateway</span>
+                ) : modelAccessState === "different" ? (
+                  <span>{projection?.codex.providerName ?? projection?.codex.modelAccessSource}</span>
+                ) : (
+                  <span className="settings-muted">{settings.locale === "zh" ? "待确认" : "Not confirmed"}</span>
+                )}
+                {modelAccessState === "different" ? (
+                  <SettingsIntentButton intent={useForModelAccessAction} locale={settings.locale} busyKey={actionBusyKey} onAction={onAction} primary />
+                ) : null}
+              </span>
+            </SettingRow>
             <SettingRow label={settings.locale === "zh" ? "设备名称" : "Device name"}><span>{gateway?.installation?.deviceLabel ?? "--"}</span></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "设备访问" : "Device access"}><StatusValue status={gateway?.managedKey?.status} locale={settings.locale} /></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "最近刷新" : "Last refresh"} detail={gateway?.freshness?.stale ? (settings.locale === "zh" ? "数据可能已过期" : "Data may be stale") : undefined}>
@@ -1162,7 +1425,7 @@ export function SettingsPanel({
               </SettingRow>
             ) : null}
           </SettingsGroup>
-          {!refreshAction ? <button className="settings-command" type="button" onClick={onRefresh}><RefreshCw aria-hidden="true" size={14} />{settings.locale === "zh" ? "刷新状态" : "Refresh status"}</button> : null}
+          {!refreshAction ? <button className="settings-icon-button settings-page-refresh" type="button" aria-label={settings.locale === "zh" ? "刷新状态" : "Refresh status"} title={settings.locale === "zh" ? "刷新状态" : "Refresh status"} onClick={onRefresh}><RefreshCw aria-hidden="true" size={14} /></button> : null}
         </>
       );
     }
@@ -1185,6 +1448,13 @@ export function SettingsPanel({
     }
 
     if (selectedDestination === "resources") {
+      const dockerActions = projection?.dockerWebui.actions ?? [];
+      const diagnoseAction = dockerActions.find((action) => action.actionId === "settings_diagnose_docker_webui");
+      const ordinaryActions = dockerActions.filter((action) => (
+        action.actionId !== "settings_diagnose_docker_webui"
+        && action.state !== "unavailable"
+        && actionPayloadComplete(action.payload, action.requiredPayloadFields)
+      ));
       return (
         <>
           <SettingsGroup title={settings.locale === "zh" ? "外部连接" : "External connections"}>
@@ -1193,9 +1463,16 @@ export function SettingsPanel({
             )) : <SettingRow label={settings.locale === "zh" ? "连接" : "Connections"}><span className="settings-muted">{settings.locale === "zh" ? "暂无外部连接" : "No external connections"}</span></SettingRow>}
           </SettingsGroup>
           <SettingsGroup title={settings.locale === "zh" ? "网页访问" : "Web access"}>
-            <SettingRow label={settings.locale === "zh" ? "配置状态" : "Configuration"}><StatusValue status={projection?.dockerWebui.status} locale={settings.locale} /></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "运行状态" : "Runtime"}><StatusValue status={projection?.dockerWebui.runtimeStatus} locale={settings.locale} /></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "配置状态" : "Configuration"} detail={ordinaryActions.length ? (settings.locale === "zh" ? `${ordinaryActions.length} 个可用操作` : `${ordinaryActions.length} available actions`) : undefined}><StatusValue status={projection?.dockerWebui.status} locale={settings.locale} /></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "运行状态" : "Runtime"} detail={settings.locale === "zh" ? "诊断会先生成只读检查结果" : "Diagnostics first produces a read-only check result"}>
+              <span className="runtime-setting-control"><StatusValue status={projection?.dockerWebui.runtimeStatus} locale={settings.locale} /><RuntimeActionButton action={diagnoseAction} locale={settings.locale} busyKey={actionBusyKey} onAction={onAction} previewOnly /></span>
+            </SettingRow>
             <SettingRow label={settings.locale === "zh" ? "恢复能力" : "Recovery"}><StatusValue status={projection?.dockerWebui.recoveryStatus} locale={settings.locale} /></SettingRow>
+            {ordinaryActions.length ? (
+              <SettingRow label={settings.locale === "zh" ? "可用操作" : "Available actions"}>
+                <span className="runtime-setting-control">{ordinaryActions.map((action) => <RuntimeActionButton key={action.actionId} action={action} locale={settings.locale} busyKey={actionBusyKey} onAction={onAction} />)}</span>
+              </SettingRow>
+            ) : null}
           </SettingsGroup>
         </>
       );
@@ -1213,18 +1490,31 @@ export function SettingsPanel({
     }
 
     if (selectedDestination === "storage") {
+      const agentStore = projection?.storage.agentPackageStore;
+      const webuiStore = projection?.storage.webuiDataVolume;
+      const refreshLabel = settings.locale === "zh" ? "刷新存储状态" : "Refresh storage status";
       return (
         <>
+          <div className="settings-page-summary settings-page-summary-with-action">
+            <span>{settings.locale === "zh" ? "显示 App 返回的真实用量；未盘点时不会显示为 0" : "Shows real usage returned by the App; unknown inventory is never shown as zero"}</span>
+            <button className="settings-icon-button" type="button" aria-label={refreshLabel} title={refreshLabel} disabled={stateLoading} onClick={onRefresh}>{stateLoading ? <LoaderCircle className="spin" aria-hidden="true" size={15} /> : <RefreshCw aria-hidden="true" size={15} />}</button>
+          </div>
           <SettingsGroup title={settings.locale === "zh" ? "智能体与能力" : "Agents and capabilities"}>
-            <SettingRow label={settings.locale === "zh" ? "状态" : "Status"}><StatusValue status={projection?.storage.agentPackageStore.status} locale={settings.locale} /></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "已用空间" : "Used space"}><span>{formatBytes(projection?.storage.agentPackageStore.bytes, locale)}</span></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "可回收" : "Reclaimable"}><span>{formatBytes(projection?.storage.agentPackageStore.reclaimableBytes, locale)}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "状态" : "Status"} detail={storageReason(agentStore, settings.locale)}><StatusValue status={storagePresentationStatus(agentStore)} locale={settings.locale} /></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "已用空间" : "Used space"}><span>{storageAmount(agentStore?.bytes, agentStore, locale)}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "可回收" : "Reclaimable"} detail={settings.locale === "zh" ? "只有收到可验证的清理计划后才会显示" : "Shown only after a verifiable cleanup plan is available"}><span>{storageAmount(agentStore?.reclaimableBytes, agentStore, locale)}</span></SettingRow>
           </SettingsGroup>
           <SettingsGroup title={settings.locale === "zh" ? "网页端数据" : "Web app data"}>
-            <SettingRow label={settings.locale === "zh" ? "状态" : "Status"}><StatusValue status={projection?.storage.webuiDataVolume.status} locale={settings.locale} /></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "已用空间" : "Used space"}><span>{formatBytes(projection?.storage.webuiDataVolume.bytes, locale)}</span></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "可回收" : "Reclaimable"}><span>{formatBytes(projection?.storage.webuiDataVolume.reclaimableBytes, locale)}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "状态" : "Status"} detail={storageReason(webuiStore, settings.locale)}><StatusValue status={storagePresentationStatus(webuiStore)} locale={settings.locale} /></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "已用空间" : "Used space"}><span>{storageAmount(webuiStore?.bytes, webuiStore, locale)}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "可回收" : "Reclaimable"} detail={webuiStore?.projectedAction?.status === "host_action_required" ? (settings.locale === "zh" ? "当前运行方式尚未提供清理计划" : "This app mode does not currently provide a cleanup plan") : undefined}><span>{storageAmount(webuiStore?.reclaimableBytes, webuiStore, locale)}</span></SettingRow>
           </SettingsGroup>
+          {projection?.localEnvironment.stateDir || projection?.localEnvironment.runtimeSourcesRoot ? (
+            <SettingsGroup title={settings.locale === "zh" ? "本机位置" : "Local locations"}>
+              {projection.localEnvironment.stateDir ? <SettingRow label={settings.locale === "zh" ? "应用数据" : "App data"}><code>{projection.localEnvironment.stateDir}</code></SettingRow> : null}
+              {projection.localEnvironment.runtimeSourcesRoot ? <SettingRow label={settings.locale === "zh" ? "运行环境" : "Runtime data"}><code>{projection.localEnvironment.runtimeSourcesRoot}</code></SettingRow> : null}
+            </SettingsGroup>
+          ) : null}
         </>
       );
     }
@@ -1246,11 +1536,8 @@ export function SettingsPanel({
     if (selectedDestination === "capabilities") {
       return (
         <>
-          <SettingsGroup title={settings.locale === "zh" ? "能力" : "Capabilities"}>
-            <SettingRow label={settings.locale === "zh" ? "可用任务入口" : "Available task starters"}><span>{availableStarters} / {model.starters.length}</span></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "默认任务类型" : "Default task types"}>{renderSettingControl("professionalStarterDefaults")}</SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "已发现扩展" : "Discovered extensions"}><span>{model.packageLifecycle.length}</span></SettingRow>
-          </SettingsGroup>
+          <div className="settings-page-summary"><span>{settings.locale === "zh" ? `${availableStarters} 个任务入口 · ${model.packageLifecycle.length} 个扩展` : `${availableStarters} task starters · ${model.packageLifecycle.length} extensions`}</span><span>{settings.locale === "zh" ? "展开条目可查看来源与可用状态" : "Expand an item to inspect its source and availability"}</span></div>
+          <CapabilityDirectory catalog={capabilityCatalog} status={capabilityStatus} error={capabilityError} locale={settings.locale} showTechnicalDetails={settings.developerDetails} onRefresh={onRefreshCapabilities} />
           {model.managedComputerUse ? (
             <ManagedComputerUseGroup
               companion={model.managedComputerUse}
@@ -1270,12 +1557,21 @@ export function SettingsPanel({
     }
 
     if (selectedDestination === "instructions") {
+      const userAgents = projection?.personalization.userAgents;
+      const defaultAgents = projection?.personalization.oplFlowDefaultUserAgents;
       return (
-        <SettingsGroup title={settings.locale === "zh" ? "指令与上下文" : "Instructions & context"}>
-          <SettingRow label={settings.locale === "zh" ? "个性化来源" : "Personalization sources"}><span>{projection?.workspace.personalizationSourceCount ?? 0}</span></SettingRow>
-          <SettingRow label={settings.locale === "zh" ? "当前项目上下文" : "Current project context"}><span>{model.contextSources.length}</span></SettingRow>
-          <SettingRow label={settings.locale === "zh" ? "同步状态" : "Sync status"}><StatusValue status={readbackStatus} locale={settings.locale} /></SettingRow>
-        </SettingsGroup>
+        <>
+          <div className="settings-page-summary"><span>{settings.locale === "zh" ? `${projection?.workspace.personalizationSourceCount ?? 0} 个个性化来源` : `${projection?.workspace.personalizationSourceCount ?? 0} personalization sources`}</span><StatusValue status={readbackStatus} locale={settings.locale} /></div>
+          <SettingsGroup title={settings.locale === "zh" ? "全局指令" : "Global instructions"}>
+            <InstructionSource title={settings.locale === "zh" ? "你的 Codex 指令" : "Your Codex instructions"} status={userAgents?.status} content={userAgents?.content} detail={userAgents?.sizeBytes !== undefined ? `${formatBytes(userAgents.sizeBytes, locale)} · ${userAgents.path ?? ""}` : userAgents?.path} locale={settings.locale} />
+            <InstructionSource title={settings.locale === "zh" ? "OPL Flow 默认指令" : "OPL Flow default instructions"} status={defaultAgents?.status} content={defaultAgents?.content} detail={defaultAgents?.packageVersion ? `${settings.locale === "zh" ? "版本" : "Version"} ${defaultAgents.packageVersion}` : undefined} locale={settings.locale} />
+          </SettingsGroup>
+          <SettingsGroup title={settings.locale === "zh" ? "当前上下文来源" : "Current context sources"}>
+            {model.contextSources.length ? model.contextSources.map((source) => (
+              <SettingRow key={source.id} label={source.label} detail={source.summary}><code>{source.ref}</code></SettingRow>
+            )) : <SettingRow label={settings.locale === "zh" ? "上下文" : "Context"}><span className="settings-muted">{settings.locale === "zh" ? "当前没有额外上下文来源" : "No additional context sources"}</span></SettingRow>}
+          </SettingsGroup>
+        </>
       );
     }
 
@@ -1408,7 +1704,7 @@ export function SettingsPanel({
               <SettingRow label={settings.locale === "zh" ? "本机助手路径" : "Local assistant path"}><code>{projection?.codex.binaryPath ?? "--"}</code></SettingRow>
             </SettingsGroup>
           ) : null}
-          <button className="settings-command" type="button" onClick={onRefresh}><RefreshCw aria-hidden="true" size={14} />{settings.locale === "zh" ? "刷新状态" : "Refresh status"}</button>
+          <button className="settings-icon-button settings-page-refresh" type="button" aria-label={settings.locale === "zh" ? "刷新状态" : "Refresh status"} title={settings.locale === "zh" ? "刷新状态" : "Refresh status"} onClick={onRefresh}><RefreshCw aria-hidden="true" size={14} /></button>
         </>
       );
     }
@@ -1505,14 +1801,20 @@ export function SettingsPanel({
             <div className="settings-action-dialog-icon"><Wrench aria-hidden="true" size={18} /></div>
             <div>
               <h2 id="settings-action-dialog-title">{pendingConfirmation.request.label}</h2>
-              <p>{settings.locale === "zh" ? "检查已完成。确认后将执行此操作并刷新最新状态。" : "The check is complete. Confirm to run this action and refresh the latest status."}</p>
+              <p>{pendingConfirmation.request.actionId === "gateway_account_use_for_model_access"
+                ? (settings.locale === "zh"
+                    ? "确认后，本机新会话将默认通过 OPL Gateway 访问模型。账户本身不会被修改。"
+                    : "New conversations on this device will use OPL Gateway for model access by default. The account itself will not be changed.")
+                : (settings.locale === "zh" ? "检查已完成。确认后将执行此操作并刷新最新状态。" : "The check is complete. Confirm to run this action and refresh the latest status.")}</p>
               <small>{settings.locale === "zh" ? "预检查" : "Preview"}: {formatStatus(pendingConfirmation.previewStatus, settings.locale)}</small>
             </div>
             <div className="settings-action-dialog-actions">
               <button ref={confirmationCancelRef} type="button" onClick={onCancelAction}>{settings.locale === "zh" ? "取消" : "Cancel"}</button>
               <button className="primary" type="button" onClick={onConfirmAction} disabled={actionBusyKey !== null}>
                 {actionBusyKey ? <LoaderCircle className="spin" aria-hidden="true" size={13} /> : null}
-                {settings.locale === "zh" ? "确认执行" : "Confirm"}
+                {pendingConfirmation.request.actionId === "gateway_account_use_for_model_access"
+                  ? (settings.locale === "zh" ? "切换为 OPL Gateway" : "Switch to OPL Gateway")
+                  : (settings.locale === "zh" ? "确认执行" : "Confirm")}
               </button>
             </div>
           </section>

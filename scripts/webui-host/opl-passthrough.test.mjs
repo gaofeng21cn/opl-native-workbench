@@ -460,3 +460,68 @@ test("fast state keeps the complete package catalog and bounded runtime control 
     assert.equal(serialized.includes(marker), false, `must omit ${marker}`);
   }
 });
+
+test("fast state keeps storage reasons, Docker WebUI actions, and safe personalization content", () => {
+  const compact = compactFastState({
+    app_state: {
+      actions: [{
+        action_id: "settings_diagnose_docker_webui",
+        label: "Diagnose Docker WebUI",
+        route: "opl app action execute --action settings_diagnose_docker_webui",
+        payload_fields: [],
+        mutates: "none_read_only",
+        dry_run_supported: true,
+        confirmation_required: false
+      }],
+      codex_personalization: {
+        user_agents: {
+          status: "available",
+          path: "/Users/test/.codex/AGENTS.md",
+          content: "Use concise answers.",
+          sha256: "sha-user",
+          size_bytes: 20,
+          private_file_stat: "omit"
+        },
+        opl_flow_default_user_agents: {
+          status: "available",
+          content: "Use the OPL workflow.",
+          package_version: "0.1.0",
+          source_path: "/private/template"
+        }
+      },
+      settings_control_center: {
+        app_settings_read_model: {
+          docker_webui: {
+            ordinary_status: "action_available",
+            runtime_proxy: { status: "diagnose_with_doctor" },
+            ordinary_next_actions: [{
+              action_id: "settings_diagnose_docker_webui",
+              label: "Diagnose Docker WebUI",
+              state: "ready",
+              dry_run_route: "opl app action execute --action settings_diagnose_docker_webui --dry-run"
+            }]
+          },
+          storage_lifecycle: {
+            agent_package_store: {
+              status: "unavailable",
+              observed_at: null,
+              stale: true,
+              bytes: null,
+              reason_code: "inventory_cache_missing_or_invalid",
+              owner_route: "/settings/agents",
+              projected_action: { kind: "navigate", status: "available", route: "/settings/agents" }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  const state = compact.app_state;
+  assert.equal(state.codex_personalization.user_agents.content, "Use concise answers.");
+  assert.equal(state.codex_personalization.opl_flow_default_user_agents.package_version, "0.1.0");
+  assert.equal(state.settings_control_center.app_settings_read_model.docker_webui.ordinary_next_actions[0].action_id, "settings_diagnose_docker_webui");
+  assert.equal(state.settings_control_center.app_settings_read_model.storage_lifecycle.agent_package_store.reason_code, "inventory_cache_missing_or_invalid");
+  assert.equal(state.settings_control_center.app_settings_read_model.storage_lifecycle.agent_package_store.projected_action.route, "/settings/agents");
+  assert.equal(JSON.stringify(state).includes("private_file_stat"), false);
+});

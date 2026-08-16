@@ -14,6 +14,7 @@ export type SettingsActionRequest = {
   label: string;
   payload: Record<string, unknown>;
   confirmationRequired: boolean;
+  previewOnly?: boolean;
 };
 
 export type SettingsActionAvailability = "ready" | "payload_required" | "unavailable";

@@ -94,6 +94,75 @@ test("runtime projection keeps component health, carriers, and only App-projecte
   assert.equal(model.runtimeOverview?.recommendedActionId, "provider_scheduler_status");
 });
 
+test("settings projection keeps WebUI action refs, storage inventory reasons, and instruction sources", () => {
+  const model = deriveWorkbenchModelFromState({
+    app_state: {
+      actions: [{
+        action_id: "settings_diagnose_docker_webui",
+        label: "Diagnose Docker WebUI",
+        payload_fields: [],
+        mutates: "none_read_only",
+        dry_run_supported: true,
+        confirmation_required: false
+      }],
+      codex_personalization: {
+        user_agents: {
+          status: "available",
+          content: "User instructions",
+          path: "/Users/test/.codex/AGENTS.md",
+          size_bytes: 17
+        },
+        opl_flow_default_user_agents: {
+          status: "available",
+          content: "OPL defaults",
+          package_version: "0.1.0"
+        }
+      },
+      core: {
+        codex: {
+          model_access_source: "codex_login"
+        }
+      },
+      settings_control_center: {
+        app_settings_read_model: {
+          codex_model_policy: {
+            provider_name: "OPL Gateway"
+          },
+          docker_webui: {
+            ordinary_status: "action_available",
+            runtime_proxy: { status: "diagnose_with_doctor" },
+            ordinary_next_actions: [{
+              action_id: "settings_diagnose_docker_webui",
+              label: "Diagnose Docker WebUI",
+              state: "ready",
+              dry_run_route: "opl app action execute --action settings_diagnose_docker_webui --dry-run"
+            }]
+          },
+          storage_lifecycle: {
+            agent_package_store: {
+              status: "unavailable",
+              reason_code: "inventory_cache_missing_or_invalid",
+              stale: true,
+              owner_route: "/settings/agents",
+              projected_action: { kind: "navigate", status: "available", route: "/settings/agents" }
+            },
+            webui_data_volume: { status: "unavailable", stale: true }
+          }
+        }
+      }
+    }
+  });
+
+  assert.equal(model.settingsProjection?.dockerWebui.actions[0]?.actionId, "settings_diagnose_docker_webui");
+  assert.equal(model.settingsProjection?.dockerWebui.actions[0]?.mutates, "none_read_only");
+  assert.equal(model.settingsProjection?.storage.agentPackageStore.reasonCode, "inventory_cache_missing_or_invalid");
+  assert.equal(model.settingsProjection?.storage.agentPackageStore.projectedAction?.route, "/settings/agents");
+  assert.equal(model.settingsProjection?.personalization.userAgents?.content, "User instructions");
+  assert.equal(model.settingsProjection?.personalization.oplFlowDefaultUserAgents?.packageVersion, "0.1.0");
+  assert.equal(model.settingsProjection?.codex.providerName, "OPL Gateway");
+  assert.equal(model.settingsProjection?.codex.modelAccessSource, "codex_login");
+});
+
 test("runtime projection hides bridge placeholders but keeps real active work", () => {
   const placeholder = deriveWorkbenchModelFromState({
     app_state: {
