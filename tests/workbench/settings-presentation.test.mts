@@ -8,6 +8,7 @@ Object.assign(globalThis, {
     defaultReasoningEffort: "high",
     visibleModels: [{ id: "test-model" }],
     reasoningEfforts: ["high"],
+    autoLabel: { zh: "自动（推荐）", en: "Auto (recommended)" },
     knownModelReasoningEffortOverrides: {},
     acceptUnknownCatalogDefault: true,
     useHighestSupportedReasoningForUnknown: true
