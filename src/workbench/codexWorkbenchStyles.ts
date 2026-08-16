@@ -1512,6 +1512,54 @@ export const codexWorkbenchStyles = `
     line-height: 1.3;
   }
 
+  .settings-subnav {
+    display: flex;
+    gap: 18px;
+    margin-top: 17px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--opl-border);
+    scrollbar-width: none;
+  }
+
+  .settings-subnav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .settings-subnav button {
+    position: relative;
+    flex: none;
+    min-height: 32px;
+    padding: 0 1px 8px;
+    border: 0;
+    background: transparent;
+    color: var(--opl-muted);
+    font-size: 12px;
+  }
+
+  .settings-subnav button::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: -1px;
+    left: 0;
+    height: 2px;
+    background: transparent;
+  }
+
+  .settings-subnav button:hover,
+  .settings-subnav button[data-active="true"] {
+    color: var(--opl-text);
+  }
+
+  .settings-subnav button[data-active="true"]::after {
+    background: var(--opl-text);
+  }
+
+  .settings-subnav button:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--opl-text) 38%, transparent);
+    outline-offset: 2px;
+  }
+
   .settings-content {
     padding-bottom: 62px;
   }
@@ -1987,7 +2035,7 @@ export const codexWorkbenchStyles = `
 
   .agent-package-row[open] .agent-package-chevron,
   .settings-advanced-actions[open] > summary svg,
-  .agent-technical-details[open] > summary::after {
+  .agent-technical-details[open] > summary svg {
     transform: rotate(180deg);
   }
 
@@ -2039,12 +2087,12 @@ export const codexWorkbenchStyles = `
   }
 
   .home-shortcut-preference {
-    min-height: 34px;
+    min-height: 48px;
     display: grid;
-    grid-template-columns: minmax(132px, auto) minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 10px;
-    padding: 0 8px;
+    padding: 7px 9px;
     border: 1px solid var(--opl-border);
     border-radius: 7px;
   }
@@ -2054,6 +2102,23 @@ export const codexWorkbenchStyles = `
     display: inline-flex;
     align-items: center;
     gap: 7px;
+  }
+
+  .home-shortcut-preference > label {
+    min-width: 0;
+    align-items: flex-start;
+  }
+
+  .home-shortcut-copy {
+    min-width: 0;
+    display: grid;
+    gap: 1px;
+  }
+
+  .home-shortcut-copy strong {
+    color: var(--opl-text);
+    font-size: 11.5px;
+    font-weight: 550;
   }
 
   .home-shortcut-preference input {
@@ -3066,6 +3131,11 @@ export const codexWorkbenchStyles = `
     .settings-detail-header {
       padding-top: 22px;
       padding-bottom: 16px;
+    }
+
+    .settings-subnav {
+      gap: 15px;
+      margin-top: 14px;
     }
 
     .settings-row {

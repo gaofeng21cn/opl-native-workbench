@@ -142,7 +142,7 @@ export function assertFallbackBoundaryDowngrades(namedSources) {
     assert(app.includes(marker), `App state readback missing explicit state branch ${marker}`);
   }
   assert(settings.includes('stateLoading ? "loading" : stateFailed ? "attention_needed" : "ready"'), "Settings must downgrade failed App state readback to attention_needed");
-  assert(settings.includes("stateError || undefined"), "Settings must surface App state readback errors without claiming readiness");
+  assert(/\{stateError\s*\?\s*<SettingRow/.test(settings), "Settings must surface App state readback errors without claiming readiness");
 
   assert(!bridge.includes('canExecute: receiptKind !== "confirmation_required"'), "placeholder receipt must not be executable by default");
   assert(bridge.includes("bridge_unavailable_placeholder"), "placeholder receipt must expose bridge unavailable boundary");

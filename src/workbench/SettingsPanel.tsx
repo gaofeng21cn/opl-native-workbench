@@ -18,6 +18,7 @@ import {
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { CarrierDiagnosticsReadback } from "../bridge/oplBridge";
 import type {
+  AgentPackageLifecycleRef,
   ManagedUpdateComponentRef,
   ManagedUpdateProjection,
   PackageLifecycleActionRef,
@@ -160,7 +161,7 @@ const navigationCopy = {
     groups: {
       overview: "概览",
       account_models: "账户与模型",
-      connections_deployment: "连接与部署",
+      connections_deployment: "连接与访问",
       workspace: "工作区",
       agents_capabilities: "智能体与能力",
       runtime_maintenance: "运行与维护",
@@ -187,7 +188,7 @@ const navigationCopy = {
     groups: {
       overview: "Overview",
       account_models: "Account & Models",
-      connections_deployment: "Connections & Deployment",
+      connections_deployment: "Connections & Access",
       workspace: "Workspace",
       agents_capabilities: "Agents & Capabilities",
       runtime_maintenance: "Runtime & Maintenance",
@@ -264,20 +265,31 @@ function navigationGroups(locale: WorkbenchSettings["locale"]): NavigationGroup[
 }
 
 export function settingsDestinations(locale: WorkbenchSettings["locale"]): NavigationDestination[] {
-  const groups = navigationGroups(locale);
   return [
-    ...groups.flatMap((group) => group.destinations),
+    ...navigationGroups(locale).map((group) => ({
+      id: group.destinations[0]!.id,
+      label: group.label
+    })),
     { id: "about", label: navigationCopy[locale].destinations.about }
   ];
+}
+
+export function settingsSubDestinations(
+  primaryDestination: SettingsDestinationId,
+  locale: WorkbenchSettings["locale"]
+): NavigationDestination[] {
+  return navigationGroups(locale)
+    .find((group) => group.destinations[0]?.id === primaryDestination)
+    ?.destinations ?? [{ id: "about", label: navigationCopy[locale].destinations.about }];
 }
 
 export function statusTone(status: string | undefined): "ready" | "attention" | "neutral" {
   if (!status) return "neutral";
   const normalized = status.toLowerCase();
-  if (["error", "attention", "stale", "required", "unavailable", "failed", "missing", "incompatible"].some((value) => normalized.includes(value))) {
+  if (["error", "attention", "stale", "required", "unavailable", "not_available", "not-available", "not_installed", "restart_needed", "failed", "missing", "incompatible", "unsupported"].some((value) => normalized.includes(value))) {
     return "attention";
   }
-  if (["ready", "connected", "active", "compatible", "available", "stable", "healthy"].some((value) => normalized.includes(value))) {
+  if (["ready", "connected", "active", "compatible", "available", "installed", "enabled", "current", "stable", "healthy"].some((value) => normalized.includes(value))) {
     return "ready";
   }
   return "neutral";
@@ -290,29 +302,53 @@ export function carrierLogDetail(
   const logDirectory = diagnostics.application?.systemInfo.logDir;
   if (logDirectory) return logDirectory;
   if (diagnostics.status === "unavailable") {
-    return locale === "zh" ? "当前载体不提供 App 日志目录" : "This carrier does not expose an App log directory";
+    return locale === "zh" ? "当前运行方式不提供应用日志路径" : "This app mode does not provide an application log path";
   }
-  return locale === "zh" ? "App 日志目录尚未报告" : "The App log directory has not been reported";
+  return locale === "zh" ? "应用日志路径尚未就绪" : "The application log path is not ready";
 }
 
-function formatStatus(status: string | undefined, locale: WorkbenchSettings["locale"]): string {
-  if (!status) return locale === "zh" ? "未知" : "Unknown";
+export function formatStatus(status: string | undefined, locale: WorkbenchSettings["locale"]): string {
+  if (!status) return locale === "zh" ? "待确认" : "Not available";
   const labels: Record<string, [string, string]> = {
     connected: ["已连接", "Connected"],
     loading: ["正在读取", "Loading"],
-    active: ["正常", "Active"],
-    ready: ["正常", "Ready"],
+    active: ["可用", "Available"],
+    ready: ["可用", "Available"],
+    available: ["可用", "Available"],
+    healthy: ["可用", "Available"],
+    current: ["已是最新", "Up to date"],
+    installed: ["已安装", "Installed"],
+    enabled: ["已开启", "Enabled"],
+    disabled: ["已关闭", "Disabled"],
+    not_installed: ["未安装", "Not installed"],
+    checking: ["正在检查", "Checking"],
     compatible: ["兼容", "Compatible"],
     required: ["需要授权", "Required"],
     permission_required: ["需要授权", "Permission required"],
     unavailable: ["不可用", "Unavailable"],
+    not_available: ["不可用", "Unavailable"],
+    "not-available": ["不可用", "Unavailable"],
+    unsupported: ["当前不支持", "Not supported"],
+    restart_needed: ["需要重新启动", "Restart required"],
+    error: ["出现问题", "Needs attention"],
     attention_needed: ["需要处理", "Needs attention"],
     action_available: ["可配置", "Action available"],
     diagnose_with_doctor: ["需要诊断", "Diagnosis available"],
+    setup_required: ["需要设置", "Setup required"],
+    reauth_required: ["需要重新登录", "Sign in again"],
+    verification_deferred: ["待确认", "Pending verification"],
+    unknown: ["待确认", "Not available"],
+    app_state_projection: ["待确认", "Not available"],
+    preview_legacy_modules_fallback: ["信息有限", "Limited information"],
     stable: ["稳定版", "Stable"],
     preview: ["预览版", "Preview"]
   };
-  return labels[status]?.[locale === "zh" ? 0 : 1] ?? status.replaceAll("_", " ");
+  const normalized = status.toLowerCase();
+  const exact = labels[normalized]?.[locale === "zh" ? 0 : 1];
+  if (exact) return exact;
+  if (statusTone(normalized) === "attention") return locale === "zh" ? "需要处理" : "Needs attention";
+  if (statusTone(normalized) === "ready") return locale === "zh" ? "可用" : "Available";
+  return locale === "zh" ? "待确认" : "Not available";
 }
 
 function formatNumber(value: number | undefined, locale: string, compact = false): string {
@@ -389,14 +425,32 @@ function StatusValue({ status, locale }: { status?: string; locale: WorkbenchSet
   );
 }
 
-function packageRoleLabel(role: string, locale: WorkbenchSettings["locale"]): string {
+export function packageRoleLabel(role: string, locale: WorkbenchSettings["locale"]): string {
   const labels: Record<string, [string, string]> = {
-    standard_agent: ["智能体", "Agent"],
+    standard_agent: ["领域智能体", "Domain agent"],
     workflow_profile: ["工作流", "Workflow"],
-    capability_package: ["依赖与能力包", "Supporting capability"],
-    framework_capability_package: ["依赖与能力包", "Supporting capability"]
+    capability_package: ["能力支持", "Capability support"],
+    framework_capability_package: ["能力支持", "Capability support"]
   };
-  return labels[role]?.[locale === "zh" ? 0 : 1] ?? role;
+  return labels[role]?.[locale === "zh" ? 0 : 1] ?? (locale === "zh" ? "其他扩展" : "Other extension");
+}
+
+export function localizedPackageDescription(
+  item: Pick<AgentPackageLifecycleRef, "description" | "descriptionI18n" | "packageRole">,
+  locale: WorkbenchSettings["locale"]
+): string {
+  const ownerLocalized = item.descriptionI18n[locale]?.trim();
+  if (ownerLocalized) return ownerLocalized;
+  const englishFallback = item.descriptionI18n.en?.trim() || item.description.trim();
+  if (englishFallback) return englishFallback;
+  const fallback: Record<string, [string, string]> = {
+    standard_agent: ["用于专业任务规划、执行与交付的领域智能体。", "A domain agent for planning, execution, and delivery."],
+    workflow_profile: ["提供可复用的任务流程与执行步骤。", "Provides reusable task workflows and execution steps."],
+    capability_package: ["为智能体提供共享能力与连接支持。", "Provides shared capabilities and connections for agents."],
+    framework_capability_package: ["为智能体提供共享能力与连接支持。", "Provides shared capabilities and connections for agents."]
+  };
+  return fallback[item.packageRole]?.[locale === "zh" ? 0 : 1]
+    ?? (locale === "zh" ? "提供可在 One Person Lab 中使用的扩展能力。" : "Adds capabilities to One Person Lab.");
 }
 
 function packageActionLabel(action: PackageLifecycleActionRef, locale: WorkbenchSettings["locale"]): string {
@@ -406,7 +460,7 @@ function packageActionLabel(action: PackageLifecycleActionRef, locale: Workbench
     repair: ["修复", "Repair"],
     uninstall: ["卸载", "Uninstall"],
     preferences: ["偏好", "Preferences"],
-    other: [action.label, action.label]
+    other: ["管理", "Manage"]
   };
   return labels[action.kind][locale === "zh" ? 0 : 1];
 }
@@ -426,12 +480,10 @@ function PackageCatalog({
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [sourceFilter, setSourceFilter] = useState("all");
   const locale = settings.locale;
   const packages = model.packageLifecycle.filter((item) => item.packageId !== "missing_bridge");
   const roleOptions = [...new Set(packages.map((item) => item.packageRole))].sort();
   const statusOptions = [...new Set(packages.map((item) => item.status))].sort();
-  const sourceOptions = [...new Set(packages.map((item) => item.publisher))].sort();
   const homeShortcutOrder = model.packageLifecycle.flatMap((item) => item.homeShortcuts.map((shortcut) => ({
     packageId: item.packageId,
     ...shortcut
@@ -441,14 +493,13 @@ function PackageCatalog({
     if (scope === "official" && !item.official) return false;
     if (roleFilter !== "all" && item.packageRole !== roleFilter) return false;
     if (statusFilter !== "all" && item.status !== statusFilter) return false;
-    if (sourceFilter !== "all" && item.publisher !== sourceFilter) return false;
     return !normalizedQuery || item.searchMetadata.query.includes(normalizedQuery);
   });
   const groups = [
-    { key: "agent", label: locale === "zh" ? "OPL 官方智能体" : "Official OPL agents", icon: Bot },
+    { key: "agent", label: locale === "zh" ? "领域智能体" : "Domain agents", icon: Bot },
     { key: "workflow", label: locale === "zh" ? "工作流" : "Workflows", icon: Workflow },
-    { key: "supporting", label: locale === "zh" ? "依赖与能力包" : "Supporting packages", icon: PackageOpen },
-    { key: "other", label: locale === "zh" ? "其他 Codex 插件" : "Other Codex plugins", icon: Boxes }
+    { key: "supporting", label: locale === "zh" ? "能力支持" : "Capability support", icon: PackageOpen },
+    { key: "other", label: locale === "zh" ? "其他扩展" : "Other extensions", icon: Boxes }
   ].map((group) => ({ ...group, items: visible.filter((item) => item.roleGroup === group.key) }))
     .filter((group) => group.items.length > 0);
 
@@ -457,25 +508,21 @@ function PackageCatalog({
       <div className="agent-catalog-toolbar">
         <label className="settings-search-field">
           <Search aria-hidden="true" size={14} />
-          <input value={query} onChange={(event) => setQuery(event.currentTarget.value)} placeholder={locale === "zh" ? "搜索智能体与能力包" : "Search agents and packages"} />
+          <input value={query} onChange={(event) => setQuery(event.currentTarget.value)} placeholder={locale === "zh" ? "搜索智能体与能力" : "Search agents and capabilities"} />
         </label>
         <div className="segmented-control" aria-label={locale === "zh" ? "目录范围" : "Catalog scope"}>
-          <button type="button" data-active={scope === "official"} onClick={() => setScope("official")}>{locale === "zh" ? "OPL 官方" : "OPL"}</button>
+          <button type="button" data-active={scope === "official"} onClick={() => setScope("official")}>{locale === "zh" ? "官方" : "Official"}</button>
           <button type="button" data-active={scope === "all"} onClick={() => setScope("all")}>{locale === "zh" ? "全部" : "All"}</button>
         </div>
       </div>
       <div className="agent-catalog-filters">
         <select value={roleFilter} onChange={(event) => setRoleFilter(event.currentTarget.value)} aria-label={locale === "zh" ? "按角色筛选" : "Filter by role"}>
-          <option value="all">{locale === "zh" ? "全部角色" : "All roles"}</option>
+          <option value="all">{locale === "zh" ? "全部类型" : "All types"}</option>
           {roleOptions.map((role) => <option key={role} value={role}>{packageRoleLabel(role, locale)}</option>)}
         </select>
         <select value={statusFilter} onChange={(event) => setStatusFilter(event.currentTarget.value)} aria-label={locale === "zh" ? "按状态筛选" : "Filter by status"}>
           <option value="all">{locale === "zh" ? "全部状态" : "All statuses"}</option>
           {statusOptions.map((status) => <option key={status} value={status}>{formatStatus(status, locale)}</option>)}
-        </select>
-        <select value={sourceFilter} onChange={(event) => setSourceFilter(event.currentTarget.value)} aria-label={locale === "zh" ? "按来源筛选" : "Filter by source"}>
-          <option value="all">{locale === "zh" ? "全部来源" : "All sources"}</option>
-          {sourceOptions.map((source) => <option key={source} value={source}>{source}</option>)}
         </select>
         <span>{locale === "zh" ? `${visible.length} 项` : `${visible.length} items`}</span>
       </div>
@@ -494,11 +541,10 @@ function PackageCatalog({
                   <summary>
                     <span className="agent-package-copy">
                       <strong>{item.label}</strong>
-                      <small>{item.description || packageRoleLabel(item.packageRole, locale)}</small>
+                      <small>{localizedPackageDescription(item, locale)}</small>
                       <span className="agent-package-meta">
-                        {item.version ? <span>v{item.version}</span> : null}
-                        <span>{item.publisher}</span>
-                        <span>{packageRoleLabel(item.packageRole, locale)}</span>
+                        {item.version ? <span>{locale === "zh" ? `版本 ${item.version}` : `Version ${item.version}`}</span> : null}
+                        {item.automaticUpdate !== null ? <span>{item.automaticUpdate ? (locale === "zh" ? "自动更新" : "Automatic updates") : (locale === "zh" ? "手动更新" : "Manual updates")}</span> : null}
                       </span>
                     </span>
                     <span className="agent-package-summary-actions">
@@ -528,11 +574,8 @@ function PackageCatalog({
                   </summary>
                   <div className="agent-package-details">
                     <dl>
-                      <div><dt>{locale === "zh" ? "安装" : "Installation"}</dt><dd>{item.installed === null ? "--" : item.installed ? (locale === "zh" ? "已安装" : "Installed") : (locale === "zh" ? "未安装" : "Not installed")}</dd></div>
-                      <div><dt>{locale === "zh" ? "启用" : "Active"}</dt><dd>{item.activated === null ? "--" : item.activated ? (locale === "zh" ? "已启用" : "Active") : (locale === "zh" ? "未启用" : "Inactive")}</dd></div>
-                      <div><dt>{locale === "zh" ? "版本状态" : "Version status"}</dt><dd>{formatStatus(item.currentness, locale)}</dd></div>
-                      <div><dt>{locale === "zh" ? "来源模式" : "Source mode"}</dt><dd>{formatStatus(item.sourceMode, locale)}</dd></div>
-                      <div><dt>{locale === "zh" ? "自动更新" : "Automatic updates"}</dt><dd>{item.automaticUpdate === null ? "--" : item.automaticUpdate ? (locale === "zh" ? "已启用" : "Enabled") : (locale === "zh" ? "手动" : "Manual")}</dd></div>
+                      <div><dt>{locale === "zh" ? "使用状态" : "Usage"}</dt><dd>{item.installed === false ? (locale === "zh" ? "未安装" : "Not installed") : item.activated === true ? (locale === "zh" ? "已启用" : "Enabled") : item.installed === true ? (locale === "zh" ? "已安装" : "Installed") : (locale === "zh" ? "待确认" : "Not available")}</dd></div>
+                      <div><dt>{locale === "zh" ? "更新方式" : "Updates"}</dt><dd>{item.automaticUpdate === null ? (locale === "zh" ? "待确认" : "Not available") : item.automaticUpdate ? (locale === "zh" ? "自动" : "Automatic") : (locale === "zh" ? "手动" : "Manual")}</dd></div>
                     </dl>
                     {item.homeShortcuts.length ? (
                       <div className="home-shortcut-preferences">
@@ -545,7 +588,7 @@ function PackageCatalog({
                             onAction({
                               key,
                               actionId: preferenceAction.actionId,
-                              label: locale === "zh" ? `更新 ${item.label} 的首页入口` : `Update ${item.label} Home shortcut`,
+                              label: locale === "zh" ? `更新 ${item.label} 的新任务入口` : `Update ${item.label} New Task entry`,
                               payload: {
                                 ...preferenceAction.payload,
                                 shortcut_id: shortcut.shortcutId,
@@ -566,9 +609,11 @@ function PackageCatalog({
                                   disabled={!preferenceAction || actionBusyKey !== null}
                                   onChange={(event) => submitPreference(visibilityKey, event.currentTarget.checked, shortcut.sortOrder)}
                                 />
-                                <span>{locale === "zh" ? "显示在首页" : "Show on Home"}</span>
+                                <span className="home-shortcut-copy">
+                                  <strong>{locale === "zh" ? "在新任务中显示" : "Show in New Task"}</strong>
+                                  <small>{locale === "zh" ? "开启后，可从新任务页直接选择此智能体。" : "Makes this agent available from the New Task screen."}</small>
+                                </span>
                               </label>
-                              <span className="home-shortcut-id">{shortcut.shortcutId}</span>
                               <span className="home-shortcut-order-actions">
                                 <button
                                   type="button"
@@ -614,7 +659,7 @@ function PackageCatalog({
                     ) : <small>{locale === "zh" ? "当前没有可直接执行的管理动作" : "No directly executable management action"}</small>}
                     {settings.developerDetails ? (
                       <details className="agent-technical-details">
-                        <summary>{locale === "zh" ? "技术详情" : "Technical details"}</summary>
+                        <summary>{locale === "zh" ? "技术详情" : "Technical details"}<ChevronDown aria-hidden="true" size={13} /></summary>
                         <dl>{item.details.map((detail) => <div key={`${item.id}:${detail.label}`}><dt>{detail.label}</dt><dd>{detail.value}</dd></div>)}</dl>
                       </details>
                     ) : null}
@@ -654,11 +699,11 @@ function RuntimeActionButton({
     provider_service_status: ["检查服务", "Check service"],
     provider_service_start: ["启动服务", "Start service"],
     provider_service_restart: ["重启服务", "Restart service"],
-    provider_worker_status: ["检查 Worker", "Check worker"],
-    provider_worker_start: ["启动 Worker", "Start worker"],
-    provider_worker_restart: ["重启 Worker", "Restart worker"],
-    provider_scheduler_status: ["检查调度器", "Check scheduler"],
-    provider_scheduler_install: ["安装调度器", "Install scheduler"],
+    provider_worker_status: ["检查任务处理", "Check task processing"],
+    provider_worker_start: ["启动任务处理", "Start task processing"],
+    provider_worker_restart: ["重启任务处理", "Restart task processing"],
+    provider_scheduler_status: ["检查定时任务", "Check scheduled tasks"],
+    provider_scheduler_install: ["启用定时任务", "Enable scheduled tasks"],
     provider_scheduler_trigger: ["立即运行", "Run now"]
   };
   const label = labels[action.actionId]?.[locale === "zh" ? 0 : 1] ?? action.label;
@@ -801,6 +846,27 @@ function SettingsIntentButton({
   );
 }
 
+export function formatUpdateChannel(value: string | undefined, locale: WorkbenchSettings["locale"]): string {
+  if (!value) return locale === "zh" ? "默认" : "Default";
+  const normalized = value.toLowerCase();
+  if (normalized === "stable") return locale === "zh" ? "稳定版" : "Stable";
+  if (normalized === "preview" || normalized === "beta") return locale === "zh" ? "预览版" : "Preview";
+  return locale === "zh" ? "自定义" : "Custom";
+}
+
+function formatUpdatePolicy(value: string | undefined, eligible: boolean | null | undefined, locale: WorkbenchSettings["locale"]): string {
+  const normalized = value?.toLowerCase();
+  if (normalized && ["silent_background", "automatic", "auto", "enabled"].includes(normalized)) {
+    return locale === "zh" ? "自动" : "Automatic";
+  }
+  if (normalized && ["manual", "explicit", "disabled"].includes(normalized)) {
+    return locale === "zh" ? "手动" : "Manual";
+  }
+  if (eligible === true) return locale === "zh" ? "自动" : "Automatic";
+  if (eligible === false) return locale === "zh" ? "手动" : "Manual";
+  return locale === "zh" ? "待确认" : "Not available";
+}
+
 function ManagedUpdateGroup({
   component,
   fallbackLabel,
@@ -827,15 +893,13 @@ function ManagedUpdateGroup({
       ? `${component.installedVersion} -> ${component.latestVersion}`
       : component.installedVersion
     : component?.latestVersion ?? "--";
-  const autoPolicy = component?.autoApplyMode
-    ?? (component?.autoApplyEligible === true ? (locale === "zh" ? "符合自动更新条件" : "Eligible")
-      : component?.autoApplyEligible === false ? (locale === "zh" ? "手动" : "Manual") : "--");
+  const autoPolicy = formatUpdatePolicy(component?.autoApplyMode, component?.autoApplyEligible, locale);
   const renderableActions = actions.filter((intent) => (
     intent.availability === "ready" && (intent.transport === "app_action" || Boolean(onHostAction))
   ));
   return (
-    <SettingsGroup title={component?.label ?? fallbackLabel}>
-      <SettingRow label={locale === "zh" ? "状态" : "Status"} detail={component?.guidance ?? component?.summary}>
+    <SettingsGroup title={fallbackLabel}>
+      <SettingRow label={locale === "zh" ? "状态" : "Status"}>
         <span className="runtime-setting-control">
           <StatusValue status={component?.state} locale={locale} />
           {renderableActions.length
@@ -844,7 +908,7 @@ function ManagedUpdateGroup({
         </span>
       </SettingRow>
       <SettingRow label={locale === "zh" ? "版本" : "Version"}><span>{version}</span></SettingRow>
-      <SettingRow label={locale === "zh" ? "通道" : "Channel"}><span>{component?.channel ?? managedChannel ?? "--"}</span></SettingRow>
+      <SettingRow label={locale === "zh" ? "更新通道" : "Update channel"}><span>{formatUpdateChannel(component?.channel ?? managedChannel, locale)}</span></SettingRow>
       <SettingRow label={locale === "zh" ? "自动更新" : "Automatic updates"}><span>{autoPolicy}</span></SettingRow>
     </SettingsGroup>
   );
@@ -880,7 +944,11 @@ export function SettingsPanel({
   const groups = useMemo(() => navigationGroups(settings.locale), [settings.locale]);
   const locale = settings.locale === "zh" ? "zh-CN" : "en-US";
   const copy = navigationCopy[settings.locale].destinations;
-  const activeGroup = groups.find((group) => group.destinations.some((destination) => destination.id === activeDestination));
+  const [subDestination, setSubDestination] = useState<SettingsDestinationId | null>(null);
+  const activeGroup = groups.find((group) => group.destinations[0]?.id === activeDestination);
+  const selectedDestination = activeGroup?.destinations.some((destination) => destination.id === subDestination)
+    ? subDestination!
+    : activeDestination;
   const projection = model.settingsProjection;
   const runtime = model.runtimeOverview;
   const gateway = model.gatewayAccount;
@@ -893,6 +961,7 @@ export function SettingsPanel({
   const derivedActionViewModel = useMemo(() => buildSettingsActionViewModel(model, managedUpdate), [managedUpdate, model]);
   const actionViewModel = projectedActionViewModel ?? derivedActionViewModel;
   const availableStarters = model.starters.filter((starter) => starter.available).length;
+  const officialPackageCount = model.packageLifecycle.filter((item) => item.official && item.packageId !== "missing_bridge").length;
   const unavailableFixedModel = settings.modelAccess !== "__auto" && !resolvedModel;
   const stateLoading = stateStatus === "loading";
   const stateFailed = stateStatus === "error";
@@ -905,10 +974,10 @@ export function SettingsPanel({
       ? (settings.locale === "zh" ? "账户状态不可用" : "Account status unavailable")
       : (settings.locale === "zh" ? "未连接" : "Not connected");
   const missingGatewayDetail = stateLoading
-    ? (settings.locale === "zh" ? "正在读取 OPL App 状态" : "Reading OPL App state")
+    ? (settings.locale === "zh" ? "正在读取账户状态" : "Reading account status")
     : stateFailed
       ? (settings.locale === "zh" ? "请刷新状态后重试" : "Refresh state to retry")
-      : "OPL Gateway";
+      : (settings.locale === "zh" ? "连接账户后可同步用量与访问状态" : "Connect an account to sync usage and access status");
   const readbackStatus = stateLoading ? "loading" : stateFailed ? "attention_needed" : "ready";
   const gatewayAction = (kind: GatewayActionViewModel["kind"]) => actionViewModel.gatewayActions.find((action) => action.kind === kind);
 
@@ -924,7 +993,7 @@ export function SettingsPanel({
   function settingValueLabel(key: SettingKey, value: WorkbenchSettings[SettingKey]): string {
     if (key === "modelAccess") return value === "__auto" ? (settings.locale === "zh" ? "自动" : "Auto") : modelLabel(value as string, settings.locale);
     if (key === "reasoningLevel") return reasoningLabel(value as string, settings.locale, true);
-    if (key === "defaultWorkspace") return settings.locale === "zh" ? "OPL App 工作区" : "OPL App workspace";
+    if (key === "defaultWorkspace") return settings.locale === "zh" ? "当前工作区" : "Current workspace";
     if (key === "runtimeProfile") return value === "fast" ? (settings.locale === "zh" ? "快速" : "Fast") : (settings.locale === "zh" ? "完整" : "Full");
     if (key === "professionalStarterDefaults") return settings.locale === "zh" ? "科研、基金与演示" : "Research, grant, and presentation";
     if (key === "theme") {
@@ -985,11 +1054,11 @@ export function SettingsPanel({
   }
 
   function renderContent() {
-    if (activeDestination === "overview") {
+    if (selectedDestination === "overview") {
       return (
         <>
           <SettingsGroup title={settings.locale === "zh" ? "账户" : "Account"}>
-            <SettingRow label={settings.locale === "zh" ? "OPL Gateway" : "OPL Gateway"}>
+            <SettingRow label={settings.locale === "zh" ? "One Person Lab 账户" : "One Person Lab account"}>
               <span className="settings-inline-identity">
                 <span className="settings-avatar" aria-hidden="true">{gatewayAccountInitials(gateway?.displayName)}</span>
                 <span><strong data-testid="opl-settings-gateway-username">{gateway?.displayName ?? missingGatewayLabel}</strong><small>{gateway?.email ?? missingGatewayDetail}</small></span>
@@ -998,10 +1067,12 @@ export function SettingsPanel({
             <SettingRow label={settings.locale === "zh" ? "连接状态" : "Connection status"}><StatusValue status={gateway?.status ?? (stateLoading ? "loading" : stateFailed ? "attention_needed" : undefined)} locale={settings.locale} /></SettingRow>
           </SettingsGroup>
           <SettingsGroup title={settings.locale === "zh" ? "当前运行状态" : "Current status"}>
-            <SettingRow label="Codex CLI"><span>{projection?.codex.version ?? statePlaceholder}</span></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "模型" : "Model"}><span>{projection?.codex.model ?? resolvedModel?.id ?? "--"}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "本机助手" : "Local assistant"} detail={projection?.codex.version ? `${settings.locale === "zh" ? "版本" : "Version"} ${projection.codex.version}` : undefined}>
+              <StatusValue status={projection?.codex.versionStatus ?? (projection?.codex.installed ? "ready" : undefined)} locale={settings.locale} />
+            </SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "模型" : "Model"}><span>{modelLabel(projection?.codex.model ?? resolvedModel?.id ?? "--", settings.locale)}</span></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "工作目录" : "Working directory"}><code>{projection?.workspace.selectedPath ?? statePlaceholder}</code></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "状态读取" : "State readback"}>
+            <SettingRow label={settings.locale === "zh" ? "设置状态" : "Settings status"}>
               <StatusValue status={readbackStatus} locale={settings.locale} />
             </SettingRow>
           </SettingsGroup>
@@ -1009,7 +1080,7 @@ export function SettingsPanel({
       );
     }
 
-    if (activeDestination === "account") {
+    if (selectedDestination === "account") {
       const refreshAction = gatewayAction("refresh");
       const disconnectAction = gatewayAction("disconnect");
       const exceptionActions = actionViewModel.gatewayActions.filter((action) => (
@@ -1071,12 +1142,12 @@ export function SettingsPanel({
           <SettingsGroup title={settings.locale === "zh" ? "账户" : "Account"}>
             <SettingRow label={settings.locale === "zh" ? "账户状态" : "Account status"}><StatusValue status={gateway?.accountStatus ?? gateway?.status} locale={settings.locale} /></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "余额" : "Balance"}><strong>{formatAmount(gateway?.balance?.amount, gateway?.balance?.currency, locale)}</strong></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "今日用量" : "Usage today"}><span>{formatNumber(gateway?.usage?.todayTokens, locale, true)} tokens · {formatAmount(gateway?.usage?.todayCost, gateway?.usage?.currency, locale)}</span></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "累计用量" : "Total usage"}><span>{formatNumber(gateway?.usage?.totalTokens, locale, true)} tokens · {formatAmount(gateway?.usage?.totalCost, gateway?.usage?.currency, locale)}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "今日用量" : "Usage today"}><span>{formatNumber(gateway?.usage?.todayTokens, locale, true)} {settings.locale === "zh" ? "令牌" : "tokens"} · {formatAmount(gateway?.usage?.todayCost, gateway?.usage?.currency, locale)}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "累计用量" : "Total usage"}><span>{formatNumber(gateway?.usage?.totalTokens, locale, true)} {settings.locale === "zh" ? "令牌" : "tokens"} · {formatAmount(gateway?.usage?.totalCost, gateway?.usage?.currency, locale)}</span></SettingRow>
           </SettingsGroup>
           <SettingsGroup title={settings.locale === "zh" ? "此设备" : "This device"}>
-            <SettingRow label={settings.locale === "zh" ? "设备" : "Device"}><span>{gateway?.installation?.deviceLabel ?? "--"}{gateway?.installation?.shortId ? ` · ${gateway.installation.shortId}` : ""}</span></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "托管 Key" : "Managed key"}><span>{gateway?.managedKey?.name ?? "--"}{gateway?.managedKey?.status ? ` · ${formatStatus(gateway.managedKey.status, settings.locale)}` : ""}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "设备名称" : "Device name"}><span>{gateway?.installation?.deviceLabel ?? "--"}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "设备访问" : "Device access"}><StatusValue status={gateway?.managedKey?.status} locale={settings.locale} /></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "最近刷新" : "Last refresh"} detail={gateway?.freshness?.stale ? (settings.locale === "zh" ? "数据可能已过期" : "Data may be stale") : undefined}>
               <span className="runtime-setting-control">
                 <span>{formatDate(gateway?.freshness?.observedAt, locale)}</span>
@@ -1096,33 +1167,32 @@ export function SettingsPanel({
       );
     }
 
-    if (activeDestination === "models") {
+    if (selectedDestination === "models") {
       return (
         <>
           <SettingsGroup title={settings.locale === "zh" ? "会话配置" : "Session configuration"}>
             <SettingRow label={settings.locale === "zh" ? "模型" : "Model"} detail={unavailableFixedModel ? (settings.locale === "zh" ? "所选模型当前不可用" : "Selected model is unavailable") : undefined}>{renderSettingControl("modelAccess")}</SettingRow>
             <SettingRow label={settings.locale === "zh" ? "强度" : "Effort"}>{renderSettingControl("reasoningLevel")}</SettingRow>
           </SettingsGroup>
-          <SettingsGroup title={settings.locale === "zh" ? "Codex 读取状态" : "Codex readback"}>
-            <SettingRow label={settings.locale === "zh" ? "当前模型" : "Current model"}><code>{projection?.codex.model ?? "--"}</code></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "当前强度" : "Current effort"}><span>{projection?.codex.reasoningEffort ?? "--"}</span></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "提供方" : "Provider"}><span>{projection?.codex.providerName ?? "--"}</span></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "模型访问" : "Model access"}><StatusValue status={projection?.codex.accessStatus} locale={settings.locale} /></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "配置文件" : "Configuration"}><code>{projection?.codex.configPath ?? "--"}</code></SettingRow>
+          <SettingsGroup title={settings.locale === "zh" ? "当前配置" : "Current setup"}>
+            <SettingRow label={settings.locale === "zh" ? "当前模型" : "Current model"}><span>{modelLabel(projection?.codex.model ?? "--", settings.locale)}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "当前强度" : "Current effort"}><span>{projection?.codex.reasoningEffort ? reasoningLabel(projection.codex.reasoningEffort, settings.locale, true) : "--"}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "模型访问方式" : "Model access"}><span>{projection?.codex.providerName ?? "--"}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "访问状态" : "Access status"}><StatusValue status={projection?.codex.accessStatus} locale={settings.locale} /></SettingRow>
           </SettingsGroup>
         </>
       );
     }
 
-    if (activeDestination === "resources") {
+    if (selectedDestination === "resources") {
       return (
         <>
           <SettingsGroup title={settings.locale === "zh" ? "外部连接" : "External connections"}>
             {projection?.externalConnections.length ? projection.externalConnections.map((connection) => (
-              <SettingRow key={connection.id} label={connection.name} detail={connection.endpoint}><StatusValue status={connection.status} locale={settings.locale} /></SettingRow>
+              <SettingRow key={connection.id} label={connection.name}><StatusValue status={connection.status} locale={settings.locale} /></SettingRow>
             )) : <SettingRow label={settings.locale === "zh" ? "连接" : "Connections"}><span className="settings-muted">{settings.locale === "zh" ? "暂无外部连接" : "No external connections"}</span></SettingRow>}
           </SettingsGroup>
-          <SettingsGroup title="Docker WebUI">
+          <SettingsGroup title={settings.locale === "zh" ? "网页访问" : "Web access"}>
             <SettingRow label={settings.locale === "zh" ? "配置状态" : "Configuration"}><StatusValue status={projection?.dockerWebui.status} locale={settings.locale} /></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "运行状态" : "Runtime"}><StatusValue status={projection?.dockerWebui.runtimeStatus} locale={settings.locale} /></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "恢复能力" : "Recovery"}><StatusValue status={projection?.dockerWebui.recoveryStatus} locale={settings.locale} /></SettingRow>
@@ -1131,7 +1201,7 @@ export function SettingsPanel({
       );
     }
 
-    if (activeDestination === "workspace") {
+    if (selectedDestination === "workspace") {
       return (
         <SettingsGroup title={settings.locale === "zh" ? "工作目录" : "Working directory"}>
           <SettingRow label={settings.locale === "zh" ? "位置" : "Location"}><code>{projection?.workspace.selectedPath ?? "--"}</code></SettingRow>
@@ -1142,16 +1212,16 @@ export function SettingsPanel({
       );
     }
 
-    if (activeDestination === "storage") {
+    if (selectedDestination === "storage") {
       return (
         <>
-          <SettingsGroup title={settings.locale === "zh" ? "智能体包存储" : "Agent package storage"}>
-            <SettingRow label={settings.locale === "zh" ? "状态" : "Status"} detail={projection?.storage.agentPackageStore.reasonCode}><StatusValue status={projection?.storage.agentPackageStore.status} locale={settings.locale} /></SettingRow>
+          <SettingsGroup title={settings.locale === "zh" ? "智能体与能力" : "Agents and capabilities"}>
+            <SettingRow label={settings.locale === "zh" ? "状态" : "Status"}><StatusValue status={projection?.storage.agentPackageStore.status} locale={settings.locale} /></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "已用空间" : "Used space"}><span>{formatBytes(projection?.storage.agentPackageStore.bytes, locale)}</span></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "可回收" : "Reclaimable"}><span>{formatBytes(projection?.storage.agentPackageStore.reclaimableBytes, locale)}</span></SettingRow>
           </SettingsGroup>
-          <SettingsGroup title="WebUI data">
-            <SettingRow label={settings.locale === "zh" ? "状态" : "Status"} detail={projection?.storage.webuiDataVolume.reasonCode}><StatusValue status={projection?.storage.webuiDataVolume.status} locale={settings.locale} /></SettingRow>
+          <SettingsGroup title={settings.locale === "zh" ? "网页端数据" : "Web app data"}>
+            <SettingRow label={settings.locale === "zh" ? "状态" : "Status"}><StatusValue status={projection?.storage.webuiDataVolume.status} locale={settings.locale} /></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "已用空间" : "Used space"}><span>{formatBytes(projection?.storage.webuiDataVolume.bytes, locale)}</span></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "可回收" : "Reclaimable"}><span>{formatBytes(projection?.storage.webuiDataVolume.reclaimableBytes, locale)}</span></SettingRow>
           </SettingsGroup>
@@ -1159,25 +1229,27 @@ export function SettingsPanel({
       );
     }
 
-    if (activeDestination === "agents") {
+    if (selectedDestination === "agents") {
       return (
         <>
           <div className="settings-page-summary">
-            <span>{settings.locale === "zh" ? "官方智能体与能力包" : "Agents and capabilities"}</span>
-            <StatusValue status={projection?.statusSummary.agentPackageHealth} locale={settings.locale} />
+            <span>{settings.locale === "zh" ? `${officialPackageCount} 项官方内容` : `${officialPackageCount} official items`}</span>
+            {statusTone(projection?.statusSummary.agentPackageHealth) !== "neutral"
+              ? <StatusValue status={projection?.statusSummary.agentPackageHealth} locale={settings.locale} />
+              : null}
           </div>
           <PackageCatalog model={model} settings={settings} actionBusyKey={actionBusyKey} onAction={onAction} />
         </>
       );
     }
 
-    if (activeDestination === "capabilities") {
+    if (selectedDestination === "capabilities") {
       return (
         <>
           <SettingsGroup title={settings.locale === "zh" ? "能力" : "Capabilities"}>
-            <SettingRow label={settings.locale === "zh" ? "可用专业入口" : "Available professional starters"}><span>{availableStarters} / {model.starters.length}</span></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "本地默认入口" : "Local starter defaults"}>{renderSettingControl("professionalStarterDefaults")}</SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "能力包读取" : "Package readback"}><span>{model.packageLifecycle.length}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "可用任务入口" : "Available task starters"}><span>{availableStarters} / {model.starters.length}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "默认任务类型" : "Default task types"}>{renderSettingControl("professionalStarterDefaults")}</SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "已发现扩展" : "Discovered extensions"}><span>{model.packageLifecycle.length}</span></SettingRow>
           </SettingsGroup>
           {model.managedComputerUse ? (
             <ManagedComputerUseGroup
@@ -1189,7 +1261,7 @@ export function SettingsPanel({
           ) : null}
           {contributions ? (
             <section className="settings-contribution-section" data-testid="opl-settings-contributions">
-              <h2>{settings.locale === "zh" ? "模块设置" : "Module settings"}</h2>
+              <h2>{settings.locale === "zh" ? "扩展设置" : "Extension settings"}</h2>
               <div className="opl-contribution-slot">{contributions}</div>
             </section>
           ) : null}
@@ -1197,91 +1269,90 @@ export function SettingsPanel({
       );
     }
 
-    if (activeDestination === "instructions") {
+    if (selectedDestination === "instructions") {
       return (
         <SettingsGroup title={settings.locale === "zh" ? "指令与上下文" : "Instructions & context"}>
           <SettingRow label={settings.locale === "zh" ? "个性化来源" : "Personalization sources"}><span>{projection?.workspace.personalizationSourceCount ?? 0}</span></SettingRow>
           <SettingRow label={settings.locale === "zh" ? "当前项目上下文" : "Current project context"}><span>{model.contextSources.length}</span></SettingRow>
-          <SettingRow label={settings.locale === "zh" ? "状态来源" : "State source"}><code>{projection?.sourceRef ?? "--"}</code></SettingRow>
+          <SettingRow label={settings.locale === "zh" ? "同步状态" : "Sync status"}><StatusValue status={readbackStatus} locale={settings.locale} /></SettingRow>
         </SettingsGroup>
       );
     }
 
-    if (activeDestination === "services") {
+    if (selectedDestination === "services") {
       const runtimeActions = runtime?.maintenanceActions ?? [];
       const serviceAction = runtimeActions.find((action) => action.actionId === (runtime?.temporal.serviceReady === false ? "provider_service_start" : "provider_service_status"));
       const workerAction = runtimeActions.find((action) => action.actionId === (runtime?.temporal.workerReady === false ? "provider_worker_start" : "provider_worker_status"));
       const schedulerAction = runtimeActions.find((action) => action.actionId === (runtime?.temporal.schedulerStatus === "not_installed" ? "provider_scheduler_install" : "provider_scheduler_status"));
       return (
         <>
-          <SettingsGroup title={settings.locale === "zh" ? "核心运行状态" : "Core runtime"}>
-            <SettingRow label={settings.locale === "zh" ? "安装状态" : "Installation"}><StatusValue status={projection?.codex.installed === true ? "ready" : projection?.codex.installed === false ? "unavailable" : undefined} locale={settings.locale} /></SettingRow>
-            <SettingRow label="Codex CLI" detail={projection?.codex.version ? `v${projection.codex.version}` : undefined}><StatusValue status={projection?.codex.versionStatus} locale={settings.locale} /></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "智能体能力" : "Agent capabilities"}><StatusValue status={projection?.statusSummary.agentPackageHealth} locale={settings.locale} /></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "运行载体" : "Runtime sources"}><StatusValue status={projection?.statusSummary.runtimeSourceHealth} locale={settings.locale} /></SettingRow>
+          <SettingsGroup title={settings.locale === "zh" ? "本机能力" : "Local capabilities"}>
+            <SettingRow label={settings.locale === "zh" ? "本机助手" : "Local assistant"} detail={projection?.codex.version ? `${settings.locale === "zh" ? "版本" : "Version"} ${projection.codex.version}` : undefined}><StatusValue status={projection?.codex.installed === true ? projection?.codex.versionStatus ?? "ready" : projection?.codex.installed === false ? "unavailable" : undefined} locale={settings.locale} /></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "智能体与能力" : "Agents and capabilities"}><StatusValue status={projection?.statusSummary.agentPackageHealth} locale={settings.locale} /></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "运行环境" : "Runtime environment"}><StatusValue status={projection?.statusSummary.runtimeSourceHealth} locale={settings.locale} /></SettingRow>
           </SettingsGroup>
-          <SettingsGroup title="OPL-managed Temporal Runtime">
-            <SettingRow label={settings.locale === "zh" ? "服务" : "Service"} detail={runtime?.temporal.address}>
+          <SettingsGroup title={settings.locale === "zh" ? "后台任务" : "Background tasks"}>
+            <SettingRow label={settings.locale === "zh" ? "任务服务" : "Task service"}>
               <span className="runtime-setting-control"><StatusValue status={runtime?.temporal.serviceStatus} locale={settings.locale} /><RuntimeActionButton action={serviceAction} locale={settings.locale} busyKey={actionBusyKey} onAction={onAction} /></span>
             </SettingRow>
-            <SettingRow label="Worker" detail={runtime?.temporal.taskQueue}>
+            <SettingRow label={settings.locale === "zh" ? "任务处理" : "Task processing"}>
               <span className="runtime-setting-control"><StatusValue status={runtime?.temporal.workerStatus} locale={settings.locale} /><RuntimeActionButton action={workerAction} locale={settings.locale} busyKey={actionBusyKey} onAction={onAction} /></span>
             </SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "调度器" : "Scheduler"} detail={runtime?.temporal.observedAt ? formatDate(runtime.temporal.observedAt, locale) : undefined}>
+            <SettingRow label={settings.locale === "zh" ? "定时任务" : "Scheduled tasks"} detail={runtime?.temporal.observedAt ? formatDate(runtime.temporal.observedAt, locale) : undefined}>
               <span className="runtime-setting-control"><StatusValue status={runtime?.temporal.schedulerStatus} locale={settings.locale} /><RuntimeActionButton action={schedulerAction} locale={settings.locale} busyKey={actionBusyKey} onAction={onAction} primary={statusTone(runtime?.temporal.schedulerStatus) === "attention"} /></span>
             </SettingRow>
           </SettingsGroup>
-          <SettingsGroup title={settings.locale === "zh" ? `运行载体 ${runtime?.carriers.healthy ?? 0} / ${runtime?.carriers.total ?? 0}` : `Runtime sources ${runtime?.carriers.healthy ?? 0} / ${runtime?.carriers.total ?? 0}`}>
+          <SettingsGroup title={settings.locale === "zh" ? `运行环境 ${runtime?.carriers.healthy ?? 0} / ${runtime?.carriers.total ?? 0}` : `Runtime environments ${runtime?.carriers.healthy ?? 0} / ${runtime?.carriers.total ?? 0}`}>
             {runtime?.carriers.items.length ? runtime.carriers.items.map((carrier) => (
-              <SettingRow key={carrier.packageId} label={carrier.label} detail={[carrier.sourceOrigin, carrier.syncStatus].filter(Boolean).join(" · ")}><StatusValue status={carrier.status} locale={settings.locale} /></SettingRow>
-            )) : <SettingRow label={settings.locale === "zh" ? "运行载体" : "Runtime sources"}><span className="settings-muted">--</span></SettingRow>}
+              <SettingRow key={carrier.packageId} label={carrier.label}><StatusValue status={carrier.status} locale={settings.locale} /></SettingRow>
+            )) : <SettingRow label={settings.locale === "zh" ? "运行环境" : "Runtime environments"}><span className="settings-muted">--</span></SettingRow>}
           </SettingsGroup>
         </>
       );
     }
 
-    if (activeDestination === "updates") {
+    if (selectedDestination === "updates") {
       const component = (componentId: "opl_app" | "opl_base" | "opl_packages") => (
         actionViewModel.managedUpdates.find((item) => item.componentId === componentId)
       );
       return (
         <>
           <div className="settings-page-summary">
-            <span>{settings.locale === "zh" ? "三个软件对象，分别由各自 owner 管理" : "Three software objects, each managed by its owner"}</span>
-            <span>{formatDate(model.stateGeneratedAt, locale)}</span>
+            <span>{settings.locale === "zh" ? "分别检查应用、基础服务和智能体能力" : "Updates are checked separately for the app, base services, and agent capabilities"}</span>
+            <span>{settings.locale === "zh" ? `状态刷新于 ${formatDate(model.stateGeneratedAt, locale)}` : `Status refreshed ${formatDate(model.stateGeneratedAt, locale)}`}</span>
           </div>
           <ManagedUpdateGroup
             component={component("opl_app")?.component}
-            fallbackLabel="OPL App"
+            fallbackLabel="One Person Lab"
             managedChannel={managedUpdate?.channel ?? projection?.localEnvironment.releaseChannel ?? projection?.statusSummary.releaseChannel}
             actions={component("opl_app")?.actions ?? []}
             locale={settings.locale}
             busyKey={actionBusyKey}
             onAction={onAction}
             onHostAction={onHostAction}
-            unavailableActionLabel={settings.locale === "zh" ? "检查动作尚未投影" : "Check action not projected"}
+            unavailableActionLabel={settings.locale === "zh" ? "暂不可用" : "Unavailable"}
           />
           <ManagedUpdateGroup
             component={component("opl_base")?.component}
-            fallbackLabel="OPL Base"
+            fallbackLabel={settings.locale === "zh" ? "基础服务" : "Base services"}
             managedChannel={managedUpdate?.channel}
             actions={component("opl_base")?.actions ?? []}
             locale={settings.locale}
             busyKey={actionBusyKey}
             onAction={onAction}
             onHostAction={onHostAction}
-            unavailableActionLabel={settings.locale === "zh" ? "owner 尚未提供可执行动作" : "Owner action not yet projected"}
+            unavailableActionLabel={settings.locale === "zh" ? "暂不可用" : "Unavailable"}
           />
           <ManagedUpdateGroup
             component={component("opl_packages")?.component}
-            fallbackLabel={settings.locale === "zh" ? "OPL 能力包" : "OPL Packages"}
+            fallbackLabel={settings.locale === "zh" ? "智能体与能力" : "Agents and capabilities"}
             managedChannel={managedUpdate?.channel}
             actions={component("opl_packages")?.actions ?? []}
             locale={settings.locale}
             busyKey={actionBusyKey}
             onAction={onAction}
             onHostAction={onHostAction}
-            unavailableActionLabel={settings.locale === "zh" ? "更新动作尚未投影" : "Update action not projected"}
+            unavailableActionLabel={settings.locale === "zh" ? "暂不可用" : "Unavailable"}
           />
           {actionViewModel.additionalMaintenanceActions.some((intent) => (
             intent.availability === "ready" && (intent.transport === "app_action" || Boolean(onHostAction))
@@ -1295,16 +1366,16 @@ export function SettingsPanel({
       );
     }
 
-    if (activeDestination === "diagnostics") {
+    if (selectedDestination === "diagnostics") {
       const appLogDirectory = carrierDiagnostics.application?.systemInfo.logDir;
       const appLogDirectoryDetail = carrierLogDetail(carrierDiagnostics, settings.locale);
       return (
         <>
-          <SettingsGroup title={settings.locale === "zh" ? "诊断" : "Diagnostics"}>
-            <SettingRow label={settings.locale === "zh" ? "状态" : "Status"} detail={stateError || undefined}><StatusValue status={readbackStatus} locale={settings.locale} /></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "待处理问题" : "Issues"}><span>{projection?.statusSummary.issueCount ?? "--"}</span></SettingRow>
+          <SettingsGroup title={settings.locale === "zh" ? "日志与诊断" : "Logs and diagnostics"}>
+            <SettingRow label={settings.locale === "zh" ? "整体状态" : "Overall status"} detail={stateFailed ? (settings.locale === "zh" ? "请刷新后重试" : "Refresh to try again") : undefined}><StatusValue status={readbackStatus} locale={settings.locale} /></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "待处理项目" : "Items requiring attention"}><span>{projection?.statusSummary.issueCount ?? "--"}</span></SettingRow>
             <SettingRow
-              label={settings.locale === "zh" ? "App 载体日志" : "App carrier logs"}
+              label={settings.locale === "zh" ? "应用日志" : "Application logs"}
               detail={appLogDirectoryDetail}
             >
               <div className="settings-row-actions">
@@ -1324,16 +1395,17 @@ export function SettingsPanel({
                 ) : null}
               </div>
             </SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "开发者详情" : "Developer details"}>{renderSettingControl("developerDetails")}</SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "显示技术详情" : "Show technical details"}>{renderSettingControl("developerDetails")}</SettingRow>
           </SettingsGroup>
           {settings.developerDetails ? (
             <SettingsGroup title={settings.locale === "zh" ? "高级详情" : "Advanced details"}>
-              <SettingRow label={settings.locale === "zh" ? "App 载体日志目录" : "App carrier log directory"}><code>{appLogDirectory ?? (settings.locale === "zh" ? "不可用" : "Unavailable")}</code></SettingRow>
-              {carrierDiagnostics.reasonCode ? <SettingRow label={settings.locale === "zh" ? "载体状态代码" : "Carrier status code"}><code>{carrierDiagnostics.reasonCode}</code></SettingRow> : null}
-              <SettingRow label={settings.locale === "zh" ? "Framework 运行时日志" : "Framework runtime logs"}><code>{projection?.localEnvironment.logsDir ?? "--"}</code></SettingRow>
-              <SettingRow label={settings.locale === "zh" ? "状态目录" : "State directory"}><code>{projection?.localEnvironment.stateDir ?? "--"}</code></SettingRow>
-              <SettingRow label={settings.locale === "zh" ? "运行时来源" : "Runtime sources"}><code>{projection?.localEnvironment.runtimeSourcesRoot ?? "--"}</code></SettingRow>
-              <SettingRow label="Codex CLI"><code>{projection?.codex.binaryPath ?? "--"}</code></SettingRow>
+              <SettingRow label={settings.locale === "zh" ? "应用日志路径" : "Application log path"}><code>{appLogDirectory ?? (settings.locale === "zh" ? "不可用" : "Unavailable")}</code></SettingRow>
+              {stateError ? <SettingRow label={settings.locale === "zh" ? "最近错误" : "Latest error"}><code>{stateError}</code></SettingRow> : null}
+              {carrierDiagnostics.reasonCode ? <SettingRow label={settings.locale === "zh" ? "状态代码" : "Status code"}><code>{carrierDiagnostics.reasonCode}</code></SettingRow> : null}
+              <SettingRow label={settings.locale === "zh" ? "基础服务日志" : "Base service logs"}><code>{projection?.localEnvironment.logsDir ?? "--"}</code></SettingRow>
+              <SettingRow label={settings.locale === "zh" ? "应用数据目录" : "Application data directory"}><code>{projection?.localEnvironment.stateDir ?? "--"}</code></SettingRow>
+              <SettingRow label={settings.locale === "zh" ? "运行环境目录" : "Runtime directory"}><code>{projection?.localEnvironment.runtimeSourcesRoot ?? "--"}</code></SettingRow>
+              <SettingRow label={settings.locale === "zh" ? "本机助手路径" : "Local assistant path"}><code>{projection?.codex.binaryPath ?? "--"}</code></SettingRow>
             </SettingsGroup>
           ) : null}
           <button className="settings-command" type="button" onClick={onRefresh}><RefreshCw aria-hidden="true" size={14} />{settings.locale === "zh" ? "刷新状态" : "Refresh status"}</button>
@@ -1341,7 +1413,7 @@ export function SettingsPanel({
       );
     }
 
-    if (activeDestination === "preferences") {
+    if (selectedDestination === "preferences") {
       return (
         <>
           <SettingsGroup title={settings.locale === "zh" ? "界面" : "Interface"}>
@@ -1357,11 +1429,11 @@ export function SettingsPanel({
               useStore={(selector) => selector({ preference: settings.theme, revision: 0 })}
               actions={{ sync: () => undefined }}
             />
-            <SettingRow label={settings.locale === "zh" ? "预览模式" : "Preview mode"}>{renderSettingControl("artifactPreviewMode")}</SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "文件预览" : "File previews"}>{renderSettingControl("artifactPreviewMode")}</SettingRow>
           </SettingsGroup>
           <SettingsGroup title={settings.locale === "zh" ? "执行" : "Execution"}>
             <SettingRow label={settings.locale === "zh" ? "执行前确认" : "Confirm before execute"}>{renderSettingControl("confirmBeforeExecute")}</SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "默认工作区" : "Default workspace"}>{renderSettingControl("defaultWorkspace")}</SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "新任务工作区" : "New task workspace"}>{renderSettingControl("defaultWorkspace")}</SettingRow>
           </SettingsGroup>
         </>
       );
@@ -1369,25 +1441,38 @@ export function SettingsPanel({
 
     return (
       <>
-        <SettingsGroup title="One Person Lab">
+        <SettingsGroup title={settings.locale === "zh" ? "One Person Lab 预览版" : "One Person Lab Preview"}>
           <SettingRow label={settings.locale === "zh" ? "版本" : "Version"}><span>0.1.0</span></SettingRow>
-          <SettingRow label={settings.locale === "zh" ? "定位" : "Channel"}><span>{settings.locale === "zh" ? "技术评估候选" : "Technical evaluation candidate"}</span></SettingRow>
-          <SettingRow label="Codex CLI"><span>{projection?.codex.version ?? "--"}</span></SettingRow>
-          <SettingRow label="AionCore"><span>{settings.locale === "zh" ? "不需要（未包含）" : "Not required (not included)"}</span></SettingRow>
-          <SettingRow label={settings.locale === "zh" ? "运行接口" : "Runtime interface"}><span>Codex app-server · OPL App state/action</span></SettingRow>
+          <SettingRow label={settings.locale === "zh" ? "发布通道" : "Release channel"}><span>{settings.locale === "zh" ? "预览版" : "Preview"}</span></SettingRow>
+          <SettingRow label={settings.locale === "zh" ? "本机助手" : "Local assistant"}><span>{projection?.codex.version ?? "--"}</span></SettingRow>
         </SettingsGroup>
       </>
     );
   }
 
   return (
-    <section data-testid="opl-settings-panel" className="settings-page" aria-label="Settings">
+    <section data-testid="opl-settings-panel" className="settings-page" aria-label={settings.locale === "zh" ? "设置" : "Settings"}>
       <div className="settings-detail">
         <header className="settings-detail-header">
-          <span>{activeGroup?.label ?? copy.about}</span>
-          <h1>{copy[activeDestination]}</h1>
+          {activeGroup && activeGroup.label !== copy[selectedDestination] ? <span>{activeGroup.label}</span> : null}
+          <h1>{copy[selectedDestination]}</h1>
+          {activeGroup && activeGroup.destinations.length > 1 ? (
+            <nav className="settings-subnav" aria-label={settings.locale === "zh" ? `${activeGroup.label}分类` : `${activeGroup.label} sections`}>
+              {activeGroup.destinations.map((destination) => (
+                <button
+                  key={destination.id}
+                  type="button"
+                  data-active={destination.id === selectedDestination}
+                  aria-current={destination.id === selectedDestination ? "page" : undefined}
+                  onClick={() => setSubDestination(destination.id)}
+                >
+                  {destination.label}
+                </button>
+              ))}
+            </nav>
+          ) : null}
         </header>
-        <div className="settings-content" data-section={activeDestination}>
+        <div className="settings-content" data-section={selectedDestination}>
           {actionFeedback ? (
             <div className="settings-action-feedback" data-tone={actionFeedback.tone} role="status">
               {actionFeedback.tone === "success" ? <CheckCircle2 aria-hidden="true" size={15} /> : <AlertCircle aria-hidden="true" size={15} />}
@@ -1420,7 +1505,7 @@ export function SettingsPanel({
             <div className="settings-action-dialog-icon"><Wrench aria-hidden="true" size={18} /></div>
             <div>
               <h2 id="settings-action-dialog-title">{pendingConfirmation.request.label}</h2>
-              <p>{settings.locale === "zh" ? "预检查已完成。确认后将通过 OPL App 执行，并重新读取最新状态。" : "The preview is complete. Confirm to execute through OPL App and refresh state."}</p>
+              <p>{settings.locale === "zh" ? "检查已完成。确认后将执行此操作并刷新最新状态。" : "The check is complete. Confirm to run this action and refresh the latest status."}</p>
               <small>{settings.locale === "zh" ? "预检查" : "Preview"}: {formatStatus(pendingConfirmation.previewStatus, settings.locale)}</small>
             </div>
             <div className="settings-action-dialog-actions">
