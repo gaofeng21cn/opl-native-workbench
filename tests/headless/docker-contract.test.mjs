@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import YAML from "yaml";
 
 test("OCI carrier runs only the Node headless host with persistent non-root defaults", async () => {
   const [dockerfile, compose, distribution, workflow, buildPlan] = await Promise.all([
@@ -40,10 +41,17 @@ test("OCI carrier runs only the Node headless host with persistent non-root defa
   assert.match(distribution, /image: \$\{OPL_APP_IMAGE:\?immutable OPL_APP_IMAGE is required\}/);
   assert.match(distribution, /pull_policy: never/);
   assert.doesNotMatch(distribution, /\bbuild:/);
-  assert.match(workflow, /name: OCI multi-architecture build and lifecycle/);
+  assert.match(workflow, /name: OCI native \$\{\{ matrix\.architecture \}\} build and lifecycle/);
   assert.match(workflow, /plan:oci:multiarch/);
   assert.match(buildPlan, /type=oci/);
-  assert.match(workflow, /OPL_OCI_LIFECYCLE_PLATFORM: linux\/amd64/);
-  assert.match(workflow, /OPL_OCI_LIFECYCLE_PLATFORM: linux\/arm64/);
+  const parsedWorkflow = YAML.parse(workflow);
+  const ociJob = parsedWorkflow.jobs["oci-distribution"];
+  assert.equal(ociJob["runs-on"], "${{ matrix.runner }}");
+  assert.deepEqual(ociJob.strategy.matrix.include, [
+    { architecture: "amd64", platform: "linux/amd64", runner: "ubuntu-24.04" },
+    { architecture: "arm64", platform: "linux/arm64", runner: "ubuntu-24.04-arm" }
+  ]);
+  assert.equal(ociJob.env.OPL_OCI_REQUIRE_NATIVE_ARCHITECTURE, "true");
+  assert.doesNotMatch(JSON.stringify(ociJob), /setup-qemu-action|\bQEMU\b/i);
   assert.doesNotMatch(workflow, /docker\/login-action/);
 });

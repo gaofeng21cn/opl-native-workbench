@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const suffix = `${process.pid}-${Date.now()}`;
 const qualificationPlatform = process.env.OPL_OCI_LIFECYCLE_PLATFORM || null;
+const requireNativeArchitecture = process.env.OPL_OCI_REQUIRE_NATIVE_ARCHITECTURE === "true";
 const platformLabel = qualificationPlatform?.replaceAll("/", "-") ?? "native";
 const imageA = `opl-studio-oci-lifecycle-a-${platformLabel}:${suffix}`;
 const imageB = `opl-studio-oci-lifecycle-b-${platformLabel}:${suffix}`;
@@ -70,6 +71,12 @@ const port = await freePort();
 const volumeNames = [`${project}_opl-data`, `${project}_opl-projects`];
 const revisionA = "a".repeat(40);
 const revisionB = "b".repeat(40);
+
+if (requireNativeArchitecture) {
+  assert.ok(qualificationPlatform, "native architecture qualification requires an explicit platform");
+  const expectedNodeArchitecture = { amd64: "x64", arm64: "arm64" }[qualificationPlatform.split("/")[1]];
+  assert.equal(process.arch, expectedNodeArchitecture, `${qualificationPlatform} lifecycle must run on native hardware`);
+}
 
 try {
   for (const [image, revision] of [[imageA, revisionA], [imageB, revisionB]]) {
@@ -172,7 +179,9 @@ try {
       publishedAddress: "127.0.0.1"
     },
     publicImagePublished: false,
-    hostedArchitectureQualified: process.env.CI === "true" && qualificationPlatform !== null
+    hostedArchitectureQualified:
+      process.env.CI === "true" && qualificationPlatform !== null && requireNativeArchitecture,
+    runnerArchitecture: process.arch
   }, null, 2));
 } finally {
   spawnSync("docker", [

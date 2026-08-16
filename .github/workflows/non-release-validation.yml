@@ -900,9 +900,22 @@ jobs:
           fi
 
   oci-distribution:
-    name: OCI multi-architecture build and lifecycle
-    runs-on: ubuntu-latest
+    name: OCI native ${{ matrix.architecture }} build and lifecycle
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: amd64
+            platform: linux/amd64
+            runner: ubuntu-24.04
+          - architecture: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    env:
+      OPL_OCI_LIFECYCLE_PLATFORM: ${{ matrix.platform }}
+      OPL_OCI_REQUIRE_NATIVE_ARCHITECTURE: "true"
 
     steps:
       - name: Checkout Studio candidate
@@ -916,9 +929,6 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
@@ -928,7 +938,7 @@ jobs:
       - name: Run OCI source gates
         run: npm run test:oci
 
-      - name: Build non-public multi-architecture OCI layout
+      - name: Build non-public native-architecture OCI layout
         shell: bash
         run: |
           cohort_json="$(node -e 'const fs=require("fs");const e=JSON.parse(fs.readFileSync("src/candidateContractEvidence.json","utf8"));process.stdout.write(JSON.stringify(e.candidate_runtime_qualification?.external_cohort??{}))')"
@@ -942,6 +952,7 @@ jobs:
             --source-revision "$GITHUB_SHA" \
             --framework-ref "$framework_ref" \
             --app-ref "$app_ref" \
+            --platform "$OPL_OCI_LIFECYCLE_PLATFORM" \
             --output "$archive" > "$plan"
 
           test "$(jq -r '.evidenceBoundary.publishesImage' "$plan")" = false
@@ -953,22 +964,15 @@ jobs:
               | if length == 1 then .[0].digest else error("expected exactly one image index") end
           ')"
           image_index_path="blobs/sha256/${image_index_digest#sha256:}"
-          tar -xOf "$archive" "$image_index_path" | jq -e '
+          tar -xOf "$archive" "$image_index_path" | jq -e --arg architecture "${{ matrix.architecture }}" '
             ([.manifests[] | select(.platform.os == "linux") | .platform.architecture]
-              | sort | unique) == ["amd64", "arm64"] and
+              | sort | unique) == [$architecture] and
             ([.manifests[] | select(
                 .platform.os == "unknown" and
                 .platform.architecture == "unknown" and
                 .annotations["vnd.docker.reference.type"] == "attestation-manifest"
-              )] | length) == 2
+              )] | length) == 1
           '
 
-      - name: Prove hosted linux/amd64 OCI lifecycle
-        env:
-          OPL_OCI_LIFECYCLE_PLATFORM: linux/amd64
-        run: npm run smoke:docker:lifecycle
-
-      - name: Prove hosted linux/arm64 OCI lifecycle
-        env:
-          OPL_OCI_LIFECYCLE_PLATFORM: linux/arm64
+      - name: Prove hosted native OCI lifecycle
         run: npm run smoke:docker:lifecycle

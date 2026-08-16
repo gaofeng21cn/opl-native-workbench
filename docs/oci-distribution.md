@@ -66,10 +66,12 @@ node scripts/oci/build-plan.mjs \
 
 The plan requests BuildKit provenance, an SBOM, both platforms, and a local OCI
 layout. It deliberately does not execute a build or push an image. The
-non-release workflow executes that plan into runner-local storage, checks that
-the OCI index contains `linux/amd64` and `linux/arm64` plus attestation
-descriptors, and runs the host manager's full lifecycle on each architecture.
-It has no registry login or push step. Registry digest parity, signatures,
+non-release workflow uses native GitHub-hosted `amd64` and `arm64` runners.
+Each runner creates a runner-local, architecture-specific OCI layout with its
+attestation descriptor and runs the host manager's full lifecycle without
+emulation. The source build plan still covers the combined `linux/amd64` and
+`linux/arm64` target set; constructing and publishing the release index remains
+a release-owner gate. It has no registry login or push step. Registry digest parity, signatures,
 vulnerability policy, public publication, clean-host installation, and final
 release runtime readback remain separate owner gates.
 
@@ -94,7 +96,7 @@ git diff --check
 The lifecycle smoke builds two local images, then proves install, start, update,
 recreate, rollback, preserving uninstall, reinstallation, destructive uninstall,
 volume persistence, health, image identity, loopback publication, and container
-hardening on the current Docker host. The hosted non-release workflow adds the
-two-platform OCI layout and per-architecture QEMU lifecycle, but neither path
-proves a public image, registry identity, release cohort, or production
-admission.
+hardening on the current Docker host. The hosted non-release workflow adds
+paired native-architecture OCI layouts and native lifecycle qualification, but
+neither path proves a public image, registry identity, release cohort, or
+production admission.

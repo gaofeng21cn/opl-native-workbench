@@ -175,9 +175,10 @@ The first smoke builds an isolated candidate tag, starts it with isolated `/data
 `/projects` volumes, verifies HTTP health and readiness, UID 1000 and Node PID 1,
 then stops and removes its container, volumes, and image. The lifecycle smoke
 adds install, update, recreate, rollback, preserving uninstall, reinstall, and
-destructive cleanup with immutable local image IDs. The hosted non-release job
-also constructs a runner-local `linux/amd64` + `linux/arm64` OCI layout with
-SBOM/provenance attestations and runs the lifecycle on each architecture. None
+destructive cleanup with immutable local image IDs. The hosted non-release
+matrix constructs runner-local `linux/amd64` and `linux/arm64` OCI layouts with
+SBOM/provenance attestations on matching native GitHub-hosted runners, then runs
+the lifecycle on each architecture. None
 of these paths proves registry publication, digest/cohort authority, clean-host
 installation, remote access safety, or release readiness.
 
