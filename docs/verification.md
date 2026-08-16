@@ -28,7 +28,7 @@ script is the command owner.
 | `npm run typecheck` | TypeScript source consistency |
 | `npm run test:desktop` | Electron isolation, IPC adapter, updater, and guarded shutdown behavior |
 | `npm run test:headless` | Standalone bind/config validation, health/readiness, real child App Server startup, and bounded signal shutdown |
-| `npm run headless:install` / `headless:status` / `headless:update` / `headless:rollback` / `headless:uninstall` | Current-user macOS/Linux service lifecycle commands; hosted qualification currently proves macOS install/update/rollback/removal while platform support remains separately admitted |
+| `npm run headless:install` / `headless:status` / `headless:stop` / `headless:start` / `headless:restart` / `headless:update` / `headless:rollback` / `headless:uninstall` | Current-user macOS/Linux native service lifecycle commands; platform support and public distribution remain separately admitted |
 | `npm run test:threads` | Standard Desktop/WebUI thread lifecycle, pagination, renderer, and Codex subagent projection tests |
 | `npm run test:webui-host` | Shared host core, HTTP/SSE, model/thread pagination, OPL projection, and read-only mutation guard |
 | `npm run test:client-cordis` | Studio Client Cordis policy, typed event/slot lifecycle, and exact contribution action request |
@@ -149,19 +149,20 @@ Read `/healthz` for liveness and `/readyz` for Codex App Server initialization.
 Stopping the process with SIGINT or SIGTERM must emit
 `headless_server_stopped` inside the configured shutdown bound.
 
-The hosted macOS Headless job reads the exact Framework and App commits from
-`src/candidateContractEvidence.json`, prepares the Framework source CLI's
-workspace Packages, builds the shared WebUI, pins Codex CLI 0.147.0, then
-installs a base payload, updates to the exact checkout, rolls back to the kept
-base payload, and inspects the final state through the public commands. Every
-transition restarts the same LaunchAgent and requires a ready Codex App Server,
-successful Framework App-state command, `opl_app_state.v1`, and the expected
-installation-record version. The `always()` uninstall leaves no loaded service,
-plist, or install root. The hosted clean runner gives the cold
-Framework source CLI one bounded two-minute owner-state read window; the normal
-interactive state-read default remains 30 seconds.
-This does not qualify a Linux user-service lifecycle, remote binding, a public
-installer, signing, release, or production.
+The hosted macOS and Linux Headless jobs read the exact Framework and App
+commits from `src/candidateContractEvidence.json`, prepare the Framework source
+CLI's workspace Packages, build the shared WebUI, pin Codex CLI 0.147.0, then
+install a base payload, update to the exact checkout, roll back to the kept base
+payload, and inspect the final state through the public commands. Every running
+transition requires a ready Codex App Server, successful Framework App-state
+command, `opl_app_state.v1`, and the expected installation-record version.
+macOS verifies its LaunchAgent; Linux verifies a non-root systemd user unit and
+also exercises explicit stop, start, and restart. Each `always()` cleanup proves
+the native service definition and install root are absent. The hosted clean
+runner gives the cold Framework source CLI one bounded two-minute owner-state
+read window; the normal interactive state-read default remains 30 seconds.
+These jobs do not qualify remote binding, a public installer, signing, release,
+or production.
 
 When a local Docker daemon is available:
 

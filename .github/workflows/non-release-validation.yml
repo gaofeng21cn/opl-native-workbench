@@ -640,6 +640,261 @@ jobs:
           test ! -e "$HOME/Library/LaunchAgents/com.onepersonlab.headless.plist"
           test ! -e "$OPL_HEADLESS_INSTALL_ROOT"
 
+  headless-installed-linux:
+    name: Linux headless installed lifecycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OPL_APP_OPL_BIN: ${{ github.workspace }}/framework/bin/opl
+      OPL_APP_REPO_ROOT: ${{ github.workspace }}/app-product
+
+    steps:
+      - name: Checkout Studio candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read pinned Framework/App cohort
+        id: runtime-cohort
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const evidence = JSON.parse(fs.readFileSync("src/candidateContractEvidence.json", "utf8"));
+          const cohort = evidence.candidate_runtime_qualification?.external_cohort ?? {};
+          for (const [name, value] of [["framework_sha", cohort.framework_commit], ["app_sha", cohort.app_commit]]) {
+            if (!/^[0-9a-f]{40}$/.test(value ?? "")) throw new Error(`missing exact ${name} cohort commit`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}\n`);
+          }
+          NODE
+
+      - name: Checkout Framework Host
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: gaofeng21cn/one-person-lab
+          ref: ${{ steps.runtime-cohort.outputs.framework_sha }}
+          path: framework
+          persist-credentials: false
+
+      - name: Checkout App product authority
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: gaofeng21cn/one-person-lab-app
+          ref: ${{ steps.runtime-cohort.outputs.app_sha }}
+          path: app-product
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+
+      - name: Install Studio dependencies
+        run: npm ci
+
+      - name: Prepare pinned Framework runtime
+        working-directory: framework
+        run: npm ci --ignore-scripts && npm run build:packages
+
+      - name: Install pinned Codex CLI
+        shell: bash
+        run: |
+          npm install --global @openai/codex@0.147.0
+          codex_path="$(command -v codex)"
+          test -x "$codex_path"
+          test "$(codex --version)" = "codex-cli 0.147.0"
+          codex_home="$RUNNER_TEMP/codex-home"
+          install_root="$RUNNER_TEMP/one-person-lab-headless"
+          workspace_root="$RUNNER_TEMP/opl-workspace"
+          base_source="$RUNNER_TEMP/opl-headless-base-source"
+          mkdir -p "$codex_home" "$workspace_root"
+          {
+            echo "CODEX_HOME=$codex_home"
+            echo "OPL_CODEX_BIN=$codex_path"
+            echo "OPL_HEADLESS_BASE_SOURCE=$base_source"
+            echo "OPL_HEADLESS_BASE_VERSION=0.0.0-headless-base"
+            echo "OPL_HEADLESS_INSTALL_ROOT=$install_root"
+            echo "OPL_HEADLESS_TARGET_VERSION=$(node -p 'require("./package.json").version')"
+            echo "OPL_HEADLESS_WORKSPACE_ROOT=$workspace_root"
+          } >> "$GITHUB_ENV"
+
+      - name: Prepare Linux user service manager
+        shell: bash
+        run: |
+          user_id="$(id -u)"
+          user_name="$(id -un)"
+          runtime_dir="/run/user/${user_id}"
+          linger="$(loginctl show-user "$user_name" --property=Linger --value)"
+          if test "$linger" = yes; then
+            echo "OPL_HEADLESS_LINGER_ENABLED_BY_JOB=0" >> "$GITHUB_ENV"
+          else
+            sudo loginctl enable-linger "$user_name"
+            echo "OPL_HEADLESS_LINGER_ENABLED_BY_JOB=1" >> "$GITHUB_ENV"
+          fi
+          sudo systemctl start "user@${user_id}.service"
+          test -d "$runtime_dir"
+          {
+            echo "XDG_RUNTIME_DIR=$runtime_dir"
+            echo "OPL_HEADLESS_USER_ID=$user_id"
+            echo "OPL_HEADLESS_USER_NAME=$user_name"
+          } >> "$GITHUB_ENV"
+          XDG_RUNTIME_DIR="$runtime_dir" systemctl --user show-environment >/dev/null
+          test "$(XDG_RUNTIME_DIR="$runtime_dir" systemctl --user show one-person-lab-headless.service --property=LoadState --value)" = not-found
+          test ! -e "$HOME/.config/systemd/user/one-person-lab-headless.service"
+
+      - name: Build shared WebUI
+        run: npm run build:webui
+
+      - name: Prepare base headless payload
+        shell: bash
+        run: |
+          mkdir -p "$OPL_HEADLESS_BASE_SOURCE/dist" "$OPL_HEADLESS_BASE_SOURCE/scripts"
+          cp package.json "$OPL_HEADLESS_BASE_SOURCE/package.json"
+          cp -R dist/webui "$OPL_HEADLESS_BASE_SOURCE/dist/webui"
+          cp -R scripts/headless "$OPL_HEADLESS_BASE_SOURCE/scripts/headless"
+          cp -R scripts/webui-host "$OPL_HEADLESS_BASE_SOURCE/scripts/webui-host"
+          cp scripts/install-headless.mjs "$OPL_HEADLESS_BASE_SOURCE/scripts/install-headless.mjs"
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const path = `${process.env.OPL_HEADLESS_BASE_SOURCE}/package.json`;
+          const value = JSON.parse(fs.readFileSync(path, "utf8"));
+          value.version = process.env.OPL_HEADLESS_BASE_VERSION;
+          fs.writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+          NODE
+
+      - name: Install headless Linux user service
+        shell: bash
+        run: |
+          npm run --silent headless:install -- \
+            --source "$OPL_HEADLESS_BASE_SOURCE" \
+            --install-root "$OPL_HEADLESS_INSTALL_ROOT" \
+            --workspace "$OPL_HEADLESS_WORKSPACE_ROOT" \
+            --readback-timeout-ms 120000 \
+            | tee "$RUNNER_TEMP/opl-headless-linux-install.json"
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const result = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/opl-headless-linux-install.json`, "utf8"));
+          if (result.schema !== "opl_headless_installer_result.v1" || result.status !== "installed") throw new Error("headless Linux install receipt is invalid");
+          if (result.readback?.ready?.status !== "ready" || result.readback.ready.appServerAvailable !== true) throw new Error("installed Linux Headless runtime is not ready");
+          if (result.readback?.appState?.readback?.exitCode !== 0 || result.readback.appState.surfaceKind !== "opl_app_state.v1") throw new Error("installed Linux App-state readback failed");
+          if (result.version !== process.env.OPL_HEADLESS_BASE_VERSION) throw new Error("headless Linux base version is not installed");
+          NODE
+
+      - name: Stop and inspect headless Linux user service
+        shell: bash
+        run: |
+          npm run --silent headless:stop -- \
+            --install-root "$OPL_HEADLESS_INSTALL_ROOT" \
+            --workspace "$OPL_HEADLESS_WORKSPACE_ROOT" \
+            | tee "$RUNNER_TEMP/opl-headless-linux-stop.json"
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const result = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/opl-headless-linux-stop.json`, "utf8"));
+          if (result.status !== "stopped" || result.service?.native?.exitCode !== 0 || result.readback !== null) throw new Error("headless Linux stop receipt is invalid");
+          NODE
+          systemctl --user show one-person-lab-headless.service --property=ActiveState,SubState --no-pager | tee "$RUNNER_TEMP/opl-headless-linux-stopped.txt"
+          grep -qx 'ActiveState=inactive' "$RUNNER_TEMP/opl-headless-linux-stopped.txt"
+
+      - name: Start headless Linux user service
+        shell: bash
+        run: |
+          npm run --silent headless:start -- \
+            --install-root "$OPL_HEADLESS_INSTALL_ROOT" \
+            --workspace "$OPL_HEADLESS_WORKSPACE_ROOT" \
+            --readback-timeout-ms 120000 \
+            | tee "$RUNNER_TEMP/opl-headless-linux-start.json"
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const result = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/opl-headless-linux-start.json`, "utf8"));
+          if (result.status !== "started" || result.service?.native?.exitCode !== 0 || result.readback?.status !== "ready") throw new Error("headless Linux start receipt is invalid");
+          NODE
+
+      - name: Restart headless Linux user service
+        shell: bash
+        run: |
+          npm run --silent headless:restart -- \
+            --install-root "$OPL_HEADLESS_INSTALL_ROOT" \
+            --workspace "$OPL_HEADLESS_WORKSPACE_ROOT" \
+            --readback-timeout-ms 120000 \
+            | tee "$RUNNER_TEMP/opl-headless-linux-restart.json"
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const result = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/opl-headless-linux-restart.json`, "utf8"));
+          if (result.status !== "restarted" || result.service?.native?.exitCode !== 0 || result.readback?.status !== "ready") throw new Error("headless Linux restart receipt is invalid");
+          NODE
+
+      - name: Update and restart installed headless Linux runtime
+        shell: bash
+        run: |
+          npm run --silent headless:update -- \
+            --source "$GITHUB_WORKSPACE" \
+            --install-root "$OPL_HEADLESS_INSTALL_ROOT" \
+            --workspace "$OPL_HEADLESS_WORKSPACE_ROOT" \
+            --readback-timeout-ms 120000 \
+            | tee "$RUNNER_TEMP/opl-headless-linux-update.json"
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const result = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/opl-headless-linux-update.json`, "utf8"));
+          if (result.status !== "updated" || result.version !== process.env.OPL_HEADLESS_TARGET_VERSION) throw new Error("installed Linux Headless update did not reach target version");
+          if (result.update?.state !== "applied" || result.service?.native?.exitCode !== 0 || result.readback?.status !== "ready") throw new Error("installed Linux Headless update did not restart cleanly");
+          NODE
+
+      - name: Roll back and restart installed headless Linux runtime
+        shell: bash
+        run: |
+          npm run --silent headless:rollback -- \
+            --install-root "$OPL_HEADLESS_INSTALL_ROOT" \
+            --workspace "$OPL_HEADLESS_WORKSPACE_ROOT" \
+            --readback-timeout-ms 120000 \
+            | tee "$RUNNER_TEMP/opl-headless-linux-rollback.json"
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const result = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/opl-headless-linux-rollback.json`, "utf8"));
+          if (result.status !== "rolled_back" || result.version !== process.env.OPL_HEADLESS_BASE_VERSION) throw new Error("installed Linux Headless rollback did not restore base version");
+          if (result.update?.state !== "rolled_back" || result.service?.native?.exitCode !== 0 || result.readback?.status !== "ready") throw new Error("installed Linux Headless rollback did not restart cleanly");
+          NODE
+
+      - name: Verify installed systemd user-service binding
+        shell: bash
+        run: |
+          unit="$HOME/.config/systemd/user/one-person-lab-headless.service"
+          test -f "$unit"
+          systemd-analyze --user verify "$unit"
+          systemctl --user show one-person-lab-headless.service --property=LoadState,ActiveState,SubState --no-pager | tee "$RUNNER_TEMP/opl-headless-linux-active.txt"
+          grep -qx 'LoadState=loaded' "$RUNNER_TEMP/opl-headless-linux-active.txt"
+          grep -qx 'ActiveState=active' "$RUNNER_TEMP/opl-headless-linux-active.txt"
+          grep -qx 'SubState=running' "$RUNNER_TEMP/opl-headless-linux-active.txt"
+          systemctl --user show one-person-lab-headless.service --property=ExecStart --value | grep -F "$OPL_HEADLESS_INSTALL_ROOT/current/scripts/headless/run.mjs"
+          grep -F "Environment=\"OPL_APP_OPL_BIN=$OPL_APP_OPL_BIN\"" "$unit"
+          grep -F "Environment=\"OPL_APP_REPO_ROOT=$OPL_APP_REPO_ROOT\"" "$unit"
+          grep -F 'Environment="OPL_APP_STATE_TIMEOUT_MS=120000"' "$unit"
+          grep -F "Environment=\"OPL_CODEX_BIN=$OPL_CODEX_BIN\"" "$unit"
+          grep -F "Environment=\"CODEX_HOME=$CODEX_HOME\"" "$unit"
+
+      - name: Uninstall headless Linux user service and verify cleanup
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          if test -f "$OPL_HEADLESS_INSTALL_ROOT/installation.json"; then
+            npm run --silent headless:uninstall -- \
+              --install-root "$OPL_HEADLESS_INSTALL_ROOT" \
+              --workspace "$OPL_HEADLESS_WORKSPACE_ROOT" \
+              | tee "$RUNNER_TEMP/opl-headless-linux-uninstall.json"
+          fi
+          load_state="$(systemctl --user show one-person-lab-headless.service --property=LoadState --value)"
+          test "$load_state" = not-found
+          test ! -e "$HOME/.config/systemd/user/one-person-lab-headless.service"
+          test ! -e "$OPL_HEADLESS_INSTALL_ROOT"
+          if test "${OPL_HEADLESS_LINGER_ENABLED_BY_JOB:-0}" = 1; then
+            sudo loginctl disable-linger "$OPL_HEADLESS_USER_NAME"
+          fi
+
   oci-distribution:
     name: OCI multi-architecture build and lifecycle
     runs-on: ubuntu-latest
