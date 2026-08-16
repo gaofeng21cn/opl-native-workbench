@@ -443,12 +443,6 @@ export class CodexAppServerTransport extends EventEmitter {
         if (!binding.created) {
           const readback = await transport.readThread(canonicalThread.canonical_thread_id);
           assertChannelThreadReadback(canonicalThread, readback, "channel binding readback", transport.host);
-          const resumed = await transport.resumeThread(canonicalThread.canonical_thread_id, {
-            cwd: transport.cwd,
-            approvalPolicy: "never",
-            permissions: DEFAULT_PERMISSION_PROFILE
-          });
-          assertChannelThreadReadback(canonicalThread, resumed, "channel binding resume", transport.host);
         }
         return canonicalThread;
       },

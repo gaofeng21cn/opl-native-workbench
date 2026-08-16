@@ -158,9 +158,18 @@ test("channel binding restart recovers the exact thread and rejects unknown or m
   assert.deepEqual(calls, [
     "start:first",
     "read:first:thread-exact",
+    "read:restart:thread-exact"
+  ]);
+
+  await restarted.createChannelCallbackAdapter().resumeThread(recovered);
+  assert.deepEqual(calls, [
+    "start:first",
+    "read:first:thread-exact",
+    "read:restart:thread-exact",
     "read:restart:thread-exact",
     "resume:restart:thread-exact"
   ]);
+  assert.equal(calls.filter((call) => call.startsWith("resume:")).length, 1);
 
   await assert.rejects(
     restarted.createChannelCallbackAdapter().resumeThread({
