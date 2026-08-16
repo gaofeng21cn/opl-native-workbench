@@ -421,12 +421,12 @@ const uiCopy = {
 } as const;
 
 const exportActionRefId = "task_export_bundle_preview";
-const standardAgentSeatLabelsZh: Record<string, string> = {
-  mag: "医学基金",
-  mas: "医学科研",
-  obf: "图书创作",
-  oma: "智能演进",
-  rca: "视觉设计"
+const standardAgentSeatPresentationZh: Record<string, { name: string; order: number }> = {
+  mas: { name: "医学科研", order: 10 },
+  mag: { name: "医学基金", order: 20 },
+  rca: { name: "汇报展示", order: 30 },
+  obf: { name: "书籍写作", order: 40 },
+  oma: { name: "智能演进", order: 50 }
 };
 const emptyCapabilityCatalog: CodexCapabilityCatalog = {
   source: "bridge_unavailable",
@@ -1930,7 +1930,7 @@ export function App({
       {
         id: "opl-daily-work",
         name: settings.locale === "zh" ? "日常工作" : "Daily Work",
-        description: settings.locale === "zh" ? "One Person Lab 默认通用智能体" : "One Person Lab's default general-purpose Agent",
+        description: settings.locale === "zh" ? "One Person Lab · 默认通用智能体" : "One Person Lab's default general-purpose Agent",
         selection: null
       },
       ...model.packageLifecycle.filter((item) => (
@@ -1938,14 +1938,24 @@ export function App({
         && item.official
         && item.readiness.selectable
         && item.homeShortcuts.some((shortcut) => Boolean(shortcut.route))
-      )).map((agent) => ({
-        id: agent.packageId,
-        name: settings.locale === "zh"
-          ? standardAgentSeatLabelsZh[agent.packageId] ?? agent.displayNameI18n.zh ?? agent.label
-          : agent.displayNameI18n.en ?? agent.label,
-        description: (settings.locale === "zh" ? agent.descriptionI18n.zh : agent.descriptionI18n.en) ?? agent.description,
-        selection: agentPackageSelectionIntent(agent)
-      }))
+      )).sort((left, right) => (
+        (standardAgentSeatPresentationZh[left.packageId]?.order ?? Number.MAX_SAFE_INTEGER)
+        - (standardAgentSeatPresentationZh[right.packageId]?.order ?? Number.MAX_SAFE_INTEGER)
+        || left.label.localeCompare(right.label)
+      )).map((agent) => {
+        const description = (settings.locale === "zh" ? agent.descriptionI18n.zh : agent.descriptionI18n.en) ?? agent.description;
+        const formalName = agent.displayNameI18n.en ?? agent.label;
+        return {
+          id: agent.packageId,
+          name: settings.locale === "zh"
+            ? standardAgentSeatPresentationZh[agent.packageId]?.name ?? agent.displayNameI18n.zh ?? agent.label
+            : formalName,
+          description: settings.locale === "zh" && description
+            ? `${formalName} · ${description}`
+            : description,
+          selection: agentPackageSelectionIntent(agent)
+        };
+      })
     ],
     selectedAgentPresetId: selectedAgent?.packageId ?? "opl-daily-work",
     conversationHeader: <><Folder aria-hidden="true" size={15} /><h1>{localizedSessionTitle(currentSession?.title || t.newTaskTitle, settings.locale)}</h1><button type="button" aria-label={t.conversationMenu} disabled={!currentSession} onClick={() => setThreadDetail(currentSession ?? null)}><CircleEllipsis aria-hidden="true" size={16} /></button></>,
