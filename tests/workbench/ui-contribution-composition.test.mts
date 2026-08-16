@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import {
   OPL_UI_CONTRIBUTION_SLOTS,
   createOplContributionActionRequest,
@@ -303,5 +304,16 @@ describe("OPL Studio DSH contribution composition", () => {
       roadmap: ["Validate"]
     });
     expect(() => normalizeContributionReadback(response, { ...request, ref: "mas.research-roadmap.v1#stale" })).toThrow(/stale or malformed/);
+  });
+
+  test("renders non-image channel payloads with the maintained QR component", () => {
+    const source = readFileSync(
+      new URL("../../src/composition/contributionComponents.tsx", import.meta.url),
+      "utf8"
+    );
+    expect(source).toMatch(/import \{ QRCodeSVG \} from "qrcode\.react"/);
+    expect(source).toMatch(/<QRCodeSVG/);
+    expect(source).toMatch(/value=\{qr\.payload\}/);
+    expect(source).not.toMatch(/<code>\{qr\.payload\}<\/code>/);
   });
 });

@@ -45,7 +45,12 @@ test("optional channel provider receives canonical App Server callbacks without 
       cwd: directory,
       channelCallbackRegistrar: async (value) => {
         callbacks = value;
-        return { dispose: () => { disposeCount += 1; } };
+        return {
+          appStatePatch: () => ({ ui_contributions: { entries: [] } }),
+          readChannelAccess: async () => ({}),
+          executeChannelAccessAction: async () => ({}),
+          dispose: () => { disposeCount += 1; }
+        };
       }
     })
   });
@@ -220,7 +225,12 @@ test("shared Host attaches after App Server start and tears the provider down be
   const opl = createOplPassthrough({
     channelCallbackRegistrar: async () => {
       calls.push("provider:attach");
-      return { dispose: async () => { calls.push("provider:dispose"); } };
+      return {
+        appStatePatch: () => ({ ui_contributions: { entries: [] } }),
+        readChannelAccess: async () => ({}),
+        executeChannelAccessAction: async () => ({}),
+        dispose: async () => { calls.push("provider:dispose"); }
+      };
     }
   });
   const core = await createOplHostCore({ transport, opl });
@@ -263,12 +273,23 @@ test("Framework registrar loads only the carrier public Cordis export and return
     loadProfiles: async () => ({
       startCordisChannelProviderHost: async (options) => {
         calls.push({ operation: "attach", callback: options.callback });
-        return { dispose: async () => { calls.push({ operation: "dispose" }); } };
+        return {
+          appStatePatch: () => ({ ui_contributions: { entries: [] } }),
+          readChannelAccess: async (input) => ({ input }),
+          executeChannelAccessAction: async (input) => ({ input }),
+          dispose: async () => { calls.push({ operation: "dispose" }); }
+        };
       }
     })
   });
   const registration = await registrar(callback);
   assert.deepEqual(calls, [{ operation: "attach", callback }]);
+  assert.deepEqual(registration.appStatePatch(), { ui_contributions: { entries: [] } });
+  assert.deepEqual(await registration.readChannelAccess({ ref: "state" }), { input: { ref: "state" } });
+  assert.deepEqual(
+    await registration.executeChannelAccessAction({ ref: "connect" }),
+    { input: { ref: "connect" } }
+  );
   await registration.dispose();
   assert.deepEqual(calls, [
     { operation: "attach", callback },

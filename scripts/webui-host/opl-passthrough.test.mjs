@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compactFastState, createOplPassthrough } from "./opl-passthrough.mjs";
+import {
+  compactFastState,
+  createOplPassthrough,
+  mergeChannelProviderState
+} from "./opl-passthrough.mjs";
 
 test("App state timeout keeps the interactive default and admits a bounded cold-start override", () => {
   assert.doesNotThrow(() => createOplPassthrough({ readStateTimeoutMs: undefined }));
@@ -23,15 +27,74 @@ test("channel callbacks stay dormant unless an optional provider registrar is co
 
   let received;
   let disposeCount = 0;
-  const configured = await createOplPassthrough({
+  const hostCalls = [];
+  const hostPatch = {
+    ui_contributions: {
+      surface_kind: "opl_app_ui_contributions_projection.v1",
+      contribution_count: 1,
+      entries: [{
+        contribution_key: "opl-channel-weixin:weixin-channel-access",
+        package_id: "opl-channel-weixin",
+        action_boundary: "opl.connect.channel-provider-host",
+        view: { view_type: "channel_access", data_ref: "weixin.channel-access#state" },
+        commands: [{ action_ref: "weixin.channel-access#connect" }]
+      }]
+    }
+  };
+  const passthrough = createOplPassthrough({
     channelCallbackRegistrar: async (value) => {
       received = value;
-      return { dispose: () => { disposeCount += 1; } };
+      return {
+        appStatePatch: () => hostPatch,
+        readChannelAccess: async (request) => {
+          hostCalls.push(["read", request]);
+          return { opl_app_contribution: { response: { result: { connection: { state: "connected" } } } } };
+        },
+        executeChannelAccessAction: async (request) => {
+          hostCalls.push(["execute", request]);
+          return { opl_app_contribution: { response: { result: { connection: { state: "connecting" } } } } };
+        },
+        dispose: () => { disposeCount += 1; }
+      };
     }
-  }).registerChannelCallbackAdapter(adapter);
+  });
+  const configured = await passthrough.registerChannelCallbackAdapter(adapter);
   assert.equal(received, adapter);
   assert.equal(configured.status, "registered");
   assert.equal(configured.registered, true);
+  const readback = await passthrough.readContribution({
+    packageId: "opl-channel-weixin",
+    ref: "weixin.channel-access#state",
+    input: { channel_id: "weixin" }
+  });
+  assert.equal(readback.command, "opl.connect.channel-provider-host");
+  const receipt = await passthrough.executeAction({
+    actionId: "package_contribution_execute",
+    dryRun: false,
+    payload: {
+      package_id: "opl-channel-weixin",
+      ref: "weixin.channel-access#connect",
+      input: { channel_id: "weixin" },
+      confirmed: false
+    }
+  });
+  assert.equal(receipt.status, "executed");
+  assert.deepEqual(hostCalls.map(([operation]) => operation), ["read", "execute"]);
+  const merged = mergeChannelProviderState({
+    app_state: {
+      ui_contributions: {
+        entries: [
+          { package_id: "legacy", view: { view_type: "channel_access" } },
+          { package_id: "opl-fleet-agent", view: { view_type: "list_detail" } }
+        ]
+      }
+    }
+  }, { appStatePatch: () => hostPatch });
+  assert.deepEqual(
+    merged.app_state.ui_contributions.entries.map((entry) => entry.package_id),
+    ["opl-fleet-agent", "opl-channel-weixin"]
+  );
+  await configured.dispose();
   await configured.dispose();
   assert.equal(disposeCount, 1);
 
@@ -43,6 +106,15 @@ test("channel callbacks stay dormant unless an optional provider registrar is co
     () => createOplPassthrough({ channelCallbackRegistrar: "enabled" }),
     /registrar must be a function/
   );
+  let invalidDisposeCount = 0;
+  await assert.rejects(
+    createOplPassthrough({
+      channelCallbackRegistrar: async () => ({ dispose() { invalidDisposeCount += 1; } })
+    })
+      .registerChannelCallbackAdapter(adapter),
+    /Host is missing appStatePatch/
+  );
+  assert.equal(invalidDisposeCount, 1);
 });
 
 test("candidate blocks confirmed mutations unless the launcher explicitly enables actions", async () => {

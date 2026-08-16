@@ -84,11 +84,17 @@ export function createFrameworkChannelCallbackRegistrar({
       });
     }
     const host = await profiles.startCordisChannelProviderHost({ callback });
-    if (!host || typeof host.dispose !== "function") {
-      throw Object.assign(new Error("Framework channel-provider bootstrap returned no disposable Host"), {
+    for (const method of ["appStatePatch", "readChannelAccess", "executeChannelAccessAction", "dispose"]) {
+      if (typeof host?.[method] === "function") continue;
+      throw Object.assign(new Error(`Framework channel-provider bootstrap returned no ${method} method`), {
         code: "framework_bootstrap_invalid"
       });
     }
-    return Object.freeze({ dispose: () => host.dispose() });
+    return Object.freeze({
+      appStatePatch: () => host.appStatePatch(),
+      readChannelAccess: (input) => host.readChannelAccess(input),
+      executeChannelAccessAction: (input) => host.executeChannelAccessAction(input),
+      dispose: () => host.dispose()
+    });
   };
 }
