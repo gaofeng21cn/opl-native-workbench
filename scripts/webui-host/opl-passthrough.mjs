@@ -495,10 +495,7 @@ function validateChannelCallbackAdapter(adapter) {
   if (!adapter || typeof adapter !== "object" || Array.isArray(adapter)) {
     throw Object.assign(new Error("channel callback adapter must be an object"), { code: "invalid_request" });
   }
-  if (adapter.schema !== "opl_channel_canonical_thread_callbacks.v1") {
-    throw Object.assign(new Error("unsupported channel callback adapter schema"), { code: "invalid_request" });
-  }
-  for (const method of ["startThread", "resumeThread", "startTurn", "subscribeTerminal"]) {
+  for (const method of ["startThread", "resumeThread", "startTurn", "subscribeTurn"]) {
     if (typeof adapter[method] !== "function") {
       throw Object.assign(new Error(`channel callback adapter is missing ${method}`), { code: "invalid_request" });
     }

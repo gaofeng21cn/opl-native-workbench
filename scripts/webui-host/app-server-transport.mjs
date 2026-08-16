@@ -367,7 +367,6 @@ export class CodexAppServerTransport extends EventEmitter {
   createChannelCallbackAdapter() {
     const transport = this;
     return Object.freeze({
-      schema: CHANNEL_CALLBACK_SCHEMA,
       startThread: async (request = {}) => {
         const value = requiredChannelObject(request, "startThread request");
         const response = await transport.startThread({
@@ -424,23 +423,23 @@ export class CodexAppServerTransport extends EventEmitter {
         }
         return { threadId, turnId: turnId.trim() };
       },
-      subscribeTerminal(request = {}, listener) {
-        const value = requiredChannelObject(request, "subscribeTerminal request");
+      subscribeTurn(request = {}, observer) {
+        const value = requiredChannelObject(request, "subscribeTurn request");
         const threadId = requiredChannelString(value.threadId, "threadId");
         const turnId = requiredChannelString(value.turnId, "turnId");
-        if (typeof listener !== "function") {
-          throw new AppServerTransportError("invalid_request", "subscribeTerminal listener must be a function");
+        if (!observer || typeof observer !== "object" || typeof observer.onTerminal !== "function") {
+          throw new AppServerTransportError("invalid_request", "subscribeTurn observer requires onTerminal");
         }
-        return transport.subscribeTurnTerminal({ threadId, turnId }, listener);
+        return transport.subscribeChannelTurn({ threadId, turnId }, observer);
       }
     });
   }
 
-  subscribeTurnTerminal({ threadId, turnId }, listener) {
+  subscribeChannelTurn({ threadId, turnId }, observer) {
     const normalizedThreadId = requiredChannelString(threadId, "threadId");
     const normalizedTurnId = requiredChannelString(turnId, "turnId");
-    if (typeof listener !== "function") {
-      throw new AppServerTransportError("invalid_request", "terminal listener must be a function");
+    if (!observer || typeof observer !== "object" || typeof observer.onTerminal !== "function") {
+      throw new AppServerTransportError("invalid_request", "channel turn observer requires onTerminal");
     }
 
     let settled = false;
@@ -452,12 +451,15 @@ export class CodexAppServerTransport extends EventEmitter {
       if (eventThreadId && eventThreadId !== normalizedThreadId) return;
       settled = true;
       this.off("event", onEvent);
-      listener({
+      const event = {
         schema: CHANNEL_TERMINAL_SCHEMA,
         threadId: normalizedThreadId,
         turnId: normalizedTurnId,
         status: notification?.turn?.status ?? notification?.status ?? "completed",
         finalMessage: result?.finalMessage ?? ""
+      };
+      void Promise.resolve(observer.onTerminal(event)).catch(() => {
+        // Provider callback errors must not change the canonical turn result.
       });
     };
     const onEvent = (event) => {
@@ -471,11 +473,13 @@ export class CodexAppServerTransport extends EventEmitter {
 
     this.on("event", onEvent);
     if (this.turnResult(normalizedTurnId)?.completed) queueMicrotask(terminal);
-    return () => {
-      if (settled) return;
-      settled = true;
-      this.off("event", onEvent);
-    };
+    return Object.freeze({
+      dispose: () => {
+        if (settled) return;
+        settled = true;
+        this.off("event", onEvent);
+      }
+    });
   }
 
   async steerTurn(threadId, expectedTurnId, prompt, inputs = []) {

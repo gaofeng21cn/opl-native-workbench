@@ -10,11 +10,10 @@ test("App state timeout keeps the interactive default and admits a bounded cold-
 
 test("channel callbacks stay dormant unless an optional provider registrar is configured", async () => {
   const adapter = {
-    schema: "opl_channel_canonical_thread_callbacks.v1",
     startThread: async () => {},
     resumeThread: async () => {},
     startTurn: async () => {},
-    subscribeTerminal: () => () => {}
+    subscribeTurn: () => ({ dispose() {} })
   };
   const dormant = createOplPassthrough().registerChannelCallbackAdapter(adapter);
   assert.deepEqual(
@@ -37,8 +36,8 @@ test("channel callbacks stay dormant unless an optional provider registrar is co
   assert.equal(disposeCount, 1);
 
   assert.throws(
-    () => createOplPassthrough().registerChannelCallbackAdapter({ ...adapter, subscribeTerminal: undefined }),
-    /missing subscribeTerminal/
+    () => createOplPassthrough().registerChannelCallbackAdapter({ ...adapter, subscribeTurn: undefined }),
+    /missing subscribeTurn/
   );
   assert.throws(
     () => createOplPassthrough({ channelCallbackRegistrar: "enabled" }),

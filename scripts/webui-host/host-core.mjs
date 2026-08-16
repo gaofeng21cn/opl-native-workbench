@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { CodexAppServerTransport } from "./app-server-transport.mjs";
+import { CHANNEL_CALLBACK_SCHEMA, CodexAppServerTransport } from "./app-server-transport.mjs";
 import { createGatewayAccountLogin } from "./gateway-account-login.mjs";
 import { createNativeAppUpdaterFromEnvironment } from "./native-app-updater.mjs";
 import { createOplPassthrough } from "./opl-passthrough.mjs";
@@ -148,7 +148,7 @@ export class OplHostCore extends EventEmitter {
         available: true,
         authorityBoundary: "app_bridge_no_domain_authority",
         channelCallback: {
-          schema: this.channelCallbackAdapter?.schema ?? null,
+          schema: this.channelCallbackAdapter ? CHANNEL_CALLBACK_SCHEMA : null,
           status: this.channelCallbackRegistration?.status ?? "dormant",
           registered: this.channelCallbackRegistration?.registered === true
         }

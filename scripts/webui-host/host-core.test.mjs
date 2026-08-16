@@ -52,7 +52,11 @@ test("optional channel provider receives canonical App Server callbacks without 
     registered: true
   });
   assert.deepEqual(
-    [callbacks.startThread, callbacks.resumeThread, callbacks.startTurn, callbacks.subscribeTerminal].map((value) => typeof value),
+    Object.keys(callbacks).sort(),
+    ["resumeThread", "startThread", "startTurn", "subscribeTurn"]
+  );
+  assert.deepEqual(
+    [callbacks.startThread, callbacks.resumeThread, callbacks.startTurn, callbacks.subscribeTurn].map((value) => typeof value),
     ["function", "function", "function", "function"]
   );
 
@@ -64,8 +68,9 @@ test("optional channel provider receives canonical App Server callbacks without 
     cwd: directory,
     prompt: "Reply through the canonical channel callback."
   });
+  let subscription;
   const terminal = await new Promise((resolve) => {
-    callbacks.subscribeTerminal(turn, resolve);
+    subscription = callbacks.subscribeTurn(turn, { onTerminal: resolve });
   });
   assert.deepEqual(terminal, {
     schema: "opl_channel_codex_turn_terminal.v1",
@@ -74,6 +79,8 @@ test("optional channel provider receives canonical App Server callbacks without 
     status: "completed",
     finalMessage: `completed ${turn.turnId}`
   });
+  assert.equal(typeof subscription.dispose, "function");
+  subscription.dispose();
 
   await assert.rejects(
     callbacks.startThread({ cwd: "relative/workspace" }),
