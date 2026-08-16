@@ -31,6 +31,9 @@ test("macOS arm64 Desktop has an independent manual release qualification", asyn
   assert.deepEqual(Object.keys(workflow.jobs), ["macos-arm64-desktop"]);
   const job = workflow.jobs["macos-arm64-desktop"];
   assert.equal(job["runs-on"], "macos-15");
+  assert.equal(job.env.OPL_APP_REPO_ROOT, "${{ github.workspace }}/app-product");
+  assert.match(JSON.stringify(job), /candidateContractEvidence\.json/);
+  assert.match(JSON.stringify(job), /gaofeng21cn\/one-person-lab-app/);
   assert.match(JSON.stringify(job), /electron-builder --mac --arm64/);
   assert.match(JSON.stringify(job), /smoke:desktop-live/);
 });
