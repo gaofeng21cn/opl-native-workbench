@@ -34,7 +34,7 @@ script is the command owner.
 | `npm run test:client-cordis` | Studio Client Cordis policy, typed event/slot lifecycle, and exact contribution action request |
 | `npm run validate:client-conformance` | Fresh four-repository Host -> App -> Studio/AionUI compatibility and wire-ref readback |
 | `npm run validate:candidate` | Required source markers and false-ready guards |
-| `npm run validate:state-model` | App-state projection mapping |
+| `npm run validate:state-model` | Runtime-backed App-state projection mapping; requires a real `opl` CLI/state source and is not part of default PR/main source CI |
 | `npm run smoke:webui` | Local WebUI host/renderer smoke |
 | `npm run smoke:visual` | Source-level visual smoke |
 | `npm run package` | Current-platform Electron directory package construction |
@@ -106,10 +106,28 @@ output is candidate evidence only. It does not establish an installer flow,
 clean-VM behavior, shared Runtime parity, native screen-reader behavior,
 active-shell adoption, or release readiness.
 
-## Hosted Windows And Linux Candidate Qualification
+## Daily Source Validation
 
-`.github/workflows/non-release-validation.yml` builds and checks exact-head
-unsigned candidates on GitHub-hosted Windows x64 and Linux x64 runners:
+`.github/workflows/non-release-validation.yml` is the default PR/main gate. It
+runs source, type, contract, and unit validation only. It does not build a
+Desktop package, install a service, start Electron, or construct a Docker image.
+It also does not call the runtime-backed `validate:state-model` command or
+require an installed OPL Framework CLI.
+
+## macOS Desktop Release Qualification
+
+`.github/workflows/macos-desktop-release-qualification.yml` is a manual release
+qualification for the primary macOS arm64 Desktop carrier. It constructs the
+unsigned arm64 DMG/ZIP, validates the package and disk image, checks the exact
+executable architecture, launches the packaged app, reads its interaction tree,
+and proves child-process cleanup. Release signing, notarization, publication,
+and public feed readback remain separate App-owned release gates.
+
+## Additional Carrier Qualification
+
+`.github/workflows/additional-carrier-qualification.yml` runs manually. It
+builds and checks exact-head unsigned candidates on
+GitHub-hosted Windows x64 and Linux x64 runners:
 
 - Windows requires two unsigned unpacked/NSIS/ZIP cohorts under the same fixed
   product identity, then proves base install, newer-version update, old-version
@@ -175,9 +193,10 @@ The first smoke builds an isolated candidate tag, starts it with isolated `/data
 `/projects` volumes, verifies HTTP health and readiness, UID 1000 and Node PID 1,
 then stops and removes its container, volumes, and image. The lifecycle smoke
 adds install, update, recreate, rollback, preserving uninstall, reinstall, and
-destructive cleanup with immutable local image IDs. The hosted non-release job
-also constructs a runner-local `linux/amd64` + `linux/arm64` OCI layout with
-SBOM/provenance attestations and runs the lifecycle on each architecture. None
+destructive cleanup with immutable local image IDs. The hosted non-release
+matrix constructs runner-local `linux/amd64` and `linux/arm64` OCI layouts with
+SBOM/provenance attestations on matching native GitHub-hosted runners, then runs
+the lifecycle on each architecture. None
 of these paths proves registry publication, digest/cohort authority, clean-host
 installation, remote access safety, or release readiness.
 

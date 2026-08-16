@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-const workflowPath = path.join(repositoryRoot, ".github", "workflows", "non-release-validation.yml");
+const workflowPath = path.join(repositoryRoot, ".github", "workflows", "additional-carrier-qualification.yml");
 
 function named(steps, name) {
   const step = steps.find((candidate) => candidate.name === name);
