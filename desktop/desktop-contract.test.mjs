@@ -45,9 +45,9 @@ test("Electron owns the App carrier log directory exposed in diagnostics", () =>
   assert.match(preload, /setLogDirectory: \(request\) => invoke\("setLogDirectory", request\)/);
   assert.match(logDirectoryOwner, /desktop_client_system_info: \{ logDir \}/);
   assert.match(logDirectoryOwner, /electronApp\.setAppLogsPath\(nextLogDir\)/);
-  assert.match(settingsPanel, /App 载体日志/);
+  assert.match(settingsPanel, /const appLogDirectory = carrierDiagnostics\.application\?\.systemInfo\.logDir/);
+  assert.match(settingsPanel, /detail=\{appLogDirectoryDetail\}/);
   assert.match(settingsPanel, /carrierDiagnostics\.setLogDirectorySupported/);
-  assert.match(settingsPanel, /更改目录/);
-  assert.match(settingsPanel, /Framework 运行时日志/);
-  assert.doesNotMatch(settingsPanel, /label=\{settings\.locale === "zh" \? "日志" : "Logs"\}/);
+  assert.match(settingsPanel, /onClick=\{onChangeLogDirectory\}/);
+  assert.match(settingsPanel, /projection\?\.localEnvironment\.logsDir/);
 });
