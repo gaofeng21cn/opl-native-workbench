@@ -85,6 +85,7 @@ test("installer binds the installed runtime, fixed updater argv, and fresh host/
   assert.equal(options.serviceEnvironment.CODEX_HOME, "/Users/opl/.codex");
   assert.equal(options.serviceEnvironment.OPL_APP_OPL_BIN, "/Users/opl/framework/bin/opl");
   assert.equal(options.serviceEnvironment.OPL_APP_REPO_ROOT, "/Users/opl/app-product");
+  assert.equal(options.serviceEnvironment.OPL_APP_STATE_TIMEOUT_MS, "20000");
   assert.equal(options.serviceEnvironment.OPL_CODEX_BIN, "/Users/opl/.local/bin/codex");
   assert.deepEqual(JSON.parse(options.serviceEnvironment.OPL_NATIVE_APP_UPDATE_CHECK_ARGS_JSON), [
     updater,

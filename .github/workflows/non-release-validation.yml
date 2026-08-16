@@ -528,7 +528,7 @@ jobs:
           npm run --silent headless:install -- \
             --install-root "$OPL_HEADLESS_INSTALL_ROOT" \
             --workspace "$OPL_HEADLESS_WORKSPACE_ROOT" \
-            --readback-timeout-ms 30000 \
+            --readback-timeout-ms 120000 \
             | tee "$RUNNER_TEMP/opl-headless-install.json"
           node --input-type=module <<'NODE'
           import fs from "node:fs";
@@ -562,6 +562,7 @@ jobs:
           test "$(plutil -extract ProgramArguments.1 raw "$plist")" = "$OPL_HEADLESS_INSTALL_ROOT/current/scripts/headless/run.mjs"
           test "$(plutil -extract EnvironmentVariables.OPL_APP_OPL_BIN raw "$plist")" = "$OPL_APP_OPL_BIN"
           test "$(plutil -extract EnvironmentVariables.OPL_APP_REPO_ROOT raw "$plist")" = "$OPL_APP_REPO_ROOT"
+          test "$(plutil -extract EnvironmentVariables.OPL_APP_STATE_TIMEOUT_MS raw "$plist")" = "120000"
           test "$(plutil -extract EnvironmentVariables.OPL_CODEX_BIN raw "$plist")" = "$OPL_CODEX_BIN"
           test "$(plutil -extract EnvironmentVariables.CODEX_HOME raw "$plist")" = "$CODEX_HOME"
 

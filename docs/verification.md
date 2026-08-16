@@ -156,7 +156,9 @@ invokes the public `headless:install` and `headless:status` commands. Passing
 evidence requires a ready Codex App Server, successful Framework App-state
 command, `opl_app_state.v1`, a LaunchAgent whose program and runtime inputs
 point at the installed exact cohort, and an `always()` uninstall that leaves no
-loaded service, plist, or install root.
+loaded service, plist, or install root. The hosted clean runner gives the cold
+Framework source CLI one bounded two-minute owner-state read window; the normal
+interactive state-read default remains 30 seconds.
 This does not qualify a Linux user-service installation, headless update or
 rollback, remote binding, a public installer, signing, release, or production.
 

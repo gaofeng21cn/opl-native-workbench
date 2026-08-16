@@ -123,6 +123,7 @@ export function createHeadlessInstaller({
       CODEX_HOME: optionalAbsolutePath(env.CODEX_HOME, "CODEX_HOME"),
       OPL_APP_OPL_BIN: optionalAbsolutePath(env.OPL_APP_OPL_BIN, "OPL_APP_OPL_BIN"),
       OPL_APP_REPO_ROOT: optionalAbsolutePath(env.OPL_APP_REPO_ROOT, "OPL_APP_REPO_ROOT"),
+      OPL_APP_STATE_TIMEOUT_MS: String(timeoutMs),
       OPL_CODEX_BIN: optionalAbsolutePath(env.OPL_CODEX_BIN, "OPL_CODEX_BIN"),
       OPL_HEADLESS_HOST: address,
       OPL_HEADLESS_PORT: String(port),

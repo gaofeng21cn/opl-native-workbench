@@ -2,6 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compactFastState, createOplPassthrough } from "./opl-passthrough.mjs";
 
+test("App state timeout keeps the interactive default and admits a bounded cold-start override", () => {
+  assert.doesNotThrow(() => createOplPassthrough({ readStateTimeoutMs: undefined }));
+  assert.doesNotThrow(() => createOplPassthrough({ readStateTimeoutMs: 120_000 }));
+  assert.throws(() => createOplPassthrough({ readStateTimeoutMs: 120_001 }), /100 through 120000/);
+});
+
 test("candidate blocks confirmed mutations unless the launcher explicitly enables actions", async () => {
   const blocked = createOplPassthrough({
     cwd: process.cwd(),

@@ -55,6 +55,7 @@ test("hosted macOS qualification installs pinned runtime inputs and reads owner 
   assert.match(codex.run, /OPL_CODEX_BIN=/);
 
   assert.match(install.run, /headless:install/);
+  assert.match(install.run, /--readback-timeout-ms 120000/);
   assert.match(install.run, /ready\?\.status !== "ready"/);
   assert.match(install.run, /appServerAvailable !== true/);
   assert.match(install.run, /surfaceKind !== "opl_app_state\.v1"/);
@@ -63,6 +64,7 @@ test("hosted macOS qualification installs pinned runtime inputs and reads owner 
   assert.match(binding.run, /ProgramArguments\.1/);
   assert.match(binding.run, /current\/scripts\/headless\/run\.mjs/);
   assert.match(binding.run, /EnvironmentVariables\.OPL_APP_OPL_BIN/);
+  assert.match(binding.run, /EnvironmentVariables\.OPL_APP_STATE_TIMEOUT_MS/);
 });
 
 test("hosted macOS qualification always removes service definition and installed payload", async () => {

@@ -1,5 +1,13 @@
 import { spawn } from "node:child_process";
 
+function boundedTimeout(value, fallback) {
+  const normalized = value === undefined || value === "" ? fallback : Number(value);
+  if (!Number.isInteger(normalized) || normalized < 100 || normalized > 120_000) {
+    throw new Error("readStateTimeoutMs must be an integer from 100 through 120000");
+  }
+  return normalized;
+}
+
 function run(command, args, { cwd, timeoutMs }) {
   return new Promise((resolve) => {
     const child = spawn(command, args, { cwd, env: process.env, stdio: ["ignore", "pipe", "pipe"] });
@@ -488,14 +496,16 @@ export { compactFastState };
 export function createOplPassthrough({
   cwd = process.cwd(),
   command = process.env.OPL_APP_OPL_BIN ?? process.env.OPL_COMMAND ?? "opl",
+  readStateTimeoutMs = process.env.OPL_APP_STATE_TIMEOUT_MS,
   allowActions = process.env.OPL_NATIVE_WORKBENCH_READ_ONLY === "0"
     || process.env.OPL_STUDIO_READ_ONLY === "0"
 } = {}) {
+  const stateTimeoutMs = boundedTimeout(readStateTimeoutMs, 30_000);
   return {
     async readState(profile = "fast") {
       const normalizedProfile = profile === "full" ? "full" : "fast";
       const args = [command, "app", "state", "--profile", normalizedProfile, "--json"];
-      const result = await run(command, args.slice(1), { cwd, timeoutMs: 30_000 });
+      const result = await run(command, args.slice(1), { cwd, timeoutMs: stateTimeoutMs });
       const parsed = jsonValue(result.stdout);
       return {
         profile: normalizedProfile,
