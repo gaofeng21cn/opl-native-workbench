@@ -66,11 +66,17 @@ test("optional channel provider receives canonical App Server callbacks without 
   });
   assert.deepEqual(
     Object.keys(callbacks).sort(),
-    ["resumeThread", "startThread", "startTurn", "subscribeTurn"]
+    ["readTransportBindings", "resumeThread", "startThread", "startTurn", "subscribeTurn"]
   );
   assert.deepEqual(
-    [callbacks.startThread, callbacks.resumeThread, callbacks.startTurn, callbacks.subscribeTurn].map((value) => typeof value),
-    ["function", "function", "function", "function"]
+    [
+      callbacks.readTransportBindings,
+      callbacks.startThread,
+      callbacks.resumeThread,
+      callbacks.startTurn,
+      callbacks.subscribeTurn
+    ].map((value) => typeof value),
+    ["function", "function", "function", "function", "function"]
   );
 
   const started = await callbacks.startThread({
@@ -160,6 +166,10 @@ test("channel binding restart recovers the exact thread and rejects unknown or m
   };
   const recovered = await restarted.createChannelCallbackAdapter().startThread(identity);
   assert.deepEqual(recovered, created);
+  assert.deepEqual(await restarted.createChannelCallbackAdapter().readTransportBindings(), [{
+    ...identity,
+    ...created
+  }]);
   assert.deepEqual(calls, [
     "start:first",
     "read:first:thread-exact",
@@ -200,6 +210,23 @@ test("channel binding restart recovers the exact thread and rejects unknown or m
   await assert.rejects(
     otherHost.createChannelCallbackAdapter().startThread(identity),
     (error) => error.code === "invalid_app_server_response" && /different canonical thread/.test(error.message)
+  );
+
+  await writeFile(bindingFile, "{broken", "utf8");
+  await assert.rejects(
+    restarted.createChannelCallbackAdapter().readTransportBindings(),
+    (error) => error.code === "channel_binding_state_invalid"
+  );
+  await writeFile(bindingFile, JSON.stringify({
+    schema: "opl_studio_channel_transport_bindings.v1",
+    entries: [
+      { ...identity, ...created },
+      { ...identity, canonical_thread_host: "host-exact", canonical_thread_id: "thread-other" }
+    ]
+  }), "utf8");
+  await assert.rejects(
+    restarted.createChannelCallbackAdapter().readTransportBindings(),
+    (error) => error.code === "channel_binding_state_invalid"
   );
 });
 

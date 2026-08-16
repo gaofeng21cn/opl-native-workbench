@@ -414,6 +414,7 @@ export class CodexAppServerTransport extends EventEmitter {
       !bindingStore
       || typeof bindingStore.getOrCreate !== "function"
       || typeof bindingStore.assertKnownThread !== "function"
+      || typeof bindingStore.readBindings !== "function"
     ) {
       throw new AppServerTransportError(
         "channel_binding_store_unavailable",
@@ -421,6 +422,7 @@ export class CodexAppServerTransport extends EventEmitter {
       );
     }
     return Object.freeze({
+      readTransportBindings: () => bindingStore.readBindings(),
       startThread: async (request = {}) => {
         const value = requiredChannelObject(request, "startThread request");
         const channelIdentity = {

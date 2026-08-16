@@ -140,6 +140,13 @@ export class ChannelBindingStore {
     });
   }
 
+  async readBindings() {
+    return this.#serialize(async () => {
+      const document = await this.#read();
+      return Object.freeze(document.entries.map((entry) => Object.freeze({ ...entry })));
+    });
+  }
+
   #serialize(operation) {
     const result = this.operation.then(operation, operation);
     this.operation = result.then(() => undefined, () => undefined);
