@@ -3,6 +3,15 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const multiArchPlatforms = Object.freeze(["linux/amd64", "linux/arm64"]);
 
+function selectedPlatforms(platform) {
+  if (platform === undefined) return multiArchPlatforms;
+  const selected = required(platform, "platform");
+  if (!multiArchPlatforms.includes(selected)) {
+    throw new Error(`platform must be one of: ${multiArchPlatforms.join(", ")}`);
+  }
+  return Object.freeze([selected]);
+}
+
 function required(value, name) {
   if (typeof value !== "string" || !value || /[\0\r\n]/.test(value)) {
     throw new Error(`${name} must be a non-empty single-line value`);
@@ -18,17 +27,18 @@ function exactRevision(value, name) {
   return revision;
 }
 
-export function createMultiArchBuildPlan({ image, sourceRevision, frameworkRef, appRef, output }) {
+export function createMultiArchBuildPlan({ image, sourceRevision, frameworkRef, appRef, output, platform }) {
   const imageRef = required(image, "image");
   const revision = exactRevision(sourceRevision, "sourceRevision");
   const frameworkRevision = exactRevision(frameworkRef, "frameworkRef");
   const appRevision = exactRevision(appRef, "appRef");
   const destination = path.resolve(required(output, "output"));
+  const platforms = selectedPlatforms(platform);
   if (/:latest$/.test(imageRef)) throw new Error("image must not use the latest tag");
   return {
     schema: "one_person_lab_oci_multi_arch_build_plan.v1",
     status: "plan_only",
-    platforms: multiArchPlatforms,
+    platforms,
     image: imageRef,
     sourceRevision: revision,
     externalCohort: {
@@ -38,7 +48,7 @@ export function createMultiArchBuildPlan({ image, sourceRevision, frameworkRef, 
     output: destination,
     command: [
       "docker", "buildx", "build",
-      "--platform", multiArchPlatforms.join(","),
+      "--platform", platforms.join(","),
       "--provenance=mode=max",
       "--sbom=true",
       "--output", `type=oci,dest=${destination}`,
@@ -69,6 +79,7 @@ function parse(argv) {
     else if (flag === "--framework-ref") options.frameworkRef = value;
     else if (flag === "--app-ref") options.appRef = value;
     else if (flag === "--output") options.output = value;
+    else if (flag === "--platform") options.platform = value;
     else throw new Error(`Unknown option: ${flag}`);
   }
   return options;

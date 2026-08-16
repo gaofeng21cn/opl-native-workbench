@@ -243,6 +243,17 @@ test("multi-arch build contract is plan-only and requests SBOM plus provenance",
   assert.ok(plan.command.includes(`OPL_APP_REF=${"c".repeat(40)}`));
   assert.equal(plan.evidenceBoundary.executesBuild, false);
   assert.equal(plan.evidenceBoundary.hostedArchitectureQualified, false);
+  const nativeArmPlan = createMultiArchBuildPlan({
+    image: "ghcr.io/example/one-person-lab:v26.8.15-arm64",
+    sourceRevision: "a".repeat(40),
+    frameworkRef: "b".repeat(40),
+    appRef: "c".repeat(40),
+    output: "./out/one-person-lab-arm64.oci.tar",
+    platform: "linux/arm64"
+  });
+  assert.deepEqual(nativeArmPlan.platforms, ["linux/arm64"]);
+  assert.ok(nativeArmPlan.command.includes("linux/arm64"));
+  assert.ok(!nativeArmPlan.command.includes("linux/amd64,linux/arm64"));
   assert.throws(() => createMultiArchBuildPlan({
     image: "ghcr.io/example/one-person-lab:latest",
     sourceRevision: "a".repeat(40),
@@ -257,4 +268,12 @@ test("multi-arch build contract is plan-only and requests SBOM plus provenance",
     appRef: "c".repeat(40),
     output: "./out/image.tar"
   }), /frameworkRef/);
+  assert.throws(() => createMultiArchBuildPlan({
+    image: "ghcr.io/example/one-person-lab:v26.8.15",
+    sourceRevision: "a".repeat(40),
+    frameworkRef: "b".repeat(40),
+    appRef: "c".repeat(40),
+    output: "./out/image.tar",
+    platform: "linux/s390x"
+  }), /platform/);
 });

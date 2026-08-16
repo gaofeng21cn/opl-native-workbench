@@ -86,7 +86,7 @@ test("native accessibility qualification fails closed on invalid inputs and prob
 
 test("hosted installed lifecycle exercises native platform trees without disabling the sandbox", async () => {
   const workflowSource = await readFile(
-    path.join(repositoryRoot, ".github", "workflows", "non-release-validation.yml"),
+    path.join(repositoryRoot, ".github", "workflows", "additional-carrier-qualification.yml"),
     "utf8"
   );
   const smokeSource = await readFile(
