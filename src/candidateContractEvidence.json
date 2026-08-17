@@ -1027,6 +1027,19 @@
       "webui",
       "pet"
     ],
+    "heading_policy": "the sidebar shows the primary group once; the current destination owns the only page heading; sibling destinations use one compact navigation control without repeating the active label",
+    "gateway_access_state_policy": {
+      "owner_field": "app_state.settings_control_center.app_settings_read_model.opl_gateway_account.connection_mode",
+      "states": [
+        "none",
+        "manual_key",
+        "account"
+      ],
+      "none": "show the OPL Gateway and API Key setup choices without an account detail skeleton",
+      "manual_key": "show the configured API Key summary and an explicit change-access action; never show Gateway balance, usage, or device rows",
+      "account": "show the projected Gateway identity, balance, usage, device, freshness, and owner actions; hide credential inputs until the user explicitly chooses to change access",
+      "unknown_or_error": "show a neutral loading or unavailable state and preserve any valid public last-known-good account projection; never infer disconnected state"
+    },
     "persistence_model": {
       "file": "src/workbench/settingsModel.ts",
       "storage_key": "opl.studio.settings.v1",

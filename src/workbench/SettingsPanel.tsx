@@ -30,6 +30,7 @@ import type {
   ManagedUpdateProjection,
   PackageLifecycleActionRef,
   RuntimeMaintenanceActionRef,
+  WorkbenchGatewayAccount,
   WorkbenchModel,
   WorkbenchSettingsProjection
 } from "./workbenchModel";
@@ -508,6 +509,24 @@ export function gatewayAccountInitials(name: string | undefined): string {
 }
 
 export type GatewayModelAccessState = "current" | "different" | "unknown";
+
+export type GatewayConnectionPresentation = "loading" | "error" | "none" | "manual_key" | "account";
+
+export function gatewayConnectionPresentation(
+  projection: Pick<WorkbenchSettingsProjection, "gatewayConnectionMode"> | undefined,
+  gateway: WorkbenchGatewayAccount | undefined,
+  stateStatus: "loading" | "ready" | "error"
+): GatewayConnectionPresentation {
+  if (stateStatus === "loading" && !projection) return "loading";
+  if (stateStatus === "error" && !projection && !gateway) return "error";
+  if (projection) {
+    if (projection.gatewayConnectionMode === "account") return "account";
+    if (projection.gatewayConnectionMode === "manual_key") return "manual_key";
+    return "none";
+  }
+  if (gateway) return "account";
+  return "none";
+}
 
 export function gatewayModelAccessState(projection: WorkbenchSettingsProjection | undefined): GatewayModelAccessState {
   const provider = projection?.codex.providerName?.trim().toLocaleLowerCase();
@@ -1446,6 +1465,7 @@ export function SettingsPanel({
   const [gatewayPassword, setGatewayPassword] = useState("");
   const [gatewayDeviceLabel, setGatewayDeviceLabel] = useState("");
   const [accessSetupMode, setAccessSetupMode] = useState<"account" | "api_key">("account");
+  const [editingAccess, setEditingAccess] = useState(false);
   const [codexApiKey, setCodexApiKey] = useState("");
   const confirmationDialogRef = useRef<HTMLElement | null>(null);
   const confirmationCancelRef = useRef<HTMLButtonElement | null>(null);
@@ -1459,16 +1479,16 @@ export function SettingsPanel({
   const statePlaceholder = stateLoading
     ? (settings.locale === "zh" ? "正在读取" : "Loading")
     : "--";
-  const missingGatewayLabel = stateLoading
-    ? (settings.locale === "zh" ? "正在读取账户" : "Loading account")
+  const gatewayUnavailableLabel = stateLoading
+    ? (settings.locale === "zh" ? "正在读取" : "Reading")
     : stateFailed
-      ? (settings.locale === "zh" ? "账户状态不可用" : "Account status unavailable")
-      : (settings.locale === "zh" ? "未连接" : "Not connected");
-  const missingGatewayDetail = stateLoading
-    ? (settings.locale === "zh" ? "正在读取账户状态" : "Reading account status")
+      ? (settings.locale === "zh" ? "暂时不可用" : "Temporarily unavailable")
+      : (settings.locale === "zh" ? "尚未配置" : "Not configured");
+  const gatewayUnavailableDetail = stateLoading
+    ? (settings.locale === "zh" ? "正在读取 OPL App 状态" : "Reading OPL App state")
     : stateFailed
-      ? (settings.locale === "zh" ? "请刷新状态后重试" : "Refresh state to retry")
-      : (settings.locale === "zh" ? "连接账户后可同步用量与访问状态" : "Connect an account to sync usage and access status");
+      ? (settings.locale === "zh" ? "刷新状态后重试" : "Refresh state to retry")
+      : (settings.locale === "zh" ? "可在“账户与访问”中配置" : "Configure it in Account & Access");
   const readbackStatus = stateLoading ? "loading" : stateFailed ? "attention_needed" : "ready";
   const setupFlow = initialization?.systemInitialize.setupFlow;
   const initializationPresentationStatus = initializationStatus === "loading"
@@ -1487,6 +1507,10 @@ export function SettingsPanel({
       : (settings.locale === "zh" ? "本次启动未取得自检结果，应用继续可用" : "No startup-check result was returned; the app remains usable");
   const gatewayAction = (kind: GatewayActionViewModel["kind"]) => actionViewModel.gatewayActions.find((action) => action.kind === kind);
   const modelAccessState = gatewayModelAccessState(projection);
+  const gatewayConnectionState = gatewayConnectionPresentation(projection, gateway, stateStatus);
+  const gatewayAccountReady = gatewayConnectionState === "account"
+    && gateway !== undefined
+    && !["setup_required", "reauth_required"].includes(gateway.status);
 
   useEffect(() => {
     if (selectedDestination === "capabilities" && capabilityStatus === "idle") onRefreshCapabilities();
@@ -1573,13 +1597,19 @@ export function SettingsPanel({
       return (
         <>
           <SettingsGroup title={settings.locale === "zh" ? "账户" : "Account"}>
-            <SettingRow label={settings.locale === "zh" ? "One Person Lab 账户" : "One Person Lab account"}>
-              <span className="settings-inline-identity">
-                <span className="settings-avatar" aria-hidden="true">{gatewayAccountInitials(gateway?.displayName)}</span>
-                <span><strong data-testid="opl-settings-gateway-username">{gateway?.displayName ?? missingGatewayLabel}</strong><small>{gateway?.email ?? missingGatewayDetail}</small></span>
-              </span>
+            <SettingRow label={settings.locale === "zh" ? "模型访问" : "Model access"}>
+              {gateway ? (
+                <span className="settings-inline-identity">
+                  <span className="settings-avatar" aria-hidden="true">{gatewayAccountInitials(gateway.displayName)}</span>
+                  <span><strong data-testid="opl-settings-gateway-username">{gateway.displayName}</strong><small>{gateway.email ?? "OPL Gateway"}</small></span>
+                </span>
+              ) : (
+                <span className="settings-inline-identity" data-testid="opl-settings-gateway-unavailable">
+                  <span><strong>{gatewayUnavailableLabel}</strong><small>{gatewayUnavailableDetail}</small></span>
+                </span>
+              )}
             </SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "连接状态" : "Connection status"}><StatusValue status={gateway?.status ?? (stateLoading ? "loading" : stateFailed ? "attention_needed" : undefined)} locale={settings.locale} /></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "连接状态" : "Connection status"}><StatusValue status={gateway?.status ?? (stateLoading ? "loading" : stateFailed ? "attention_needed" : "not_configured")} locale={settings.locale} /></SettingRow>
           </SettingsGroup>
           <SettingsGroup title={settings.locale === "zh" ? "当前运行状态" : "Current status"}>
             <SettingRow label={settings.locale === "zh" ? "本机助手" : "Local assistant"} detail={projection?.codex.version ? `${settings.locale === "zh" ? "版本" : "Version"} ${projection.codex.version}` : undefined}>
@@ -1613,8 +1643,21 @@ export function SettingsPanel({
         && action.kind !== "disconnect"
         && action.kind !== "use_for_model_access"
       ));
-      const gatewayLoginVisible = Boolean(onGatewayLogin) && (!gateway || gateway.status === "reauth_required" || gateway.status === "setup_required");
-      const accessSetupVisible = gatewayLoginVisible || setupCapabilities.modelAccessSecretInput;
+      const gatewayLoginVisible = Boolean(onGatewayLogin)
+        && (gatewayConnectionState === "none" || gatewayConnectionState === "account" || gatewayConnectionState === "manual_key")
+        && (!gatewayAccountReady || editingAccess)
+        && accessSetupMode === "account";
+      const apiKeySetupVisible = setupCapabilities.modelAccessSecretInput
+        && (gatewayConnectionState === "none" || editingAccess)
+        && accessSetupMode === "api_key";
+      const showAccessChoice = gatewayConnectionState === "none"
+        || (gatewayConnectionState === "account" && !gatewayAccountReady)
+        || editingAccess;
+      const showAccountDetails = gatewayAccountReady && !editingAccess;
+      const showManualKeySummary = gatewayConnectionState === "manual_key" && !editingAccess;
+      const accessModeLabel = gatewayConnectionState === "manual_key"
+        ? (settings.locale === "zh" ? "API Key" : "API Key")
+        : (settings.locale === "zh" ? "OPL Gateway 账户" : "OPL Gateway account");
       return (
         <>
           {projection?.codex.installed === false && setupCapabilities.codexInstall ? (
@@ -1627,15 +1670,14 @@ export function SettingsPanel({
               </SettingRow>
             </SettingsGroup>
           ) : null}
-          {accessSetupVisible ? (
+          {showAccessChoice ? (
             <SettingsGroup title={settings.locale === "zh" ? "模型访问设置" : "Model access setup"}>
               <div className="settings-access-setup">
                 <div className="segmented-control" role="group" aria-label={settings.locale === "zh" ? "模型访问方式" : "Model access method"}>
                   <button type="button" data-active={accessSetupMode === "account"} onClick={() => setAccessSetupMode("account")}>{settings.locale === "zh" ? "OPL Gateway 账户" : "OPL Gateway account"}</button>
                   <button type="button" data-active={accessSetupMode === "api_key"} onClick={() => setAccessSetupMode("api_key")}>API Key</button>
                 </div>
-                {accessSetupMode === "account" ? (
-                  gatewayLoginVisible ? (
+                {accessSetupMode === "account" && gatewayLoginVisible ? (
                     <form
                       className="gateway-login-form"
                       data-testid="opl-settings-gateway-login"
@@ -1652,6 +1694,7 @@ export function SettingsPanel({
                           if (ok) {
                             setGatewayEmail("");
                             setGatewayDeviceLabel("");
+                            setEditingAccess(false);
                           }
                         });
                       }}
@@ -1673,10 +1716,7 @@ export function SettingsPanel({
                         {settings.locale === "zh" ? "登录" : "Sign in"}
                       </button>
                     </form>
-                  ) : (
-                    <p className="settings-access-note">{settings.locale === "zh" ? "OPL Gateway 账户已连接；下方可确认是否作为本机默认模型来源。" : "The OPL Gateway account is connected; confirm the default model source below."}</p>
-                  )
-                ) : (
+                ) : accessSetupMode === "api_key" && apiKeySetupVisible ? (
                   <form
                     className="settings-api-key-form"
                     data-testid="opl-settings-codex-api-key"
@@ -1685,7 +1725,9 @@ export function SettingsPanel({
                       const apiKey = codexApiKey.trim();
                       if (!apiKey) return;
                       setCodexApiKey("");
-                      void onConfigureCodexApiKey(apiKey);
+                      void onConfigureCodexApiKey(apiKey).then((ok) => {
+                        if (ok) setEditingAccess(false);
+                      });
                     }}
                   >
                     <label>
@@ -1698,28 +1740,34 @@ export function SettingsPanel({
                     </button>
                     <small>{settings.locale === "zh" ? "密钥仅通过专用通道交给凭据所有者，Studio 不保存或回显。" : "The key goes directly to the credential owner; Studio neither stores nor echoes it."}</small>
                   </form>
+                ) : (
+                  <p className="settings-access-note" data-testid="opl-settings-access-unavailable">
+                    {settings.locale === "zh" ? "当前没有可用的凭据配置入口。" : "No credential setup path is available right now."}
+                  </p>
                 )}
               </div>
             </SettingsGroup>
           ) : null}
-          <div className="gateway-identity">
-            <span className="settings-avatar large" aria-hidden="true">{gatewayAccountInitials(gateway?.displayName)}</span>
-            <span>
-              <strong data-testid="opl-settings-gateway-username">{gateway?.displayName ?? missingGatewayLabel}</strong>
-              <small>{gateway?.email ?? missingGatewayDetail}</small>
-            </span>
-            <span className="runtime-setting-control">
-              <StatusValue status={gateway?.status ?? (stateLoading ? "loading" : stateFailed ? "attention_needed" : undefined)} locale={settings.locale} />
-              <SettingsIntentButton intent={disconnectAction} locale={settings.locale} busyKey={actionBusyKey} onAction={onAction} />
-            </span>
-          </div>
-          <SettingsGroup title={settings.locale === "zh" ? "账户" : "Account"}>
-            <SettingRow label={settings.locale === "zh" ? "账户状态" : "Account status"}><StatusValue status={gateway?.accountStatus ?? gateway?.status} locale={settings.locale} /></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "余额" : "Balance"}><strong>{formatAmount(gateway?.balance?.amount, gateway?.balance?.currency, locale)}</strong></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "今日用量" : "Usage today"}><span>{formatNumber(gateway?.usage?.todayTokens, locale, true)} {settings.locale === "zh" ? "令牌" : "tokens"} · {formatAmount(gateway?.usage?.todayCost, gateway?.usage?.currency, locale)}</span></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "累计用量" : "Total usage"}><span>{formatNumber(gateway?.usage?.totalTokens, locale, true)} {settings.locale === "zh" ? "令牌" : "tokens"} · {formatAmount(gateway?.usage?.totalCost, gateway?.usage?.currency, locale)}</span></SettingRow>
-          </SettingsGroup>
-          <SettingsGroup title={settings.locale === "zh" ? "此设备" : "This device"}>
+          {showAccountDetails ? (
+            <>
+              <div className="gateway-identity">
+                <span className="settings-avatar large" aria-hidden="true">{gatewayAccountInitials(gateway.displayName)}</span>
+                <span>
+                  <strong data-testid="opl-settings-gateway-username">{gateway.displayName}</strong>
+                  <small>{gateway.email ?? "OPL Gateway"}</small>
+                </span>
+                <span className="runtime-setting-control">
+                  <StatusValue status={gateway.status} locale={settings.locale} />
+                  <SettingsIntentButton intent={disconnectAction} locale={settings.locale} busyKey={actionBusyKey} onAction={onAction} />
+                </span>
+              </div>
+              <SettingsGroup title={settings.locale === "zh" ? "账户" : "Account"}>
+                <SettingRow label={settings.locale === "zh" ? "账户状态" : "Account status"}><StatusValue status={gateway.accountStatus ?? gateway.status} locale={settings.locale} /></SettingRow>
+                <SettingRow label={settings.locale === "zh" ? "余额" : "Balance"}><strong>{formatAmount(gateway.balance?.amount, gateway.balance?.currency, locale)}</strong></SettingRow>
+                <SettingRow label={settings.locale === "zh" ? "今日用量" : "Usage today"}><span>{formatNumber(gateway.usage?.todayTokens, locale, true)} {settings.locale === "zh" ? "令牌" : "tokens"} · {formatAmount(gateway.usage?.todayCost, gateway.usage?.currency, locale)}</span></SettingRow>
+                <SettingRow label={settings.locale === "zh" ? "累计用量" : "Total usage"}><span>{formatNumber(gateway.usage?.totalTokens, locale, true)} {settings.locale === "zh" ? "令牌" : "tokens"} · {formatAmount(gateway.usage?.totalCost, gateway.usage?.currency, locale)}</span></SettingRow>
+              </SettingsGroup>
+              <SettingsGroup title={settings.locale === "zh" ? "此设备" : "This device"}>
             <SettingRow
               label={settings.locale === "zh" ? "本机默认模型来源" : "Default model source on this device"}
               detail={modelAccessState === "unknown"
@@ -1756,7 +1804,36 @@ export function SettingsPanel({
                 </span>
               </SettingRow>
             ) : null}
-          </SettingsGroup>
+              </SettingsGroup>
+            </>
+          ) : showManualKeySummary ? (
+            <SettingsGroup title={settings.locale === "zh" ? "模型访问设置" : "Model access setup"}>
+              <SettingRow label={settings.locale === "zh" ? "当前方式" : "Current method"} detail={settings.locale === "zh" ? "密钥由凭据所有者管理，Studio 不保存或回显。" : "The credential owner manages the key; Studio does not store or echo it."}>
+                <span className="runtime-setting-control" data-testid="opl-settings-api-key-state">
+                  <span className="settings-status" data-tone="ready"><span aria-hidden="true" />{accessModeLabel}</span>
+                  <button className="settings-action-button" type="button" onClick={() => { setAccessSetupMode("api_key"); setEditingAccess(true); }}>
+                    <Save aria-hidden="true" size={13} />
+                    {settings.locale === "zh" ? "更换" : "Change"}
+                  </button>
+                </span>
+              </SettingRow>
+            </SettingsGroup>
+          ) : (
+            gatewayConnectionState === "loading" || gatewayConnectionState === "error" ? (
+              <div className="settings-inline-notice" data-testid="opl-settings-gateway-empty">
+                <AlertCircle aria-hidden="true" size={15} />
+                <span>{gatewayConnectionState === "loading" ? gatewayUnavailableLabel : gatewayUnavailableDetail}</span>
+              </div>
+            ) : null
+          )}
+          {(showAccountDetails || showManualKeySummary) ? (
+            <div className="settings-access-change" data-testid="opl-settings-access-change">
+              <button className="settings-action-button" type="button" onClick={() => { setAccessSetupMode("account"); setEditingAccess(true); }}>
+                <RotateCcw aria-hidden="true" size={13} />
+                {settings.locale === "zh" ? "更换访问方式" : "Change access method"}
+              </button>
+            </div>
+          ) : null}
           {!refreshAction ? <button className="settings-icon-button settings-page-refresh" type="button" aria-label={settings.locale === "zh" ? "刷新状态" : "Refresh status"} title={settings.locale === "zh" ? "刷新状态" : "Refresh status"} onClick={onRefresh}><RefreshCw aria-hidden="true" size={14} /></button> : null}
         </>
       );
@@ -2114,22 +2191,22 @@ export function SettingsPanel({
     <section data-testid="opl-settings-panel" className="settings-page" aria-label={settings.locale === "zh" ? "设置" : "Settings"}>
       <div className="settings-detail">
         <header className="settings-detail-header">
-          <h1>{activeGroup?.label ?? copy[selectedDestination]}</h1>
-          {activeGroup && activeGroup.destinations.length > 1 ? (
-            <nav className="settings-subnav" aria-label={settings.locale === "zh" ? `${activeGroup.label}分类` : `${activeGroup.label} sections`}>
-              {activeGroup.destinations.map((destination) => (
-                <button
-                  key={destination.id}
-                  type="button"
-                  data-active={destination.id === selectedDestination}
-                  aria-current={destination.id === selectedDestination ? "page" : undefined}
-                  onClick={() => setSubDestination(destination.id)}
-                >
-                  {destination.label}
-                </button>
-              ))}
-            </nav>
-          ) : null}
+          <div className="settings-detail-title-row">
+            <h1>{copy[selectedDestination]}</h1>
+            {activeGroup && activeGroup.destinations.length > 1 ? (
+              <nav className="settings-subnav" aria-label={settings.locale === "zh" ? `${activeGroup.label}分类` : `${activeGroup.label} sections`}>
+                {activeGroup.destinations.filter((destination) => destination.id !== selectedDestination).map((destination) => (
+                  <button
+                    key={destination.id}
+                    type="button"
+                    onClick={() => setSubDestination(destination.id)}
+                  >
+                    {destination.label}
+                  </button>
+                ))}
+              </nav>
+            ) : null}
+          </div>
         </header>
         <div className="settings-content" data-section={selectedDestination}>
           {actionFeedback && feedbackDestinationRef.current === selectedDestination ? (

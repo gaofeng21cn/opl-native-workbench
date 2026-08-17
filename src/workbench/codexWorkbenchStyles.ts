@@ -1524,12 +1524,19 @@ export const codexWorkbenchStyles = `
     line-height: 1.3;
   }
 
+  .settings-detail-title-row {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+  }
+
   .settings-subnav {
     display: flex;
-    gap: 18px;
-    margin-top: 17px;
-    overflow-x: auto;
-    border-bottom: 1px solid var(--opl-border);
+    flex: 0 0 auto;
+    gap: 4px;
+    margin: 0;
     scrollbar-width: none;
   }
 
@@ -1538,33 +1545,19 @@ export const codexWorkbenchStyles = `
   }
 
   .settings-subnav button {
-    position: relative;
     flex: none;
-    min-height: 32px;
-    padding: 0 1px 8px;
-    border: 0;
-    background: transparent;
+    min-height: 28px;
+    padding: 0 9px;
+    border: 1px solid var(--opl-border);
+    border-radius: 7px;
+    background: var(--opl-canvas);
     color: var(--opl-muted);
-    font-size: 12px;
+    font-size: 11px;
   }
 
-  .settings-subnav button::after {
-    content: "";
-    position: absolute;
-    right: 0;
-    bottom: -1px;
-    left: 0;
-    height: 2px;
-    background: transparent;
-  }
-
-  .settings-subnav button:hover,
-  .settings-subnav button[data-active="true"] {
+  .settings-subnav button:hover {
+    background: color-mix(in srgb, var(--opl-text) 5%, var(--opl-canvas));
     color: var(--opl-text);
-  }
-
-  .settings-subnav button[data-active="true"]::after {
-    background: var(--opl-text);
   }
 
   .settings-subnav button:focus-visible {
@@ -2017,6 +2010,12 @@ export const codexWorkbenchStyles = `
     border-top: 1px solid var(--opl-border);
     border-bottom: 1px solid var(--opl-border);
     color: var(--opl-muted);
+  }
+
+  .settings-access-change {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 18px;
   }
 
   .settings-capability-group {
@@ -4322,8 +4321,13 @@ export const codexWorkbenchStyles = `
     }
 
     .settings-subnav {
-      gap: 15px;
-      margin-top: 14px;
+      gap: 4px;
+    }
+
+    .settings-detail-title-row {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 10px;
     }
 
     .settings-row {

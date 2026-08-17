@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 Object.assign(globalThis, {
@@ -16,6 +17,7 @@ Object.assign(globalThis, {
 });
 
 const presentation = await import("../../src/workbench/SettingsPanel.tsx");
+const settingsSource = readFileSync(new URL("../../src/workbench/SettingsPanel.tsx", import.meta.url), "utf8");
 
 test("settings navigation exposes primary categories with related destinations grouped inside", () => {
   assert.deepEqual(
@@ -143,4 +145,42 @@ test("Gateway model access action is needed only when a different source is know
   assert.equal(presentation.gatewayModelAccessState(projection(undefined, "gateway_account")), "current");
   assert.equal(presentation.gatewayModelAccessState(projection("Other provider", "api_key")), "different");
   assert.equal(presentation.gatewayModelAccessState(projection()), "unknown");
+});
+
+test("Gateway access presentation keeps none, API Key, and account states mutually exclusive", () => {
+  const projection = (gatewayConnectionMode: "none" | "manual_key" | "account") => ({ gatewayConnectionMode }) as never;
+  assert.equal(presentation.gatewayConnectionPresentation(undefined, undefined, "loading"), "loading");
+  assert.equal(presentation.gatewayConnectionPresentation(undefined, undefined, "error"), "error");
+  assert.equal(presentation.gatewayConnectionPresentation(projection("none"), undefined, "ready"), "none");
+  assert.equal(presentation.gatewayConnectionPresentation(projection("manual_key"), undefined, "ready"), "manual_key");
+  assert.equal(presentation.gatewayConnectionPresentation(projection("account"), undefined, "ready"), "account");
+  assert.equal(presentation.gatewayConnectionPresentation(undefined, {
+    displayName: "高峰",
+    status: "connected",
+    sourceRef: "test"
+  } as never, "ready"), "account");
+  assert.equal(presentation.gatewayConnectionPresentation(projection("none"), {
+    displayName: "stale account",
+    status: "connected",
+    sourceRef: "test"
+  } as never, "ready"), "none");
+});
+
+test("settings uses the selected destination as the single page heading", () => {
+  assert.match(settingsSource, /<h1>\{copy\[selectedDestination\]\}<\/h1>/);
+  assert.doesNotMatch(settingsSource, /<h1>\{activeGroup\?\.label \?\? copy\[selectedDestination\]\}<\/h1>/);
+  assert.match(settingsSource, /activeGroup\.destinations\.filter\(\(destination\) => destination\.id !== selectedDestination\)/);
+  assert.doesNotMatch(settingsSource, /aria-current=\{destination\.id === selectedDestination \? "page" : undefined\}/);
+});
+
+test("Gateway account identity and usage render only from a real account projection", () => {
+  assert.doesNotMatch(settingsSource, /missingGateway(Label|Detail)/);
+  assert.match(settingsSource, /\{showAccountDetails \? \(\s*<>\s*<div className="gateway-identity">/s);
+  assert.match(settingsSource, /data-testid="opl-settings-gateway-empty"/);
+  assert.match(settingsSource, /<SettingRow label=\{settings\.locale === "zh" \? "余额" : "Balance"\}>/);
+  assert.match(settingsSource, /showAccountDetails = gatewayAccountReady && !editingAccess/);
+  assert.match(settingsSource, /showManualKeySummary = gatewayConnectionState === "manual_key" && !editingAccess/);
+  assert.match(settingsSource, /gatewayConnectionState === "manual_key"\)/);
+  assert.match(settingsSource, /data-testid="opl-settings-access-unavailable"/);
+  assert.doesNotMatch(settingsSource, /gatewayLoginVisible = Boolean\(onGatewayLogin\) && \(!gateway/);
 });
