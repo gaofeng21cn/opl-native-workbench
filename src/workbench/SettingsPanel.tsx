@@ -9,14 +9,12 @@ import {
   Download,
   FolderOpen,
   LoaderCircle,
-  PackageOpen,
   Play,
   RefreshCw,
   RotateCcw,
   Save,
   Search,
   Trash2,
-  Workflow,
   Wrench
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
@@ -401,6 +399,7 @@ export function formatStatus(status: string | undefined, locale: WorkbenchSettin
     verification_deferred: ["待确认", "Pending verification"],
     not_inventoried: ["尚未盘点", "Not inventoried"],
     awaiting_inventory: ["等待盘点", "Awaiting inventory"],
+    usage_not_measured: ["未统计", "Not measured"],
     usage_unavailable: ["用量不可用", "Usage unavailable"],
     not_configured: ["尚未配置", "Not configured"],
     unknown: ["待确认", "Not available"],
@@ -456,10 +455,12 @@ function formatDate(value: string | undefined, locale: string): string {
 
 type StorageProjection = WorkbenchSettingsProjection["storage"][keyof WorkbenchSettingsProjection["storage"]];
 
-function storagePresentationStatus(entry: StorageProjection | undefined): string | undefined {
+export function storagePresentationStatus(entry: StorageProjection | undefined): string | undefined {
   if (!entry) return undefined;
   if (entry.reasonCode === "inventory_cache_missing_or_invalid" && !entry.observedAt) return "not_inventoried";
-  if (entry.status === "unavailable" && entry.observedAt) return "usage_unavailable";
+  if (["inventory_cache_stale", "carrier_owned_storage_unmeasured"].includes(entry.reasonCode ?? "")) return "usage_not_measured";
+  if (entry.reasonCode === "webui_data_root_not_configured") return "not_configured";
+  if (entry.status === "unavailable" && entry.observedAt) return "usage_not_measured";
   return entry.status;
 }
 
@@ -467,20 +468,29 @@ function storageReason(entry: StorageProjection | undefined, locale: WorkbenchSe
   if (!entry) return locale === "zh" ? "尚未收到存储状态" : "Storage status has not been received";
   if (entry.reasonCode === "inventory_cache_missing_or_invalid") {
     return entry.observedAt
-      ? (locale === "zh" ? "上次盘点结果已不可用，现有数据不受影响" : "The previous inventory is unavailable; existing data is unaffected")
-      : (locale === "zh" ? "尚未完成首次用量盘点，现有数据不受影响" : "The first usage inventory has not completed; existing data is unaffected");
+      ? (locale === "zh" ? "暂无可确认的用量数据；现有数据不受影响" : "No confirmed usage data is available; existing data is unaffected")
+      : (locale === "zh" ? "尚未统计用量；现有数据不受影响" : "Usage has not been measured; existing data is unaffected");
+  }
+  if (entry.reasonCode === "inventory_cache_stale") {
+    return locale === "zh" ? "暂无可确认的最新用量；智能体仍可正常使用" : "No confirmed current usage is available; agents remain usable";
+  }
+  if (entry.reasonCode === "carrier_owned_storage_unmeasured") {
+    return locale === "zh" ? "当前只管理安装与移除，暂不统计磁盘用量" : "Installation and removal are managed here; disk usage is not currently measured";
+  }
+  if (entry.reasonCode === "webui_data_root_not_configured" || entry.status === "not_configured") {
+    return locale === "zh" ? "启用网页端后会在这里显示其数据用量" : "Usage appears here after the Web app is enabled";
   }
   if (entry.reasonCode) {
-    return locale === "zh" ? "当前无法读取用量，稍后刷新可重新检查" : "Usage cannot be read right now; refresh to check again";
+    return locale === "zh" ? "当前没有可确认的用量数据；其他功能不受影响" : "No confirmed usage data is available; other features are unaffected";
   }
   return entry.observedAt
     ? (locale === "zh" ? `盘点于 ${formatDate(entry.observedAt, "zh-CN")}` : `Inventoried ${formatDate(entry.observedAt, "en-US")}`)
-    : (locale === "zh" ? "等待用量盘点" : "Awaiting usage inventory");
+    : (locale === "zh" ? "尚未统计用量" : "Usage has not been measured");
 }
 
 function storageAmount(value: number | undefined, entry: StorageProjection | undefined, locale: string): string {
   return value === undefined
-    ? (locale.startsWith("zh") ? "等待盘点" : "Awaiting inventory")
+    ? (locale.startsWith("zh") ? "未统计" : "Not measured")
     : formatBytes(value, locale);
 }
 
@@ -573,6 +583,26 @@ function packageActionLabel(action: PackageLifecycleActionRef, locale: Workbench
   return labels[action.kind][locale === "zh" ? 0 : 1];
 }
 
+function booleanStateLabel(value: boolean | null, locale: WorkbenchSettings["locale"]): string {
+  if (value === null) return locale === "zh" ? "待确认" : "Not available";
+  return value
+    ? (locale === "zh" ? "是" : "Yes")
+    : (locale === "zh" ? "否" : "No");
+}
+
+export function agentPackagePresentationStatus(item: AgentPackageLifecycleRef): string {
+  if (item.installed === false) return "not_installed";
+  if (item.installed === null) return "checking";
+  if (item.activated === false) return "disabled";
+  if (item.readiness.callable === false || item.readiness.launchAllowed === false) return "unavailable";
+  if (item.activated === true && item.readiness.callable === true && item.readiness.launchAllowed === true) return "ready";
+  return "checking";
+}
+
+export function isAgentCatalogPackage(item: Pick<AgentPackageLifecycleRef, "packageRole">): boolean {
+  return item.packageRole === "standard_agent" || item.packageRole === "workflow_profile";
+}
+
 function PackageCatalog({
   model,
   settings,
@@ -586,37 +616,40 @@ function PackageCatalog({
 }) {
   const [scope, setScope] = useState<"official" | "all">("official");
   const [query, setQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const locale = settings.locale;
-  const packages = model.packageLifecycle.filter((item) => item.packageId !== "missing_bridge");
-  const roleOptions = [...new Set(packages.map((item) => item.packageRole))].sort();
-  const statusOptions = [...new Set(packages.map((item) => item.status))].sort();
+  const packages = model.packageLifecycle.filter((item) => item.packageId !== "missing_bridge" && isAgentCatalogPackage(item));
+  const statusOptions = [...new Set(packages.map(agentPackagePresentationStatus))].sort();
   const homeShortcutOrder = model.packageLifecycle.flatMap((item) => item.homeShortcuts.map((shortcut) => ({
     packageId: item.packageId,
     ...shortcut
   }))).sort((left, right) => left.sortOrder - right.sortOrder || left.shortcutId.localeCompare(right.shortcutId));
   const normalizedQuery = query.trim().toLowerCase();
-  const visible = packages.filter((item) => {
+  const scoped = packages.filter((item) => {
     if (scope === "official" && !item.official) return false;
-    if (roleFilter !== "all" && item.packageRole !== roleFilter) return false;
-    if (statusFilter !== "all" && item.status !== statusFilter) return false;
+    return true;
+  });
+  const visible = scoped.filter((item) => {
+    if (statusFilter !== "all" && agentPackagePresentationStatus(item) !== statusFilter) return false;
     return !normalizedQuery || item.searchMetadata.query.includes(normalizedQuery);
   });
+  const launchableCount = scoped.filter((item) => agentPackagePresentationStatus(item) === "ready").length;
   const groups = [
-    { key: "agent", label: locale === "zh" ? "领域智能体" : "Domain agents", icon: Bot },
-    { key: "workflow", label: locale === "zh" ? "工作流" : "Workflows", icon: Workflow },
-    { key: "supporting", label: locale === "zh" ? "能力支持" : "Capability support", icon: PackageOpen },
-    { key: "other", label: locale === "zh" ? "其他扩展" : "Other extensions", icon: Boxes }
-  ].map((group) => ({ ...group, items: visible.filter((item) => item.roleGroup === group.key) }))
+    { key: "standard_agent", label: locale === "zh" ? "标准智能体" : "Standard agents", icon: Bot },
+    { key: "workflow_profile", label: locale === "zh" ? "工作流" : "Workflows", icon: Boxes }
+  ].map((group) => ({ ...group, items: visible.filter((item) => item.packageRole === group.key) }))
     .filter((group) => group.items.length > 0);
 
   return (
     <div className="agent-catalog" data-testid="opl-settings-agent-catalog">
+      <div className="settings-page-summary">
+        <span>{locale === "zh" ? `${scoped.length} 个智能体与工作流` : `${scoped.length} agents and workflows`}</span>
+        <StatusValue status={`${launchableCount}/${scoped.length}`} locale={locale} />
+      </div>
       <div className="agent-catalog-toolbar">
         <label className="settings-search-field">
           <Search aria-hidden="true" size={14} />
-          <input aria-label={locale === "zh" ? "搜索智能体与能力" : "Search agents and capabilities"} value={query} onChange={(event) => setQuery(event.currentTarget.value)} placeholder={locale === "zh" ? "搜索智能体与能力" : "Search agents and capabilities"} />
+          <input aria-label={locale === "zh" ? "搜索智能体与工作流" : "Search agents and workflows"} value={query} onChange={(event) => setQuery(event.currentTarget.value)} placeholder={locale === "zh" ? "搜索智能体与工作流" : "Search agents and workflows"} />
         </label>
         <div className="segmented-control" aria-label={locale === "zh" ? "目录范围" : "Catalog scope"}>
           <button type="button" data-active={scope === "official"} onClick={() => setScope("official")}>{locale === "zh" ? "官方" : "Official"}</button>
@@ -624,10 +657,6 @@ function PackageCatalog({
         </div>
       </div>
       <div className="agent-catalog-filters">
-        <select value={roleFilter} onChange={(event) => setRoleFilter(event.currentTarget.value)} aria-label={locale === "zh" ? "按角色筛选" : "Filter by role"}>
-          <option value="all">{locale === "zh" ? "全部类型" : "All types"}</option>
-          {roleOptions.map((role) => <option key={role} value={role}>{packageRoleLabel(role, locale)}</option>)}
-        </select>
         <select value={statusFilter} onChange={(event) => setStatusFilter(event.currentTarget.value)} aria-label={locale === "zh" ? "按状态筛选" : "Filter by status"}>
           <option value="all">{locale === "zh" ? "全部状态" : "All statuses"}</option>
           {statusOptions.map((status) => <option key={status} value={status}>{formatStatus(status, locale)}</option>)}
@@ -643,7 +672,7 @@ function PackageCatalog({
               const preferenceAction = item.actions.find((action) => action.kind === "preferences" && action.status === "available");
               const primaryAction = executableActions.find((action) => action.actionId === item.recommendedActionId)
                 ?? (item.installed === false ? executableActions.find((action) => action.kind === "install") : undefined)
-                ?? (statusTone(item.status) === "attention" ? executableActions.find((action) => action.kind === "repair") : undefined);
+                ?? (statusTone(agentPackagePresentationStatus(item)) === "attention" ? executableActions.find((action) => action.kind === "repair") : undefined);
               return (
                 <details key={item.id} className="agent-package-row" data-testid="opl-settings-agent-row">
                   <summary>
@@ -656,7 +685,7 @@ function PackageCatalog({
                       </span>
                     </span>
                     <span className="agent-package-summary-actions">
-                      <StatusValue status={item.status} locale={locale} />
+                      <StatusValue status={agentPackagePresentationStatus(item)} locale={locale} />
                       {primaryAction ? (
                         <button
                           className="settings-action-button primary"
@@ -681,9 +710,12 @@ function PackageCatalog({
                     </span>
                   </summary>
                   <div className="agent-package-details">
-                    <dl>
-                      <div><dt>{locale === "zh" ? "使用状态" : "Usage"}</dt><dd>{item.installed === false ? (locale === "zh" ? "未安装" : "Not installed") : item.activated === true ? (locale === "zh" ? "已启用" : "Enabled") : item.installed === true ? (locale === "zh" ? "已安装" : "Installed") : (locale === "zh" ? "待确认" : "Not available")}</dd></div>
-                      <div><dt>{locale === "zh" ? "更新方式" : "Updates"}</dt><dd>{item.automaticUpdate === null ? (locale === "zh" ? "待确认" : "Not available") : item.automaticUpdate ? (locale === "zh" ? "自动" : "Automatic") : (locale === "zh" ? "手动" : "Manual")}</dd></div>
+                    <dl className="agent-state-axis-grid">
+                      <div><dt>{locale === "zh" ? "目录" : "Directory"}</dt><dd>{locale === "zh" ? "已发现" : "Discovered"}</dd></div>
+                      <div><dt>{locale === "zh" ? "安装" : "Installed"}</dt><dd>{booleanStateLabel(item.installed, locale)}</dd></div>
+                      <div><dt>{locale === "zh" ? "启用" : "Enabled"}</dt><dd>{booleanStateLabel(item.activated, locale)}</dd></div>
+                      <div><dt>{locale === "zh" ? "调用" : "Callable"}</dt><dd>{booleanStateLabel(item.readiness.callable, locale)}</dd></div>
+                      <div><dt>{locale === "zh" ? "启动" : "Launchable"}</dt><dd>{booleanStateLabel(item.readiness.launchAllowed, locale)}</dd></div>
                     </dl>
                     {item.homeShortcuts.length ? (
                       <div className="home-shortcut-preferences">
@@ -1390,7 +1422,6 @@ export function SettingsPanel({
   const derivedActionViewModel = useMemo(() => buildSettingsActionViewModel(model, managedUpdate), [managedUpdate, model]);
   const actionViewModel = projectedActionViewModel ?? derivedActionViewModel;
   const availableStarters = model.starters.filter((starter) => starter.available).length;
-  const officialPackageCount = model.packageLifecycle.filter((item) => item.official && item.packageId !== "missing_bridge").length;
   const unavailableFixedModel = settings.modelAccess !== "__auto" && !resolvedModel;
   const stateLoading = stateStatus === "loading";
   const stateFailed = stateStatus === "error";
@@ -1791,28 +1822,29 @@ export function SettingsPanel({
       const webuiStore = projection?.storage.webuiDataVolume;
       return (
         <>
-          <div className="settings-page-summary"><span>{settings.locale === "zh" ? "显示 App 返回的真实用量；未盘点时不会显示为 0" : "Shows real usage returned by the App; unknown inventory is never shown as zero"}</span></div>
-          <SettingsGroup title={settings.locale === "zh" ? "智能体与能力" : "Agents and capabilities"}>
-            <SettingRow label={settings.locale === "zh" ? "状态" : "Status"} detail={storageReason(agentStore, settings.locale)}>
+          <div className="settings-page-summary"><span>{settings.locale === "zh" ? "仅显示可确认的用量；未知不会显示为 0" : "Only confirmed usage is shown; unknown usage is never shown as zero"}</span></div>
+          <SettingsGroup title={settings.locale === "zh" ? "智能体数据" : "Agent data"}>
+            <SettingRow label={settings.locale === "zh" ? "用量统计" : "Usage"} detail={storageReason(agentStore, settings.locale)}>
               <span className="runtime-setting-control">
                 <StatusValue status={storagePresentationStatus(agentStore)} locale={settings.locale} />
                 <RuntimeActionButton action={agentStore?.inventoryAction} locale={settings.locale} busyKey={actionBusyKey} onAction={onAction} />
               </span>
             </SettingRow>
             <SettingRow label={settings.locale === "zh" ? "已用空间" : "Used space"}><span>{storageAmount(agentStore?.bytes, agentStore, locale)}</span></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "可回收" : "Reclaimable"} detail={settings.locale === "zh" ? "只有收到可验证的清理计划后才会显示" : "Shown only after a verifiable cleanup plan is available"}><span>{storageAmount(agentStore?.reclaimableBytes, agentStore, locale)}</span></SettingRow>
+            {agentStore?.projectedAction?.kind === "navigate" ? <SettingRow label={settings.locale === "zh" ? "管理位置" : "Manage in"}><span>{settings.locale === "zh" ? "智能体" : "Agents"}</span></SettingRow> : null}
+            {agentStore?.reclaimableBytes !== undefined ? <SettingRow label={settings.locale === "zh" ? "可清理" : "Reclaimable"}><span>{storageAmount(agentStore.reclaimableBytes, agentStore, locale)}</span></SettingRow> : null}
           </SettingsGroup>
           <SettingsGroup title={settings.locale === "zh" ? "网页端数据" : "Web app data"}>
-            <SettingRow label={settings.locale === "zh" ? "状态" : "Status"} detail={storageReason(webuiStore, settings.locale)}>
+            <SettingRow label={settings.locale === "zh" ? "使用状态" : "Usage status"} detail={storageReason(webuiStore, settings.locale)}>
               <span className="runtime-setting-control">
                 <StatusValue status={storagePresentationStatus(webuiStore)} locale={settings.locale} />
                 <RuntimeActionButton action={webuiStore?.inventoryAction} locale={settings.locale} busyKey={actionBusyKey} onAction={onAction} />
               </span>
             </SettingRow>
             <SettingRow label={settings.locale === "zh" ? "已用空间" : "Used space"}><span>{storageAmount(webuiStore?.bytes, webuiStore, locale)}</span></SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "可回收" : "Reclaimable"} detail={webuiStore?.projectedAction?.status === "host_action_required" ? (settings.locale === "zh" ? "当前运行方式尚未提供清理计划" : "This app mode does not currently provide a cleanup plan") : undefined}><span>{storageAmount(webuiStore?.reclaimableBytes, webuiStore, locale)}</span></SettingRow>
+            {webuiStore?.reclaimableBytes !== undefined ? <SettingRow label={settings.locale === "zh" ? "可清理" : "Reclaimable"}><span>{storageAmount(webuiStore.reclaimableBytes, webuiStore, locale)}</span></SettingRow> : null}
           </SettingsGroup>
-          {projection?.localEnvironment.stateDir || projection?.localEnvironment.runtimeSourcesRoot ? (
+          {settings.developerDetails && (projection?.localEnvironment.stateDir || projection?.localEnvironment.runtimeSourcesRoot) ? (
             <SettingsGroup title={settings.locale === "zh" ? "本机位置" : "Local locations"}>
               {projection.localEnvironment.stateDir ? <SettingRow label={settings.locale === "zh" ? "应用数据" : "App data"}><code>{projection.localEnvironment.stateDir}</code></SettingRow> : null}
               {projection.localEnvironment.runtimeSourcesRoot ? <SettingRow label={settings.locale === "zh" ? "运行环境" : "Runtime data"}><code>{projection.localEnvironment.runtimeSourcesRoot}</code></SettingRow> : null}
@@ -1824,15 +1856,7 @@ export function SettingsPanel({
 
     if (selectedDestination === "agents") {
       return (
-        <>
-          <div className="settings-page-summary">
-            <span>{settings.locale === "zh" ? `${officialPackageCount} 项官方内容` : `${officialPackageCount} official items`}</span>
-            {statusTone(projection?.statusSummary.agentPackageHealth) !== "neutral"
-              ? <StatusValue status={projection?.statusSummary.agentPackageHealth} locale={settings.locale} />
-              : null}
-          </div>
-          <PackageCatalog model={model} settings={settings} actionBusyKey={actionBusyKey} onAction={onAction} />
-        </>
+        <PackageCatalog model={model} settings={settings} actionBusyKey={actionBusyKey} onAction={onAction} />
       );
     }
 
@@ -2060,8 +2084,7 @@ export function SettingsPanel({
     <section data-testid="opl-settings-panel" className="settings-page" aria-label={settings.locale === "zh" ? "设置" : "Settings"}>
       <div className="settings-detail">
         <header className="settings-detail-header">
-          {activeGroup && activeGroup.label !== copy[selectedDestination] ? <span>{activeGroup.label}</span> : null}
-          <h1>{copy[selectedDestination]}</h1>
+          <h1>{activeGroup?.label ?? copy[selectedDestination]}</h1>
           {activeGroup && activeGroup.destinations.length > 1 ? (
             <nav className="settings-subnav" aria-label={settings.locale === "zh" ? `${activeGroup.label}分类` : `${activeGroup.label} sections`}>
               {activeGroup.destinations.map((destination) => (

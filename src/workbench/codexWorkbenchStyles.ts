@@ -1517,13 +1517,6 @@ export const codexWorkbenchStyles = `
     padding-bottom: 20px;
   }
 
-  .settings-detail-header > span {
-    display: block;
-    margin-bottom: 4px;
-    color: var(--opl-faint);
-    font-size: 11px;
-  }
-
   .settings-detail-header h1 {
     margin: 0;
     font-size: 20px;
@@ -2543,6 +2536,10 @@ export const codexWorkbenchStyles = `
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
     margin: 0;
+  }
+
+  .agent-package-details > .agent-state-axis-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .agent-package-details dl div,

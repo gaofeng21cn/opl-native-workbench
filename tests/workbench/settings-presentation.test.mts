@@ -77,6 +77,42 @@ test("internal status and package role identifiers are projected as user-facing 
   assert.notEqual(presentation.formatUpdateChannel("private_canary", "zh"), "private_canary");
 });
 
+test("standard Agent summary is derived from the same installed, enabled, callable, and launchable axes shown in the row", () => {
+  const agent = (overrides: Record<string, unknown> = {}) => ({
+    installed: true,
+    activated: true,
+    readiness: { callable: true, launchAllowed: true },
+    ...overrides
+  }) as never;
+
+  assert.equal(presentation.agentPackagePresentationStatus(agent()), "ready");
+  assert.equal(presentation.agentPackagePresentationStatus(agent({ installed: false })), "not_installed");
+  assert.equal(presentation.agentPackagePresentationStatus(agent({ activated: false })), "disabled");
+  assert.equal(presentation.agentPackagePresentationStatus(agent({ readiness: { callable: false, launchAllowed: true } })), "unavailable");
+  assert.equal(presentation.agentPackagePresentationStatus(agent({ readiness: { callable: true, launchAllowed: null } })), "checking");
+});
+
+test("agent catalog keeps agent and workflow packages together while excluding capability packages", () => {
+  assert.equal(presentation.isAgentCatalogPackage({ packageRole: "standard_agent" }), true);
+  assert.equal(presentation.isAgentCatalogPackage({ packageRole: "workflow_profile" }), true);
+  assert.equal(presentation.isAgentCatalogPackage({ packageRole: "capability_package" }), false);
+  assert.equal(presentation.isAgentCatalogPackage({ packageRole: "framework_capability_package" }), false);
+});
+
+test("storage absence is neutral and does not turn missing measurements into user action", () => {
+  assert.equal(presentation.storagePresentationStatus({
+    status: "attention_required",
+    reasonCode: "inventory_cache_stale",
+    observedAt: "2026-08-17T06:08:53.852Z"
+  } as never), "usage_not_measured");
+  assert.equal(presentation.storagePresentationStatus({
+    status: "not_configured",
+    reasonCode: "webui_data_root_not_configured"
+  } as never), "not_configured");
+  assert.equal(presentation.statusTone("usage_not_measured"), "neutral");
+  assert.equal(presentation.formatStatus("usage_not_measured", "zh"), "未统计");
+});
+
 test("Gateway model access action is needed only when a different source is known", () => {
   const projection = (providerName?: string, modelAccessSource?: string) => ({
     codex: { providerName, modelAccessSource }
