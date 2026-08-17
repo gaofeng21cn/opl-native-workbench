@@ -81,6 +81,7 @@ test("standard Agent summary is derived from the same installed, enabled, callab
   const agent = (overrides: Record<string, unknown> = {}) => ({
     installed: true,
     activated: true,
+    packageRole: "standard_agent",
     readiness: { callable: true, launchAllowed: true },
     homeShortcuts: [{ route: { kind: "codex_agent" } }],
     ...overrides
@@ -92,6 +93,7 @@ test("standard Agent summary is derived from the same installed, enabled, callab
   assert.equal(presentation.agentPackagePresentationStatus(agent({ readiness: { callable: false, launchAllowed: true } })), "unavailable");
   assert.equal(presentation.agentPackagePresentationStatus(agent({ readiness: { callable: true, launchAllowed: null } })), "checking");
   assert.equal(presentation.agentPackagePresentationStatus(agent({ homeShortcuts: [] })), "unavailable");
+  assert.equal(presentation.agentPackagePresentationStatus(agent({ packageRole: "workflow_profile", homeShortcuts: [] })), "ready");
 });
 
 test("agent catalog keeps agent and workflow packages together while excluding capability packages", () => {

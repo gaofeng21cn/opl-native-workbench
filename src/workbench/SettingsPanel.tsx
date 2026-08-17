@@ -602,7 +602,7 @@ export function agentPackagePresentationStatus(item: AgentPackageLifecycleRef): 
   if (item.activated === false) return "disabled";
   const launchable = item.readiness.launchAllowed === false
     ? false
-    : item.homeShortcuts.some((shortcut) => Boolean(shortcut.route))
+    : item.packageRole !== "standard_agent" || item.homeShortcuts.some((shortcut) => Boolean(shortcut.route))
       ? item.readiness.launchAllowed
       : false;
   if (item.readiness.callable === false || launchable === false) return "unavailable";
