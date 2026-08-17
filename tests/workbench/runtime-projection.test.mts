@@ -183,7 +183,7 @@ test("work-item runtime projection preserves user status semantics and unknown t
   assert.equal(model.workItemRuntime?.items[1]?.archived, true);
 });
 
-test("settings projection keeps WebUI action refs, storage inventory reasons, and instruction sources", () => {
+test("settings projection does not infer storage refresh from the global action catalog", () => {
   const model = deriveWorkbenchModelFromState({
     app_state: {
       actions: [{
@@ -263,12 +263,42 @@ test("settings projection keeps WebUI action refs, storage inventory reasons, an
   assert.equal(model.settingsProjection?.dockerWebui.actions[0]?.mutates, "none_read_only");
   assert.equal(model.settingsProjection?.storage.agentPackageStore.reasonCode, "inventory_cache_missing_or_invalid");
   assert.equal(model.settingsProjection?.storage.agentPackageStore.projectedAction?.route, "/settings/agents");
-  assert.equal(model.settingsProjection?.storage.agentPackageStore.inventoryAction?.actionId, "settings_inventory_agent_package_store");
-  assert.equal(model.settingsProjection?.storage.webuiDataVolume.inventoryAction?.actionId, "settings_inventory_webui_data_volume");
+  assert.equal(model.settingsProjection?.storage.agentPackageStore.inventoryAction, undefined);
+  assert.equal(model.settingsProjection?.storage.webuiDataVolume.inventoryAction, undefined);
   assert.equal(model.settingsProjection?.personalization.userAgents?.content, "User instructions");
   assert.equal(model.settingsProjection?.personalization.oplFlowDefaultUserAgents?.packageVersion, "0.1.0");
   assert.equal(model.settingsProjection?.codex.providerName, "OPL Gateway");
   assert.equal(model.settingsProjection?.codex.modelAccessSource, "codex_login");
+});
+
+test("settings projection exposes storage refresh only when the storage owner projects it", () => {
+  const model = deriveWorkbenchModelFromState({
+    app_state: {
+      actions: [{
+        action_id: "settings_inventory_agent_package_store",
+        label: "Refresh Agent Package storage inventory",
+        payload_fields: [],
+        mutates: "opl_storage_owner_inventory_snapshot_cache",
+        dry_run_supported: true,
+        confirmation_required: false
+      }],
+      settings_control_center: {
+        app_settings_read_model: {
+          storage_lifecycle: {
+            agent_package_store: {
+              status: "available",
+              inventory_action_id: "settings_inventory_agent_package_store"
+            }
+          }
+        }
+      }
+    }
+  });
+
+  assert.equal(
+    model.settingsProjection?.storage.agentPackageStore.inventoryAction?.actionId,
+    "settings_inventory_agent_package_store"
+  );
 });
 
 test("runtime projection hides bridge placeholders but keeps real active work", () => {

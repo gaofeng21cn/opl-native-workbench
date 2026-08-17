@@ -2293,12 +2293,10 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
   const agentPackageInventoryAction = projectedMaintenanceAction(
     asString(agentPackageStore?.inventory_action_id)
       ?? asString(asRecord(agentPackageStore?.projected_action)?.action_id)
-      ?? (actionRecords.has("settings_inventory_agent_package_store") ? "settings_inventory_agent_package_store" : undefined)
   );
   const webuiInventoryAction = projectedMaintenanceAction(
     asString(webuiDataVolume?.inventory_action_id)
       ?? asString(asRecord(webuiDataVolume?.projected_action)?.action_id)
-      ?? (actionRecords.has("settings_inventory_webui_data_volume") ? "settings_inventory_webui_data_volume" : undefined)
   );
   const codexPersonalization = asRecord(appState.codex_personalization);
   const userAgents = asRecord(codexPersonalization?.user_agents);
