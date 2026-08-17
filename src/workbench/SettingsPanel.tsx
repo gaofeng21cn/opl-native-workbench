@@ -400,6 +400,7 @@ export function formatStatus(status: string | undefined, locale: WorkbenchSettin
     not_inventoried: ["尚未盘点", "Not inventoried"],
     awaiting_inventory: ["等待盘点", "Awaiting inventory"],
     usage_not_measured: ["未统计", "Not measured"],
+    inventory_refresh_failed: ["统计失败", "Inventory failed"],
     usage_unavailable: ["用量不可用", "Usage unavailable"],
     not_configured: ["尚未配置", "Not configured"],
     unknown: ["待确认", "Not available"],
@@ -458,9 +459,11 @@ type StorageProjection = WorkbenchSettingsProjection["storage"][keyof WorkbenchS
 export function storagePresentationStatus(entry: StorageProjection | undefined): string | undefined {
   if (!entry) return undefined;
   if (entry.reasonCode === "inventory_cache_missing_or_invalid" && !entry.observedAt) return "not_inventoried";
+  if (entry.reasonCode === "inventory_cache_write_failed") return "inventory_refresh_failed";
   if (["inventory_cache_stale", "carrier_owned_storage_unmeasured"].includes(entry.reasonCode ?? "")) return "usage_not_measured";
   if (entry.reasonCode === "webui_data_root_not_configured") return "not_configured";
   if (entry.status === "unavailable" && entry.observedAt) return "usage_not_measured";
+  if (entry.status === "available" && entry.bytes === undefined) return "usage_not_measured";
   return entry.status;
 }
 
@@ -473,6 +476,9 @@ function storageReason(entry: StorageProjection | undefined, locale: WorkbenchSe
   }
   if (entry.reasonCode === "inventory_cache_stale") {
     return locale === "zh" ? "暂无可确认的最新用量；智能体仍可正常使用" : "No confirmed current usage is available; agents remain usable";
+  }
+  if (entry.reasonCode === "inventory_cache_write_failed") {
+    return locale === "zh" ? "无法保存最新用量统计；现有数据和其他功能不受影响" : "The latest usage snapshot could not be saved; existing data and other features are unaffected";
   }
   if (entry.reasonCode === "carrier_owned_storage_unmeasured") {
     return locale === "zh" ? "当前只管理安装与移除，暂不统计磁盘用量" : "Installation and removal are managed here; disk usage is not currently measured";
@@ -594,8 +600,13 @@ export function agentPackagePresentationStatus(item: AgentPackageLifecycleRef): 
   if (item.installed === false) return "not_installed";
   if (item.installed === null) return "checking";
   if (item.activated === false) return "disabled";
-  if (item.readiness.callable === false || item.readiness.launchAllowed === false) return "unavailable";
-  if (item.activated === true && item.readiness.callable === true && item.readiness.launchAllowed === true) return "ready";
+  const launchable = item.readiness.launchAllowed === false
+    ? false
+    : item.homeShortcuts.some((shortcut) => Boolean(shortcut.route))
+      ? item.readiness.launchAllowed
+      : false;
+  if (item.readiness.callable === false || launchable === false) return "unavailable";
+  if (item.activated === true && item.readiness.callable === true && launchable === true) return "ready";
   return "checking";
 }
 
@@ -904,7 +915,7 @@ function CapabilityDirectory({
       <div className="settings-capability-toolbar">
         <label className="settings-search-field">
           <Search aria-hidden="true" size={14} />
-          <input aria-label={locale === "zh" ? "搜索技能、插件和应用" : "Search skills, plugins, and apps"} value={query} onChange={(event) => setQuery(event.currentTarget.value)} placeholder={locale === "zh" ? "搜索技能、插件和应用" : "Search skills, plugins, and apps"} />
+          <input aria-label={locale === "zh" ? "搜索能力模块、技能、插件和应用" : "Search capability packages, skills, plugins, and apps"} value={query} onChange={(event) => setQuery(event.currentTarget.value)} placeholder={locale === "zh" ? "搜索能力模块、技能、插件和应用" : "Search capability packages, skills, plugins, and apps"} />
         </label>
         <button className="settings-icon-button" type="button" aria-label={refreshLabel} title={refreshLabel} disabled={status === "loading"} onClick={onRefresh}>
           {status === "loading" ? <LoaderCircle className="spin" aria-hidden="true" size={15} /> : <RefreshCw aria-hidden="true" size={15} />}

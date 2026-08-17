@@ -82,6 +82,7 @@ test("standard Agent summary is derived from the same installed, enabled, callab
     installed: true,
     activated: true,
     readiness: { callable: true, launchAllowed: true },
+    homeShortcuts: [{ route: { kind: "codex_agent" } }],
     ...overrides
   }) as never;
 
@@ -90,6 +91,7 @@ test("standard Agent summary is derived from the same installed, enabled, callab
   assert.equal(presentation.agentPackagePresentationStatus(agent({ activated: false })), "disabled");
   assert.equal(presentation.agentPackagePresentationStatus(agent({ readiness: { callable: false, launchAllowed: true } })), "unavailable");
   assert.equal(presentation.agentPackagePresentationStatus(agent({ readiness: { callable: true, launchAllowed: null } })), "checking");
+  assert.equal(presentation.agentPackagePresentationStatus(agent({ homeShortcuts: [] })), "unavailable");
 });
 
 test("agent catalog keeps agent and workflow packages together while excluding capability packages", () => {
@@ -120,6 +122,14 @@ test("storage absence is neutral and does not turn missing measurements into use
   } as never), "not_configured");
   assert.equal(presentation.statusTone("usage_not_measured"), "neutral");
   assert.equal(presentation.formatStatus("usage_not_measured", "zh"), "未统计");
+  assert.equal(presentation.storagePresentationStatus({
+    status: "available"
+  } as never), "usage_not_measured");
+  assert.equal(presentation.storagePresentationStatus({
+    status: "attention_required",
+    reasonCode: "inventory_cache_write_failed"
+  } as never), "inventory_refresh_failed");
+  assert.equal(presentation.formatStatus("inventory_refresh_failed", "zh"), "统计失败");
 });
 
 test("Gateway model access action is needed only when a different source is known", () => {
