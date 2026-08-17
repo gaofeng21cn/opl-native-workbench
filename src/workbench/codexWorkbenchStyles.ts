@@ -1714,8 +1714,8 @@ export const codexWorkbenchStyles = `
 
   .gateway-login-form {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
-    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+    gap: 12px;
     align-items: end;
     padding: 16px 24px;
     border-bottom: 1px solid var(--dsh-border-muted, rgba(127, 127, 127, 0.18));
@@ -1741,11 +1741,30 @@ export const codexWorkbenchStyles = `
     font: inherit;
   }
 
+  .gateway-login-form input:focus {
+    outline: 0;
+    border-color: color-mix(in srgb, var(--opl-text) 45%, var(--opl-border));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--opl-text) 8%, transparent);
+  }
+
+  .gateway-login-form .settings-action-button {
+    min-height: 32px;
+    white-space: nowrap;
+  }
+
   .settings-access-setup {
     min-width: 0;
     display: grid;
     gap: 14px;
     padding: 7px 0 14px;
+  }
+
+  .settings-access-setup-header {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
   }
 
   .settings-access-setup .gateway-login-form {
@@ -4363,6 +4382,11 @@ export const codexWorkbenchStyles = `
     .gateway-login-form,
     .settings-api-key-form {
       grid-template-columns: 1fr;
+    }
+
+    .settings-access-setup-header {
+      align-items: flex-start;
+      flex-direction: column;
     }
 
     .gateway-login-form .settings-action-button,

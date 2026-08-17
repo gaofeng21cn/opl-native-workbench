@@ -331,7 +331,6 @@ export type CodexMessageResponse = {
 export type GatewayAccountLoginRequest = {
   email: string;
   password: string;
-  deviceLabel?: string;
 };
 
 export type GatewayAccountLoginErrorCode =

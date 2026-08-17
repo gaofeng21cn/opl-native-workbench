@@ -188,4 +188,6 @@ test("Gateway account identity and usage render only from a real account project
   assert.match(settingsSource, /gatewayConnectionState === "manual_key"\)/);
   assert.match(settingsSource, /data-testid="opl-settings-access-unavailable"/);
   assert.doesNotMatch(settingsSource, /gatewayLoginVisible = Boolean\(onGatewayLogin\) && \(!gateway/);
+  assert.doesNotMatch(settingsSource, /gatewayDeviceLabel|设备名称|Device name/);
+  assert.match(settingsSource, /editingAccess && gatewayConnectionState !== "none"/);
 });

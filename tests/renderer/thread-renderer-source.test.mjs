@@ -31,6 +31,7 @@ const lifecycle = read("src/workbench/threads/ThreadLifecycleConfirmationDialog.
 const composerPalette = read("src/workbench/ComposerCapabilityPalette.tsx");
 const settings = read("src/workbench/settingsModel.ts");
 const gatewayCache = read("src/workbench/gatewayAccountCache.ts");
+const gatewayLoginHost = read("scripts/webui-host/gateway-account-login.mjs");
 const contributionComponents = read("src/composition/contributionComponents.tsx");
 const contributionProjection = read("src/composition/contributionProjection.ts");
 const primitiveIndex = read("src/vendor/deepseek-harness/packages/client/ui-primitives/src/index.ts");
@@ -619,6 +620,8 @@ test("DSH Settings content consumes the canonical Gateway account read model", (
   assert.match(gatewayCache, /opl\.app\.gatewayAccount\.lkg\.v1/);
   assert.match(gatewayCache, /sanitizeGatewayAccount/);
   assert.doesNotMatch(gatewayCache, /password|apiKey|receipt|stdout|stderr/);
+  assert.doesNotMatch(settingsPanel, /gatewayDeviceLabel|设备名称|Device name/);
+  assert.doesNotMatch(gatewayLoginHost, /deviceLabel|device_label/);
 });
 
 test("Settings uses the App-owned navigation groups and one shared read model", () => {

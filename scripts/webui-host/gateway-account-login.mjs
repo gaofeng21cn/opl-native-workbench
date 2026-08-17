@@ -152,17 +152,16 @@ export function createGatewayAccountLogin({
     if (!isRecord(request)) {
       return { ok: false, errorCode: "invalid_request", stateRefreshRequired: false };
     }
-    const allowedFields = new Set(["email", "password", "deviceLabel"]);
+    const allowedFields = new Set(["email", "password"]);
     if (Object.keys(request).some((field) => !allowedFields.has(field))) {
       return { ok: false, errorCode: "invalid_request", stateRefreshRequired: false };
     }
     const email = typeof request.email === "string" ? request.email.trim() : "";
     const password = typeof request.password === "string" ? request.password : "";
-    const deviceLabel = typeof request.deviceLabel === "string" ? request.deviceLabel.trim() : "";
     if (!email || !password) {
       return { ok: false, errorCode: "invalid_request", stateRefreshRequired: false };
     }
-    const stdin = `${JSON.stringify({ email, password, ...(deviceLabel ? { device_label: deviceLabel } : {}) })}\n`;
+    const stdin = `${JSON.stringify({ email, password })}\n`;
     const result = await commandResult({
       command,
       args: ["connect", "gateway", "login", "--credentials-stdin", "--json"],

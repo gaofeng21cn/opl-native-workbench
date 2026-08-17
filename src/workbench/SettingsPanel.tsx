@@ -9,6 +9,7 @@ import {
   Download,
   FolderOpen,
   LoaderCircle,
+  LogIn,
   Play,
   RefreshCw,
   RotateCcw,
@@ -125,7 +126,7 @@ type SettingsPanelProps = {
   onAdditionalConversationInstructionsChange: (value: string) => void;
   onAction: (request: SettingsActionRequest) => void;
   onHostAction?: (intent: SettingsHostActionIntent) => void;
-  onGatewayLogin?: (credentials: { email: string; password: string; deviceLabel?: string }) => Promise<boolean>;
+  onGatewayLogin?: (credentials: { email: string; password: string }) => Promise<boolean>;
   actionBusyKey: string | null;
   actionFeedback: SettingsActionFeedback | null;
   pendingConfirmation: SettingsActionConfirmation | null;
@@ -1463,7 +1464,6 @@ export function SettingsPanel({
   const gateway = model.gatewayAccount;
   const [gatewayEmail, setGatewayEmail] = useState("");
   const [gatewayPassword, setGatewayPassword] = useState("");
-  const [gatewayDeviceLabel, setGatewayDeviceLabel] = useState("");
   const [accessSetupMode, setAccessSetupMode] = useState<"account" | "api_key">("account");
   const [editingAccess, setEditingAccess] = useState(false);
   const [codexApiKey, setCodexApiKey] = useState("");
@@ -1673,9 +1673,24 @@ export function SettingsPanel({
           {showAccessChoice ? (
             <SettingsGroup title={settings.locale === "zh" ? "模型访问设置" : "Model access setup"}>
               <div className="settings-access-setup">
-                <div className="segmented-control" role="group" aria-label={settings.locale === "zh" ? "模型访问方式" : "Model access method"}>
-                  <button type="button" data-active={accessSetupMode === "account"} onClick={() => setAccessSetupMode("account")}>{settings.locale === "zh" ? "OPL Gateway 账户" : "OPL Gateway account"}</button>
-                  <button type="button" data-active={accessSetupMode === "api_key"} onClick={() => setAccessSetupMode("api_key")}>API Key</button>
+                <div className="settings-access-setup-header">
+                  <div className="segmented-control" role="group" aria-label={settings.locale === "zh" ? "模型访问方式" : "Model access method"}>
+                    <button type="button" data-active={accessSetupMode === "account"} onClick={() => setAccessSetupMode("account")}>{settings.locale === "zh" ? "OPL Gateway 账户" : "OPL Gateway account"}</button>
+                    <button type="button" data-active={accessSetupMode === "api_key"} onClick={() => setAccessSetupMode("api_key")}>API Key</button>
+                  </div>
+                  {editingAccess && gatewayConnectionState !== "none" ? (
+                    <button
+                      className="settings-action-button"
+                      type="button"
+                      onClick={() => {
+                        setGatewayPassword("");
+                        setCodexApiKey("");
+                        setEditingAccess(false);
+                      }}
+                    >
+                      {settings.locale === "zh" ? "取消" : "Cancel"}
+                    </button>
+                  ) : null}
                 </div>
                 {accessSetupMode === "account" && gatewayLoginVisible ? (
                     <form
@@ -1688,12 +1703,10 @@ export function SettingsPanel({
                         setGatewayPassword("");
                         void onGatewayLogin({
                           email: gatewayEmail.trim(),
-                          password,
-                          ...(gatewayDeviceLabel.trim() ? { deviceLabel: gatewayDeviceLabel.trim() } : {})
+                          password
                         }).then((ok) => {
                           if (ok) {
                             setGatewayEmail("");
-                            setGatewayDeviceLabel("");
                             setEditingAccess(false);
                           }
                         });
@@ -1707,12 +1720,8 @@ export function SettingsPanel({
                         <span>{settings.locale === "zh" ? "密码" : "Password"}</span>
                         <input type="password" autoComplete="current-password" value={gatewayPassword} onChange={(event) => setGatewayPassword(event.currentTarget.value)} required />
                       </label>
-                      <label>
-                        <span>{settings.locale === "zh" ? "设备名称" : "Device name"}</span>
-                        <input value={gatewayDeviceLabel} onChange={(event) => setGatewayDeviceLabel(event.currentTarget.value)} />
-                      </label>
                       <button className="settings-action-button primary" type="submit" disabled={actionBusyKey !== null || !gatewayEmail.trim() || !gatewayPassword}>
-                        {actionBusyKey === "gateway:login" ? <LoaderCircle className="spin" aria-hidden="true" size={13} /> : <Play aria-hidden="true" size={13} />}
+                        {actionBusyKey === "gateway:login" ? <LoaderCircle className="spin" aria-hidden="true" size={13} /> : <LogIn aria-hidden="true" size={13} />}
                         {settings.locale === "zh" ? "登录" : "Sign in"}
                       </button>
                     </form>
@@ -1789,7 +1798,7 @@ export function SettingsPanel({
                 ) : null}
               </span>
             </SettingRow>
-            <SettingRow label={settings.locale === "zh" ? "设备名称" : "Device name"}><span>{gateway?.installation?.deviceLabel ?? "--"}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "本机" : "This device"}><span>{gateway?.installation?.deviceLabel ?? "--"}</span></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "设备访问" : "Device access"}><StatusValue status={gateway?.managedKey?.status} locale={settings.locale} /></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "最近刷新" : "Last refresh"} detail={gateway?.freshness?.stale ? (settings.locale === "zh" ? "数据可能已过期" : "Data may be stale") : undefined}>
               <span className="runtime-setting-control">

@@ -1327,7 +1327,7 @@ export function App({
     }
   }
 
-  async function loginGatewayAccount(credentials: { email: string; password: string; deviceLabel?: string }) {
+  async function loginGatewayAccount(credentials: { email: string; password: string }) {
     const key = "gateway:login";
     setSettingsActionBusyKey(key);
     setSettingsActionFeedback(null);

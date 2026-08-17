@@ -37,13 +37,14 @@ test("Gateway account login keeps credentials on stdin and returns only the type
     spawnImpl: fakeSpawn({ stdout: JSON.stringify({ ok: true, account: "user@example.com" }) }, observed)
   });
 
-  const result = await login({ email: " user@example.com ", password, deviceLabel: " Test Mac " });
+  const result = await login({ email: " user@example.com ", password });
 
   assert.deepEqual(result, { ok: true, stateRefreshRequired: true });
   assert.equal(observed.command, "/test/opl");
   assert.deepEqual(observed.args, ["connect", "gateway", "login", "--credentials-stdin", "--json"]);
   assert.deepEqual(observed.options.stdio, ["pipe", "pipe", "pipe"]);
-  assert.equal(observed.stdin, `${JSON.stringify({ email: "user@example.com", password, device_label: "Test Mac" })}\n`);
+  assert.equal(observed.stdin, `${JSON.stringify({ email: "user@example.com", password })}\n`);
+  assert.equal(observed.stdin.includes("device_label"), false);
   assert.equal(JSON.stringify({ result, args: observed.args }).includes(password), false);
   assert.equal("stdout" in result || "stderr" in result, false);
 });
@@ -58,7 +59,7 @@ test("Gateway account login rejects unexpected request fields before spawning", 
   });
 
   assert.deepEqual(
-    await login({ email: "user@example.com", password: "secret", rawSecret: "secret" }),
+    await login({ email: "user@example.com", password: "secret", deviceLabel: "must-use-framework-default" }),
     { ok: false, errorCode: "invalid_request", stateRefreshRequired: false }
   );
   assert.equal(spawned, false);
