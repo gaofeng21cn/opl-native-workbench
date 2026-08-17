@@ -603,6 +603,12 @@ export function isAgentCatalogPackage(item: Pick<AgentPackageLifecycleRef, "pack
   return item.packageRole === "standard_agent" || item.packageRole === "workflow_profile";
 }
 
+export function isCapabilityCatalogPackage(item: Pick<AgentPackageLifecycleRef, "packageId" | "packageRole">): boolean {
+  if (item.packageId === "missing_bridge") return false;
+  const role = item.packageRole.trim().toLowerCase();
+  return role === "capability_package" || role.endsWith("_capability_package");
+}
+
 function PackageCatalog({
   model,
   settings,
@@ -818,6 +824,7 @@ function PackageCatalog({
 
 function CapabilityDirectory({
   catalog,
+  packageLifecycle,
   status,
   error,
   locale,
@@ -825,6 +832,7 @@ function CapabilityDirectory({
   onRefresh
 }: {
   catalog: CodexCapabilityCatalog;
+  packageLifecycle: AgentPackageLifecycleRef[];
   status: "idle" | "loading" | "ready" | "error";
   error: string;
   locale: WorkbenchSettings["locale"];
@@ -833,6 +841,16 @@ function CapabilityDirectory({
 }) {
   const [query, setQuery] = useState("");
   const normalizedQuery = query.trim().toLowerCase();
+  const capabilityPackages = packageLifecycle.filter(isCapabilityCatalogPackage).map((item) => ({
+    id: item.packageId,
+    name: item.label,
+    description: localizedPackageDescription(item, locale),
+    status: agentPackagePresentationStatus(item),
+    detail: item.sourceMode !== "unknown"
+      ? (locale === "zh" ? `来源：${item.sourceMode}` : `Source: ${item.sourceMode}`)
+      : formatStatus(item.status, locale),
+    technical: item.sourceRef
+  }));
   const groups = [
     {
       id: "skills",
@@ -869,6 +887,11 @@ function CapabilityDirectory({
         detail: item.callable ? (locale === "zh" ? "可调用" : "Callable") : (locale === "zh" ? "当前不可调用" : "Not callable"),
         technical: item.id
       }))
+    },
+    {
+      id: "capability-packages",
+      label: locale === "zh" ? "能力模块" : "Capability packages",
+      items: capabilityPackages
     }
   ].map((group) => ({
     ...group,
@@ -895,7 +918,7 @@ function CapabilityDirectory({
       </div>
       {status === "error" ? <div className="settings-inline-notice" role="alert"><AlertCircle aria-hidden="true" size={15} /><span>{error || (locale === "zh" ? "能力目录读取失败" : "Capability catalog could not be read")}</span></div> : null}
       {status !== "loading" && total === 0 ? (
-        <div className="settings-empty-state"><Boxes aria-hidden="true" size={18} /><span>{locale === "zh" ? "当前没有可显示的技能、插件或应用" : "No skills, plugins, or apps are available"}</span></div>
+        <div className="settings-empty-state"><Boxes aria-hidden="true" size={18} /><span>{locale === "zh" ? "当前没有可显示的技能、插件、应用或能力模块" : "No skills, plugins, apps, or capability packages are available"}</span></div>
       ) : null}
       {groups.map((group) => group.visible.length ? (
         <section className="settings-capability-group" key={group.id}>
@@ -1421,7 +1444,6 @@ export function SettingsPanel({
   const confirmationOpen = pendingConfirmation !== null;
   const derivedActionViewModel = useMemo(() => buildSettingsActionViewModel(model, managedUpdate), [managedUpdate, model]);
   const actionViewModel = projectedActionViewModel ?? derivedActionViewModel;
-  const availableStarters = model.starters.filter((starter) => starter.available).length;
   const unavailableFixedModel = settings.modelAccess !== "__auto" && !resolvedModel;
   const stateLoading = stateStatus === "loading";
   const stateFailed = stateStatus === "error";
@@ -1863,8 +1885,7 @@ export function SettingsPanel({
     if (selectedDestination === "capabilities") {
       return (
         <>
-          <div className="settings-page-summary"><span>{settings.locale === "zh" ? `${availableStarters} 个任务入口 · ${model.packageLifecycle.length} 个扩展` : `${availableStarters} task starters · ${model.packageLifecycle.length} extensions`}</span><span>{settings.locale === "zh" ? "展开条目可查看来源与可用状态" : "Expand an item to inspect its source and availability"}</span></div>
-          <CapabilityDirectory catalog={capabilityCatalog} status={capabilityStatus} error={capabilityError} locale={settings.locale} showTechnicalDetails={settings.developerDetails} onRefresh={onRefreshCapabilities} />
+          <CapabilityDirectory packageLifecycle={model.packageLifecycle} catalog={capabilityCatalog} status={capabilityStatus} error={capabilityError} locale={settings.locale} showTechnicalDetails={settings.developerDetails} onRefresh={onRefreshCapabilities} />
           {model.managedComputerUse ? (
             <ManagedComputerUseGroup
               companion={model.managedComputerUse}

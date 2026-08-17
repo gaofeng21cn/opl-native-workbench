@@ -99,6 +99,15 @@ test("agent catalog keeps agent and workflow packages together while excluding c
   assert.equal(presentation.isAgentCatalogPackage({ packageRole: "framework_capability_package" }), false);
 });
 
+test("capability catalog keeps projected capability package roles out of the agent page", () => {
+  assert.equal(presentation.isCapabilityCatalogPackage({ packageId: "mas-scholar-skills", packageRole: "capability_package" }), true);
+  assert.equal(presentation.isCapabilityCatalogPackage({ packageId: "framework-required", packageRole: "framework_required_capability_package" }), true);
+  assert.equal(presentation.isCapabilityCatalogPackage({ packageId: "optional-capability", packageRole: "optional_capability_package" }), true);
+  assert.equal(presentation.isCapabilityCatalogPackage({ packageId: "mas", packageRole: "standard_agent" }), false);
+  assert.equal(presentation.isCapabilityCatalogPackage({ packageId: "workflow", packageRole: "workflow_profile" }), false);
+  assert.equal(presentation.isCapabilityCatalogPackage({ packageId: "missing_bridge", packageRole: "capability_package" }), false);
+});
+
 test("storage absence is neutral and does not turn missing measurements into user action", () => {
   assert.equal(presentation.storagePresentationStatus({
     status: "attention_required",
