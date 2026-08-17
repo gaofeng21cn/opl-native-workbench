@@ -846,12 +846,15 @@ function CapabilityDirectory({
     name: item.label,
     description: localizedPackageDescription(item, locale),
     status: agentPackagePresentationStatus(item),
-    detail: item.sourceMode !== "unknown"
-      ? (locale === "zh" ? `来源：${item.sourceMode}` : `Source: ${item.sourceMode}`)
-      : formatStatus(item.status, locale),
+    detail: packageRoleLabel(item.packageRole, locale),
     technical: item.sourceRef
   }));
   const groups = [
+    {
+      id: "capability-packages",
+      label: locale === "zh" ? "能力模块" : "Capability packages",
+      items: capabilityPackages
+    },
     {
       id: "skills",
       label: locale === "zh" ? "技能" : "Skills",
@@ -887,11 +890,6 @@ function CapabilityDirectory({
         detail: item.callable ? (locale === "zh" ? "可调用" : "Callable") : (locale === "zh" ? "当前不可调用" : "Not callable"),
         technical: item.id
       }))
-    },
-    {
-      id: "capability-packages",
-      label: locale === "zh" ? "能力模块" : "Capability packages",
-      items: capabilityPackages
     }
   ].map((group) => ({
     ...group,
