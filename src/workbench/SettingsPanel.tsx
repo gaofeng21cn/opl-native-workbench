@@ -517,7 +517,7 @@ export function gatewayConnectionPresentation(
   gateway: WorkbenchGatewayAccount | undefined,
   stateStatus: "loading" | "ready" | "error"
 ): GatewayConnectionPresentation {
-  if (stateStatus === "loading" && !projection) return "loading";
+  if (stateStatus === "loading" && !projection && !gateway) return "loading";
   if (stateStatus === "error" && !projection && !gateway) return "error";
   if (projection) {
     if (projection.gatewayConnectionMode === "account") return "account";

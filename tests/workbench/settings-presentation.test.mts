@@ -159,6 +159,11 @@ test("Gateway access presentation keeps none, API Key, and account states mutual
     status: "connected",
     sourceRef: "test"
   } as never, "ready"), "account");
+  assert.equal(presentation.gatewayConnectionPresentation(undefined, {
+    displayName: "高峰",
+    status: "connected",
+    sourceRef: "cached"
+  } as never, "loading"), "account");
   assert.equal(presentation.gatewayConnectionPresentation(projection("none"), {
     displayName: "stale account",
     status: "connected",
