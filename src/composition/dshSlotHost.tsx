@@ -380,7 +380,6 @@ function SidebarWorkspacesSlot({ wide, expandSidebar }: { wide: boolean; expandS
     </div></>;
   }
   return <><RuntimeNavigation wide={wide} />
-  {wide ? <RecentSessionsSection list={recentList} current={studio.currentThreadId} locale={studio.locale} open={studio.openThread} fork={studio.forkThread} archive={studio.archiveThread} /> : null}
   <WorkspaceBrowser
     wide={wide}
     expandSidebar={expandSidebar}
@@ -404,6 +403,7 @@ function SidebarWorkspacesSlot({ wide, expandSidebar }: { wide: boolean; expandS
     renderSlot={() => null}
     t={dshLocale}
   />
+  {wide ? <RecentSessionsSection list={recentList} current={studio.currentThreadId} locale={studio.locale} open={studio.openThread} fork={studio.forkThread} archive={studio.archiveThread} /> : null}
   </>;
 }
 

@@ -87,7 +87,7 @@ The left sidebar follows one action grammar:
 - There is no separate `Conversations` navigation item. Starting a task opens
   the conversation surface; existing conversations are opened from the same
   workspace/history area.
-- Temporary/projectless sessions are shown as a flat `Recent` list above real
+- Temporary/projectless sessions are shown as a flat `Recent` list after real
   workspaces. They are not represented as a fake `No project` workspace and do
   not create a second workspace hierarchy.
 - The DSH vendor tree remains byte-identical. These rules are implemented only

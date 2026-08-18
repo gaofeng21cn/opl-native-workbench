@@ -3597,14 +3597,15 @@ export const codexWorkbenchStyles = `
   }
 
   .opl-recent-sessions h2 {
-    min-height: 24px;
+    min-height: 36px;
     display: flex;
     align-items: center;
     margin: 0;
-    padding: 0 8px;
-    color: var(--opl-muted);
-    font-size: 11px;
-    font-weight: 500;
+    padding: 0 4px;
+    color: var(--dsw-alias-label-tertiary);
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 20px;
   }
 
   .opl-runtime-overview {

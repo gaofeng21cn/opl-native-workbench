@@ -119,6 +119,7 @@ test("DSH workspace browser, lifecycle, and Codex subagent projection stay expli
   assert.match(slotHost, /studio\.threadProjects\.filter\(project => !project\.projectless\)\.map/);
   assert.match(slotHost, /function RecentSessionsSection/);
   assert.match(slotHost, /id="opl-recent-sessions-title"/);
+  assert.ok(slotHost.indexOf("<WorkspaceBrowser") < slotHost.indexOf("<RecentSessionsSection"));
   assert.match(slotHost, /project\.threads\.map/);
   assert.match(slotHost, /searchSessions=\{async/);
   assert.match(slotHost, /archiveSession=\{/);
