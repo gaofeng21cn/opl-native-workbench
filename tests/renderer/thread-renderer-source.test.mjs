@@ -120,8 +120,10 @@ test("DSH workspace browser, lifecycle, and Codex subagent projection stay expli
   assert.match(slotHost, /studio\.threadProjects\.filter\(project => !project\.projectless\)\.map/);
   assert.match(slotHost, /cwd: project\.projectless \? undefined : thread\.workspace/);
   assert.match(slotHost, /key === "group\.ungrouped"/);
+  assert.match(slotHost, /className="opl-workspace-browser-seat"/);
   assert.doesNotMatch(slotHost, /RecentSessionsSection|opl-recent-sessions-title|@opl-vendor\/dsh-session-node/);
   assert.doesNotMatch(styles, /\.opl-recent-sessions/);
+  assert.match(styles, /\.opl-workspace-browser-seat \[role="treeitem"\]\[aria-expanded\]:not\(\[draggable="true"\]\) button/);
   assert.match(slotHost, /project\.threads\.map/);
   assert.match(slotHost, /searchSessions=\{async/);
   assert.match(slotHost, /archiveSession=\{/);

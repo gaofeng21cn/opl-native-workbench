@@ -367,6 +367,7 @@ function SidebarWorkspacesSlot({ wide, expandSidebar }: { wide: boolean; expandS
     </div></>;
   }
   return <><RuntimeNavigation wide={wide} />
+  <div className="opl-workspace-browser-seat">
   <WorkspaceBrowser
     wide={wide}
     expandSidebar={expandSidebar}
@@ -390,6 +391,7 @@ function SidebarWorkspacesSlot({ wide, expandSidebar }: { wide: boolean; expandS
     renderSlot={() => null}
     t={dshLocale}
   />
+  </div>
   </>;
 }
 

@@ -3588,6 +3588,14 @@ export const codexWorkbenchStyles = `
     background: var(--dsw-alias-interactive-bg-hover);
   }
 
+  .opl-workspace-browser-seat {
+    display: contents;
+  }
+
+  .opl-workspace-browser-seat [role="treeitem"][aria-expanded]:not([draggable="true"]) button {
+    display: none;
+  }
+
   .opl-runtime-overview {
     min-width: 0;
     min-height: 100%;
