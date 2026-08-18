@@ -22,6 +22,8 @@ type RuntimeOverviewPageProps = {
   selectedWorkItemId?: string;
   stateStatus: "loading" | "ready" | "error";
   stateError: string;
+  snapshotSource: "live" | "cached" | "none";
+  snapshotCachedAt?: string;
   onRefresh(): void;
   onRunServiceRecovery(action: ServiceRecoveryAction): void;
   onOpenWorkItem(item: WorkItemRuntimeItem): void;
@@ -89,15 +91,19 @@ function recoveryStatusLabel(model: ServiceRecoveryModel, locale: "zh" | "en"): 
 }
 
 function recoveryReadinessLabel(model: ServiceRecoveryModel, locale: "zh" | "en"): string {
-  if (locale === "zh") {
-    return model.causalRoot.component === "worker" ? "后台任务未就绪" : model.causalRoot.component === "scheduler" ? "定时任务需检查" : "后台服务未就绪";
-  }
-  return model.causalRoot.component === "worker" ? "Background worker is not ready" : model.causalRoot.component === "scheduler" ? "Scheduled tasks need attention" : "Background service is not ready";
+  return model.causalRoot.detail[locale];
 }
 
 function recoveryActionLabel(model: ServiceRecoveryModel, locale: "zh" | "en"): string {
-  if (locale === "zh") return model.causalRoot.component === "worker" ? "检查后台任务" : model.causalRoot.component === "scheduler" ? "检查定时任务" : "检查后台服务";
-  return model.causalRoot.component === "worker" ? "Check background worker" : model.causalRoot.component === "scheduler" ? "Check scheduled tasks" : "Check background service";
+  const kind = model.primaryAction?.kind ?? "status";
+  if (locale === "zh") {
+    if (model.causalRoot.component === "worker") return kind === "restart" ? "重新加载后台任务" : kind === "start" ? "启动后台任务" : "检查后台任务";
+    if (model.causalRoot.component === "scheduler") return kind === "restart" ? "重新加载定时任务" : kind === "start" || kind === "repair" ? "启动定时任务" : "检查定时任务";
+    return kind === "restart" ? "重新加载后台服务" : kind === "start" || kind === "repair" ? "启动后台服务" : "检查后台服务";
+  }
+  if (model.causalRoot.component === "worker") return kind === "restart" ? "Reload background worker" : kind === "start" ? "Start background worker" : "Check background worker";
+  if (model.causalRoot.component === "scheduler") return kind === "restart" ? "Reload scheduled tasks" : kind === "start" || kind === "repair" ? "Start scheduled tasks" : "Check scheduled tasks";
+  return kind === "restart" ? "Reload background service" : kind === "start" || kind === "repair" ? "Start background service" : "Check background service";
 }
 
 export function RuntimeOverviewPage({
@@ -109,6 +115,8 @@ export function RuntimeOverviewPage({
   selectedWorkItemId,
   stateStatus,
   stateError,
+  snapshotSource,
+  snapshotCachedAt,
   onRefresh,
   onRunServiceRecovery,
   onOpenWorkItem
@@ -161,7 +169,10 @@ export function RuntimeOverviewPage({
     mutationGuard: "自动修复",
     noRecoveryAction: "当前没有可安全执行的恢复操作",
     confirmRecovery: "确认执行",
-    cancelRecovery: "取消"
+    cancelRecovery: "取消",
+    refreshing: "正在更新，页面先显示上次状态",
+    cached: "显示上次读取的状态",
+    stale: "最新读取失败，保留上次状态"
   } : {
     title: "Project runtime overview",
     scope: "Scope",
@@ -204,7 +215,10 @@ export function RuntimeOverviewPage({
     mutationGuard: "Automatic recovery",
     noRecoveryAction: "No safe recovery action is currently available",
     confirmRecovery: "Confirm",
-    cancelRecovery: "Cancel"
+    cancelRecovery: "Cancel",
+    refreshing: "Updating; showing the last known state",
+    cached: "Showing the last known state",
+    stale: "Latest read failed; keeping the last known state"
   };
   const projects = useMemo(() => (projection?.projects ?? []).filter((project) => (
     agentId === "all" || project.agentId === agentId
@@ -219,11 +233,16 @@ export function RuntimeOverviewPage({
   const attentionCount = projection
     ? projection.summary.userAttentionCount + projection.summary.systemAttentionCount + (recoveryNeedsAttention ? 1 : 0)
     : 0;
-  const overallStatus = stateStatus === "error" || !projection
+  const overallStatus = !projection
     ? { label: copy.unavailable, tone: "muted" as const }
     : recoveryNeedsAttention
       ? { label: copy.partial, tone: "attention" as const }
       : { label: copy.available, tone: "success" as const };
+  const snapshotMessage = stateStatus === "error" && snapshotSource !== "none"
+    ? copy.stale
+    : stateStatus === "loading" && snapshotSource !== "none"
+      ? copy.refreshing
+      : snapshotSource === "cached" ? copy.cached : undefined;
 
   const changeAgent = (value: string) => {
     setAgentId(value);
@@ -249,6 +268,7 @@ export function RuntimeOverviewPage({
           <RefreshCw className={stateStatus === "loading" ? "spin" : undefined} aria-hidden="true" size={16} />
         </button>
       </header>
+      {snapshotMessage ? <p className="runtime-snapshot-note" data-source={snapshotSource} role={stateStatus === "error" ? "alert" : "status"}>{snapshotMessage}{snapshotCachedAt ? ` · ${formatTimestamp(snapshotCachedAt, locale)}` : ""}</p> : null}
 
       <div className="runtime-scope-band">
         <strong>{copy.scope}</strong>

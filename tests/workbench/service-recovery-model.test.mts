@@ -93,6 +93,7 @@ test("selects the service configuration repair as the first causal action", () =
     status: "attention",
     reasonCode: "service_configuration_drift",
     rawStatus: "configuration_stale",
+    detail: { zh: "后台服务配置已变化，需要重新加载", en: "Background service configuration changed and must be reloaded" },
     sourceRef: "app_state.provider.temporal.details.worker_readiness.temporal_service_lifecycle.supervisor"
   });
   assert.equal(model.primaryAction?.actionId, "provider_service_start");

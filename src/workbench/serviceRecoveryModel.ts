@@ -19,6 +19,7 @@ export type ServiceRecoveryModel = {
     status: ServiceRecoveryStatus;
     reasonCode: string;
     rawStatus: string;
+    detail: { zh: string; en: string };
     sourceRef: string;
   };
   components: {
@@ -147,6 +148,19 @@ function statusActionId(component: ServiceRecoveryComponent): string {
   return "provider_service_status";
 }
 
+function recoveryDetail(reasonCode: string, rawStatus: string, component: ServiceRecoveryComponent): { zh: string; en: string } {
+  if (reasonCode === "worker_not_ready" && rawStatus === "worker_source_stale") {
+    return { zh: "后台任务代码版本落后，需要重新加载", en: "Worker source is stale and must be reloaded" };
+  }
+  if (reasonCode === "service_configuration_drift") {
+    return { zh: "后台服务配置已变化，需要重新加载", en: "Background service configuration changed and must be reloaded" };
+  }
+  if (component === "worker") return { zh: "后台任务尚未就绪", en: "Background worker is not ready" };
+  if (component === "scheduler") return { zh: "定时任务需要检查", en: "Scheduled tasks need attention" };
+  if (component === "service") return { zh: "后台服务尚未就绪", en: "Background service is not ready" };
+  return { zh: "运行状态需要检查", en: "Runtime status needs attention" };
+}
+
 export function deriveServiceRecoveryModel(input: ServiceRecoveryInput): ServiceRecoveryModel {
   const temporal = record(input.temporal);
   const details = record(temporal.details);
@@ -269,7 +283,7 @@ export function deriveServiceRecoveryModel(input: ServiceRecoveryInput): Service
     : "app_projected_status_action_unavailable";
 
   return {
-    causalRoot: { component, status, reasonCode, rawStatus, sourceRef },
+    causalRoot: { component, status, reasonCode, rawStatus, detail: recoveryDetail(reasonCode, rawStatus, component), sourceRef },
     components: {
       service: { ready: serviceReady, status: serviceStatus },
       worker: { ready: workerReady, status: workerStatus },

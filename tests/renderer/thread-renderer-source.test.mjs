@@ -14,6 +14,7 @@ const bridge = read("src/bridge/oplBridge.ts");
 const webTransport = read("src/bridge/webTransport.ts");
 const model = read("src/workbench/workbenchModel.ts");
 const runtimePage = read("src/workbench/RuntimeOverviewPage.tsx");
+const runtimeCache = read("src/workbench/runtimeOverviewCache.ts");
 const settingsPanel = read("src/workbench/SettingsPanel.tsx");
 const styles = read("src/workbench/codexWorkbenchStyles.ts");
 const adapterStyles = read("src/integrations/deepseek-harness/oplAdapter.css");
@@ -104,6 +105,20 @@ test("Studio exposes an App-projected first-level runtime overview", () => {
   assert.match(app, /refreshedRecovery\.primaryAction\?\.actionId !== action\.actionId/);
   assert.match(app, /await bridge\.executeAction/);
   assert.match(app, /await loadState\(settings\.runtimeProfile\)/);
+  assert.match(app, /writeRuntimeOverviewCache/);
+  assert.match(app, /runtimeSnapshotSource/);
+  assert.match(runtimePage, /runtime-snapshot-note/);
+  assert.match(runtimeCache, /opl_studio_runtime_overview_cache\.v1/);
+  assert.match(runtimeCache, /cached_snapshot_requires_fresh_state/);
+  assert.match(runtimeCache, /maintenanceActions: \[\]/);
+  assert.match(runtimePage, /causalRoot\.detail\[locale\]/);
+});
+
+test("new task and runtime entries share the light primary navigation treatment", () => {
+  assert.match(slotHost, /function RuntimeNavigation/);
+  assert.match(styles, /\.opl-primary-nav button[\s\S]*?border: 0;[\s\S]*?background: transparent;/);
+  assert.match(styles, /button\[class\*="newSession"\][\s\S]*?border: 0;[\s\S]*?background: transparent;/);
+  assert.match(styles, /button\[aria-current="page"\][\s\S]*?background: var\(--opl-selected\)/);
 });
 
 test("local storage keeps only UI metadata and drafts after one-way legacy backup", () => {

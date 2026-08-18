@@ -3536,37 +3536,66 @@ export const codexWorkbenchStyles = `
 
   .opl-primary-nav {
     display: grid;
+    align-self: stretch;
     width: auto;
-    margin: 0 14px 8px 2px;
+    margin: 0 2px 8px;
   }
 
   .opl-primary-nav button {
     width: 100%;
-    height: 38px;
+    height: 32px;
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 8px 16px;
+    justify-content: flex-start;
+    gap: 9px;
+    padding: 0 8px;
     box-sizing: border-box;
-    border: 1px solid var(--dsw-alias-border-l2);
-    border-radius: 12px;
-    background: var(--dsw-alias-button-elevated-fill);
-    color: var(--dsw-alias-label-primary);
-    font-size: 14px;
-    font-weight: 500;
-    line-height: 22px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--opl-text);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 20px;
     cursor: pointer;
     overflow: hidden;
   }
 
   .opl-primary-nav button:hover {
-    background: var(--dsw-alias-button-floating-hover);
+    background: var(--opl-hover);
     color: var(--opl-text);
   }
 
   .opl-primary-nav button[aria-current="page"] {
-    border-color: var(--opl-border-strong);
+    background: var(--opl-selected);
+  }
+
+  .opl-studio-dsh-root button[class*="newSession"] {
+    height: 32px;
+    justify-content: flex-start;
+    gap: 9px;
+    margin: 0 2px 8px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--opl-text);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 20px;
+  }
+
+  .opl-studio-dsh-root button[class*="newSession"]:hover {
+    background: var(--opl-hover);
+  }
+
+  .opl-studio-dsh-root [class*="collapsed"] button[class*="newSession"] {
+    width: 36px;
+    height: 36px;
+    justify-content: center;
+    gap: 0;
+    margin: 0 0 12px;
+    padding: 0;
   }
 
   .opl-primary-nav[data-wide="false"] {
@@ -3626,6 +3655,29 @@ export const codexWorkbenchStyles = `
     font-size: 14px;
     font-weight: 400;
     line-height: 20px;
+  }
+
+  .runtime-snapshot-note {
+    margin: 8px 0 0;
+    color: var(--opl-muted);
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .runtime-snapshot-note[data-source="cached"] {
+    color: var(--opl-muted);
+  }
+
+  .runtime-snapshot-note[data-source="live"]::before,
+  .runtime-snapshot-note[data-source="cached"]::before {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    vertical-align: 1px;
   }
 
   .opl-recent-session-list > * + * {

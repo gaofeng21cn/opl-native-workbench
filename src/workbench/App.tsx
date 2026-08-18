@@ -68,6 +68,11 @@ import {
 } from "./settingsModel";
 import { codexWorkbenchStyles } from "./codexWorkbenchStyles";
 import { RuntimeOverviewPage } from "./RuntimeOverviewPage";
+import {
+  readRuntimeOverviewCache,
+  runtimeOverviewModelFromCache,
+  writeRuntimeOverviewCache
+} from "./runtimeOverviewCache";
 import type { ServiceRecoveryAction } from "./serviceRecoveryModel";
 import {
   codexModelPolicy,
@@ -691,6 +696,7 @@ export function App({
 }: AppProps) {
   const bridge = useMemo(() => createBrowserBridge(), []);
   const persistedUi = useMemo(() => readPersistedWorkbenchUi(), []);
+  const cachedRuntime = useMemo(() => readRuntimeOverviewCache(), []);
   const conversationRef = useRef<HTMLElement | null>(null);
   const pendingAssistantIdRef = useRef<string | null>(null);
   const interruptRequestedForRef = useRef<string | null>(null);
@@ -698,10 +704,14 @@ export function App({
   const activeTurnRef = useRef<{ threadId: string; turnId: string } | null>(null);
   const ephemeralQueueRef = useRef<EphemeralQueueItem[]>([]);
   const projectedGatewayActionsRef = useRef<ProjectedGatewayAction[]>([]);
-  const [model, setModel] = useState<WorkbenchModel>(() => ({
-    ...initialWorkbenchModel,
-    gatewayAccount: readGatewayAccountCache()
-  }));
+  const [model, setModel] = useState<WorkbenchModel>(() => {
+    const cachedModel = runtimeOverviewModelFromCache(cachedRuntime);
+    return cachedModel
+      ? { ...initialWorkbenchModel, ...cachedModel, gatewayAccount: readGatewayAccountCache() }
+      : { ...initialWorkbenchModel, gatewayAccount: readGatewayAccountCache() };
+  });
+  const [runtimeSnapshotSource, setRuntimeSnapshotSource] = useState<"live" | "cached" | "none">(cachedRuntime ? "cached" : "none");
+  const [runtimeSnapshotCachedAt, setRuntimeSnapshotCachedAt] = useState<string | undefined>(cachedRuntime?.cachedAt);
   const [managedUpdate, setManagedUpdate] = useState<ManagedUpdateProjection | null>(null);
   const [nativeAppUpdate, setNativeAppUpdate] = useState<NativeAppUpdateResult | null>(null);
   const [projectedManagedUpdateActions, setProjectedManagedUpdateActions] = useState<ProjectedManagedUpdateAction[]>([]);
@@ -984,6 +994,14 @@ export function App({
         const nextModel = deriveWorkbenchModelFromState(state);
         onHostStateChange?.(state);
         setModel(nextModel);
+        writeRuntimeOverviewCache({
+          runtimeOverview: nextModel.runtimeOverview,
+          serviceRecovery: nextModel.serviceRecovery,
+          workItemRuntime: nextModel.workItemRuntime,
+          stateGeneratedAt: nextModel.stateGeneratedAt
+        });
+        setRuntimeSnapshotSource("live");
+        setRuntimeSnapshotCachedAt(new Date().toISOString());
         writeGatewayAccountCache(nextModel.gatewayAccount);
         setProjectedManagedUpdateActions(readProjectedManagedUpdateActions(state));
         setProjectedSetupActions(readProjectedSetupActions(state));
@@ -1004,6 +1022,7 @@ export function App({
           : current);
         setStateStatus("error");
         setStateError(String(error));
+        if (model.runtimeOverview || model.workItemRuntime) setRuntimeSnapshotSource("cached");
         return null;
       });
   }
@@ -2381,6 +2400,8 @@ export function App({
       selectedWorkItemId={detailWorkItemId}
       stateStatus={stateStatus}
       stateError={stateError}
+      snapshotSource={runtimeSnapshotSource}
+      snapshotCachedAt={runtimeSnapshotCachedAt}
       onRefresh={() => { void loadState(settings.runtimeProfile); }}
       onRunServiceRecovery={(action) => { void runServiceRecoveryAction(action); }}
       onOpenWorkItem={(item) => {
