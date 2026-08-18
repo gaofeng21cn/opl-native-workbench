@@ -116,10 +116,12 @@ test("local storage keeps only UI metadata and drafts after one-way legacy backu
 
 test("DSH workspace browser, lifecycle, and Codex subagent projection stay explicit", () => {
   assert.match(slotHost, /<WorkspaceBrowser/);
+  assert.match(slotHost, /studio\.threadProjects\.flatMap\(project => project\.threads\.map/);
   assert.match(slotHost, /studio\.threadProjects\.filter\(project => !project\.projectless\)\.map/);
-  assert.match(slotHost, /function RecentSessionsSection/);
-  assert.match(slotHost, /id="opl-recent-sessions-title"/);
-  assert.ok(slotHost.indexOf("<WorkspaceBrowser") < slotHost.indexOf("<RecentSessionsSection"));
+  assert.match(slotHost, /cwd: project\.projectless \? undefined : thread\.workspace/);
+  assert.match(slotHost, /key === "group\.ungrouped"/);
+  assert.doesNotMatch(slotHost, /RecentSessionsSection|opl-recent-sessions-title|@opl-vendor\/dsh-session-node/);
+  assert.doesNotMatch(styles, /\.opl-recent-sessions/);
   assert.match(slotHost, /project\.threads\.map/);
   assert.match(slotHost, /searchSessions=\{async/);
   assert.match(slotHost, /archiveSession=\{/);
