@@ -86,7 +86,8 @@ test("primary settings actions keep readable contrast on hover", () => {
 });
 
 test("Studio exposes an App-projected first-level runtime overview", () => {
-  assert.match(slotHost, /SidebarPrimaryNavigationSlot/);
+  assert.match(slotHost, /function RuntimeNavigation/);
+  assert.doesNotMatch(slotHost, /SidebarPrimaryNavigationSlot|opl-primary-navigation/);
   assert.match(slotHost, /studio\.primaryView === "runtime"/);
   assert.match(app, /<RuntimeOverviewPage/);
   assert.match(bridge, /workbench\?: Record<string, unknown>/);
@@ -97,7 +98,8 @@ test("Studio exposes an App-projected first-level runtime overview", () => {
   assert.match(runtimePage, /aria-expanded=\{stagesOpen\}/);
   assert.match(runtimePage, /showArchived/);
   assert.match(runtimePage, /runtime-recovery-band/);
-  assert.match(runtimePage, /serviceRecovery\.mutationGuard\.status/);
+  assert.match(runtimePage, /recoveryStatusLabel/);
+  assert.doesNotMatch(runtimePage, /causalRoot\.reasonCode|causalRoot\.rawStatus|mutationGuard\.status/);
   assert.match(app, /const refreshedModel = await loadState\(settings\.runtimeProfile\)/);
   assert.match(app, /refreshedRecovery\.primaryAction\?\.actionId !== action\.actionId/);
   assert.match(app, /await bridge\.executeAction/);
@@ -114,7 +116,9 @@ test("local storage keeps only UI metadata and drafts after one-way legacy backu
 
 test("DSH workspace browser, lifecycle, and Codex subagent projection stay explicit", () => {
   assert.match(slotHost, /<WorkspaceBrowser/);
-  assert.match(slotHost, /studio\.threadProjects\.map/);
+  assert.match(slotHost, /studio\.threadProjects\.filter\(project => !project\.projectless\)\.map/);
+  assert.match(slotHost, /function RecentSessionsSection/);
+  assert.match(slotHost, /id="opl-recent-sessions-title"/);
   assert.match(slotHost, /project\.threads\.map/);
   assert.match(slotHost, /searchSessions=\{async/);
   assert.match(slotHost, /archiveSession=\{/);

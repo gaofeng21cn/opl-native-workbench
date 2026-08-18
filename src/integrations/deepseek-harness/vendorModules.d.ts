@@ -26,6 +26,19 @@ declare module "@opl-vendor/dsh-workspace-browser" {
   export const WorkspaceBrowser: (props: any) => JSX.Element;
 }
 
+declare module "@opl-vendor/dsh-session-node" {
+  export type DshSessionNode = {
+    id: string;
+    title: string;
+    blank: boolean;
+    running: boolean;
+    runningSubagentCount: number;
+    completed: boolean;
+    updatedAt: number;
+  };
+  export const SessionNodeItem: (props: any) => JSX.Element;
+}
+
 declare module "@opl-vendor/dsh-agent-preset-seat" {
   export const AgentPresetSeat: (props: any) => JSX.Element;
 }

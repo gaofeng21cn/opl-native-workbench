@@ -13,6 +13,7 @@
       "@opl-vendor/dsh-queue-dock": ["src/vendor/deepseek-harness/packages/client/ui-conversation/src/client/queue/QueueDock.tsx"],
       "@opl-vendor/dsh-settings-root": ["src/vendor/deepseek-harness/packages/client/ui-settings-general/src/client/SettingsRoot.tsx"],
       "@opl-vendor/dsh-workspace-browser": ["src/vendor/deepseek-harness/packages/client/ui-workspace/src/client/WorkspaceBrowser.tsx"],
+      "@opl-vendor/dsh-session-node": ["src/vendor/deepseek-harness/packages/client/ui-workspace/src/client/rows/Rows.tsx"],
       "@opl-vendor/dsh-workspace-store": ["src/vendor/deepseek-harness/packages/client/ui-workspace/src/client/stores.ts"],
       "@opl-vendor/dsh-agent-preset-seat": ["src/vendor/deepseek-harness/packages/client/ui-agent-preset/src/client/AgentPresetSeat.tsx"],
       "@opl-vendor/dsh-model-select": ["src/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/ModelSelect.tsx"],

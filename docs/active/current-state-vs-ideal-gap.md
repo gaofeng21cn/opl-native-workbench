@@ -75,6 +75,28 @@ release admission, and is explicitly adopted.
 | Validation | `distribution_and_core_functional_gates_green_preview_pending` | Default PR/main CI remains source-only, and carrier qualification remains manual. Source and hosted checks cover Settings, Runtime Overview, Agent/turn correctness, identity-scoped Runtime Detail, and service recovery; they do not replace the next locally installed Preview interaction and user acceptance |
 | Adoption and readiness | `false` | No active-shell adoption, release, clean-VM, domain, owner-acceptance, or production claim |
 
+## Sidebar Information Architecture
+
+The left sidebar follows one action grammar:
+
+- `New task` and `Run status` are sibling primary actions. Both use the DSH
+  `New Session` button geometry and interaction tokens (height, border, radius,
+  typography, spacing, hover, focus, and collapsed rail treatment). The runtime
+  button may expose the normal selected-page state, but it is not a second
+  visual control type.
+- There is no separate `Conversations` navigation item. Starting a task opens
+  the conversation surface; existing conversations are opened from the same
+  workspace/history area.
+- Temporary/projectless sessions are shown as a flat `Recent` list above real
+  workspaces. They are not represented as a fake `No project` workspace and do
+  not create a second workspace hierarchy.
+- The DSH vendor tree remains byte-identical. These rules are implemented only
+  by the Studio composition adapter and its thin data projection.
+
+Runtime status is a first-level view backed by the App-projected runtime model.
+It must not expose internal diagnostic enums or invent a separate runtime state
+source.
+
 ## Current Gaps
 
 | Gap | Class | Owner route | Stop condition |

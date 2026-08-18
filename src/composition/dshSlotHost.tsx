@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
-import { Activity, AlertCircle, Check, CheckCircle2, ChevronDown, ChevronRight, Folder, LoaderCircle, MessagesSquare, PanelRight, RefreshCw, Settings as SettingsIcon, X } from "lucide-react";
+import { Activity, AlertCircle, Check, CheckCircle2, ChevronDown, ChevronRight, Folder, LoaderCircle, PanelRight, RefreshCw, Settings as SettingsIcon, X } from "lucide-react";
 import { Menu, OnboardingSurface, type MenuEntry } from "@deepseek-ai/dsh-client-ui-primitives";
 import {
   SlotCore,
@@ -17,6 +17,7 @@ import { SettingsRoot } from "@opl-vendor/dsh-settings-root";
 import { WorkspaceBrowser } from "@opl-vendor/dsh-workspace-browser";
 import { AgentPresetSeat } from "@opl-vendor/dsh-agent-preset-seat";
 import { createWorkspaceViewStore } from "../vendor/deepseek-harness/packages/client/ui-workspace/src/client/stores.ts";
+import { SessionNodeItem, type DshSessionNode } from "@opl-vendor/dsh-session-node";
 import { zh as workspaceZh, en as workspaceEn } from "../vendor/deepseek-harness/packages/client/ui-workspace/src/client/locales.ts";
 import { zh as modelZh, en as modelEn } from "../vendor/deepseek-harness/packages/client/ui-model-selection/src/client/locales.ts";
 import { zh as agentZh, en as agentEn } from "../vendor/deepseek-harness/packages/client/ui-agent-preset/src/client/locales.ts";
@@ -325,7 +326,7 @@ function SidebarWorkspacesSlot({ wide, expandSidebar }: { wide: boolean; expandS
   const studio = useStudio();
   const workspaceStore = useMemo(() => createWorkspaceViewStore().create(), []);
   const list: SessionListState = useMemo(() => {
-    const projects = studio.threadProjects;
+    const projects = studio.threadProjects.filter(project => !project.projectless);
     const byId = Object.fromEntries(projects.flatMap(project => project.threads.map(thread => [thread.id, {
       id: thread.id,
       displayTitle: thread.title,
@@ -343,7 +344,7 @@ function SidebarWorkspacesSlot({ wide, expandSidebar }: { wide: boolean; expandS
   }, [studio.currentThreadId, studio.threadDirectoryStatus, studio.threadProjects]);
   const workspaces: WorkspaceListState = useMemo(() => ({
     phase: studio.threadDirectoryStatus,
-    items: studio.threadProjects.map(project => ({
+    items: studio.threadProjects.filter(project => !project.projectless).map(project => ({
       workspaceId: project.id,
       path: project.workspace ?? project.label,
       title: project.label,
@@ -353,19 +354,34 @@ function SidebarWorkspacesSlot({ wide, expandSidebar }: { wide: boolean; expandS
     })),
     archivedSessionIds: new Set()
   }), [studio.threadDirectoryStatus, studio.threadProjects]);
+  const recentList: SessionListState = useMemo(() => {
+    const projectless = studio.threadProjects.find((project) => project.projectless);
+    const byId = Object.fromEntries((projectless?.threads ?? []).map((thread) => [thread.id, {
+      id: thread.id,
+      displayTitle: thread.title,
+      cwd: undefined,
+      running: thread.status === "running",
+      completed: thread.status === "completed",
+      blank: false,
+      updatedAt: thread.updatedAt ? Date.parse(thread.updatedAt) : 0
+    }])) as SessionListState["byId"];
+    return { ids: Object.keys(byId), byId, current: studio.currentThreadId, phase: studio.threadDirectoryStatus, subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined };
+  }, [studio.currentThreadId, studio.threadDirectoryStatus, studio.threadProjects]);
   const actions = workspaceStore.actions as Record<string, (...args: any[]) => void>;
   const dshLocale = (key: string, params?: Record<string, unknown>) => translate(studio.locale, key, params);
   if (studio.threadDirectoryStatus === "loading") {
-    return <div className="opl-thread-directory-status" role="status">{studio.locale === "zh" ? "正在读取 Codex 会话..." : "Loading Codex conversations..."}</div>;
+    return <><RuntimeNavigation wide={wide} /><div className="opl-thread-directory-status" role="status">{studio.locale === "zh" ? "正在读取 Codex 会话..." : "Loading Codex conversations..."}</div></>;
   }
   if (studio.threadDirectoryStatus === "error") {
-    return <div className="opl-thread-directory-error" role="alert">
+    return <><RuntimeNavigation wide={wide} /><div className="opl-thread-directory-error" role="alert">
       <strong>{studio.locale === "zh" ? "无法连接 Codex App Server" : "Codex App Server is unavailable"}</strong>
       <span>{studio.threadDirectoryError}</span>
       <button type="button" onClick={() => studio.reloadThreadDirectory()}><RefreshCw aria-hidden="true" size={14} />{studio.locale === "zh" ? "重试" : "Retry"}</button>
-    </div>;
+    </div></>;
   }
-  return <WorkspaceBrowser
+  return <><RuntimeNavigation wide={wide} />
+  {wide ? <RecentSessionsSection list={recentList} current={studio.currentThreadId} locale={studio.locale} open={studio.openThread} fork={studio.forkThread} archive={studio.archiveThread} /> : null}
+  <WorkspaceBrowser
     wide={wide}
     expandSidebar={expandSidebar}
     useSessions={(selector: any) => selector(list)}
@@ -387,7 +403,63 @@ function SidebarWorkspacesSlot({ wide, expandSidebar }: { wide: boolean; expandS
     useDirectoryFlow={() => false}
     renderSlot={() => null}
     t={dshLocale}
-  />;
+  />
+  </>;
+}
+
+function RuntimeNavigation({ wide }: { wide: boolean }) {
+  const studio = useStudio();
+  const label = studio.locale === "zh" ? "运行状态" : "Run status";
+  return <nav className="opl-primary-nav" data-wide={wide} aria-label={studio.locale === "zh" ? "主导航" : "Primary navigation"}>
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      aria-current={studio.primaryView === "runtime" ? "page" : undefined}
+      onClick={() => studio.openPrimaryView("runtime")}
+    ><Activity aria-hidden="true" size={wide ? 14 : 18} />{wide ? <span>{label}</span> : null}</button>
+  </nav>;
+}
+
+function RecentSessionsSection({ list, current, locale, open, fork, archive }: {
+  list: SessionListState;
+  current?: string;
+  locale: "zh" | "en";
+  open(threadId: string): void;
+  fork(threadId: string): void;
+  archive(threadId: string): Promise<void>;
+}) {
+  const recent = Object.values(list.byId)
+    .filter((session) => !session.blank && session.origin !== "subagent")
+    .sort((left, right) => right.updatedAt - left.updatedAt)
+    .slice(0, 20)
+    .map((session) => ({
+      id: session.id,
+      title: session.displayTitle,
+      blank: false,
+      running: session.running,
+      runningSubagentCount: 0,
+      completed: session.completed === true,
+      updatedAt: session.updatedAt
+    })) as DshSessionNode[];
+  if (recent.length === 0) return null;
+  return <section className="opl-recent-sessions" aria-labelledby="opl-recent-sessions-title">
+    <h2 id="opl-recent-sessions-title">{locale === "zh" ? "最近" : "Recent"}</h2>
+    <div role="tree">
+      {recent.map((node) => <SessionNodeItem
+        key={node.id}
+        node={node}
+        currentId={current}
+        now={Date.now()}
+        onOpen={open}
+        onRename={() => undefined}
+        onFork={fork}
+        onArchive={(threadId: string) => { void archive(threadId); }}
+        flat
+        t={(key: string, params?: Record<string, unknown>) => translate(locale, key, params)}
+      />)}
+    </div>
+  </section>;
 }
 
 function ConversationSlot({ renderSlot }: { renderSlot: any }) {
@@ -399,35 +471,6 @@ function ConversationSlot({ renderSlot }: { renderSlot: any }) {
   const workspaces = { phase: "ready", items: [{ workspaceId: "opl-workspace", title: studio.projectTitle, sessionIds: [sessionId] }] };
   const input = { draft: studio.prompt, imageIds: [], draftRev: studio.promptRevision, phase: "plain", occurrences: [], queue: studio.queue };
   return <ConversationRoot sessionId={sessionId} useSession={(selector: any) => selector(session)} useSessions={(selector: any) => selector(sessions)} useWorkspaces={(selector: any) => selector(workspaces)} useInput={(selector: any) => selector(input)} useComposerBlock={(selector: any) => selector(undefined)} renderSlot={renderSlot} renderSlotChain={(_key: string, _owner: unknown, options: { fallback: ReactNode }) => options.fallback} selectWorkspace={async () => undefined} t={(key: string, params?: Record<string, unknown>) => translate(studio.locale, key, params)} />;
-}
-
-function SidebarPrimaryNavigationSlot({ wide }: { wide: boolean }) {
-  const studio = useStudio();
-  const entries = [
-    {
-      id: "conversation" as const,
-      label: studio.locale === "zh" ? "对话" : "Conversations",
-      icon: MessagesSquare
-    },
-    {
-      id: "runtime" as const,
-      label: studio.locale === "zh" ? "运行状态" : "Run status",
-      icon: Activity
-    }
-  ];
-  return <nav className="opl-primary-nav" data-wide={wide} aria-label={studio.locale === "zh" ? "主导航" : "Primary navigation"}>
-    {entries.map((entry) => {
-      const Icon = entry.icon;
-      return <button
-        type="button"
-        key={entry.id}
-        title={entry.label}
-        aria-label={entry.label}
-        aria-current={studio.primaryView === entry.id ? "page" : undefined}
-        onClick={() => studio.openPrimaryView(entry.id)}
-      ><Icon aria-hidden="true" size={16} />{wide ? <span>{entry.label}</span> : null}</button>;
-    })}
-  </nav>;
 }
 
 function ConversationHeaderSlot() {
@@ -764,7 +807,6 @@ export class OplStudioDshSlotHost {
     register({ name: "root", registrant: "opl-studio", children: { sidebar: { kind: "single", scope: "root" }, conversation: { kind: "single", scope: "root" }, details: { kind: "single", scope: "root" }, "shell.overlay": { kind: "list", scope: "root" }, "composer.palette": { kind: "list", scope: "root" } } }, OplStudioRoot);
     register({ name: "sidebar", registrant: "dsh-ui-sidebar", children: { "sidebar.workspaces": { kind: "single", scope: "root" }, "sidebar.settings": { kind: "single", scope: "root" }, "sidebar.footer.action": { kind: "list", scope: "root" } } }, SidebarSlot);
     register({ name: "sidebar.workspaces", registrant: "opl-studio" }, SidebarWorkspacesSlot);
-    register({ name: "sidebar.footer.action", id: "opl-primary-navigation", order: 0, registrant: "opl-studio" }, SidebarPrimaryNavigationSlot);
     register({ name: "sidebar.settings", registrant: "dsh-ui-settings", children: { "settings.trigger": { kind: "single", scope: "root" }, "settings.header": { kind: "single", scope: "root" }, "settings.action": { kind: "list", scope: "root" }, "settings.close": { kind: "single", scope: "root" }, "settings.section": { kind: "list", scope: "root" }, "settings.onboarding": { kind: "list", scope: "root" } } }, SettingsSlot);
     register({ name: "settings.trigger", registrant: "opl-studio" }, SettingsTriggerSlot);
     register({ name: "settings.header", registrant: "opl-studio" }, SettingsHeaderSlot);

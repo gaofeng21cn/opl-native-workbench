@@ -806,9 +806,9 @@ export function App({
   const currentAgentStatus = sendState === "running"
     ? (settings.locale === "zh" ? "运行中" : "Running")
     : threadRuntimeStatusLabel(currentSession?.status, settings.locale);
-  const selectedProject = threadProjects.find((project) => project.id === uiMetadata.selectedProjectId)
-    ?? threadProjects.find((project) => project.threads.some((thread) => thread.id === codexThreadId))
-    ?? threadProjects[0];
+  const selectedProject = threadProjects.find((project) => !project.projectless && project.id === uiMetadata.selectedProjectId)
+    ?? threadProjects.find((project) => !project.projectless && project.threads.some((thread) => thread.id === codexThreadId))
+    ?? threadProjects.find((project) => !project.projectless);
   const currentProject = selectedProject?.label ?? settings.defaultWorkspace ?? "Current project";
   const defaultWorkItemId = model.activeProjectLines.find((line) => line.status === "running")?.activeRunId
     ?? model.activeProjectLines[0]?.activeRunId
@@ -1491,14 +1491,13 @@ export function App({
       if (archived) setArchivedThreadProjects(archivedProjects);
       const selectedThreadId = uiMetadata.selectedThreadId;
       const directoryProjects = scope === "archived" ? archivedProjects : activeProjects;
-      const selectedThreadProject = directoryProjects.find((project) => project.threads.some((thread) => thread.id === selectedThreadId));
-      const currentWorkspaceProject = directoryProjects.find((project) => project.threads.some((thread) => thread.currentWorkspace));
-      const persistedProject = directoryProjects.find((project) => project.id === uiMetadata.selectedProjectId);
+      const selectedThreadProject = directoryProjects.find((project) => !project.projectless && project.threads.some((thread) => thread.id === selectedThreadId));
+      const currentWorkspaceProject = directoryProjects.find((project) => !project.projectless && project.threads.some((thread) => thread.currentWorkspace));
+      const persistedProject = directoryProjects.find((project) => !project.projectless && project.id === uiMetadata.selectedProjectId);
       const selectedProject = scope === "current"
         ? currentWorkspaceProject ?? selectedThreadProject ?? persistedProject ?? directoryProjects[0]
         : persistedProject ?? selectedThreadProject ?? currentWorkspaceProject
-          ?? directoryProjects.find((project) => !project.projectless)
-          ?? directoryProjects[0];
+          ?? directoryProjects.find((project) => !project.projectless);
       if (selectedProject && selectedProject.id !== uiMetadata.selectedProjectId) updateUiMetadata({ selectedProjectId: selectedProject.id });
       setThreadDirectoryStatus("ready");
       if (openSavedThread && scope !== "archived" && selectedThreadId) {
@@ -1935,7 +1934,7 @@ export function App({
   function startNewChat() {
     setPrimaryView("conversation");
     setSelectedRuntimeWorkItemId(undefined);
-    const currentWorkspaceProject = threadProjects.find((project) => project.threads.some((thread) => thread.currentWorkspace));
+    const currentWorkspaceProject = threadProjects.find((project) => !project.projectless && project.threads.some((thread) => thread.currentWorkspace));
     const nextMessages = createIntroMessages();
     messagesRef.current = nextMessages;
     setMessages(nextMessages);

@@ -70,6 +70,36 @@ function localizedStageName(item: WorkItemRuntimeItem, stageId: string, locale: 
   return (locale === "zh" ? stage?.displayNameI18n.zh : stage?.displayNameI18n.en) ?? stage?.displayName ?? stageId;
 }
 
+function recoveryComponentLabel(component: ServiceRecoveryModel["causalRoot"]["component"], locale: "zh" | "en"): string {
+  if (locale === "zh") {
+    return component === "service" ? "后台服务" : component === "worker" ? "后台任务" : component === "scheduler" ? "定时任务" : "运行状态";
+  }
+  return component === "service" ? "Background service" : component === "worker" ? "Background worker" : component === "scheduler" ? "Scheduled tasks" : "Runtime";
+}
+
+function recoveryStatusLabel(model: ServiceRecoveryModel, locale: "zh" | "en"): string {
+  if (locale === "zh") {
+    if (model.causalRoot.status === "blocked" || model.mutationGuard.allowed === false) return "当前环境暂不能自动修复";
+    if (model.causalRoot.status === "unknown") return "需要先刷新状态";
+    return model.primaryAction ? "可以尝试恢复" : "暂无可安全执行的操作";
+  }
+  if (model.causalRoot.status === "blocked" || model.mutationGuard.allowed === false) return "Automatic repair is unavailable in this environment";
+  if (model.causalRoot.status === "unknown") return "Refresh status before continuing";
+  return model.primaryAction ? "Recovery can be attempted" : "No safe recovery action is available";
+}
+
+function recoveryReadinessLabel(model: ServiceRecoveryModel, locale: "zh" | "en"): string {
+  if (locale === "zh") {
+    return model.causalRoot.component === "worker" ? "后台任务未就绪" : model.causalRoot.component === "scheduler" ? "定时任务需检查" : "后台服务未就绪";
+  }
+  return model.causalRoot.component === "worker" ? "Background worker is not ready" : model.causalRoot.component === "scheduler" ? "Scheduled tasks need attention" : "Background service is not ready";
+}
+
+function recoveryActionLabel(model: ServiceRecoveryModel, locale: "zh" | "en"): string {
+  if (locale === "zh") return model.causalRoot.component === "worker" ? "检查后台任务" : model.causalRoot.component === "scheduler" ? "检查定时任务" : "检查后台服务";
+  return model.causalRoot.component === "worker" ? "Check background worker" : model.causalRoot.component === "scheduler" ? "Check scheduled tasks" : "Check background service";
+}
+
 export function RuntimeOverviewPage({
   locale,
   projection,
@@ -97,11 +127,12 @@ export function RuntimeOverviewPage({
     project: "项目",
     allProjects: "全部项目",
     loaded: "加载时间",
-    availability: "可用性",
+    availability: "整体状态",
     available: "可用",
+    partial: "部分可用",
     unavailable: "不可用",
     running: "运行中",
-    attention: "需要处理",
+    attention: "需关注",
     tasks: "任务",
     currentCount: "当前范围",
     workItems: "项工作",
@@ -125,9 +156,9 @@ export function RuntimeOverviewPage({
     stageMap: "阶段进度",
     close: "关闭阶段进度",
     openDetails: "查看详情",
-    serviceRecovery: "服务恢复",
-    causalRoot: "当前根因",
-    mutationGuard: "变更保护",
+    serviceRecovery: "运行状态需要检查",
+    causalRoot: "影响范围",
+    mutationGuard: "自动修复",
     noRecoveryAction: "当前没有可安全执行的恢复操作",
     confirmRecovery: "确认执行",
     cancelRecovery: "取消"
@@ -139,8 +170,9 @@ export function RuntimeOverviewPage({
     project: "Project",
     allProjects: "All projects",
     loaded: "Loaded",
-    availability: "Availability",
+    availability: "Overall status",
     available: "Available",
+    partial: "Partially available",
     unavailable: "Unavailable",
     running: "Running",
     attention: "Needs attention",
@@ -167,9 +199,9 @@ export function RuntimeOverviewPage({
     stageMap: "Stage progress",
     close: "Close stage progress",
     openDetails: "Open details",
-    serviceRecovery: "Service recovery",
-    causalRoot: "Current root cause",
-    mutationGuard: "Mutation guard",
+    serviceRecovery: "Runtime status needs attention",
+    causalRoot: "Affected area",
+    mutationGuard: "Automatic recovery",
     noRecoveryAction: "No safe recovery action is currently available",
     confirmRecovery: "Confirm",
     cancelRecovery: "Cancel"
@@ -183,9 +215,15 @@ export function RuntimeOverviewPage({
     && (projectId === "all" || item.projectId === projectId)
     && (status === "all" || statusCategory(item) === status)
   )), [agentId, projectId, projection?.items, showArchived, status]);
+  const recoveryNeedsAttention = serviceRecovery !== undefined && serviceRecovery.causalRoot.status !== "ready";
   const attentionCount = projection
-    ? projection.summary.userAttentionCount + projection.summary.systemAttentionCount
+    ? projection.summary.userAttentionCount + projection.summary.systemAttentionCount + (recoveryNeedsAttention ? 1 : 0)
     : 0;
+  const overallStatus = stateStatus === "error" || !projection
+    ? { label: copy.unavailable, tone: "muted" as const }
+    : recoveryNeedsAttention
+      ? { label: copy.partial, tone: "attention" as const }
+      : { label: copy.available, tone: "success" as const };
 
   const changeAgent = (value: string) => {
     setAgentId(value);
@@ -232,29 +270,29 @@ export function RuntimeOverviewPage({
       </div>
 
       <dl className="runtime-summary-band">
-        <div><dt>{copy.availability}</dt><dd data-tone={projection ? "success" : "muted"}>{projection ? copy.available : copy.unavailable}</dd></div>
+        <div><dt>{copy.availability}</dt><dd data-tone={overallStatus.tone}>{overallStatus.label}</dd></div>
         <div><dt>{copy.running}</dt><dd data-tone={projection?.summary.runningCount ? "active" : "muted"}>{projection?.summary.runningCount ?? "-"}</dd></div>
         <div><dt>{copy.attention}</dt><dd data-tone={attentionCount ? "attention" : "muted"}>{projection ? attentionCount : "-"}</dd></div>
       </dl>
 
-      {serviceRecovery ? (
+      {recoveryNeedsAttention && serviceRecovery ? (
         <section className="runtime-recovery-band" aria-labelledby="runtime-recovery-title" data-status={serviceRecovery.causalRoot.status}>
           <div className="runtime-recovery-heading">
             <CircleAlert aria-hidden="true" size={17} />
             <div>
               <h2 id="runtime-recovery-title">{copy.serviceRecovery}</h2>
-              <p>{copy.causalRoot}: {serviceRecovery.causalRoot.component} · {serviceRecovery.causalRoot.reasonCode}</p>
+              <p>{copy.causalRoot}: {recoveryComponentLabel(serviceRecovery.causalRoot.component, locale)}</p>
             </div>
           </div>
           <dl>
-            <div><dt>{copy.mutationGuard}</dt><dd>{serviceRecovery.mutationGuard.status}</dd></div>
-            <div><dt>{locale === "zh" ? "服务状态" : "Service state"}</dt><dd>{serviceRecovery.causalRoot.rawStatus}</dd></div>
+            <div><dt>{copy.mutationGuard}</dt><dd>{recoveryStatusLabel(serviceRecovery, locale)}</dd></div>
+            <div><dt>{locale === "zh" ? "状态" : "Status"}</dt><dd>{recoveryReadinessLabel(serviceRecovery, locale)}</dd></div>
           </dl>
           <div className="runtime-recovery-action">
             {serviceRecovery.primaryAction ? (
               pendingRecoveryAction?.actionId === serviceRecovery.primaryAction.actionId ? (
                 <div className="runtime-recovery-confirmation" role="group" aria-label={copy.confirmRecovery}>
-                  <span>{serviceRecovery.primaryAction.label}</span>
+                  <span>{recoveryActionLabel(serviceRecovery, locale)}</span>
                   <button type="button" disabled={serviceRecoveryBusy} onClick={() => setPendingRecoveryAction(null)}>{copy.cancelRecovery}</button>
                   <button type="button" className="primary" disabled={serviceRecoveryBusy} onClick={() => {
                     const action = pendingRecoveryAction;
@@ -268,7 +306,7 @@ export function RuntimeOverviewPage({
                   else if (serviceRecovery.primaryAction) onRunServiceRecovery(serviceRecovery.primaryAction);
                 }}>
                   <RotateCcw className={serviceRecoveryBusy ? "spin" : undefined} aria-hidden="true" size={15} />
-                  {serviceRecovery.primaryAction.label}
+                  {recoveryActionLabel(serviceRecovery, locale)}
                 </button>
               )
             ) : <span>{copy.noRecoveryAction}</span>}

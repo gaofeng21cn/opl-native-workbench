@@ -3536,38 +3536,75 @@ export const codexWorkbenchStyles = `
 
   .opl-primary-nav {
     display: grid;
-    gap: 3px;
-    width: 100%;
+    width: auto;
+    margin: 0 14px 8px 2px;
   }
 
   .opl-primary-nav button {
     width: 100%;
-    min-height: 34px;
+    height: 38px;
     display: flex;
     align-items: center;
-    gap: 9px;
-    padding: 0 10px;
-    border: 0;
-    border-radius: 7px;
-    background: transparent;
-    color: var(--opl-muted);
-    text-align: left;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    box-sizing: border-box;
+    border: 1px solid var(--dsw-alias-border-l2);
+    border-radius: 12px;
+    background: var(--dsw-alias-button-elevated-fill);
+    color: var(--dsw-alias-label-primary);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 22px;
+    cursor: pointer;
+    overflow: hidden;
   }
 
   .opl-primary-nav button:hover {
-    background: var(--opl-hover);
+    background: var(--dsw-alias-button-floating-hover);
     color: var(--opl-text);
   }
 
   .opl-primary-nav button[aria-current="page"] {
-    background: var(--opl-selected);
-    color: var(--opl-text);
-    font-weight: 500;
+    border-color: var(--opl-border-strong);
+  }
+
+  .opl-primary-nav[data-wide="false"] {
+    width: 36px;
+    margin: 0 0 12px;
   }
 
   .opl-primary-nav[data-wide="false"] button {
+    width: 36px;
+    height: 36px;
     justify-content: center;
+    gap: 0;
     padding: 0;
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .opl-primary-nav[data-wide="false"] button:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+
+  .opl-recent-sessions {
+    flex: none;
+    min-width: 0;
+    max-height: min(34vh, 240px);
+    margin: 2px 0 6px;
+    overflow-y: auto;
+  }
+
+  .opl-recent-sessions h2 {
+    min-height: 24px;
+    display: flex;
+    align-items: center;
+    margin: 0;
+    padding: 0 8px;
+    color: var(--opl-muted);
+    font-size: 11px;
+    font-weight: 500;
   }
 
   .opl-runtime-overview {
