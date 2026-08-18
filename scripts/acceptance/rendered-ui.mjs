@@ -72,6 +72,7 @@ try {
     command: process.execPath,
     args: [fixture],
     cwd: tempRoot,
+    env: { ...process.env, FAKE_APP_SERVER_INCLUDE_PROJECTLESS: "1" },
     requestTimeoutMs: 2_000,
     turnTimeoutMs: 2_000
   });
@@ -100,6 +101,40 @@ try {
   assert.equal(wide.root, true);
   assert.equal(wide.horizontalOverflow, false);
   assert.deepEqual(wide.contextTabs, ["运行状态", "文件与结果", "智能体与能力"]);
+
+  const sidebarRecent = await evaluate(`() => {
+    const seat = document.querySelector('.opl-workspace-browser-seat');
+    const recent = document.querySelector('.opl-recent-sessions');
+    const heading = document.querySelector('#opl-recent-sessions-title');
+    const workspaceGroup = seat?.querySelector('[role="treeitem"][aria-expanded]');
+    const recentRows = recent ? Array.from(recent.querySelectorAll('[role="treeitem"]')) : [];
+    const scrollOwners = seat ? [seat, ...seat.querySelectorAll('*')].filter((element) => {
+      const overflowY = getComputedStyle(element).overflowY;
+      return overflowY === 'auto' || overflowY === 'scroll';
+    }) : [];
+    return {
+      heading: heading?.textContent?.trim(),
+      headingIsTreeItem: heading?.getAttribute('role') === 'treeitem' || Boolean(heading?.closest('[role="treeitem"]')),
+      headingExpanded: heading?.getAttribute('aria-expanded'),
+      headingHasIcon: Boolean(heading?.querySelector('svg')),
+      recentRowCount: recentRows.length,
+      workspaceCollapsible: Boolean(workspaceGroup),
+      recentAfterWorkspaceBrowser: Boolean(seat?.firstElementChild && recent && (seat.firstElementChild.compareDocumentPosition(recent) & Node.DOCUMENT_POSITION_FOLLOWING)),
+      scrollOwnerCount: scrollOwners.length,
+      scrollOwnerClass: scrollOwners[0]?.className ?? null
+    };
+  }`, cliRoot);
+  assert.deepEqual(sidebarRecent, {
+    heading: "最近",
+    headingIsTreeItem: false,
+    headingExpanded: null,
+    headingHasIcon: false,
+    recentRowCount: 1,
+    workspaceCollapsible: true,
+    recentAfterWorkspaceBrowser: true,
+    scrollOwnerCount: 1,
+    scrollOwnerClass: "opl-workspace-browser-seat"
+  });
 
   const settingsOpen = await evaluate(`async () => {
     const trigger = document.querySelector('button[aria-haspopup="dialog"]');
@@ -180,7 +215,7 @@ try {
       dshUpstreamRef: vendorManifest.upstream.ref,
       dshVendoredFileCount: vendorManifest.snapshot.file_count
     },
-    assertions: { wide, settingsOpen, trapped, restored, narrow },
+    assertions: { wide, sidebarRecent, settingsOpen, trapped, restored, narrow },
     screenshots: [
       { viewport: "1440x900", path: path.relative(repositoryRoot, wideOutput), sha256: await digestFile(wideOutput) },
       { viewport: "400x800", path: path.relative(repositoryRoot, narrowOutput), sha256: await digestFile(narrowOutput) }

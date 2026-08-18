@@ -87,10 +87,10 @@ The left sidebar follows one action grammar:
 - There is no separate `Conversations` navigation item. Starting a task opens
   the conversation surface; existing conversations are opened from the same
   workspace/history area.
-- Temporary/projectless sessions use the DSH Workspace Browser's native
-  ungrouped bucket, relabeled `Recent`. The bucket trails real workspaces inside
-  the same list and shares its only scroll owner; it is not a fixed or
-  independently scrolling sidebar section and does not create a fake Workspace.
+- Real workspaces remain DSH collapsible folder groups. Temporary/projectless
+  sessions trail them as a flat `Recent` section in the same sidebar scroll
+  owner. `Recent` is a non-collapsible heading: it has no folder icon, chevron,
+  group toggle, or `aria-expanded`, and its session rows are visible directly.
 - The DSH vendor tree remains byte-identical. These rules are implemented only
   by the Studio composition adapter and its thin data projection.
 

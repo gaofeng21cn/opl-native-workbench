@@ -3589,11 +3589,47 @@ export const codexWorkbenchStyles = `
   }
 
   .opl-workspace-browser-seat {
-    display: contents;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
   }
 
-  .opl-workspace-browser-seat [role="treeitem"][aria-expanded]:not([draggable="true"]) button {
-    display: none;
+  .opl-workspace-browser-seat > div:first-child,
+  .opl-workspace-browser-seat [role="tree"] {
+    flex: none;
+    min-height: auto;
+  }
+
+  .opl-workspace-browser-seat [role="tree"] {
+    overflow: visible;
+    scrollbar-gutter: auto;
+  }
+
+  .opl-recent-sessions {
+    flex: none;
+    min-width: 0;
+    margin: 4px 0 6px;
+    padding-right: var(--dsh-sidebar-inline-padding);
+  }
+
+  .opl-recent-sessions h2 {
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    margin: 0;
+    padding: 0 4px;
+    color: var(--dsw-alias-label-tertiary);
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 20px;
+  }
+
+  .opl-recent-session-list > * + * {
+    margin-top: 2px;
   }
 
   .opl-runtime-overview {

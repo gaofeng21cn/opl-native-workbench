@@ -7,6 +7,7 @@ const projectKey = configuredProjectKey === "__projectless__" ? null : configure
 const logPath = process.env.FAKE_APP_SERVER_LOG;
 const lifecyclePath = process.env.FAKE_APP_SERVER_LIFECYCLE_LOG;
 const omitCompletedTurnReadback = process.env.FAKE_APP_SERVER_OMIT_COMPLETED_TURN_READBACK === "1";
+const includeProjectlessThread = process.env.FAKE_APP_SERVER_INCLUDE_PROJECTLESS === "1";
 const threads = new Map([
   ["thread-source", thread("thread-source", { type: "idle" }, ["src/source.ts"])],
   ["thread-idle", thread("thread-idle", { type: "idle" }, ["src/idle.ts"])],
@@ -22,6 +23,9 @@ const threads = new Map([
     threadSource: { type: "subAgentReview" }
   })]
 ]);
+if (includeProjectlessThread) {
+  threads.set("thread-recent", thread("thread-recent", { type: "idle" }, [], [], { cwd: "", isTemporaryWorkspace: true, projectKey: null, updatedAt: 3 }));
+}
 let nextThread = 1;
 let nextTurn = 1;
 let lifecycleClosed = false;
@@ -117,7 +121,7 @@ async function handle(frame) {
   if (method === "thread/list") {
     const page = params.cursor === "page-2"
       ? [threads.get("thread-running"), threads.get("thread-subagent")]
-      : [threads.get("thread-source"), threads.get("thread-idle"), threads.get("thread-unloaded")];
+      : [threads.get("thread-source"), threads.get("thread-idle"), threads.get("thread-unloaded"), ...(includeProjectlessThread ? [threads.get("thread-recent")] : [])];
     return send({ id, result: { data: page, nextCursor: params.cursor ? null : "page-2", backwardsCursor: null } });
   }
   if (method === "thread/read") {

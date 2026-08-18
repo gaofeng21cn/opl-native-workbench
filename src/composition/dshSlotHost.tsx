@@ -15,6 +15,7 @@ import { InputBar } from "@opl-vendor/dsh-input-bar";
 import { QueueDock } from "@opl-vendor/dsh-queue-dock";
 import { SettingsRoot } from "@opl-vendor/dsh-settings-root";
 import { WorkspaceBrowser } from "@opl-vendor/dsh-workspace-browser";
+import { SessionNodeItem, type DshSessionNode } from "@opl-vendor/dsh-session-node";
 import { AgentPresetSeat } from "@opl-vendor/dsh-agent-preset-seat";
 import { createWorkspaceViewStore } from "../vendor/deepseek-harness/packages/client/ui-workspace/src/client/stores.ts";
 import { zh as workspaceZh, en as workspaceEn } from "../vendor/deepseek-harness/packages/client/ui-workspace/src/client/locales.ts";
@@ -325,10 +326,11 @@ function SidebarWorkspacesSlot({ wide, expandSidebar }: { wide: boolean; expandS
   const studio = useStudio();
   const workspaceStore = useMemo(() => createWorkspaceViewStore().create(), []);
   const list: SessionListState = useMemo(() => {
-    const byId = Object.fromEntries(studio.threadProjects.flatMap(project => project.threads.map(thread => [thread.id, {
+    const projects = studio.threadProjects.filter(project => !project.projectless);
+    const byId = Object.fromEntries(projects.flatMap(project => project.threads.map(thread => [thread.id, {
       id: thread.id,
       displayTitle: thread.title,
-      cwd: project.projectless ? undefined : thread.workspace,
+      cwd: thread.workspace,
       running: thread.status === "running",
       completed: thread.status === "completed",
       blank: false,
@@ -352,10 +354,25 @@ function SidebarWorkspacesSlot({ wide, expandSidebar }: { wide: boolean; expandS
     })),
     archivedSessionIds: new Set()
   }), [studio.threadDirectoryStatus, studio.threadProjects]);
+  const recentList: SessionListState = useMemo(() => {
+    const projectless = studio.threadProjects.find(project => project.projectless);
+    const byId = Object.fromEntries((projectless?.threads ?? []).map(thread => [thread.id, {
+      id: thread.id,
+      displayTitle: thread.title,
+      cwd: undefined,
+      running: thread.status === "running",
+      completed: thread.status === "completed",
+      blank: false,
+      updatedAt: thread.updatedAt ? Date.parse(thread.updatedAt) : 0
+    }])) as SessionListState["byId"];
+    return {
+      ids: Object.keys(byId), byId, current: studio.currentThreadId,
+      phase: studio.threadDirectoryStatus,
+      subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined
+    };
+  }, [studio.currentThreadId, studio.threadDirectoryStatus, studio.threadProjects]);
   const actions = workspaceStore.actions as Record<string, (...args: any[]) => void>;
-  const dshLocale = (key: string, params?: Record<string, unknown>) => key === "group.ungrouped"
-    ? (studio.locale === "zh" ? "最近" : "Recent")
-    : translate(studio.locale, key, params);
+  const dshLocale = (key: string, params?: Record<string, unknown>) => translate(studio.locale, key, params);
   if (studio.threadDirectoryStatus === "loading") {
     return <><RuntimeNavigation wide={wide} /><div className="opl-thread-directory-status" role="status">{studio.locale === "zh" ? "正在读取 Codex 会话..." : "Loading Codex conversations..."}</div></>;
   }
@@ -391,8 +408,52 @@ function SidebarWorkspacesSlot({ wide, expandSidebar }: { wide: boolean; expandS
     renderSlot={() => null}
     t={dshLocale}
   />
+  {wide ? <RecentSessionsSection list={recentList} current={studio.currentThreadId} locale={studio.locale} open={studio.openThread} fork={studio.forkThread} archive={studio.archiveThread} /> : null}
   </div>
   </>;
+}
+
+function RecentSessionsSection({ list, current, locale, open, fork, archive }: {
+  list: SessionListState;
+  current?: string;
+  locale: "zh" | "en";
+  open(threadId: string): void;
+  fork(threadId: string): void;
+  archive(threadId: string): Promise<void>;
+}) {
+  const recent = useMemo(() => Object.values(list.byId)
+    .filter(session => !session.blank)
+    .sort((left, right) => right.updatedAt - left.updatedAt)
+    .slice(0, 20)
+    .map(session => ({
+      id: session.id,
+      title: session.displayTitle,
+      blank: false,
+      running: session.running,
+      runningSubagentCount: 0,
+      completed: session.completed === true,
+      updatedAt: session.updatedAt
+    })) as DshSessionNode[], [list.byId]);
+  const t = useCallback((key: string, params?: Record<string, unknown>) => translate(locale, key, params), [locale]);
+  if (recent.length === 0) return null;
+  const now = Date.now();
+  return <section className="opl-recent-sessions" aria-labelledby="opl-recent-sessions-title">
+    <h2 id="opl-recent-sessions-title">{locale === "zh" ? "最近" : "Recent"}</h2>
+    <div className="opl-recent-session-list" role="tree" aria-labelledby="opl-recent-sessions-title">
+      {recent.map(node => <SessionNodeItem
+        key={node.id}
+        node={node}
+        currentId={current}
+        now={now}
+        onOpen={open}
+        onRename={() => undefined}
+        onFork={fork}
+        onArchive={(threadId: string) => { void archive(threadId); }}
+        flat
+        t={t}
+      />)}
+    </div>
+  </section>;
 }
 
 function RuntimeNavigation({ wide }: { wide: boolean }) {

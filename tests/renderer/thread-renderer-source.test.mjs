@@ -116,14 +116,22 @@ test("local storage keeps only UI metadata and drafts after one-way legacy backu
 
 test("DSH workspace browser, lifecycle, and Codex subagent projection stay explicit", () => {
   assert.match(slotHost, /<WorkspaceBrowser/);
-  assert.match(slotHost, /studio\.threadProjects\.flatMap\(project => project\.threads\.map/);
+  assert.match(slotHost, /const projects = studio\.threadProjects\.filter\(project => !project\.projectless\)/);
   assert.match(slotHost, /studio\.threadProjects\.filter\(project => !project\.projectless\)\.map/);
-  assert.match(slotHost, /cwd: project\.projectless \? undefined : thread\.workspace/);
-  assert.match(slotHost, /key === "group\.ungrouped"/);
+  assert.match(slotHost, /const projectless = studio\.threadProjects\.find\(project => project\.projectless\)/);
+  assert.match(slotHost, /function RecentSessionsSection/);
+  assert.match(slotHost, /<section className="opl-recent-sessions" aria-labelledby="opl-recent-sessions-title">/);
+  assert.match(slotHost, /<h2 id="opl-recent-sessions-title">/);
+  assert.match(slotHost, /className="opl-recent-session-list" role="tree" aria-labelledby="opl-recent-sessions-title"/);
+  assert.match(slotHost, /@opl-vendor\/dsh-session-node/);
   assert.match(slotHost, /className="opl-workspace-browser-seat"/);
-  assert.doesNotMatch(slotHost, /RecentSessionsSection|opl-recent-sessions-title|@opl-vendor\/dsh-session-node/);
-  assert.doesNotMatch(styles, /\.opl-recent-sessions/);
-  assert.match(styles, /\.opl-workspace-browser-seat \[role="treeitem"\]\[aria-expanded\]:not\(\[draggable="true"\]\) button/);
+  assert.ok(slotHost.indexOf("<WorkspaceBrowser") < slotHost.indexOf("<RecentSessionsSection"));
+  assert.doesNotMatch(slotHost, /key === "group\.ungrouped"/);
+  assert.doesNotMatch(slotHost.slice(slotHost.indexOf("function RecentSessionsSection"), slotHost.indexOf("function RuntimeNavigation")), /aria-expanded|<Folder|<Chevron/);
+  assert.match(styles, /\.opl-workspace-browser-seat \{[^}]*overflow-y: auto;[^}]*scrollbar-gutter: stable;/s);
+  assert.match(styles, /\.opl-workspace-browser-seat \[role="tree"\] \{[^}]*overflow: visible;/s);
+  const recentStyles = styles.slice(styles.indexOf(".opl-recent-sessions {"), styles.indexOf(".opl-recent-sessions h2"));
+  assert.doesNotMatch(recentStyles, /overflow|max-height/);
   assert.match(slotHost, /project\.threads\.map/);
   assert.match(slotHost, /searchSessions=\{async/);
   assert.match(slotHost, /archiveSession=\{/);
@@ -541,6 +549,8 @@ test("primary canvas hides its scrollbar without disabling scrolling", () => {
   assert.match(styles, /\.settings-detail \{[^}]*overflow-y: auto;[^}]*scrollbar-width: none;/s);
   const workspaceStyles = read("src/vendor/deepseek-harness/packages/client/ui-workspace/src/client/WorkspaceBrowser.module.css");
   assert.match(workspaceStyles, /\.list \{[\s\S]*overflow-y: auto;/);
+  assert.match(styles, /\.opl-workspace-browser-seat \{[^}]*overflow-y: auto;/s);
+  assert.match(styles, /\.opl-workspace-browser-seat \[role="tree"\] \{[^}]*overflow: visible;/s);
   assert.match(styles, /\.sidebar-scroll > \*,[\s\S]*\.thread-directory-row \{[^}]*min-width: 0;[^}]*max-width: 100%;/s);
   assert.match(styles, /\.history-list li \.thread-directory-open \{[^}]*max-width: 100%;[^}]*overflow: hidden;/s);
   assert.match(styles, /\.history-list li \.thread-directory-open \.thread-directory-copy \{[^}]*max-width: 100%;[^}]*overflow: hidden;/s);
