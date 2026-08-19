@@ -707,7 +707,7 @@ test("Settings uses the App-owned navigation groups and one shared read model", 
   assert.match(settingsRoot, /renderSlot\('settings\.section'/);
   assert.match(slotHost, /settingsDestinations\("en"\)\.entries\(\)/);
   assert.match(slotHost, /id: settingsSectionId\(destination\.id\)/);
-  assert.match(slotHost, /renderSettings\(destination\)/);
+  assert.match(slotHost, /renderSettings\(destination, renderContribution \?\? undefined\)/);
   assert.doesNotMatch(settingsPanel, /settings-mobile-navigation/);
   assert.doesNotMatch(settingsPanel, /useState<SettingsDestinationId>/);
   assert.doesNotMatch(styles, /grid-template-columns: 220px minmax\(0, 1fr\)/);
