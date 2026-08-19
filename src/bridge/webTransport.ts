@@ -86,6 +86,8 @@ export function installWebTransport(): void {
     readCodexModels: () => requestJson("/api/codex/models"),
     readCodexCapabilities: (threadId) => requestJson(`/api/codex/capabilities${threadId ? `?threadId=${encodeURIComponent(threadId)}` : ""}`),
     readCodexPermissionProfiles: () => requestJson("/api/codex/permission-profiles"),
+    listPendingServerRequests: () => requestJson("/api/codex/pending-requests"),
+    respondToServerRequest: (request) => postJson("/api/codex/respond-request", request),
     pickFiles: () => Promise.reject(new WebTransportError("native_picker_unavailable", "The local WebUI cannot expose native file paths")),
     pickDirectory: () => Promise.reject(new WebTransportError("native_picker_unavailable", "The local WebUI cannot expose native folder paths")),
     setLogDirectory: () => Promise.resolve({
@@ -110,6 +112,8 @@ export function installWebTransport(): void {
     readThread: (request) => postJson("/api/threads/read", request),
     resumeThread: (request) => postJson("/api/threads/resume", request),
     forkThread: (request) => postJson("/api/threads/fork", request),
+    renameThread: (request) => postJson("/api/threads/rename", request),
+    deleteThread: (request) => postJson("/api/threads/delete", request),
     setArchived: (request) => postJson(request.archived ? "/api/threads/archive" : "/api/threads/unarchive", request),
     subscribeEvents,
     connectEvents: subscribeEvents

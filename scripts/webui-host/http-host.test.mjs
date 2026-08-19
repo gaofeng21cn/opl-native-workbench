@@ -24,7 +24,7 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
     command: process.execPath,
     args: [fixture],
     cwd: directory,
-    env: { ...process.env, FAKE_APP_SERVER_LOG: appServerLog },
+    env: { ...process.env, FAKE_APP_SERVER_LOG: appServerLog, FAKE_APP_SERVER_PENDING_APPROVAL: "1" },
     requestTimeoutMs: 2_000,
     turnTimeoutMs: 2_000
   });
@@ -195,6 +195,13 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
   assert.equal(chat.body.canonicalThread.id, chat.body.threadId);
   assert.equal(chat.body.canonicalThread.state, "idle");
   assert.equal(chat.body.canonicalThreadReadback.thread.id, chat.body.threadId);
+  const pending = await fetch(`${baseUrl}/api/codex/pending-requests`).then((response) => response.json());
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0].method, "item/commandExecution/requestApproval");
+  const approval = await post(baseUrl, "/api/codex/respond-request", { id: pending[0].id, response: { result: { decision: "decline" } } });
+  assert.deepEqual(approval.body, { id: "approval-1", accepted: true });
+  const pendingAfterResponse = await fetch(`${baseUrl}/api/codex/pending-requests`).then((response) => response.json());
+  assert.deepEqual(pendingAfterResponse, []);
   const canonicalTurn = chat.body.canonicalThread.turns.find((turn) => turn.id === chat.body.turnId);
   assert.equal(canonicalTurn.status, "completed");
   assert.equal(canonicalTurn.items.at(-1).type, "agentMessage");
@@ -203,7 +210,12 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
   const turnStart = frames.find((frame) => frame.method === "turn/start");
   const turnSteer = frames.find((frame) => frame.method === "turn/steer");
   assert.deepEqual(turnStart.params.input.map((input) => input.type), ["text", "localImage", "mention", "skill"]);
-  assert.equal(turnStart.params.permissions, ":danger-full-access");
+  assert.equal(turnStart.params.approvalPolicy, "never");
+  assert.deepEqual(turnStart.params.sandboxPolicy, { type: "dangerFullAccess" });
+  const threadStart = frames.find((frame) => frame.method === "thread/start");
+  assert.equal(threadStart.params.approvalPolicy, "never");
+  assert.equal(threadStart.params.sandbox, "danger-full-access");
+  assert.equal(Object.hasOwn(threadStart.params, "sandboxPolicy"), false);
   assert.equal(turnSteer.params.expectedTurnId, "turn-running");
   assert.equal(turnSteer.params.input[0].text, "Keep the active turn on the accepted route.");
   const chatThreadStartIndex = frames.findLastIndex((frame) => (

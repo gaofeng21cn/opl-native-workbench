@@ -3627,6 +3627,97 @@ export const codexWorkbenchStyles = `
     color: var(--opl-canvas);
   }
 
+  .codex-server-request-panel {
+    display: grid;
+    gap: 10px;
+    margin: 0 0 14px;
+    padding: 12px;
+    border: 1px solid var(--opl-border);
+    border-left: 3px solid var(--opl-text);
+    background: var(--opl-canvas);
+  }
+
+  .codex-server-request-panel > header,
+  .codex-server-request-heading,
+  .codex-server-request-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .codex-server-request-panel > header span {
+    margin-left: auto;
+    color: var(--opl-muted);
+    font-size: 11px;
+  }
+
+  .codex-server-request {
+    display: grid;
+    gap: 8px;
+    padding-top: 9px;
+    border-top: 1px solid var(--opl-border);
+  }
+
+  .codex-server-request-heading code {
+    margin-left: auto;
+    color: var(--opl-muted);
+    font: 10px var(--opl-font-mono);
+  }
+
+  .codex-server-request-message {
+    margin: 0;
+    color: var(--opl-muted);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .codex-server-request-field {
+    display: grid;
+    gap: 4px;
+    font-size: 12px;
+  }
+
+  .codex-server-request-field small {
+    color: var(--opl-muted);
+    font-size: 11px;
+  }
+
+  .codex-server-request-field input,
+  .codex-server-request-field select {
+    min-height: 31px;
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--opl-border);
+    border-radius: 5px;
+    background: var(--opl-canvas);
+    color: var(--opl-text);
+    padding: 0 8px;
+  }
+
+  .codex-server-request-actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .codex-server-request-actions button,
+  .codex-server-request > button {
+    min-height: 30px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    border: 1px solid var(--opl-border);
+    border-radius: 6px;
+    background: var(--opl-canvas);
+    color: var(--opl-text);
+  }
+
+  .codex-server-request-actions .primary {
+    border-color: var(--opl-text);
+    background: var(--opl-text);
+    color: var(--opl-canvas);
+  }
+
   .opl-primary-nav {
     display: grid;
     align-self: stretch;

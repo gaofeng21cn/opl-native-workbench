@@ -70,6 +70,12 @@ export type OplStudioSurface = {
   startSession(): void;
   startSessionInProject(projectId?: string): void;
   openThread(threadId: string): void;
+  renameSession(threadId: string, title: string): Promise<void>;
+  renameWorkspace(workspaceId: string, title: string): Promise<void>;
+  deleteWorkspace(workspaceId: string): Promise<void>;
+  insertWorkspaceBefore(workspaceId: string, beforeWorkspaceId?: string): Promise<void>;
+  insertSessionBefore(workspaceId: string, threadId: string, beforeThreadId?: string): Promise<void>;
+  createWorkspace(path: string): Promise<void>;
   forkThread(threadId: string): void;
   archiveThread(threadId: string): Promise<void>;
   searchThreads(query: string): Promise<Array<{ sessionId: string; snippet?: string }>>;

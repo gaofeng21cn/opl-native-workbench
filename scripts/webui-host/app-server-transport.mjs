@@ -8,6 +8,50 @@ import { projectCodexThread } from "./thread-adapter.mjs";
 export const DEFAULT_PERMISSION_PROFILE = ":danger-full-access";
 export const CHANNEL_CALLBACK_SCHEMA = "opl_channel_canonical_thread_callbacks.v1";
 
+function permissionValues(profile = DEFAULT_PERMISSION_PROFILE, cwd = process.cwd()) {
+  if (typeof cwd !== "string" || !path.isAbsolute(cwd)) {
+    throw new AppServerTransportError("invalid_request", "Codex working directory must be an absolute path");
+  }
+  switch (profile) {
+    case ":danger-full-access":
+      return {
+        approvalPolicy: "never",
+        sandbox: "danger-full-access",
+        sandboxPolicy: { type: "dangerFullAccess" }
+      };
+    case ":workspace":
+      return {
+        approvalPolicy: "on-request",
+        sandbox: "workspace-write",
+        sandboxPolicy: {
+          type: "workspaceWrite",
+          writableRoots: [cwd],
+          networkAccess: false,
+          excludeTmpdirEnvVar: false,
+          excludeSlashTmp: false
+        }
+      };
+    case ":read-only":
+      return {
+        approvalPolicy: "on-request",
+        sandbox: "read-only",
+        sandboxPolicy: { type: "readOnly", networkAccess: false }
+      };
+    default:
+      throw new AppServerTransportError("invalid_request", `Unsupported Codex permission profile: ${String(profile)}`);
+  }
+}
+
+export function threadPermissionOverrides(profile = DEFAULT_PERMISSION_PROFILE, cwd = process.cwd()) {
+  const { approvalPolicy, sandbox } = permissionValues(profile, cwd);
+  return { approvalPolicy, sandbox };
+}
+
+export function turnPermissionOverrides(profile = DEFAULT_PERMISSION_PROFILE, cwd = process.cwd()) {
+  const { approvalPolicy, sandboxPolicy } = permissionValues(profile, cwd);
+  return { approvalPolicy, sandboxPolicy };
+}
+
 export class AppServerTransportError extends Error {
   constructor(code, message, details = {}) {
     super(message);
@@ -209,6 +253,7 @@ export class CodexAppServerTransport extends EventEmitter {
     this.initialized = false;
     this.startPromise = null;
     this.stderrTail = "";
+    this.pendingServerRequests = new Map();
   }
 
   async start() {
@@ -229,13 +274,17 @@ export class CodexAppServerTransport extends EventEmitter {
       stdio: ["pipe", "pipe", "pipe"]
     });
     this.process = child;
-    child.once("error", (error) => this.#failAll(new AppServerTransportError(
-      "app_server_unavailable",
-      `Unable to start codex app-server: ${error.message}`
-    )));
+    child.once("error", (error) => {
+      this.#clearPendingServerRequests("app_server_unavailable");
+      this.#failAll(new AppServerTransportError(
+        "app_server_unavailable",
+        `Unable to start codex app-server: ${error.message}`
+      ));
+    });
     child.once("exit", (code, signal) => {
       this.initialized = false;
       this.process = null;
+      this.#clearPendingServerRequests("app_server_exited");
       this.#failAll(new AppServerTransportError(
         "app_server_exited",
         `codex app-server exited (${signal ?? code ?? "unknown"})`,
@@ -271,6 +320,7 @@ export class CodexAppServerTransport extends EventEmitter {
     if (!child) return;
     this.process = null;
     this.initialized = false;
+    this.#clearPendingServerRequests("app_server_stopping");
     child.stdin.end();
     await new Promise((resolve) => {
       if (child.exitCode !== null) return resolve();
@@ -414,6 +464,14 @@ export class CodexAppServerTransport extends EventEmitter {
     });
   }
 
+  async renameThread(threadId, name) {
+    return this.request("thread/name/set", { threadId, name });
+  }
+
+  async deleteThread(threadId) {
+    return this.request("thread/delete", { threadId });
+  }
+
   async archiveThread(threadId) {
     await this.request("thread/archive", { threadId });
     return { threadId, archived: true };
@@ -481,8 +539,7 @@ export class CodexAppServerTransport extends EventEmitter {
         assertChannelThreadReadback(canonicalThread, readback, "thread/resume readback", transport.host);
         const response = await transport.resumeThread(canonicalThread.canonical_thread_id, {
           cwd: transport.cwd,
-          approvalPolicy: "never",
-          permissions: DEFAULT_PERMISSION_PROFILE
+          ...threadPermissionOverrides(DEFAULT_PERMISSION_PROFILE, transport.cwd)
         });
         assertChannelThreadReadback(canonicalThread, response, "thread/resume", transport.host);
       },
@@ -499,8 +556,7 @@ export class CodexAppServerTransport extends EventEmitter {
           [],
           {
             cwd: transport.cwd,
-            approvalPolicy: "never",
-            permissions: DEFAULT_PERMISSION_PROFILE
+            ...turnPermissionOverrides(DEFAULT_PERMISSION_PROFILE, transport.cwd)
           }
         );
         const turnId = response.turn?.id;
@@ -663,29 +719,33 @@ export class CodexAppServerTransport extends EventEmitter {
   }
 
   async startThread(params = {}) {
+    const permissions = params.permissions ?? DEFAULT_PERMISSION_PROFILE;
+    const cwd = params.cwd ?? this.cwd;
+    const { permissions: _ignored, ...requestParams } = params;
     return this.request("thread/start", {
-      cwd: this.cwd,
-      approvalPolicy: "never",
-      permissions: DEFAULT_PERMISSION_PROFILE,
+      cwd,
+      ...threadPermissionOverrides(permissions, cwd),
       ephemeral: false,
-      ...params
+      ...requestParams
     });
   }
 
-  async sendMessage({ prompt, inputs, threadId, agentSelection, additionalInstructions, model, reasoningEffort, permissions = DEFAULT_PERMISSION_PROFILE }) {
+  async sendMessage({ prompt, inputs, threadId, agentSelection, additionalInstructions, model, reasoningEffort, permissions = DEFAULT_PERMISSION_PROFILE, cwd }) {
+    const workingDirectory = cwd ?? this.cwd;
+    const threadPermission = threadPermissionOverrides(permissions, workingDirectory);
+    const turnPermission = turnPermissionOverrides(permissions, workingDirectory);
     let activeThreadId = threadId;
     const selection = normalizeAgentSelection(agentSelection);
     if (activeThreadId && selection) {
       throw new AppServerTransportError("invalid_request", "An existing conversation cannot be rebound to another Agent");
     }
     if (activeThreadId) {
-      await this.resumeThread(activeThreadId, { cwd: this.cwd, approvalPolicy: "never", permissions });
+      await this.resumeThread(activeThreadId, { cwd: workingDirectory, ...threadPermission });
     } else {
       const started = await this.startThread({
         model: model || undefined,
         developerInstructions: threadDeveloperInstructions(selection, additionalInstructions),
-        cwd: this.cwd,
-        approvalPolicy: "never",
+        cwd: workingDirectory,
         permissions
       });
       activeThreadId = started.thread?.id;
@@ -694,9 +754,8 @@ export class CodexAppServerTransport extends EventEmitter {
       throw new AppServerTransportError("invalid_app_server_response", "thread/start returned no thread id");
     }
     const startedTurn = await this.startTurn(activeThreadId, prompt, inputs, {
-      cwd: this.cwd,
-      approvalPolicy: "never",
-      permissions,
+      cwd: workingDirectory,
+      ...turnPermission,
       ...(model ? { model } : {}),
       ...(reasoningEffort ? { effort: reasoningEffort } : {}),
       ...(selection ? { additionalContext: agentSelectionContext(selection) } : {})
@@ -736,7 +795,7 @@ export class CodexAppServerTransport extends EventEmitter {
       completed: completed.notification,
       canonicalThread,
       canonicalThreadReadback,
-      cwd: this.cwd,
+      cwd: workingDirectory,
       permissions
     };
   }
@@ -811,10 +870,36 @@ export class CodexAppServerTransport extends EventEmitter {
   }
 
   async #handleServerRequest(message) {
-    this.#write({
+    this.pendingServerRequests.set(message.id, message);
+    this.emit("serverRequest", {
       id: message.id,
-      error: { code: -32601, message: `Unsupported app-server request: ${message.method}` }
+      method: message.method,
+      params: message.params ?? {}
     });
+  }
+
+  #clearPendingServerRequests(reason) {
+    const count = this.pendingServerRequests.size;
+    if (count === 0) return;
+    this.pendingServerRequests.clear();
+    this.emit("serverRequestsCleared", { reason, count });
+  }
+
+  listPendingServerRequests() {
+    return [...this.pendingServerRequests.values()].map((message) => ({
+      id: message.id,
+      method: message.method,
+      params: message.params ?? {}
+    }));
+  }
+
+  respondToServerRequest(id, response = {}) {
+    if (!this.pendingServerRequests.has(id)) {
+      throw new AppServerTransportError("invalid_request", `Unknown pending app-server request: ${String(id)}`);
+    }
+    this.pendingServerRequests.delete(id);
+    this.#write({ id, ...response });
+    return { id, accepted: true };
   }
 
   #recordEvent(message) {

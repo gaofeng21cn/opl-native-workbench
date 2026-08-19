@@ -161,6 +161,14 @@ export async function createWebUiHost({
         json(res, 200, await hostCore.invoke("sendMessage", await body(req)));
         return;
       }
+      if (req.method === "GET" && url.pathname === "/api/codex/pending-requests") {
+        json(res, 200, await hostCore.invoke("listPendingServerRequests"));
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/codex/respond-request") {
+        json(res, 200, await hostCore.invoke("respondToServerRequest", await body(req)));
+        return;
+      }
       if (req.method === "POST" && url.pathname === "/api/turns/steer") {
         json(res, 200, await hostCore.invoke("steerTurn", await body(req)));
         return;
@@ -202,6 +210,8 @@ export async function createWebUiHost({
         ["/api/threads/read", (value) => hostCore.invoke("readThread", value)],
         ["/api/threads/resume", (value) => hostCore.invoke("resumeThread", value)],
         ["/api/threads/fork", (value) => hostCore.invoke("forkThread", value)],
+        ["/api/threads/rename", (value) => hostCore.invoke("renameThread", value)],
+        ["/api/threads/delete", (value) => hostCore.invoke("deleteThread", value)],
         ["/api/threads/archive", (value) => hostCore.invoke("setArchived", { ...value, archived: true })],
         ["/api/threads/unarchive", (value) => hostCore.invoke("setArchived", { ...value, archived: false })]
       ]);

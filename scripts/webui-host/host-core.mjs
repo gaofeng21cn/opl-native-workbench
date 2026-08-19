@@ -159,6 +159,12 @@ export class OplHostCore extends EventEmitter {
           };
       this.emit("event", { method: "host/availability", params: availability });
     });
+    this.transport.on("serverRequest", (request) => {
+      this.emit("event", { method: "codex/server-request", params: request });
+    });
+    this.transport.on("serverRequestsCleared", (detail) => {
+      this.emit("event", { method: "codex/server-requests-cleared", params: detail });
+    });
   }
 
   async start() {
@@ -244,6 +250,8 @@ export class OplHostCore extends EventEmitter {
       case "setLogDirectory": return this.carrierDiagnostics.setLogDirectory?.(payload)
         ?? unsupportedLogDirectoryUpdate();
       case "sendMessage": return this.transport.sendMessage(payload);
+      case "listPendingServerRequests": return this.transport.listPendingServerRequests();
+      case "respondToServerRequest": return this.transport.respondToServerRequest(payload?.id, payload?.response ?? {});
       case "steerTurn": return this.transport.steerMessage(payload);
       case "interruptTurn": return this.transport.interruptMessage(payload);
       case "loginGatewayAccount": return this.gatewayAccountLogin(payload);
@@ -256,6 +264,8 @@ export class OplHostCore extends EventEmitter {
       case "readThread": return this.threads.readThread(payload);
       case "resumeThread": return this.threads.resumeThread(payload);
       case "forkThread": return this.threads.forkThread(payload);
+      case "renameThread": return this.threads.renameThread(payload);
+      case "deleteThread": return this.threads.deleteThread(payload);
       case "setArchived": return this.threads.setArchived(payload);
       default:
         throw new ThreadAdapterError(

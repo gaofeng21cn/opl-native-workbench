@@ -30,6 +30,8 @@ contextBridge.exposeInMainWorld("oplStudio", {
   readCodexModels: () => invoke("readCodexModels"),
   readCodexCapabilities: (threadId) => invoke("readCodexCapabilities", { threadId }),
   readCodexPermissionProfiles: () => invoke("readCodexPermissionProfiles"),
+  listPendingServerRequests: () => invoke("listPendingServerRequests"),
+  respondToServerRequest: (request) => invoke("respondToServerRequest", request),
   pickFiles: () => invoke("pickFiles"),
   pickDirectory: () => invoke("pickDirectory"),
   setLogDirectory: (request) => invoke("setLogDirectory", request),
@@ -46,6 +48,8 @@ contextBridge.exposeInMainWorld("oplStudio", {
   readThread: (request) => invoke("readThread", request),
   resumeThread: (request) => invoke("resumeThread", request),
   forkThread: (request) => invoke("forkThread", request),
+  renameThread: (request) => invoke("renameThread", request),
+  deleteThread: (request) => invoke("deleteThread", request),
   setArchived: (request) => invoke("setArchived", request),
   subscribeEvents,
   connectEvents: subscribeEvents

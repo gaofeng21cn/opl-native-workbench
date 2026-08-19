@@ -394,14 +394,14 @@ function SidebarWorkspacesSlot({ wide, expandSidebar }: { wide: boolean; expandS
     actions={actions}
     startSession={(projectId?: string) => studio.startSessionInProject(projectId)}
     open={(threadId: string) => studio.openThread(threadId)}
-    renameSession={async () => { throw new Error(studio.locale === "zh" ? "会话重命名尚未接入宿主。" : "Session rename is not exposed by this host yet."); }}
+    renameSession={(threadId: string, title: string) => studio.renameSession(threadId, title)}
     forkSession={(threadId: string) => studio.forkThread(threadId)}
-    renameWorkspace={async () => { throw new Error(studio.locale === "zh" ? "工作区重命名尚未接入宿主。" : "Workspace rename is not exposed by this host yet."); }}
-    deleteWorkspace={async () => { throw new Error(studio.locale === "zh" ? "工作区删除尚未接入宿主。" : "Workspace deletion is not exposed by this host yet."); }}
-    insertWorkspaceBefore={async () => { throw new Error(studio.locale === "zh" ? "工作区排序尚未接入宿主。" : "Workspace ordering is not exposed by this host yet."); }}
+    renameWorkspace={(workspaceId: string, title: string) => studio.renameWorkspace(workspaceId, title)}
+    deleteWorkspace={(workspaceId: string) => studio.deleteWorkspace(workspaceId)}
+    insertWorkspaceBefore={(workspaceId: string, beforeWorkspaceId?: string) => studio.insertWorkspaceBefore(workspaceId, beforeWorkspaceId)}
     archiveSession={(threadId: string) => studio.archiveThread(threadId)}
-    insertSessionBefore={async () => { throw new Error(studio.locale === "zh" ? "会话排序尚未接入宿主。" : "Session ordering is not exposed by this host yet."); }}
-    createWorkspace={async () => { throw new Error(studio.locale === "zh" ? "目录选择尚未接入宿主。" : "Directory picking is not exposed by this host yet."); }}
+    insertSessionBefore={(workspaceId: string, threadId: string, beforeThreadId?: string) => studio.insertSessionBefore(workspaceId, threadId, beforeThreadId)}
+    createWorkspace={async ({ path }: { path: string }) => studio.createWorkspace(path).then(() => ({ workspaceId: path, path, title: path, sessionIds: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }) as never)}
     searchSessions={async (query: string) => ({ items: await studio.searchThreads(query), hasMore: false })}
     searchResultLimit={100}
     useDirectoryFlow={() => false}

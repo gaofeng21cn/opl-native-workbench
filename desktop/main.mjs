@@ -183,7 +183,11 @@ async function createDesktopHost(appLogDirectory) {
     platform: {
       pickFiles: async () => {
         const result = await dialog.showOpenDialog({ properties: ["openFile", "multiSelections"] });
-        return result.canceled ? [] : result.filePaths;
+        return result.canceled ? [] : result.filePaths.map((filePath) => ({
+          kind: /\.(png|jpe?g|gif|webp|bmp|tiff?)$/i.test(filePath) ? "image" : "file",
+          name: path.basename(filePath),
+          path: filePath
+        }));
       },
       pickDirectory: async () => {
         const result = await dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"] });

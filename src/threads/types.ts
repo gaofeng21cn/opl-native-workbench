@@ -44,6 +44,8 @@ export type ThreadListResult = { data: CodexThread[]; nextCursor: null };
 export type ThreadReadRequest = { threadId: string; includeTurns?: boolean };
 export type ThreadResumeRequest = { threadId: string };
 export type ThreadForkRequest = { threadId: string; throughTurnId?: string };
+export type ThreadRenameRequest = { threadId: string; name: string };
+export type ThreadDeleteRequest = { threadId: string; confirmed?: boolean; confirmationId?: string };
 export type ThreadSteerRequest = {
   threadId: string;
   expectedTurnId: string;
@@ -85,5 +87,7 @@ export interface CodexThreadAdapterBridge {
   readThread(request: ThreadReadRequest): Promise<CodexThread>;
   resumeThread(request: ThreadResumeRequest): Promise<CodexThread>;
   forkThread(request: ThreadForkRequest): Promise<CodexThread>;
+  renameThread(request: ThreadRenameRequest): Promise<CodexThread>;
+  deleteThread(request: ThreadDeleteRequest): Promise<{ threadId: string; deleted: boolean }>;
   setArchived(request: SetArchivedRequest): Promise<{ threadId: string; archived: boolean }>;
 }

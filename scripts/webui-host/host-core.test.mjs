@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import test from "node:test";
-import { CodexAppServerTransport } from "./app-server-transport.mjs";
+import { CodexAppServerTransport, threadPermissionOverrides, turnPermissionOverrides } from "./app-server-transport.mjs";
 import { ChannelBindingStore } from "./channel-bindings.mjs";
 import {
   createFrameworkChannelCallbackRegistrar,
@@ -14,6 +14,31 @@ import { createOplHostCore, OplHostCore } from "./host-core.mjs";
 import { createOplPassthrough } from "./opl-passthrough.mjs";
 
 const fixture = new URL("./fixtures/fake-app-server.mjs", import.meta.url).pathname;
+
+test("Codex permission profiles stay on the protocol layer that owns them", () => {
+  assert.deepEqual(threadPermissionOverrides(":danger-full-access", "/workspace"), {
+    approvalPolicy: "never",
+    sandbox: "danger-full-access"
+  });
+  assert.deepEqual(turnPermissionOverrides(":danger-full-access", "/workspace"), {
+    approvalPolicy: "never",
+    sandboxPolicy: { type: "dangerFullAccess" }
+  });
+  assert.deepEqual(threadPermissionOverrides(":workspace", "/workspace"), {
+    approvalPolicy: "on-request",
+    sandbox: "workspace-write"
+  });
+  assert.deepEqual(turnPermissionOverrides(":workspace", "/workspace"), {
+    approvalPolicy: "on-request",
+    sandboxPolicy: {
+      type: "workspaceWrite",
+      writableRoots: ["/workspace"],
+      networkAccess: false,
+      excludeTmpdirEnvVar: false,
+      excludeSlashTmp: false
+    }
+  });
+});
 
 test("desktop hosts can supply a real working directory instead of the packaged app.asar path", () => {
   const core = new OplHostCore({ workspaceRoot: "/Users/opl" });
@@ -66,6 +91,31 @@ test("desktop runtime environment drives Codex and Gateway commands from one hos
   assert.deepEqual(await core.invoke("configureCodexApiKey", {
     apiKey: "sk-test"
   }), { ok: true, stateRefreshRequired: true });
+});
+
+test("App Server exit clears pending interactive requests instead of leaving stale approvals", async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "opl-pending-request-exit-test-"));
+  const transport = new CodexAppServerTransport({
+    command: process.execPath,
+    args: [fixture],
+    cwd: directory,
+    env: { ...process.env, FAKE_APP_SERVER_PENDING_APPROVAL: "1" },
+    requestTimeoutMs: 2_000,
+    turnTimeoutMs: 2_000
+  });
+  t.after(() => transport.stop());
+
+  await transport.start();
+  const requestPromise = new Promise((resolve) => transport.once("serverRequest", resolve));
+  await transport.startTurn("thread-idle", "Require approval cleanup.");
+  const request = await requestPromise;
+  assert.equal(request.id, "approval-1");
+  assert.equal(transport.listPendingServerRequests().length, 1);
+
+  const clearedPromise = new Promise((resolve) => transport.once("serverRequestsCleared", resolve));
+  transport.process.kill("SIGTERM");
+  assert.deepEqual(await clearedPromise, { reason: "app_server_exited", count: 1 });
+  assert.deepEqual(transport.listPendingServerRequests(), []);
 });
 
 test("optional channel provider receives canonical App Server callbacks without changing the default host path", async (t) => {

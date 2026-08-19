@@ -254,6 +254,7 @@ export type CodexMessageRequest = {
   prompt: string;
   inputs?: CodexComposerInput[];
   threadId?: string;
+  cwd?: string;
   agentSelection?: CodexAgentSelectionSnapshot;
   additionalInstructions?: string;
   model?: string;
@@ -308,6 +309,8 @@ export type CodexPermissionProfile = {
   id: string;
   description: string;
   allowed: boolean;
+  approvalPolicy?: string;
+  sandbox?: string;
 };
 
 export type CodexPermissionProfileCatalog = {
@@ -416,6 +419,12 @@ export type CodexModelCatalog = {
   simulated?: boolean;
 };
 
+export type CodexPendingServerRequest = {
+  id: string | number;
+  method: string;
+  params: Record<string, unknown>;
+};
+
 type BaseBridgeEvent = {
   source: string;
   eventKind: OplEventKind;
@@ -439,7 +448,7 @@ export type OplBridgeEvent = OplBridgeTypeEvent | OplBridgeMethodEvent;
 
 export type OplStudioSurface = Pick<
   OplBridge,
-  "platformCapabilities" | "beginWindowDrag" | "readState" | "readInitialize" | "readFullDrilldown" | "readContribution" | "executeAction" | "readCodexModels" | "readCodexCapabilities" | "readCodexPermissionProfiles" | "pickFiles" | "pickDirectory" | "setLogDirectory" | "sendMessage" | "steerTurn" | "interruptTurn" | "loginGatewayAccount" | "configureCodexApiKey" | "readNativeAppUpdateStatus" | "checkNativeAppUpdate" | "applyNativeAppUpdate" | "restartNativeApp" | "subscribeEvents"
+  "platformCapabilities" | "beginWindowDrag" | "readState" | "readInitialize" | "readFullDrilldown" | "readContribution" | "executeAction" | "readCodexModels" | "readCodexCapabilities" | "readCodexPermissionProfiles" | "listPendingServerRequests" | "respondToServerRequest" | "pickFiles" | "pickDirectory" | "setLogDirectory" | "sendMessage" | "steerTurn" | "interruptTurn" | "loginGatewayAccount" | "configureCodexApiKey" | "readNativeAppUpdateStatus" | "checkNativeAppUpdate" | "applyNativeAppUpdate" | "restartNativeApp" | "subscribeEvents"
 > & Partial<CodexThreadAdapterBridge> & {
   eventSourceUrl?: string;
   connectEvents?: (onEvent: (event: OplBridgeEvent) => void) => () => void;
@@ -471,6 +480,11 @@ export const CODEX_APP_SERVER = {
   turnCompleted: "turn/completed",
   defaultPermissions: ":danger-full-access",
   approvalPolicy: "never",
+  permissionProfiles: {
+    ":danger-full-access": { approvalPolicy: "never", sandbox: "danger-full-access" },
+    ":workspace": { approvalPolicy: "on-request", sandbox: "workspace-write" },
+    ":read-only": { approvalPolicy: "on-request", sandbox: "read-only" }
+  },
   requestTimeoutSeconds: 45,
   turnTimeoutSeconds: 180
 } as const;
@@ -486,6 +500,8 @@ export type OplBridge = CodexThreadAdapterBridge & {
   readCodexModels(): Promise<CodexModelCatalog>;
   readCodexCapabilities(threadId?: string): Promise<CodexCapabilityCatalog>;
   readCodexPermissionProfiles(): Promise<CodexPermissionProfileCatalog>;
+  listPendingServerRequests(): Promise<CodexPendingServerRequest[]>;
+  respondToServerRequest(request: { id: string | number; response: { result?: unknown; error?: { code: number; message: string } } }): Promise<{ id: string | number; accepted: boolean }>;
   pickFiles(): Promise<CodexPickedInput[]>;
   pickDirectory(): Promise<CodexPickedInput[]>;
   setLogDirectory(request: { path: string }): Promise<AppLogDirectoryUpdateResult>;
@@ -1340,7 +1356,9 @@ export function normalizeCodexPermissionProfileCatalog(value: unknown): CodexPer
     return id ? [{
       id,
       description: asString(profile?.description) ?? "",
-      allowed: asBoolean(profile?.allowed) ?? true
+      allowed: asBoolean(profile?.allowed) ?? true,
+      ...(asString(profile?.approvalPolicy) ? { approvalPolicy: asString(profile?.approvalPolicy) } : {}),
+      ...(asString(profile?.sandbox) ? { sandbox: asString(profile?.sandbox) } : {})
     }] : [];
   });
   return {
@@ -1431,6 +1449,26 @@ export function createBrowserBridge(): OplBridge {
         simulated: true
       });
       return Promise.resolve(promise).then(normalizeCodexPermissionProfileCatalog);
+    },
+    listPendingServerRequests() {
+      const promise = candidate?.listPendingServerRequests?.() ?? Promise.resolve([]);
+      return Promise.resolve(promise).then((value) => Array.isArray(value) ? value.flatMap((item) => {
+        const record = asRecord(item);
+        const id = record?.id;
+        const method = asString(record?.method);
+        const params = asRecord(record?.params);
+        return (typeof id === "string" || typeof id === "number") && method && params ? [{ id, method, params }] : [];
+      }) : []);
+    },
+    respondToServerRequest(request) {
+      if (!candidate?.respondToServerRequest) return Promise.reject(new Error("Codex server-request responses are unavailable in this host"));
+      return Promise.resolve(candidate.respondToServerRequest(request)).then((value) => {
+        const record = asRecord(value);
+        return {
+          id: (typeof record?.id === "string" || typeof record?.id === "number") ? record.id : request.id,
+          accepted: record?.accepted === true
+        };
+      });
     },
     pickFiles() {
       const promise = candidate?.pickFiles?.() ?? Promise.resolve([]);
@@ -1562,6 +1600,17 @@ export function createBrowserBridge(): OplBridge {
         turns: []
       });
       return Promise.resolve(promise).then(normalizeCodexThread);
+    },
+    renameThread(request: { threadId: string; name: string }) {
+      if (!candidate?.renameThread) return Promise.reject(new Error("thread/name/set is unavailable in this host"));
+      return Promise.resolve(candidate.renameThread(request)).then(normalizeCodexThread);
+    },
+    deleteThread(request: { threadId: string; confirmed?: boolean; confirmationId?: string }) {
+      if (!candidate?.deleteThread) return Promise.reject(new Error("thread/delete is unavailable in this host"));
+      return Promise.resolve(candidate.deleteThread(request)).then((value) => ({
+        threadId: request.threadId,
+        deleted: asRecord(value)?.deleted === true
+      }));
     },
     setArchived(request: SetArchivedRequest) {
       const promise = candidate?.setArchived?.(request) ?? Promise.resolve(request);

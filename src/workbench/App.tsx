@@ -117,6 +117,7 @@ import { groupSettingsContributions, settingsContributionDestination } from "../
 import { createOplContributionActionRequest } from "../composition/contributionProjection";
 import { isManagedComputerUseActionId } from "./managedComputerUse";
 import type { OplSetupOperationResult, OplStudioPrimaryView, RenderOplStudioShell } from "../composition/oplStudioSurface";
+import { CodexServerRequestPanel } from "./CodexServerRequestPanel";
 
 const contextTabs = [
   "opl-runtime-status-panel",
@@ -549,7 +550,8 @@ const emptyCapabilityCatalog: CodexCapabilityCatalog = {
 const legacyChatSessionsStorageKey = "opl.nativeWorkbench.chatSessions.v1";
 const legacyChatSessionsBackupKey = "opl.studio.chatSessions.legacyReadOnlyBackup.v1";
 const legacyChatSessionsBackupStorageKey = "opl.nativeWorkbench.chatSessions.legacyReadOnlyBackup.v1";
-const uiMetadataStorageKey = "opl.studio.uiMetadata.v2";
+const uiMetadataStorageKey = "opl_ui_metadata.v1";
+const legacyStudioUiMetadataStorageKey = "opl.studio.uiMetadata.v2";
 const legacyUiMetadataStorageKey = "opl.nativeWorkbench.uiMetadata.v2";
 const draftStorageKey = "opl.studio.drafts.v2";
 const legacyDraftStorageKey = "opl.nativeWorkbench.drafts.v2";
@@ -560,10 +562,21 @@ const maximumSidebarWidth = 420;
 type ThreadScope = "current" | "all" | "archived";
 
 type WorkbenchUiMetadata = {
+  schema: "opl_ui_metadata.v1";
   selectedProjectId?: string;
   selectedThreadId?: string;
+  threadAffinityById: Record<string, string>;
+  workspaceLabels: Record<string, string>;
+  hiddenWorkspaceIds: string[];
+  workspaceOrder: string[];
+  threadOrderByProject: Record<string, string[]>;
+  pinnedThreadIds: string[];
   threadScope: ThreadScope;
   sidebarWidth: number;
+  recentWorkspace?: string;
+  theme?: string;
+  language?: "zh" | "en";
+  layout?: "default";
 };
 
 type WorkbenchDrafts = {
@@ -634,12 +647,25 @@ function clampSidebarWidth(value: unknown): number {
 function readPersistedWorkbenchUi(): { metadata: WorkbenchUiMetadata; drafts: WorkbenchDrafts } {
   const storage = sessionStorage();
   const fallback = {
-    metadata: { threadScope: "all" as const, sidebarWidth: defaultSidebarWidth },
+    metadata: {
+      schema: "opl_ui_metadata.v1" as const,
+      threadAffinityById: {},
+      workspaceLabels: {},
+      hiddenWorkspaceIds: [],
+      workspaceOrder: [],
+      threadOrderByProject: {},
+      pinnedThreadIds: [],
+      threadScope: "all" as const,
+      sidebarWidth: defaultSidebarWidth,
+      layout: "default" as const
+    },
     drafts: { prompts: {} }
   };
   if (!storage) return fallback;
   try {
-    const metadata = JSON.parse(migrateStorageValue(storage, uiMetadataStorageKey, legacyUiMetadataStorageKey) ?? "null") as Partial<WorkbenchUiMetadata> | null;
+    const migratedMetadata = migrateStorageValue(storage, uiMetadataStorageKey, legacyStudioUiMetadataStorageKey)
+      ?? migrateStorageValue(storage, uiMetadataStorageKey, legacyUiMetadataStorageKey);
+    const metadata = JSON.parse(migratedMetadata ?? "null") as Partial<WorkbenchUiMetadata> | null;
     const drafts = JSON.parse(migrateStorageValue(storage, draftStorageKey, legacyDraftStorageKey) ?? "null") as Partial<WorkbenchDrafts> | null;
     migrateStorageValue(storage, legacyChatSessionsBackupKey, legacyChatSessionsBackupStorageKey);
     const legacy = storage.getItem(legacyChatSessionsStorageKey);
@@ -657,10 +683,21 @@ function readPersistedWorkbenchUi(): { metadata: WorkbenchUiMetadata; drafts: Wo
     }
     return {
       metadata: {
+        schema: "opl_ui_metadata.v1",
         selectedProjectId: typeof metadata?.selectedProjectId === "string" ? metadata.selectedProjectId : undefined,
         selectedThreadId,
+        threadAffinityById: metadata?.threadAffinityById && typeof metadata.threadAffinityById === "object" ? metadata.threadAffinityById as Record<string, string> : {},
+        workspaceLabels: metadata?.workspaceLabels && typeof metadata.workspaceLabels === "object" ? metadata.workspaceLabels as Record<string, string> : {},
+        hiddenWorkspaceIds: Array.isArray(metadata?.hiddenWorkspaceIds) ? metadata.hiddenWorkspaceIds.filter((item): item is string => typeof item === "string") : [],
+        workspaceOrder: Array.isArray(metadata?.workspaceOrder) ? metadata.workspaceOrder.filter((item): item is string => typeof item === "string") : [],
+        threadOrderByProject: metadata?.threadOrderByProject && typeof metadata.threadOrderByProject === "object" ? metadata.threadOrderByProject as Record<string, string[]> : {},
+        pinnedThreadIds: Array.isArray(metadata?.pinnedThreadIds) ? metadata.pinnedThreadIds.filter((item): item is string => typeof item === "string") : [],
         threadScope: metadata?.threadScope === "archived" ? "archived" : "all",
-        sidebarWidth: clampSidebarWidth(metadata?.sidebarWidth)
+        sidebarWidth: clampSidebarWidth(metadata?.sidebarWidth),
+        recentWorkspace: typeof metadata?.recentWorkspace === "string" ? metadata.recentWorkspace : undefined,
+        theme: typeof metadata?.theme === "string" ? metadata.theme : undefined,
+        language: metadata?.language === "en" ? "en" : metadata?.language === "zh" ? "zh" : undefined,
+        layout: "default"
       },
       drafts: {
         prompts: drafts?.prompts && typeof drafts.prompts === "object" ? drafts.prompts : {}
@@ -790,6 +827,8 @@ export function App({
   const [capabilityStatus, setCapabilityStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [capabilityError, setCapabilityError] = useState("");
   const [capabilityQuery, setCapabilityQuery] = useState("");
+  const [pendingServerRequests, setPendingServerRequests] = useState<import("../bridge/oplBridge").CodexPendingServerRequest[]>([]);
+  const [pendingServerRequestError, setPendingServerRequestError] = useState("");
   const [composerPaletteOpen, setComposerPaletteOpen] = useState(false);
   const [composerSelections, setComposerSelections] = useState<ComposerSelection[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<AgentPackageSelectionIntent | null>(null);
@@ -836,15 +875,34 @@ export function App({
   const exportAction = model.contextActions.find((action) => action.id === exportActionRefId && action.dryRunSupported) ?? previewAction;
   const activeThreads = useMemo(() => threadProjects.flatMap((project) => project.threads), [threadProjects]);
   const archivedThreads = useMemo(() => archivedThreadProjects.flatMap((project) => project.threads), [archivedThreadProjects]);
+  const visibleThreadProjects = useMemo(() => {
+    const hidden = new Set(uiMetadata.hiddenWorkspaceIds);
+    const workspaceOrder = new Map(uiMetadata.workspaceOrder.map((id, index) => [id, index]));
+    return threadProjects
+      .filter((project) => !hidden.has(project.id))
+      .map((project) => {
+        const threadOrder = new Map((uiMetadata.threadOrderByProject[project.id] ?? []).map((id, index) => [id, index]));
+        return {
+          ...project,
+          label: uiMetadata.workspaceLabels[project.id] ?? project.label,
+          threads: [...project.threads].sort((left, right) => (
+            Number(uiMetadata.pinnedThreadIds.includes(right.id)) - Number(uiMetadata.pinnedThreadIds.includes(left.id))
+            || (threadOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (threadOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER)
+            || (right.updatedAt ?? "").localeCompare(left.updatedAt ?? "")
+          ))
+        };
+      })
+      .sort((left, right) => (workspaceOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (workspaceOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER));
+  }, [threadProjects, uiMetadata.hiddenWorkspaceIds, uiMetadata.pinnedThreadIds, uiMetadata.threadOrderByProject, uiMetadata.workspaceLabels, uiMetadata.workspaceOrder]);
   const allThreads = useMemo(() => [...activeThreads, ...archivedThreads], [activeThreads, archivedThreads]);
   const allThreadsRef = useRef(allThreads);
   const currentSession = allThreads.find((thread) => thread.id === codexThreadId);
   const currentAgentStatus = sendState === "running"
     ? (settings.locale === "zh" ? "运行中" : "Running")
     : threadRuntimeStatusLabel(currentSession?.status, settings.locale);
-  const selectedProject = threadProjects.find((project) => !project.projectless && project.id === uiMetadata.selectedProjectId)
-    ?? threadProjects.find((project) => !project.projectless && project.threads.some((thread) => thread.id === codexThreadId))
-    ?? threadProjects.find((project) => !project.projectless);
+  const selectedProject = visibleThreadProjects.find((project) => !project.projectless && project.id === uiMetadata.selectedProjectId)
+    ?? visibleThreadProjects.find((project) => !project.projectless && project.threads.some((thread) => thread.id === codexThreadId))
+    ?? visibleThreadProjects.find((project) => !project.projectless);
   const currentProject = selectedProject?.label ?? settings.defaultWorkspace ?? "Current project";
   const defaultWorkItemId = model.activeProjectLines.find((line) => line.status === "running")?.activeRunId
     ?? model.activeProjectLines[0]?.activeRunId
@@ -995,6 +1053,55 @@ export function App({
       writeUiMetadata(merged);
       return merged;
     });
+  }
+
+  function rememberThreadAffinity(threadId: string, projectId?: string) {
+    if (!threadId || !projectId || uiMetadata.threadAffinityById[threadId] === projectId) return;
+    updateUiMetadata({ threadAffinityById: { ...uiMetadata.threadAffinityById, [threadId]: projectId } });
+  }
+
+  async function renameSession(threadId: string, title: string) {
+    if (!bridge.renameThread) throw new Error(settings.locale === "zh" ? "会话重命名不可用。" : "Session rename is unavailable.");
+    await bridge.renameThread({ threadId, name: title.trim() });
+    await loadThreadDirectory(false);
+  }
+
+  async function renameWorkspace(workspaceId: string, title: string) {
+    const group = threadProjects.find((project) => project.id === workspaceId);
+    if (!group || group.projectless) throw new Error(settings.locale === "zh" ? "该工作区不是 Studio 可命名的本地分组。" : "This workspace is not a Studio-owned local group.");
+    const nextTitle = title.trim();
+    if (!nextTitle) throw new Error(settings.locale === "zh" ? "工作区名称不能为空。" : "Workspace name cannot be empty.");
+    updateUiMetadata({ workspaceLabels: { ...uiMetadata.workspaceLabels, [workspaceId]: nextTitle } });
+  }
+
+  async function deleteWorkspace(workspaceId: string) {
+    const group = threadProjects.find((project) => project.id === workspaceId);
+    if (!group || group.projectless) throw new Error(settings.locale === "zh" ? "无法删除无项目分组。" : "The projectless group cannot be deleted.");
+    updateUiMetadata({
+      hiddenWorkspaceIds: [...new Set([...uiMetadata.hiddenWorkspaceIds, workspaceId])],
+      selectedProjectId: uiMetadata.selectedProjectId === workspaceId ? undefined : uiMetadata.selectedProjectId
+    });
+    if (group.threads.some((thread) => thread.id === codexThreadId)) startNewChat();
+  }
+
+  async function insertWorkspaceBefore(workspaceId: string, beforeWorkspaceId?: string) {
+    const ids = visibleThreadProjects.filter((project) => !project.projectless).map((project) => project.id).filter((id) => id !== workspaceId);
+    const at = beforeWorkspaceId ? ids.indexOf(beforeWorkspaceId) : -1;
+    ids.splice(at >= 0 ? at : ids.length, 0, workspaceId);
+    updateUiMetadata({ workspaceOrder: ids });
+  }
+
+  async function insertSessionBefore(workspaceId: string, threadId: string, beforeThreadId?: string) {
+    const group = threadProjects.find((project) => project.id === workspaceId);
+    if (!group) throw new Error(settings.locale === "zh" ? "找不到工作区。" : "Workspace not found.");
+    const ids = group.threads.map((thread) => thread.id).filter((id) => id !== threadId);
+    const at = beforeThreadId ? ids.indexOf(beforeThreadId) : -1;
+    ids.splice(at >= 0 ? at : ids.length, 0, threadId);
+    updateUiMetadata({ threadOrderByProject: { ...uiMetadata.threadOrderByProject, [workspaceId]: ids } });
+  }
+
+  async function createWorkspace(path: string) {
+    throw new Error(settings.locale === "zh" ? `Studio 不会伪造工作区注册：${path}` : `Studio does not create synthetic workspace registrations: ${path}`);
   }
 
   function updateDrafts(next: (current: WorkbenchDrafts) => WorkbenchDrafts) {
@@ -1434,11 +1541,13 @@ export function App({
     setThreadActionBusy(true);
     setThreadActionError("");
     setCodexThreadId(thread.id);
+    const affinityProjectId = threadProjects.find((project) => project.threads.some((item) => item.id === thread.id))?.id;
     updateUiMetadata({
       selectedThreadId: thread.id,
-      selectedProjectId: threadProjects.find((project) => project.threads.some((item) => item.id === thread.id))?.id
+      selectedProjectId: affinityProjectId
         ?? uiMetadata.selectedProjectId
     });
+    rememberThreadAffinity(thread.id, affinityProjectId);
     setPrompt(drafts.prompts[thread.id] ?? "");
     activeTurnRef.current = null;
     setActiveTurnId(null);
@@ -1597,6 +1706,22 @@ export function App({
     if (method === "desktop/native-app-update" && params.schema === "opl_native_app_updater.v1") {
       setNativeAppUpdate(params as NativeAppUpdateResult);
     }
+    if (method === "codex/server-request") {
+      const request = params as import("../bridge/oplBridge").CodexPendingServerRequest;
+      if ((typeof request.id === "string" || typeof request.id === "number") && typeof request.method === "string") {
+        setPendingServerRequests((items) => items.some((item) => item.id === request.id)
+          ? items
+          : [...items, { id: request.id, method: request.method, params: request.params ?? {} }]);
+      }
+      return;
+    }
+    if (method === "codex/server-requests-cleared") {
+      setPendingServerRequests([]);
+      setPendingServerRequestError(settings.locale === "zh"
+        ? "Codex App Server 已退出，待处理请求已清除。"
+        : "The Codex App Server exited; pending requests were cleared.");
+      return;
+    }
     if (method === "turn/started" && pendingAssistantIdRef.current) {
       const turn = typeof params.turn === "object" && params.turn ? params.turn as Record<string, unknown> : {};
       const threadId = typeof params.threadId === "string" ? params.threadId : "";
@@ -1636,6 +1761,22 @@ export function App({
         : item));
     }
   }), [bridge]);
+
+  useEffect(() => {
+    void bridge.listPendingServerRequests()
+      .then(setPendingServerRequests)
+      .catch((error) => setPendingServerRequestError(String(error)));
+  }, [bridge]);
+
+  async function respondToServerRequest(request: import("../bridge/oplBridge").CodexPendingServerRequest, response: { result?: unknown; error?: { code: number; message: string } }) {
+    setPendingServerRequestError("");
+    try {
+      await bridge.respondToServerRequest({ id: request.id, response });
+      setPendingServerRequests((items) => items.filter((item) => item.id !== request.id));
+    } catch (error) {
+      setPendingServerRequestError(String(error));
+    }
+  }
 
   function requestDetails(tab: ContextTabId) {
     setActiveContextTab(tab);
@@ -1905,6 +2046,7 @@ export function App({
           ...(codexThreadId ? [] : selectedAgentInputs())
         ].filter((input, index, inputs) => inputs.findIndex((candidate) => candidate.type === input.type && "path" in candidate && "path" in input && candidate.path === input.path) === index),
         threadId: codexThreadId,
+        cwd: selectedProject?.workspace,
         agentSelection: codexThreadId ? undefined : selectedAgentSnapshot(),
         additionalInstructions: codexThreadId ? undefined : additionalConversationInstructions,
         model: resolvedModel.id,
@@ -2025,10 +2167,14 @@ export function App({
   async function searchThreads(query: string) {
     const normalized = query.trim().toLocaleLowerCase();
     if (!normalized) return [];
-    return allThreads
-      .filter((thread) => `${thread.title} ${thread.preview}`.toLocaleLowerCase().includes(normalized))
+    const [active, archived] = await Promise.all([
+      bridge.listThreads({ searchTerm: normalized, archived: false, limit: 100 }),
+      bridge.listThreads({ searchTerm: normalized, archived: true, limit: 100 })
+    ]);
+    return [...active.data, ...archived.data]
+      .filter((thread, index, threads) => threads.findIndex((candidate) => candidate.id === thread.id) === index)
       .slice(0, 100)
-      .map((thread) => ({ sessionId: thread.id, ...(thread.preview ? { snippet: thread.preview } : {}) }));
+      .map((thread) => ({ sessionId: thread.id, ...(typeof thread.preview === "string" && thread.preview ? { snippet: thread.preview } : {}) }));
   }
 
   async function selectStudioModel(modelId: string, reasoningEffort?: string) {
@@ -2143,6 +2289,7 @@ export function App({
 
   const studioConversationBody = (
     <div className="opl-dsh-thread" ref={conversationRef as never}>
+      <CodexServerRequestPanel requests={pendingServerRequests} locale={settings.locale} error={pendingServerRequestError} onRespond={(request, response) => void respondToServerRequest(request, response)} />
       {threadActionError ? <p className="thread-read-error" role="alert">{threadActionError}</p> : null}
       {messages.map((message, index) => (
         <article key={message.id} data-testid={message.role === "assistant" ? "opl-conversation-event" : undefined} className={`message ${message.role}${message.subagent ? " subagent" : ""}`}>
@@ -2398,7 +2545,7 @@ export function App({
     queue: ephemeralQueue,
     contributionOwner,
     uiContributions: model.uiContributions,
-    threadProjects,
+    threadProjects: visibleThreadProjects,
     threadDirectoryStatus,
     threadDirectoryError,
     currentThreadId: codexThreadId,
@@ -2477,6 +2624,12 @@ export function App({
     startSession: startNewChat,
     startSessionInProject: startNewChatInProject,
     openThread: (threadId) => { const thread = threadById(threadId); if (thread) void openThread(thread); },
+    renameSession,
+    renameWorkspace,
+    deleteWorkspace,
+    insertWorkspaceBefore,
+    insertSessionBefore,
+    createWorkspace,
     forkThread: (threadId) => { const thread = threadById(threadId); if (thread) void forkThread(thread); },
     archiveThread: archiveThreadById,
     searchThreads,

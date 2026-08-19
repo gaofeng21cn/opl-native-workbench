@@ -106,6 +106,8 @@ export class CodexThreadAdapter extends EventEmitter {
         "thread/start",
         "thread/resume",
         "thread/fork",
+        "thread/name/set",
+        "thread/delete",
         "thread/archive",
         "thread/unarchive",
         "turn/start",
@@ -171,6 +173,23 @@ export class CodexThreadAdapter extends EventEmitter {
   async forkThread({ threadId, throughTurnId }) {
     const response = await this.transport.forkThread(requiredString(threadId, "threadId"), throughTurnId);
     return projectCodexThread(response.thread);
+  }
+
+  async renameThread({ threadId, name }) {
+    const id = requiredString(threadId, "threadId");
+    const title = requiredString(name, "name");
+    await this.transport.renameThread(id, title);
+    const response = await this.transport.readThread(id);
+    return projectCodexThread(response.thread);
+  }
+
+  async deleteThread({ threadId, confirmed }) {
+    const id = requiredString(threadId, "threadId");
+    if (confirmed !== true) {
+      throw new ThreadAdapterError("confirmation_required", "confirmation_required", { confirmationRequired: true }, 409);
+    }
+    await this.transport.deleteThread(id);
+    return { threadId: id, deleted: true };
   }
 
   async setArchived({ threadId, archived, confirmed }) {

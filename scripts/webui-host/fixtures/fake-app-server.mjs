@@ -8,6 +8,7 @@ const logPath = process.env.FAKE_APP_SERVER_LOG;
 const lifecyclePath = process.env.FAKE_APP_SERVER_LIFECYCLE_LOG;
 const omitCompletedTurnReadback = process.env.FAKE_APP_SERVER_OMIT_COMPLETED_TURN_READBACK === "1";
 const includeProjectlessThread = process.env.FAKE_APP_SERVER_INCLUDE_PROJECTLESS === "1";
+const emitPendingApproval = process.env.FAKE_APP_SERVER_PENDING_APPROVAL === "1";
 const threads = new Map([
   ["thread-source", thread("thread-source", { type: "idle" }, ["src/source.ts"])],
   ["thread-idle", thread("thread-idle", { type: "idle" }, ["src/idle.ts"])],
@@ -168,6 +169,7 @@ async function handle(frame) {
     target.status = { type: "active", activeFlags: [] };
     target.turns.push(turn(turnId, "inProgress"));
     send({ id, result: { turn: turn(turnId, "inProgress") } });
+    if (emitPendingApproval) send({ id: "approval-1", method: "item/commandExecution/requestApproval", params: { itemId: `item-${turnId}`, threadId: params.threadId, turnId, command: "echo approval", reason: "fixture approval" } });
     setTimeout(() => completeTurn(params.threadId, turnId), 10);
     return;
   }
