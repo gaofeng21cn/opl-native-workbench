@@ -105,6 +105,7 @@ test("tray controller reads recent threads and routes menu actions through exist
     sendRendererEvent: (method, params) => rendererEvents.push({ method, params }),
     restart: () => undefined,
     quit: () => undefined,
+    platform: "darwin",
     enabled: true
   });
 

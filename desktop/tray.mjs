@@ -112,6 +112,7 @@ export async function createDesktopTray({
   restart,
   quit,
   locale = "zh",
+  platform = process.platform,
   enabled = shouldCreateDesktopTray()
 }) {
   if (!enabled) return null;
@@ -129,7 +130,7 @@ export async function createDesktopTray({
   const showWindow = () => {
     const window = getWindow();
     if (!window || window.isDestroyed()) return;
-    if (process.platform === "darwin") app.dock?.show?.();
+    if (platform === "darwin") app.dock?.show?.();
     if (window.isMinimized?.()) window.restore?.();
     window.show();
     window.focus();
@@ -138,7 +139,7 @@ export async function createDesktopTray({
     const window = getWindow();
     if (!window || window.isDestroyed()) return;
     window.hide();
-    if (process.platform === "darwin") app.dock?.hide?.();
+    if (platform === "darwin") app.dock?.hide?.();
   };
   const navigate = (view) => {
     showWindow();
