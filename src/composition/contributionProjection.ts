@@ -108,12 +108,17 @@ export type OplSettingsContributionGroup = {
   entries: OplUiContribution[];
 };
 
-export function settingsContributionDestination(entry: Pick<OplUiContribution, "view">): OplSettingsContributionDestination {
+export function settingsContributionDestination(
+  entry: Pick<OplUiContribution, "view">
+): OplSettingsContributionDestination | null {
   switch (entry.view?.viewType) {
     case "channel_access":
       return "resources";
     case "activity_log":
-      return "services";
+      // An activity log is a technical read model, not an App-admitted Settings
+      // destination. Keep it available to other typed renderers without
+      // turning every package's activity view into a service panel.
+      return null;
     default:
       return "capabilities";
   }

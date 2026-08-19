@@ -122,11 +122,11 @@ const projectionState = {
 describe("OPL Studio DSH contribution composition", () => {
   test("routes settings contributions by declared view semantics", () => {
     expect(settingsContributionDestination({ view: { viewId: "wechat", viewType: "channel_access", title: {}, dataRef: "wechat#state" } })).toBe("resources");
-    expect(settingsContributionDestination({ view: { viewId: "fleet", viewType: "activity_log", title: {}, dataRef: "fleet#state" } })).toBe("services");
+    expect(settingsContributionDestination({ view: { viewId: "fleet", viewType: "activity_log", title: {}, dataRef: "fleet#state" } })).toBeNull();
     expect(settingsContributionDestination({ view: { viewId: "capability", viewType: "table", title: {}, dataRef: "capability#state" } })).toBe("capabilities");
   });
 
-  test("groups settings views by their dynamically projected Package identity", () => {
+  test("hides technical activity logs while grouping generic settings views dynamically", () => {
     const projection = readUiContributionsProjection({
       ui_contributions: {
         surface_kind: "opl_app_ui_contributions_projection.v1",
@@ -169,14 +169,47 @@ describe("OPL Studio DSH contribution composition", () => {
             view: { view_id: "weixin.access", view_type: "channel_access", title_i18n: { "en-US": "WeChat" }, data_ref: "weixin.access#current" },
             commands: [],
             badges: []
+          },
+          {
+            contribution_key: "generic-package:overview",
+            contribution_id: "overview",
+            package_id: "generic-package",
+            slot: "settings.section",
+            contribution_kind: "view",
+            trust_tier: "declarative",
+            scope: "root",
+            sort_order: 40,
+            view: { view_id: "generic.overview", view_type: "task_board", title_i18n: { "en-US": "Overview" }, data_ref: "generic.overview#current" },
+            commands: [],
+            badges: []
+          },
+          {
+            contribution_key: "generic-package:details",
+            contribution_id: "details",
+            package_id: "generic-package",
+            slot: "settings.section",
+            contribution_kind: "view",
+            trust_tier: "declarative",
+            scope: "root",
+            sort_order: 50,
+            view: { view_id: "generic.details", view_type: "artifact_view", title_i18n: { "en-US": "Details" }, data_ref: "generic.details#current" },
+            commands: [],
+            badges: []
           }
         ]
       }
     });
-    const groups = groupSettingsContributions(projection.entries.filter((entry) => settingsContributionDestination(entry) === "services"));
+    const fleetEntries = projection.entries.filter((entry) => entry.packageId === "opl-fleet-agent");
+    expect(fleetEntries).toHaveLength(2);
+    expect(fleetEntries.every((entry) => settingsContributionDestination(entry) === null)).toBe(true);
+
+    const weixinEntry = projection.entries.find((entry) => entry.packageId === "opl-channel-weixin");
+    expect(weixinEntry && settingsContributionDestination(weixinEntry)).toBe("resources");
+
+    const groups = groupSettingsContributions(projection.entries.filter((entry) => settingsContributionDestination(entry) === "capabilities"));
     expect(groups).toHaveLength(1);
-    expect(groups[0]).toMatchObject({ packageId: "opl-fleet-agent" });
-    expect(groups[0]?.entries.map((entry) => entry.contributionId)).toEqual(["telemetry", "doctor"]);
+    expect(groups[0]).toMatchObject({ packageId: "generic-package" });
+    expect(groups[0]?.entries.map((entry) => entry.contributionId)).toEqual(["overview", "details"]);
   });
 
   test("summarizes generic activity-log data without exposing operational payload fields by default", () => {
