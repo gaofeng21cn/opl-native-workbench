@@ -4,6 +4,7 @@ import {
   OPL_UI_CONTRIBUTION_SLOTS,
   createOplContributionActionRequest,
   createOplContributionReadInput,
+  groupSettingsContributions,
   readChannelAccessResult,
   readUiContributionsProjection,
   settingsContributionDestination,
@@ -24,6 +25,7 @@ import {
 
 const { normalizeContributionReadback } = await import("../../src/bridge/oplBridge.ts");
 const { OplStudioDshSlotHost } = await import("../../src/composition/dshSlotHost.tsx");
+const { buildActivityLogSummary } = await import("../../src/composition/contributionComponents.tsx");
 const { resolveCodexModelOptions } = await import("../../src/workbench/modelPolicy.ts");
 
 const projectionState = {
@@ -122,6 +124,87 @@ describe("OPL Studio DSH contribution composition", () => {
     expect(settingsContributionDestination({ view: { viewId: "wechat", viewType: "channel_access", title: {}, dataRef: "wechat#state" } })).toBe("resources");
     expect(settingsContributionDestination({ view: { viewId: "fleet", viewType: "activity_log", title: {}, dataRef: "fleet#state" } })).toBe("services");
     expect(settingsContributionDestination({ view: { viewId: "capability", viewType: "table", title: {}, dataRef: "capability#state" } })).toBe("capabilities");
+  });
+
+  test("groups settings views by their dynamically projected Package identity", () => {
+    const projection = readUiContributionsProjection({
+      ui_contributions: {
+        surface_kind: "opl_app_ui_contributions_projection.v1",
+        entries: [
+          {
+            contribution_key: "opl-fleet-agent:telemetry",
+            contribution_id: "telemetry",
+            package_id: "opl-fleet-agent",
+            slot: "settings.section",
+            contribution_kind: "view",
+            trust_tier: "declarative",
+            scope: "root",
+            sort_order: 10,
+            view: { view_id: "fleet.telemetry", view_type: "activity_log", title_i18n: { "en-US": "Telemetry" }, data_ref: "fleet.telemetry#current" },
+            commands: [],
+            badges: []
+          },
+          {
+            contribution_key: "opl-fleet-agent:doctor",
+            contribution_id: "doctor",
+            package_id: "opl-fleet-agent",
+            slot: "settings.section",
+            contribution_kind: "view",
+            trust_tier: "declarative",
+            scope: "root",
+            sort_order: 20,
+            view: { view_id: "fleet.doctor", view_type: "activity_log", title_i18n: { "en-US": "Doctor" }, data_ref: "fleet.doctor#current" },
+            commands: [],
+            badges: []
+          },
+          {
+            contribution_key: "opl-channel-weixin:access",
+            contribution_id: "access",
+            package_id: "opl-channel-weixin",
+            slot: "settings.section",
+            contribution_kind: "view",
+            trust_tier: "declarative",
+            scope: "root",
+            sort_order: 30,
+            view: { view_id: "weixin.access", view_type: "channel_access", title_i18n: { "en-US": "WeChat" }, data_ref: "weixin.access#current" },
+            commands: [],
+            badges: []
+          }
+        ]
+      }
+    });
+    const groups = groupSettingsContributions(projection.entries.filter((entry) => settingsContributionDestination(entry) === "services"));
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ packageId: "opl-fleet-agent" });
+    expect(groups[0]?.entries.map((entry) => entry.contributionId)).toEqual(["telemetry", "doctor"]);
+  });
+
+  test("summarizes generic activity-log data without exposing operational payload fields by default", () => {
+    const summary = buildActivityLogSummary({
+      freshness: { state: "fresh", last_observed_at: "2026-08-19T02:43:36.431Z" },
+      native_carrier: { availability: "available", status: "ready" },
+      node: { display_name: "Local development Mac", platform: "macOS" },
+      observed_at: "2026-08-19T02:43:38.533Z",
+      payload: {
+        collection_status: "available",
+        active_conversation_count: 7,
+        host_cpu_percent: 61.0465,
+        checks: [
+          { check_id: "provider", state: "pass" },
+          { check_id: "collection", state: "pass" },
+          { check_id: "optional-source", state: "unavailable" }
+        ]
+      }
+    }, "zh");
+    expect(summary).toMatchObject({ state: "done", statusLabel: "运行正常" });
+    expect(summary.fields).toEqual(expect.arrayContaining([
+      { id: "location", label: "本机", value: "Local development Mac · macOS" },
+      { id: "collection", label: "数据状态", value: "可用" },
+      { id: "active-conversations", label: "活跃对话", value: "7" },
+      { id: "checks", label: "检查结果", value: "2 项通过，1 项暂不可用" }
+    ]));
+    expect(JSON.stringify(summary)).not.toContain("host_cpu_percent");
+    expect(JSON.stringify(summary)).not.toContain("check_id");
   });
 
   test("registers each static list-slot occupant with a stable id", () => {

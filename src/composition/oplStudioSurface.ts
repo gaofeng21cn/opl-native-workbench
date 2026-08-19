@@ -11,6 +11,7 @@ export type OplSetupOperationResult = {
 };
 
 export type OplStudioPrimaryView = "conversation" | "runtime";
+export type RenderSettingsContribution = (options?: { only?: string }) => ReactNode;
 
 export type OplStudioSurface = {
   locale: "zh" | "en";
@@ -54,7 +55,7 @@ export type OplStudioSurface = {
   composerAccessory: ReactNode;
   composerOverlay: ReactNode;
   details: ReactNode;
-  renderSettings(destination: SettingsDestinationId): ReactNode;
+  renderSettings(destination: SettingsDestinationId, renderContribution?: RenderSettingsContribution): ReactNode;
   initializationStatus: "loading" | "ready" | "error";
   initialization: OplInitializeReadback | null;
   refreshInitialization(): void;

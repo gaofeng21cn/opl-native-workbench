@@ -76,6 +76,7 @@ declare module "@deepseek-ai/dsh-client-ui-slots" {
 const emptyArraySnapshot = Object.freeze([]) as readonly unknown[];
 const noSessionSnapshot: SessionMaybeProvideInfo = Object.freeze({ sessionId: undefined, hooks: Object.freeze({}), props: Object.freeze({}) });
 const focusableSelector = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const SettingsContributionSlotContext = createContext<((options?: { only?: string }) => ReactNode) | null>(null);
 
 function focusableElements(root: HTMLElement | null): HTMLElement[] {
   if (!root) return [];
@@ -692,7 +693,10 @@ function SettingsSlot({ wide, renderSlot }: { wide: boolean; renderSlot: any }) 
     && setupFlow.readyToLaunch === false;
   const sessions = { phase: "ready", current: "opl-current", byId: { "opl-current": { blank: onboardingVisible } } };
   const onboardingSteps = onboardingVisible ? [{ id: "opl-first-run", order: 0 }] : [];
-  return <div ref={rootRef} className="opl-settings-slot-root"><SettingsRoot wide={wide} useSections={(selector: any) => selector(rows)} useOnboardingSteps={(selector: any) => selector(onboardingSteps)} useSessions={(selector: any) => selector(sessions)} renderSlot={renderSlot} /></div>;
+  const renderContribution = useCallback((options?: { only?: string }) => (
+    renderSlot("settings.section", studio.contributionOwner, options)
+  ), [renderSlot, studio.contributionOwner]);
+  return <SettingsContributionSlotContext.Provider value={renderContribution}><div ref={rootRef} className="opl-settings-slot-root"><SettingsRoot wide={wide} useSections={(selector: any) => selector(rows)} useOnboardingSteps={(selector: any) => selector(onboardingSteps)} useSessions={(selector: any) => selector(sessions)} renderSlot={renderSlot} /></div></SettingsContributionSlotContext.Provider>;
 }
 
 function SettingsTriggerSlot({ wide }: { wide: boolean }) {
@@ -708,7 +712,8 @@ function settingsSectionId(destination: SettingsDestinationId): string {
 }
 
 function SettingsMainSlot({ destination }: { destination: SettingsDestinationId }) {
-  return <>{useStudio().renderSettings(destination)}</>;
+  const renderContribution = useContext(SettingsContributionSlotContext);
+  return <>{useStudio().renderSettings(destination, renderContribution ?? undefined)}</>;
 }
 
 function firstRunItemLabel(itemId: string, fallback: string | undefined, locale: "zh" | "en"): string {

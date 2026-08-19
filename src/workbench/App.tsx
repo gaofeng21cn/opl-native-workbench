@@ -18,7 +18,8 @@ import {
   useMemo,
   useRef,
   useState,
-  type FormEvent
+  type FormEvent,
+  type ReactNode
 } from "react";
 import {
   createBrowserBridge,
@@ -112,7 +113,7 @@ import type {
   OplUiContributionsProjection,
   RenderOplContributionSlot
 } from "../composition/contributionProjection";
-import { settingsContributionDestination } from "../composition/contributionProjection";
+import { groupSettingsContributions, settingsContributionDestination } from "../composition/contributionProjection";
 import { createOplContributionActionRequest } from "../composition/contributionProjection";
 import { isManagedComputerUseActionId } from "./managedComputerUse";
 import type { OplSetupOperationResult, OplStudioPrimaryView, RenderOplStudioShell } from "../composition/oplStudioSurface";
@@ -1695,6 +1696,7 @@ export function App({
   const contributionOwner = {
     locale: settings.locale,
     actionAvailable: contributionActionAvailable,
+    developerDetails: settings.developerDetails,
     ...(selectedRuntimeWorkItem?.domainId
       && selectedRuntimeWorkItem.domainWorkItemId
       && selectedRuntimeWorkItem.workItemScopeId
@@ -2313,7 +2315,7 @@ export function App({
     </aside>
   );
 
-  const renderStudioSettings = (activeDestination: SettingsDestinationId) => (
+  const renderStudioSettings = (activeDestination: SettingsDestinationId, renderContribution?: (options?: { only?: string }) => ReactNode) => (
     <SettingsPanel
       model={model}
       managedUpdate={managedUpdate}
@@ -2363,11 +2365,19 @@ export function App({
           ? activeDestination
           : null;
         if (!destination || !hasContribution("settings.section")) return null;
-        const only = model.uiContributions.entries
-          .filter((entry) => entry.slot === "settings.section" && settingsContributionDestination(entry) === destination)
-          .map((entry) => entry.contributionKey);
-        return only.length ? only.map((key) => (
-          <div key={key}>{renderContributionSlot?.("settings.section", contributionOwner, { only: key }) ?? null}</div>
+        const packageLabels = new Map(model.packageLifecycle.map((item) => [item.packageId, item.label]));
+        const groups = groupSettingsContributions(model.uiContributions.entries.filter((entry) => (
+          entry.slot === "settings.section" && settingsContributionDestination(entry) === destination
+        )));
+        return groups.length ? groups.map((group, index) => (
+          <section className="settings-contribution-package" data-package-id={group.packageId} key={group.packageId}>
+            <h3>{packageLabels.get(group.packageId) ?? (settings.locale === "zh" ? `已安装模块 ${index + 1}` : `Installed module ${index + 1}`)}</h3>
+            <div className="opl-contribution-slot">
+              {group.entries.map((entry) => (
+                <div key={entry.contributionKey}>{renderContribution?.({ only: entry.contributionKey }) ?? null}</div>
+              ))}
+            </div>
+          </section>
         )) : null;
       })()}
     />

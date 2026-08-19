@@ -158,6 +158,23 @@ export const codexWorkbenchStyles = `
     padding: 2px 0;
   }
 
+  .opl-activity-log-summary {
+    display: grid;
+    gap: 8px;
+  }
+
+  .opl-activity-log-status {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0;
+  }
+
+  .opl-activity-log-technical-details > .opl-structured-fields,
+  .opl-activity-log-technical-details > .opl-structured-list {
+    margin-top: 8px;
+  }
+
   .opl-runtime-detail-result {
     display: grid;
     gap: 14px;
@@ -232,6 +249,44 @@ export const codexWorkbenchStyles = `
     margin: 0;
     font-size: 13px;
     font-weight: 600;
+  }
+
+  .settings-contribution-package {
+    display: grid;
+    gap: 0;
+    min-width: 0;
+  }
+
+  .settings-contribution-package > h3 {
+    margin: 8px 0 0;
+    color: var(--opl-text);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .opl-contribution-technical-details {
+    color: var(--opl-muted);
+    font-size: 12px;
+  }
+
+  .opl-contribution-technical-details summary {
+    cursor: pointer;
+  }
+
+  .opl-contribution-technical-details dl {
+    display: grid;
+    gap: 2px;
+    margin: 6px 0 0;
+  }
+
+  .opl-contribution-technical-details dl > div {
+    display: flex;
+    gap: 6px;
+  }
+
+  .opl-contribution-technical-details dt,
+  .opl-contribution-technical-details dd {
+    margin: 0;
   }
 
   .opl-studio {

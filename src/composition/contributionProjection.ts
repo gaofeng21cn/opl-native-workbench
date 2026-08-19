@@ -103,6 +103,11 @@ export type OplUiContributionsProjection = {
  */
 export type OplSettingsContributionDestination = "resources" | "services" | "capabilities";
 
+export type OplSettingsContributionGroup = {
+  packageId: string;
+  entries: OplUiContribution[];
+};
+
 export function settingsContributionDestination(entry: Pick<OplUiContribution, "view">): OplSettingsContributionDestination {
   switch (entry.view?.viewType) {
     case "channel_access":
@@ -112,6 +117,17 @@ export function settingsContributionDestination(entry: Pick<OplUiContribution, "
     default:
       return "capabilities";
   }
+}
+
+/** Keeps Package identity as grouping metadata without making it a navigation source. */
+export function groupSettingsContributions(entries: readonly OplUiContribution[]): OplSettingsContributionGroup[] {
+  const groups = new Map<string, OplUiContribution[]>();
+  for (const entry of entries) {
+    const group = groups.get(entry.packageId);
+    if (group) group.push(entry);
+    else groups.set(entry.packageId, [entry]);
+  }
+  return [...groups.entries()].map(([packageId, group]) => ({ packageId, entries: group }));
 }
 
 export const emptyUiContributionsProjection: OplUiContributionsProjection = {
@@ -145,6 +161,7 @@ export type OplRuntimeDetailIdentity = {
 export type OplContributionSlotOwner = {
   locale: OplStudioLocale;
   actionAvailable: boolean;
+  developerDetails?: boolean;
   runtimeDetailIdentity?: OplRuntimeDetailIdentity;
   readData(entry: OplUiContribution, input?: OplContributionInput): Promise<unknown>;
   refreshRevision: number;

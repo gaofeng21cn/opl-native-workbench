@@ -964,11 +964,22 @@ function PackageCatalog({
   );
 }
 
-function SettingsContributionSection({ contributions, locale }: { contributions?: ReactNode; locale: WorkbenchSettings["locale"] }) {
+function SettingsContributionSection({
+  contributions,
+  locale,
+  destination
+}: {
+  contributions?: ReactNode;
+  locale: WorkbenchSettings["locale"];
+  destination: "resources" | "services" | "capabilities";
+}) {
   if (!contributions) return null;
+  const titles = locale === "zh"
+    ? { resources: "消息与连接", services: "已安装服务", capabilities: "模块扩展" }
+    : { resources: "Messages & connections", services: "Installed services", capabilities: "Module extensions" };
   return (
     <section className="settings-contribution-section" data-testid="opl-settings-contributions">
-      <h2>{locale === "zh" ? "来自已安装模块" : "From installed modules"}</h2>
+      <h2>{titles[destination]}</h2>
       <div className="opl-contribution-slot">{contributions}</div>
     </section>
   );
@@ -2007,7 +2018,7 @@ export function SettingsPanel({
               <SettingRow key={connection.id} label={connection.name}><StatusValue status={connection.status} locale={settings.locale} /></SettingRow>
             )) : <SettingRow label={settings.locale === "zh" ? "连接" : "Connections"}><span className="settings-muted">{settings.locale === "zh" ? "暂无外部连接" : "No external connections"}</span></SettingRow>}
           </SettingsGroup>
-          <SettingsContributionSection contributions={contributions} locale={settings.locale} />
+          <SettingsContributionSection contributions={contributions} locale={settings.locale} destination="resources" />
           <SettingsGroup title={settings.locale === "zh" ? "网页访问" : "Web access"}>
             <SettingRow label={settings.locale === "zh" ? "配置状态" : "Configuration"} detail={ordinaryActions.length ? (settings.locale === "zh" ? `${ordinaryActions.length} 个可用操作` : `${ordinaryActions.length} available actions`) : undefined}><StatusValue status={webAccessStatus} locale={settings.locale} /></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "运行检查" : "Runtime check"} detail={dockerDiagnostic
@@ -2112,7 +2123,7 @@ export function SettingsPanel({
               onAction={onAction}
             />
           ) : null}
-          <SettingsContributionSection contributions={contributions} locale={settings.locale} />
+          <SettingsContributionSection contributions={contributions} locale={settings.locale} destination="capabilities" />
         </>
       );
     }
@@ -2154,7 +2165,7 @@ export function SettingsPanel({
             <SettingRow label={settings.locale === "zh" ? "智能体与能力" : "Agents and capabilities"}><StatusValue status={projection?.statusSummary.agentPackageHealth} locale={settings.locale} /></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "运行环境" : "Runtime environment"}><StatusValue status={projection?.statusSummary.runtimeSourceHealth} locale={settings.locale} /></SettingRow>
           </SettingsGroup>
-          <SettingsContributionSection contributions={contributions} locale={settings.locale} />
+          <SettingsContributionSection contributions={contributions} locale={settings.locale} destination="services" />
           <SettingsGroup title={settings.locale === "zh" ? "后台任务" : "Background tasks"}>
             <SettingRow label={settings.locale === "zh" ? "任务服务" : "Task service"}>
               <span className="runtime-setting-control"><StatusValue status={runtime?.temporal.serviceStatus} locale={settings.locale} /><RuntimeActionButton action={serviceAction} locale={settings.locale} busyKey={actionBusyKey} onAction={onAction} /></span>
