@@ -47,10 +47,11 @@ test("tray menu exposes real window, runtime, recent-thread, update, restart, an
   });
   const byLabel = new Map(template.filter((item) => item.label).map((item) => [item.label, item]));
   assert.equal(byLabel.get("运行中任务：2")?.enabled, false);
-  assert.equal(byLabel.get("最近任务")?.submenu[0]?.label, "研究任务");
+  assert.equal(byLabel.get("最近任务")?.enabled, false);
+  assert.equal(template.find((item) => item.label === "研究任务")?.label, "研究任务");
   byLabel.get("显示 One Person Lab")?.click();
   byLabel.get("运行状态")?.click();
-  byLabel.get("最近任务")?.submenu[0]?.click();
+  template.find((item) => item.label === "研究任务")?.click();
   byLabel.get("检查更新")?.click();
   byLabel.get("重新启动")?.click();
   byLabel.get("退出 One Person Lab")?.click();
@@ -72,8 +73,10 @@ test("tray controller reads recent threads and routes menu actions through exist
   const windowCalls = [];
   const window = {
     isDestroyed: () => false,
+    isMinimized: () => false,
     show: () => windowCalls.push("show"),
     hide: () => windowCalls.push("hide"),
+    restore: () => windowCalls.push("restore"),
     focus: () => windowCalls.push("focus")
   };
   const rendererEvents = [];
@@ -83,7 +86,7 @@ test("tray controller reads recent threads and routes menu actions through exist
       Menu: { buildFromTemplate: (template) => { builtTemplates.push(template); return { template }; } },
       nativeImage: { createFromPath: () => image },
       dialog: { showMessageBox: async () => ({ response: 0 }) },
-      app: { getVersion: () => "0.1.0" }
+      app: { getVersion: () => "0.1.0", dock: { show() { windowCalls.push("dock-show"); }, hide() { windowCalls.push("dock-hide"); } } }
     },
     repositoryRoot: "/workspace",
     resourcesPath: "/resources",
@@ -110,13 +113,14 @@ test("tray controller reads recent threads and routes menu actions through exist
   assert.equal(controller.tray.tooltip, "One Person Lab");
   const template = builtTemplates.at(-1);
   assert.equal(template.find((item) => item.label === "运行中任务：3")?.enabled, false);
+  assert.equal(template.find((item) => item.label === "最近任务")?.enabled, false);
   template.find((item) => item.label === "运行状态")?.click();
-  template.find((item) => item.label === "最近任务")?.submenu[0]?.click();
+  template.find((item) => item.label === "Recent")?.click();
   assert.deepEqual(rendererEvents, [
     { method: "desktop/navigate", params: { view: "runtime" } },
     { method: "desktop/open-thread", params: { threadId: "thread-1" } }
   ]);
-  assert.deepEqual(windowCalls, ["show", "focus", "show", "focus"]);
+  assert.deepEqual(windowCalls, ["dock-show", "show", "focus", "dock-show", "show", "focus"]);
   controller.destroy();
   assert.equal(controller.tray.destroyed, true);
 });

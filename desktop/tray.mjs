@@ -57,24 +57,28 @@ export function buildDesktopTrayMenu({
     const id = threadId(thread);
     return id ? [{ label: threadLabel(thread, index), click: () => actions.openThread(id) }] : [];
   });
-  return [
+  const menu = [
     { label: zh ? "显示 One Person Lab" : "Show One Person Lab", click: actions.showWindow },
     { label: zh ? "隐藏到状态栏" : "Hide to menu bar", click: actions.hideWindow },
     { type: "separator" },
     { label: zh ? "新建任务" : "New task", accelerator: "CommandOrControl+N", click: actions.newTask },
-    { label: zh ? "运行状态" : "Run status", click: actions.openRuntime },
-    { label: zh ? `运行中任务：${runningCount}` : `Running tasks: ${runningCount}`, enabled: false },
-    {
-      label: zh ? "最近任务" : "Recent tasks",
-      submenu: recentItems.length ? recentItems : [{ label: zh ? "暂无最近任务" : "No recent tasks", enabled: false }]
-    },
+    { label: zh ? "运行状态" : "Run status", click: actions.openRuntime }
+  ];
+  if (recentItems.length) {
+    menu.push({ type: "separator" });
+    menu.push({ label: zh ? "最近任务" : "Recent tasks", enabled: false });
+    menu.push(...recentItems);
+  }
+  menu.push(
     { type: "separator" },
+    { label: zh ? `运行中任务：${runningCount}` : `Running tasks: ${runningCount}`, enabled: false },
     { label: zh ? "检查更新" : "Check for updates", click: actions.checkForUpdates },
     { label: zh ? "关于 One Person Lab" : "About One Person Lab", click: actions.showAbout },
     { label: zh ? "重新启动" : "Restart", click: actions.restart },
     { type: "separator" },
     { label: zh ? "退出 One Person Lab" : "Quit One Person Lab", click: actions.quit }
-  ];
+  );
+  return menu;
 }
 
 function updateMessage(result, locale) {
@@ -125,6 +129,8 @@ export async function createDesktopTray({
   const showWindow = () => {
     const window = getWindow();
     if (!window || window.isDestroyed()) return;
+    if (process.platform === "darwin") app.dock?.show?.();
+    if (window.isMinimized?.()) window.restore?.();
     window.show();
     window.focus();
   };
@@ -132,6 +138,7 @@ export async function createDesktopTray({
     const window = getWindow();
     if (!window || window.isDestroyed()) return;
     window.hide();
+    if (process.platform === "darwin") app.dock?.hide?.();
   };
   const navigate = (view) => {
     showWindow();
