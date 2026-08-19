@@ -26,6 +26,19 @@ version through the host contract. HOME, Electron state, installation, builder o
 one temporary root; the command removes them after writing `out/macos-desktop-updater-qualification.json`.
 This proves the local packaged update chain, not the GitHub release feed or Apple notarization.
 
+`npm run qualify:desktop:clean-vm` clones the configured Tart macOS base, installs the exact local DMG,
+launches the packaged App through a temporary SSH/CDP tunnel, and reads the renderer bridge, App state,
+Gateway owner projection, and native updater status. Its receipt always keeps `cleanVmReady=false` and
+`releaseReady=false`: a successful local install is candidate evidence only, while a missing Framework/Codex
+runtime is recorded as a typed blocker instead of being hidden behind a shell fallback. The harness deletes
+the temporary VM by default; use `--keep-vm` only for local debugging.
+
+`npm run diagnose:gateway:persistence` checks the Framework-owned
+`credentials.json`, `account.json`, and `installation.json` files without printing their contents, then
+performs a real Preview cold start and compares mode, size, and SHA-256 before/after. It also compares the
+sanitized `opl app state` Gateway projection with the renderer's `window.oplStudio.readState()` result.
+The Studio renderer cache is not treated as credential authority.
+
 The desktop main process resolves existing `codex` and `opl` installations into the documented
 `OPL_CODEX_BIN` and `OPL_APP_OPL_BIN` environment boundaries before the shared host starts. This keeps
 Finder launches independent of a terminal-only `PATH` while preserving explicit operator overrides. The

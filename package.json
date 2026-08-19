@@ -110,6 +110,8 @@
     "qualify:desktop:mac": "node scripts/desktop/macos-distribution.mjs",
     "qualify:desktop:mac:release": "node scripts/desktop/macos-distribution.mjs --require-release-trust --require-public-feed",
     "qualify:desktop:updater:local": "node scripts/desktop/qualify-local-updater.mjs",
+    "qualify:desktop:clean-vm": "node scripts/desktop/qualify-clean-vm.mjs",
+    "diagnose:gateway:persistence": "node scripts/desktop/diagnose-gateway-credential-persistence.mjs",
     "smoke:webui": "node scripts/smoke-webui.mjs",
     "smoke:visual": "node scripts/smoke-visual.mjs",
     "smoke:docker": "node tests/headless/docker-smoke.mjs",
