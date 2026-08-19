@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import os from "node:os";
 import path from "node:path";
-import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { CodexAppServerTransport } from "./app-server-transport.mjs";
 import { ChannelBindingStore } from "./channel-bindings.mjs";
@@ -23,6 +23,49 @@ test("desktop hosts can supply a real working directory instead of the packaged 
     status: "dormant",
     registered: false
   });
+});
+
+test("desktop runtime environment drives Codex and Gateway commands from one host boundary", async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "opl-host-runtime-env-test-"));
+  const oplCommand = path.join(directory, "opl");
+  const runtimePath = `${directory}:/usr/bin:/bin:/usr/sbin:/sbin`;
+  await writeFile(oplCommand, [
+    "#!/bin/sh",
+    `[ "$PATH" = '${runtimePath}' ] || exit 17`,
+    "printf '%s\\n' '{\"app_state\":{\"settings_control_center\":{\"app_settings_read_model\":{\"opl_gateway_account\":{\"surface_kind\":\"opl_gateway_account_read_model.v1\",\"connection_mode\":\"account\",\"status\":\"connected\",\"account_card_visible\":true,\"account\":{\"display_name\":\"OPL User\",\"status\":\"active\"}}}}}}'",
+    ""
+  ].join("\n"), "utf8");
+  await chmod(oplCommand, 0o755);
+  t.after(() => rm(directory, { recursive: true, force: true }));
+
+  const env = {
+    PATH: runtimePath,
+    OPL_CODEX_BIN: "/Users/opl/.local/bin/codex",
+    OPL_APP_OPL_BIN: oplCommand,
+    OPL_APP_VERSION: "1.2.3"
+  };
+  const core = new OplHostCore({
+    workspaceRoot: directory,
+    channelBindingFile: path.join(directory, "bindings.json"),
+    env
+  });
+
+  assert.equal(core.transport.command, env.OPL_CODEX_BIN);
+  assert.equal(core.transport.clientVersion, env.OPL_APP_VERSION);
+  assert.equal(core.transport.env, env);
+  const state = await core.invoke("readState", { profile: "fast" });
+  assert.equal(state.readback.exitCode, 0);
+  assert.equal(
+    state.app_state.app_state.settings_control_center.app_settings_read_model.opl_gateway_account.status,
+    "connected"
+  );
+  assert.deepEqual(await core.invoke("loginGatewayAccount", {
+    email: "user@example.com",
+    password: "secret"
+  }), { ok: true, stateRefreshRequired: true });
+  assert.deepEqual(await core.invoke("configureCodexApiKey", {
+    apiKey: "sk-test"
+  }), { ok: true, stateRefreshRequired: true });
 });
 
 test("optional channel provider receives canonical App Server callbacks without changing the default host path", async (t) => {

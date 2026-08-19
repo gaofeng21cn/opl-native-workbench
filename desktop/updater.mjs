@@ -62,6 +62,7 @@ export function createDesktopUpdater({
   isPackaged,
   updateConfigAvailable = true,
   currentVersion,
+  onStateChange = () => undefined,
   beforeRestart = async () => undefined
 }) {
   const supported = isPackaged && updateConfigAvailable;
@@ -76,6 +77,7 @@ export function createDesktopUpdater({
 
   const update = (next) => {
     state = { ...state, ...next };
+    onStateChange({ ...state });
   };
 
   if (supported) {

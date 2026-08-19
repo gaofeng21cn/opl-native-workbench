@@ -25,3 +25,9 @@ downloads and installs the update, reads the replaced App version, relaunches it
 version through the host contract. HOME, Electron state, installation, builder output, and feed all live under
 one temporary root; the command removes them after writing `out/macos-desktop-updater-qualification.json`.
 This proves the local packaged update chain, not the GitHub release feed or Apple notarization.
+
+The desktop main process resolves existing `codex` and `opl` installations into the documented
+`OPL_CODEX_BIN` and `OPL_APP_OPL_BIN` environment boundaries before the shared host starts. This keeps
+Finder launches independent of a terminal-only `PATH` while preserving explicit operator overrides. The
+About and Updates surfaces read the running package version and the same main-process updater state; they
+do not maintain a second version or update store.

@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { validateDesktopPackage } from "../../scripts/validate-desktop-package.mjs";
 
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
-const version = "0.1.0";
+const version = JSON.parse(await readFile(path.join(repositoryRoot, "package.json"), "utf8")).version;
 
 async function artifact(file, { executable = false } = {}) {
   await mkdir(path.dirname(file), { recursive: true });

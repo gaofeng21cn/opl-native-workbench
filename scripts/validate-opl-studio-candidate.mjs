@@ -504,7 +504,7 @@ function assertCodexModelControls(evidence, app, rendererSource) {
   assert(hostTransport.includes("data.push(...page.data)"), "shared host core must merge model/list pages");
   assert(hostTransport.includes("...(model ? { model } : {})"), "shared host core must pass model to app-server turn/start");
   assert(hostTransport.includes("...(reasoningEffort ? { effort: reasoningEffort } : {})"), "shared host core must pass effort to app-server turn/start");
-  assert(hostTransport.includes("process.env.OPL_CODEX_BIN"), "shared host core must consume the App launcher Codex executable");
+  assert(hostTransport.includes("env.OPL_CODEX_BIN"), "shared host core must consume the App launcher Codex executable from its injected environment");
   assert(hostCore.includes("process.env.OPL_NATIVE_WORKBENCH_CODEX_CWD"), "shared host core must consume the App launcher workspace");
   for (const marker of ["OPL_APP_OPL_BIN", "OPL_NATIVE_WORKBENCH_READ_ONLY", "blocked_read_only", "candidate_read_only_policy"]) {
     assert(oplPassthrough.includes(marker), `shared host core must preserve launcher/runtime safety marker ${marker}`);

@@ -122,12 +122,21 @@ export class OplHostCore extends EventEmitter {
     this.opl = opl ?? createOplPassthrough({
       cwd: workspaceRoot,
       command: oplCommand,
+      env,
       candidateActionAllowlist,
       channelCallbackRegistrar: channelCallbackRegistrar
         ?? createFrameworkChannelCallbackRegistrar({ command: oplCommand, env })
     });
-    this.gatewayAccountLogin = gatewayAccountLogin ?? createGatewayAccountLogin({ cwd: workspaceRoot });
-    this.codexApiKeyConfiguration = codexApiKeyConfiguration ?? createCodexApiKeyConfiguration({ cwd: workspaceRoot });
+    this.gatewayAccountLogin = gatewayAccountLogin ?? createGatewayAccountLogin({
+      command: oplCommand,
+      cwd: workspaceRoot,
+      env
+    });
+    this.codexApiKeyConfiguration = codexApiKeyConfiguration ?? createCodexApiKeyConfiguration({
+      command: oplCommand,
+      cwd: workspaceRoot,
+      env
+    });
     this.platform = { ...defaultPlatformServices(), ...platform };
     this.nativeUpdater = nativeUpdater;
     this.carrierDiagnostics = carrierDiagnostics ?? defaultCarrierDiagnostics(env);

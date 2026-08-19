@@ -2315,14 +2315,35 @@ export function SettingsPanel({
       );
     }
 
+    const appUpdate = actionViewModel.managedUpdates.find((item) => item.componentId === "opl_app");
+    const appUpdateComponent = appUpdate?.component;
+    const hostUpdateActions = appUpdate?.actions.filter(
+      (intent): intent is SettingsHostActionIntent => intent.transport !== "app_action"
+    ) ?? [];
+    const updateAction = hostUpdateActions.find((intent) => intent.operation === "restart" && intent.availability === "ready")
+      ?? hostUpdateActions.find((intent) => intent.operation === "apply" && intent.availability === "ready")
+      ?? hostUpdateActions.find((intent) => intent.operation === "check" && intent.availability === "ready");
+    const appVersion = nativeAppUpdate?.currentVersion ?? appUpdateComponent?.installedVersion ?? "--";
+    const updateChannel = appUpdateComponent?.channel
+      ?? managedUpdate?.channel
+      ?? projection?.localEnvironment.releaseChannel
+      ?? projection?.statusSummary.releaseChannel;
     return (
-      <>
+      <div data-testid="settings-page-about">
         <SettingsGroup title={settings.locale === "zh" ? "One Person Lab 预览版" : "One Person Lab Preview"}>
-          <SettingRow label={settings.locale === "zh" ? "版本" : "Version"}><span>0.1.0</span></SettingRow>
-          <SettingRow label={settings.locale === "zh" ? "发布通道" : "Release channel"}><span>{settings.locale === "zh" ? "预览版" : "Preview"}</span></SettingRow>
+          <div data-testid="settings-about-primary">
+            <SettingRow label={settings.locale === "zh" ? "版本" : "Version"}><span>{appVersion}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "发布通道" : "Release channel"}><span>{formatUpdateChannel(updateChannel, settings.locale)}</span></SettingRow>
+            <SettingRow label={settings.locale === "zh" ? "更新状态" : "Update status"}>
+              <span className="runtime-setting-control">
+                <StatusValue status={nativeAppUpdate?.state ?? appUpdateComponent?.state} locale={settings.locale} />
+                {updateAction ? <SettingsIntentButton intent={updateAction} locale={settings.locale} busyKey={actionBusyKey} onAction={onAction} onHostAction={onHostAction} /> : null}
+              </span>
+            </SettingRow>
+          </div>
           <SettingRow label={settings.locale === "zh" ? "本机助手" : "Local assistant"}><span>{projection?.codex.version ?? "--"}</span></SettingRow>
         </SettingsGroup>
-      </>
+      </div>
     );
   }
 

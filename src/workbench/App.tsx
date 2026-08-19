@@ -934,7 +934,7 @@ export function App({
         operation: "apply",
         componentIds: ["opl_app"],
         confirmationRequired: true,
-        availability: nativeAppUpdate?.supported === true ? "ready" : "unavailable",
+        availability: nativeAppUpdate?.supported === true && nativeAppUpdate.state === "available" ? "ready" : "unavailable",
         sourceRef: "one-person-lab-app native updater"
       },
       {
@@ -1593,6 +1593,9 @@ export function App({
     if (method === "desktop/open-thread" && typeof params.threadId === "string") {
       const thread = allThreadsRef.current.find((candidate) => candidate.id === params.threadId);
       if (thread) void openThread(thread);
+    }
+    if (method === "desktop/native-app-update" && params.schema === "opl_native_app_updater.v1") {
+      setNativeAppUpdate(params as NativeAppUpdateResult);
     }
     if (method === "turn/started" && pendingAssistantIdRef.current) {
       const turn = typeof params.turn === "object" && params.turn ? params.turn as Record<string, unknown> : {};

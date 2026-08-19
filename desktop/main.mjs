@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createOplHostCore } from "../scripts/webui-host/host-core.mjs";
 import { captureDesktopAccessibility } from "./accessibility-qualification.mjs";
 import { createAppLogDirectoryController } from "./app-log-directory.mjs";
+import { resolveDesktopRuntimeEnvironment } from "./process-environment.mjs";
 import { createShutdownController } from "./shutdown.mjs";
 import { createDesktopTray } from "./tray.mjs";
 import {
@@ -21,9 +22,11 @@ const rendererIndex = path.join(repositoryRoot, "dist", "desktop", "index.html")
 let hostCore;
 let mainWindow;
 let desktopTray;
+let desktopUpdater;
 let installingUpdate = false;
 let quittingApplication = false;
 let updaterQualificationEnabled = false;
+let startupUpdateCheckStarted = false;
 const nativeAccessibilityQualificationEnabled = process.env.OPL_DESKTOP_NATIVE_ACCESSIBILITY_QUALIFICATION === "1";
 if (nativeAccessibilityQualificationEnabled) {
   app.commandLine.appendSwitch("force-renderer-accessibility");
@@ -114,6 +117,14 @@ function createWindow() {
   window.on("closed", () => {
     if (mainWindow === window) mainWindow = null;
   });
+  window.webContents.once("did-finish-load", () => {
+    if (!desktopUpdater) return;
+    sendDesktopRendererEvent("desktop/native-app-update", desktopUpdater.snapshot());
+    if (!startupUpdateCheckStarted && desktopUpdater.snapshot().supported && !updaterQualificationEnabled) {
+      startupUpdateCheckStarted = true;
+      void desktopUpdater.perform("check").catch(() => undefined);
+    }
+  });
   void window.loadFile(rendererIndex);
   return window;
 }
@@ -147,19 +158,26 @@ async function createDesktopHost(appLogDirectory) {
     feedUrl: process.env.OPL_DESKTOP_UPDATE_QUALIFICATION_FEED_URL
   });
   let core;
-  const desktopUpdater = createDesktopUpdater({
+  const updater = createDesktopUpdater({
     autoUpdater,
     isPackaged: app.isPackaged,
     updateConfigAvailable,
     currentVersion: app.getVersion(),
+    onStateChange: (state) => sendDesktopRendererEvent("desktop/native-app-update", state),
     beforeRestart: async () => {
       await core?.close();
       ipcMain.removeHandler("opl:invoke");
       installingUpdate = true;
     }
   });
+  const hostEnvironment = resolveDesktopRuntimeEnvironment({
+    env: process.env,
+    homeDir: app.getPath("home")
+  });
+  hostEnvironment.OPL_APP_VERSION ??= app.getVersion();
   core = await createOplHostCore({
     workspaceRoot: desktopCodexWorkspaceRoot(),
+    env: hostEnvironment,
     candidateActionAllowlist: ["workspace_root_set", "codex_install"],
     channelBindingFile: path.join(app.getPath("userData"), "channel-transport-bindings.json"),
     platform: {
@@ -186,7 +204,7 @@ async function createDesktopHost(appLogDirectory) {
       }),
       setLogDirectory: (request) => appLogDirectory.setLogDirectory(request)
     },
-    nativeUpdater: desktopUpdater
+    nativeUpdater: updater
   });
 
   ipcMain.handle("opl:invoke", async (event, request) => {
@@ -200,7 +218,7 @@ async function createDesktopHost(appLogDirectory) {
       if (!window.isDestroyed()) window.webContents.send("opl:event", event);
     }
   });
-  return { core, desktopUpdater };
+  return { core, desktopUpdater: updater };
 }
 
 app.whenReady().then(async () => {
@@ -211,6 +229,7 @@ app.whenReady().then(async () => {
   await appLogDirectory.restore();
   const desktopHost = await createDesktopHost(appLogDirectory);
   hostCore = desktopHost.core;
+  desktopUpdater = desktopHost.desktopUpdater;
   createWindow();
   desktopTray = await createDesktopTray({
     electron: { app, dialog, Menu, nativeImage, Tray },
@@ -231,9 +250,6 @@ app.whenReady().then(async () => {
       mainWindow.focus();
     }
   });
-  if (desktopHost.desktopUpdater.snapshot().supported && !updaterQualificationEnabled) {
-    void desktopHost.desktopUpdater.perform("check").catch(() => undefined);
-  }
 });
 
 app.on("window-all-closed", () => {

@@ -435,6 +435,17 @@ test("App update restart follows the carrier result instead of a host-name speci
   assert.doesNotMatch(app, /nativeAppUpdate\?\.host === "native"/);
 });
 
+test("desktop version and updater state have one main-process source", () => {
+  assert.match(desktopMain, /resolveDesktopRuntimeEnvironment/);
+  assert.match(desktopMain, /desktop\/native-app-update/);
+  assert.match(desktopMain, /window\.webContents\.once\("did-finish-load"/);
+  assert.match(app, /method === "desktop\/native-app-update"/);
+  assert.match(app, /nativeAppUpdate\?\.supported === true && nativeAppUpdate\.state === "available"/);
+  assert.match(settingsPanel, /nativeAppUpdate\?\.currentVersion/);
+  assert.match(settingsPanel, /nativeAppUpdate\?\.state/);
+  assert.doesNotMatch(settingsPanel, /<span>0\.1\.0<\/span>/);
+});
+
 test("Framework managed updates reuse the projected App action bus", () => {
   const settingsActionFlow = app.match(/async function runSettingsAction\([\s\S]*?\n  async function runSettingsHostAction/)?.[0] ?? "";
   assert.match(app, /readProjectedManagedUpdateActions\(state\)/);

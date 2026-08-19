@@ -71,12 +71,14 @@ test("desktop updater qualification accepts only an explicit loopback feed", () 
 
 test("desktop updater preserves check, download, clean restart, and running-version readback", async () => {
   const lifecycle = [];
+  const states = [];
   const autoUpdater = new FakeAutoUpdater();
   autoUpdater.quitAndInstall = () => lifecycle.push("quit-and-install");
   const updater = createDesktopUpdater({
     autoUpdater,
     isPackaged: true,
     currentVersion: "1.0.0",
+    onStateChange: (state) => states.push(state),
     beforeRestart: async () => lifecycle.push("host-closed")
   });
   assert.equal((await updater.perform("check")).state, "available");
@@ -88,6 +90,15 @@ test("desktop updater preserves check, download, clean restart, and running-vers
   assert.equal(restarted.accepted, true);
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(lifecycle, ["host-closed", "quit-and-install"]);
+  assert.deepEqual(states.map((state) => state.state), [
+    "checking",
+    "available",
+    "downloading",
+    "downloading",
+    "downloaded",
+    "installing"
+  ]);
+  assert.equal(states.every((state) => state.currentVersion === "1.0.0"), true);
 
   const relaunched = createDesktopUpdater({
     autoUpdater: new FakeAutoUpdater(),

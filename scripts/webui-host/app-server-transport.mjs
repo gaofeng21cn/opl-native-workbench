@@ -177,23 +177,28 @@ function assertChannelThreadHost(expected, operation, host) {
 }
 
 export class CodexAppServerTransport extends EventEmitter {
-  constructor({
-    command = process.env.OPL_CODEX_BIN ?? process.env.CODEX_APP_SERVER_COMMAND ?? "codex",
-    args = process.env.CODEX_APP_SERVER_ARGS?.split(" ").filter(Boolean) ?? ["app-server", "--stdio"],
-    cwd = process.env.OPL_STUDIO_CODEX_CWD ?? process.cwd(),
-    host = os.hostname(),
-    env = process.env,
-    channelBindingStore,
-    requestTimeoutMs = 45_000,
-    turnTimeoutMs = 180_000
-  } = {}) {
+  constructor(options = {}) {
     super();
+    const env = options.env ?? process.env;
+    const command = options.command
+      ?? env.OPL_CODEX_BIN
+      ?? env.CODEX_APP_SERVER_COMMAND
+      ?? "codex";
+    const args = options.args
+      ?? env.CODEX_APP_SERVER_ARGS?.split(" ").filter(Boolean)
+      ?? ["app-server", "--stdio"];
+    const cwd = options.cwd ?? env.OPL_STUDIO_CODEX_CWD ?? process.cwd();
+    const host = options.host ?? os.hostname();
+    const clientVersion = options.clientVersion ?? env.OPL_APP_VERSION ?? "unknown";
+    const requestTimeoutMs = options.requestTimeoutMs ?? 45_000;
+    const turnTimeoutMs = options.turnTimeoutMs ?? 180_000;
     this.command = command;
     this.args = args;
     this.cwd = cwd;
     this.host = requiredChannelString(host, "host");
     this.env = env;
-    this.channelBindingStore = channelBindingStore;
+    this.clientVersion = clientVersion;
+    this.channelBindingStore = options.channelBindingStore;
     this.requestTimeoutMs = requestTimeoutMs;
     this.turnTimeoutMs = turnTimeoutMs;
     this.process = null;
@@ -249,7 +254,7 @@ export class CodexAppServerTransport extends EventEmitter {
       clientInfo: {
         name: "opl-studio-webui",
         title: "One Person Lab",
-        version: "0.1.0"
+        version: this.clientVersion
       },
       capabilities: {
         experimentalApi: true,

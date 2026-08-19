@@ -8,9 +8,9 @@ function boundedTimeout(value, fallback) {
   return normalized;
 }
 
-function run(command, args, { cwd, timeoutMs }) {
+function run(command, args, { cwd, env, timeoutMs }) {
   return new Promise((resolve) => {
-    const child = spawn(command, args, { cwd, env: process.env, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(command, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     let timedOut = false;
@@ -770,11 +770,12 @@ function hostActionReceipt(request, result) {
 export { compactFastState };
 
 export function createOplPassthrough({
+  env = process.env,
   cwd = process.cwd(),
-  command = process.env.OPL_APP_OPL_BIN ?? process.env.OPL_COMMAND ?? "opl",
-  readStateTimeoutMs = process.env.OPL_APP_STATE_TIMEOUT_MS,
-  allowActions = process.env.OPL_NATIVE_WORKBENCH_READ_ONLY === "0"
-    || process.env.OPL_STUDIO_READ_ONLY === "0",
+  command = env.OPL_APP_OPL_BIN ?? env.OPL_COMMAND ?? "opl",
+  readStateTimeoutMs = env.OPL_APP_STATE_TIMEOUT_MS,
+  allowActions = env.OPL_NATIVE_WORKBENCH_READ_ONLY === "0"
+    || env.OPL_STUDIO_READ_ONLY === "0",
   candidateActionAllowlist = [],
   channelCallbackRegistrar
 } = {}) {
@@ -825,7 +826,7 @@ export function createOplPassthrough({
     async readState(profile = "fast") {
       const normalizedProfile = profile === "full" ? "full" : "fast";
       const args = [command, "app", "state", "--profile", normalizedProfile, "--json"];
-      const result = await run(command, args.slice(1), { cwd, timeoutMs: stateTimeoutMs });
+      const result = await run(command, args.slice(1), { cwd, env, timeoutMs: stateTimeoutMs });
       const parsed = mergeChannelProviderState(jsonValue(result.stdout), channelProviderHost);
       return {
         profile: normalizedProfile,
@@ -836,7 +837,7 @@ export function createOplPassthrough({
 
     async readInitialize() {
       const args = [command, "system", "initialize", "--json"];
-      const result = await run(command, args.slice(1), { cwd, timeoutMs: 60_000 });
+      const result = await run(command, args.slice(1), { cwd, env, timeoutMs: 60_000 });
       return {
         ...compactInitialize(jsonValue(result.stdout)),
         readback: boundedReadback(args, result)
@@ -845,7 +846,7 @@ export function createOplPassthrough({
 
     async readFullDrilldown() {
       const args = [command, "runtime", "app-operator-drilldown", "--detail", "full", "--json"];
-      const result = await run(command, args.slice(1), { cwd, timeoutMs: 45_000 });
+      const result = await run(command, args.slice(1), { cwd, env, timeoutMs: 45_000 });
       return { detail: "full", drilldown: jsonValue(result.stdout), readback: commandReadback(args, result) };
     },
 
@@ -871,7 +872,7 @@ export function createOplPassthrough({
         };
       }
       const args = [command, "app", "contribution", "read", "--package-id", packageId, "--ref", ref, "--input", JSON.stringify(input), "--json"];
-      const result = await run(command, args.slice(1), { cwd, timeoutMs: 45_000 });
+      const result = await run(command, args.slice(1), { cwd, env, timeoutMs: 45_000 });
       return { ...commandReadback(args, result), stdoutJson: jsonValue(result.stdout) };
     },
 
@@ -916,7 +917,7 @@ export function createOplPassthrough({
         ? { exitCode: -1, stdout: "", stderr: "candidate_read_only_policy", timedOut: false }
         : !dryRun && !confirmed
         ? { exitCode: -1, stdout: "", stderr: "confirmation_required", timedOut: false }
-        : await run(command, args.slice(1), { cwd, timeoutMs: actionId === "codex_install" ? 120_000 : 45_000 });
+        : await run(command, args.slice(1), { cwd, env, timeoutMs: actionId === "codex_install" ? 120_000 : 45_000 });
       return {
         actionId,
         dryRun,
