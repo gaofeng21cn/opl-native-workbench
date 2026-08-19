@@ -33,7 +33,6 @@ import { ProjectedContribution } from "./contributionComponents";
 import { createOplStudioClientCordisComposition } from "./clientCordis";
 import {
   OPL_UI_CONTRIBUTION_SLOTS,
-  contributionLabel,
   type OplUiContribution,
   type OplUiContributionsProjection,
   type OplUiContributionSlot
@@ -314,7 +313,7 @@ function OplStudioRoot({ renderSlot }: { renderSlot: any }) {
     slotHost.clearProjection();
   }, []);
 
-  return <App renderShell={(surface) => <StudioFrame surface={surface} renderSlot={renderSlot} />} renderContributionSlot={(slot, owner) => renderSlot(slot, owner)} onHostStateChange={updateHostState} onHostStateDispose={clearHostState} />;
+  return <App renderShell={(surface) => <StudioFrame surface={surface} renderSlot={renderSlot} />} renderContributionSlot={(slot, owner, options) => renderSlot(slot, owner, options)} onHostStateChange={updateHostState} onHostStateDispose={clearHostState} />;
 }
 
 function SidebarSlot({ collapsed, width, renderSlot }: { collapsed: boolean; width: number; renderSlot: any }) {
@@ -684,8 +683,9 @@ function SettingsSlot({ wide, renderSlot }: { wide: boolean; renderSlot: any }) 
     order: index * 10,
     label: destination.label
   }));
-  const contributionRows = studio.uiContributions.entries.filter((entry) => entry.slot === "settings.section").map((entry) => ({ id: entry.contributionKey, order: entry.sortOrder, label: entry.view ? contributionLabel(entry.view.title, studio.locale, entry.contributionId) : entry.contributionId }));
-  const rows = [...studioRows, ...contributionRows];
+  // Package contributions are rendered inside the owning Studio destination;
+  // they are not extra top-level settings pages.
+  const rows = studioRows;
   const setupFlow = studio.initialization?.systemInitialize.setupFlow;
   const onboardingVisible = studio.initializationStatus === "ready"
     && setupFlow?.isFirstRun === true

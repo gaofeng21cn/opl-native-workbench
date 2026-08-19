@@ -112,6 +112,7 @@ import type {
   OplUiContributionsProjection,
   RenderOplContributionSlot
 } from "../composition/contributionProjection";
+import { settingsContributionDestination } from "../composition/contributionProjection";
 import { createOplContributionActionRequest } from "../composition/contributionProjection";
 import { isManagedComputerUseActionId } from "./managedComputerUse";
 import type { OplSetupOperationResult, OplStudioPrimaryView, RenderOplStudioShell } from "../composition/oplStudioSurface";
@@ -169,6 +170,13 @@ type ProjectedSetupAction = {
   dryRunSupported: boolean;
 };
 
+type ProjectedManifestInstallAction = {
+  actionId: string;
+  payloadFields: string[];
+  confirmationRequired: boolean;
+  dryRunSupported: boolean;
+};
+
 function appStateActionRecords(state: unknown): Record<string, unknown>[] {
   const root = typeof state === "object" && state !== null && !Array.isArray(state)
     ? state as Record<string, unknown>
@@ -216,6 +224,22 @@ export function readProjectedSetupActions(state: unknown): ProjectedSetupAction[
       dryRunSupported: action.dry_run_supported === true
     }];
   });
+}
+
+export function readProjectedManifestInstallAction(state: unknown): ProjectedManifestInstallAction | undefined {
+  return appStateActionRecords(state).flatMap((action): ProjectedManifestInstallAction[] => {
+    if (action.action_id !== "install_from_manifest_url") return [];
+    const payloadFields = Array.isArray(action.payload_fields)
+      ? action.payload_fields.filter((field): field is string => typeof field === "string" && Boolean(field.trim()))
+      : [];
+    if (!payloadFields.includes("manifest_url") || !payloadFields.includes("trust_tier")) return [];
+    return [{
+      actionId: action.action_id,
+      payloadFields,
+      confirmationRequired: action.confirmation_required === true,
+      dryRunSupported: action.dry_run_supported === true
+    }];
+  })[0];
 }
 
 function dockerDiagnosticFromReceipt(receipt: OplActionReceipt): SettingsDockerDiagnostic | null {
@@ -716,6 +740,7 @@ export function App({
   const [nativeAppUpdate, setNativeAppUpdate] = useState<NativeAppUpdateResult | null>(null);
   const [projectedManagedUpdateActions, setProjectedManagedUpdateActions] = useState<ProjectedManagedUpdateAction[]>([]);
   const [projectedSetupActions, setProjectedSetupActions] = useState<ProjectedSetupAction[]>([]);
+  const [projectedManifestInstallAction, setProjectedManifestInstallAction] = useState<ProjectedManifestInstallAction>();
   const [carrierDiagnostics, setCarrierDiagnostics] = useState<CarrierDiagnosticsReadback>({
     schema: "opl_app_carrier_diagnostics.v1",
     owner: "one-person-lab-app_native_host",
@@ -1005,6 +1030,7 @@ export function App({
         writeGatewayAccountCache(nextModel.gatewayAccount);
         setProjectedManagedUpdateActions(readProjectedManagedUpdateActions(state));
         setProjectedSetupActions(readProjectedSetupActions(state));
+        setProjectedManifestInstallAction(readProjectedManifestInstallAction(state));
         setCarrierDiagnostics(state.carrierDiagnostics);
         const nextGatewayActions = readGatewayActionsFromState(state);
         projectedGatewayActionsRef.current = nextGatewayActions;
@@ -2326,11 +2352,24 @@ export function App({
       onAction={(request) => void runSettingsAction(request)}
       onHostAction={(intent) => void runSettingsHostAction(intent)}
       onGatewayLogin={loginGatewayAccount}
+      manifestInstallAction={projectedManifestInstallAction}
       actionBusyKey={settingsActionBusyKey}
       actionFeedback={settingsActionFeedback}
       pendingConfirmation={settingsActionConfirmation}
       onConfirmAction={() => void confirmSettingsAction()}
       onCancelAction={() => setSettingsActionConfirmation(null)}
+      contributions={(() => {
+        const destination = activeDestination === "resources" || activeDestination === "services" || activeDestination === "capabilities"
+          ? activeDestination
+          : null;
+        if (!destination || !hasContribution("settings.section")) return null;
+        const only = model.uiContributions.entries
+          .filter((entry) => entry.slot === "settings.section" && settingsContributionDestination(entry) === destination)
+          .map((entry) => entry.contributionKey);
+        return only.length ? only.map((key) => (
+          <div key={key}>{renderContributionSlot?.("settings.section", contributionOwner, { only: key }) ?? null}</div>
+        )) : null;
+      })()}
     />
   );
 

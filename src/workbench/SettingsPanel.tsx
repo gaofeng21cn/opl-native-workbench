@@ -1,5 +1,6 @@
 import {
   AlertCircle,
+  Plus,
   ArrowDown,
   ArrowUp,
   Bot,
@@ -127,6 +128,12 @@ type SettingsPanelProps = {
   onAction: (request: SettingsActionRequest) => void;
   onHostAction?: (intent: SettingsHostActionIntent) => void;
   onGatewayLogin?: (credentials: { email: string; password: string }) => Promise<boolean>;
+  manifestInstallAction?: {
+    actionId: string;
+    payloadFields: string[];
+    confirmationRequired: boolean;
+    dryRunSupported: boolean;
+  };
   actionBusyKey: string | null;
   actionFeedback: SettingsActionFeedback | null;
   pendingConfirmation: SettingsActionConfirmation | null;
@@ -644,28 +651,49 @@ function PackageCatalog({
   model,
   settings,
   actionBusyKey,
-  onAction
+  onAction,
+  manifestInstallAction
 }: {
   model: WorkbenchModel;
   settings: WorkbenchSettings;
   actionBusyKey: string | null;
   onAction: (request: SettingsActionRequest) => void;
+  manifestInstallAction?: SettingsPanelProps["manifestInstallAction"];
 }) {
   const [scope, setScope] = useState<"official" | "all">("official");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [installOpen, setInstallOpen] = useState(false);
+  const [manifestUrl, setManifestUrl] = useState("");
+  const [trustTier, setTrustTier] = useState<"" | "third_party_unverified" | "third_party_verified">("");
+  const installDialogRef = useRef<HTMLFormElement | null>(null);
+  const installTriggerRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (!installOpen) return;
+    const dialog = installDialogRef.current;
+    const trigger = installTriggerRef.current;
+    dialog?.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true });
+    return () => {
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+    };
+  }, [installOpen]);
   const locale = settings.locale;
   const packages = model.packageLifecycle.filter((item) => item.packageId !== "missing_bridge" && isAgentCatalogPackage(item));
-  const statusOptions = [...new Set(packages.map(agentPackagePresentationStatus))].sort();
+  const scoped = packages.filter((item) => scope === "all" || item.official);
+  const customCount = packages.filter((item) => !item.official).length;
+  const manifestInstallAvailable = Boolean(
+    manifestInstallAction
+    && manifestInstallAction.dryRunSupported
+    && manifestInstallAction.confirmationRequired
+    && manifestInstallAction.payloadFields.includes("manifest_url")
+    && manifestInstallAction.payloadFields.includes("trust_tier")
+  );
+  const statusOptions = [...new Set(scoped.map(agentPackagePresentationStatus))].sort();
   const homeShortcutOrder = model.packageLifecycle.flatMap((item) => item.homeShortcuts.map((shortcut) => ({
     packageId: item.packageId,
     ...shortcut
   }))).sort((left, right) => left.sortOrder - right.sortOrder || left.shortcutId.localeCompare(right.shortcutId));
   const normalizedQuery = query.trim().toLowerCase();
-  const scoped = packages.filter((item) => {
-    if (scope === "official" && !item.official) return false;
-    return true;
-  });
   const visible = scoped.filter((item) => {
     if (statusFilter !== "all" && agentPackagePresentationStatus(item) !== statusFilter) return false;
     return !normalizedQuery || item.searchMetadata.query.includes(normalizedQuery);
@@ -692,7 +720,25 @@ function PackageCatalog({
           <button type="button" data-active={scope === "official"} onClick={() => setScope("official")}>{locale === "zh" ? "官方" : "Official"}</button>
           <button type="button" data-active={scope === "all"} onClick={() => setScope("all")}>{locale === "zh" ? "全部" : "All"}</button>
         </div>
+        <button
+          ref={installTriggerRef}
+          className="settings-action-button primary"
+          type="button"
+          disabled={!manifestInstallAvailable || actionBusyKey !== null}
+          title={!manifestInstallAvailable
+            ? (locale === "zh" ? "当前 App 尚未提供清单安装通道" : "The App does not currently expose manifest installation")
+            : undefined}
+          onClick={() => setInstallOpen(true)}
+        >
+          <Plus aria-hidden="true" size={14} />
+          {locale === "zh" ? "添加智能体" : "Add agent"}
+        </button>
       </div>
+      {scope === "all" && customCount === 0 ? (
+        <div className="settings-inline-note" role="status">
+          {locale === "zh" ? "当前没有自定义智能体，因此“全部”与“官方”内容相同。" : "There are no custom agents yet, so All currently matches Official."}
+        </div>
+      ) : null}
       <div className="agent-catalog-filters">
         <select value={statusFilter} onChange={(event) => setStatusFilter(event.currentTarget.value)} aria-label={locale === "zh" ? "按状态筛选" : "Filter by status"}>
           <option value="all">{locale === "zh" ? "全部状态" : "All statuses"}</option>
@@ -847,9 +893,84 @@ function PackageCatalog({
           </div>
         </section>
       )) : (
-        <div className="settings-empty-state"><Search aria-hidden="true" size={18} /><span>{locale === "zh" ? "没有符合条件的项目" : "No matching items"}</span></div>
+          <div className="settings-empty-state"><Search aria-hidden="true" size={18} /><span>{locale === "zh" ? "没有符合条件的项目" : "No matching items"}</span></div>
       )}
+      {installOpen ? (
+        <div className="settings-action-dialog-backdrop" role="presentation">
+          <form
+            ref={installDialogRef}
+            className="settings-action-dialog settings-add-agent-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-add-agent-title"
+            tabIndex={-1}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                setInstallOpen(false);
+                return;
+              }
+              trapDialogFocus(event, installDialogRef.current);
+            }}
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!manifestInstallAction || !manifestUrl.trim() || !trustTier) return;
+              onAction({
+                key: "agent-package:install-from-manifest",
+                actionId: manifestInstallAction.actionId,
+                label: locale === "zh" ? "安装自定义智能体" : "Install custom agent",
+                payload: { manifest_url: manifestUrl.trim(), trust_tier: trustTier },
+                confirmationRequired: manifestInstallAction.confirmationRequired,
+                dryRunSupported: manifestInstallAction.dryRunSupported
+              });
+              setInstallOpen(false);
+            }}
+          >
+            <div className="settings-action-dialog-icon"><Plus aria-hidden="true" size={18} /></div>
+            <div className="settings-add-agent-fields">
+              <h2 id="settings-add-agent-title">{locale === "zh" ? "添加智能体" : "Add agent"}</h2>
+              <p>{locale === "zh" ? "从智能体作者提供的 OPL Package 清单安装。系统会先检查清单，确认后才会写入。" : "Install from an OPL Package manifest supplied by the agent author. The App validates it before asking for confirmation."}</p>
+              <label>
+                <span>{locale === "zh" ? "清单 URL" : "Manifest URL"}</span>
+                <input
+                  type="url"
+                  value={manifestUrl}
+                  onChange={(event) => setManifestUrl(event.currentTarget.value)}
+                  placeholder="https://example.com/package-manifest.json"
+                  autoFocus
+                  required
+                />
+              </label>
+              <label>
+                <span>{locale === "zh" ? "信任级别" : "Trust level"}</span>
+                <select value={trustTier} onChange={(event) => setTrustTier(event.currentTarget.value as typeof trustTier)} required>
+                  <option value="">{locale === "zh" ? "请选择" : "Choose a trust level"}</option>
+                  <option value="third_party_unverified">{locale === "zh" ? "未经独立验证" : "Unverified third party"}</option>
+                  <option value="third_party_verified">{locale === "zh" ? "已核验来源" : "Verified third party"}</option>
+                </select>
+              </label>
+            </div>
+            <div className="settings-action-dialog-actions">
+              <button type="button" onClick={() => setInstallOpen(false)}>{locale === "zh" ? "取消" : "Cancel"}</button>
+              <button className="primary" type="submit" disabled={!manifestUrl.trim() || !trustTier || actionBusyKey !== null}>
+                {locale === "zh" ? "检查并继续" : "Check and continue"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function SettingsContributionSection({ contributions, locale }: { contributions?: ReactNode; locale: WorkbenchSettings["locale"] }) {
+  if (!contributions) return null;
+  return (
+    <section className="settings-contribution-section" data-testid="opl-settings-contributions">
+      <h2>{locale === "zh" ? "来自已安装模块" : "From installed modules"}</h2>
+      <div className="opl-contribution-slot">{contributions}</div>
+    </section>
   );
 }
 
@@ -1444,6 +1565,7 @@ export function SettingsPanel({
   onAction,
   onHostAction,
   onGatewayLogin,
+  manifestInstallAction,
   actionBusyKey,
   actionFeedback,
   pendingConfirmation,
@@ -1885,6 +2007,7 @@ export function SettingsPanel({
               <SettingRow key={connection.id} label={connection.name}><StatusValue status={connection.status} locale={settings.locale} /></SettingRow>
             )) : <SettingRow label={settings.locale === "zh" ? "连接" : "Connections"}><span className="settings-muted">{settings.locale === "zh" ? "暂无外部连接" : "No external connections"}</span></SettingRow>}
           </SettingsGroup>
+          <SettingsContributionSection contributions={contributions} locale={settings.locale} />
           <SettingsGroup title={settings.locale === "zh" ? "网页访问" : "Web access"}>
             <SettingRow label={settings.locale === "zh" ? "配置状态" : "Configuration"} detail={ordinaryActions.length ? (settings.locale === "zh" ? `${ordinaryActions.length} 个可用操作` : `${ordinaryActions.length} available actions`) : undefined}><StatusValue status={webAccessStatus} locale={settings.locale} /></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "运行检查" : "Runtime check"} detail={dockerDiagnostic
@@ -1973,7 +2096,7 @@ export function SettingsPanel({
 
     if (selectedDestination === "agents") {
       return (
-        <PackageCatalog model={model} settings={settings} actionBusyKey={actionBusyKey} onAction={onAction} />
+        <PackageCatalog model={model} settings={settings} actionBusyKey={actionBusyKey} onAction={onAction} manifestInstallAction={manifestInstallAction} />
       );
     }
 
@@ -1989,12 +2112,7 @@ export function SettingsPanel({
               onAction={onAction}
             />
           ) : null}
-          {contributions ? (
-            <section className="settings-contribution-section" data-testid="opl-settings-contributions">
-              <h2>{settings.locale === "zh" ? "扩展设置" : "Extension settings"}</h2>
-              <div className="opl-contribution-slot">{contributions}</div>
-            </section>
-          ) : null}
+          <SettingsContributionSection contributions={contributions} locale={settings.locale} />
         </>
       );
     }
@@ -2036,6 +2154,7 @@ export function SettingsPanel({
             <SettingRow label={settings.locale === "zh" ? "智能体与能力" : "Agents and capabilities"}><StatusValue status={projection?.statusSummary.agentPackageHealth} locale={settings.locale} /></SettingRow>
             <SettingRow label={settings.locale === "zh" ? "运行环境" : "Runtime environment"}><StatusValue status={projection?.statusSummary.runtimeSourceHealth} locale={settings.locale} /></SettingRow>
           </SettingsGroup>
+          <SettingsContributionSection contributions={contributions} locale={settings.locale} />
           <SettingsGroup title={settings.locale === "zh" ? "后台任务" : "Background tasks"}>
             <SettingRow label={settings.locale === "zh" ? "任务服务" : "Task service"}>
               <span className="runtime-setting-control"><StatusValue status={runtime?.temporal.serviceStatus} locale={settings.locale} /><RuntimeActionButton action={serviceAction} locale={settings.locale} busyKey={actionBusyKey} onAction={onAction} /></span>

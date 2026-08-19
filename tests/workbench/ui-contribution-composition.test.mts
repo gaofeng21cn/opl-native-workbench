@@ -6,6 +6,7 @@ import {
   createOplContributionReadInput,
   readChannelAccessResult,
   readUiContributionsProjection,
+  settingsContributionDestination,
   type OplUiContributionsProjection
 } from "../../src/composition/contributionProjection.ts";
 
@@ -117,6 +118,12 @@ const projectionState = {
 };
 
 describe("OPL Studio DSH contribution composition", () => {
+  test("routes settings contributions by declared view semantics", () => {
+    expect(settingsContributionDestination({ view: { viewId: "wechat", viewType: "channel_access", title: {}, dataRef: "wechat#state" } })).toBe("resources");
+    expect(settingsContributionDestination({ view: { viewId: "fleet", viewType: "activity_log", title: {}, dataRef: "fleet#state" } })).toBe("services");
+    expect(settingsContributionDestination({ view: { viewId: "capability", viewType: "table", title: {}, dataRef: "capability#state" } })).toBe("capabilities");
+  });
+
   test("registers each static list-slot occupant with a stable id", () => {
     const host = new OplStudioDshSlotHost();
     expect(host.core.entries("shell.overlay")).toHaveLength(1);

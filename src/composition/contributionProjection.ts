@@ -97,6 +97,23 @@ export type OplUiContributionsProjection = {
   entries: OplUiContribution[];
 };
 
+/**
+ * Settings contributions are placed by their declared view semantics. The
+ * client does not inspect package IDs or recreate package-specific policy.
+ */
+export type OplSettingsContributionDestination = "resources" | "services" | "capabilities";
+
+export function settingsContributionDestination(entry: Pick<OplUiContribution, "view">): OplSettingsContributionDestination {
+  switch (entry.view?.viewType) {
+    case "channel_access":
+      return "resources";
+    case "activity_log":
+      return "services";
+    default:
+      return "capabilities";
+  }
+}
+
 export const emptyUiContributionsProjection: OplUiContributionsProjection = {
   surfaceKind: "unavailable",
   entries: []
@@ -153,7 +170,8 @@ export function createOplContributionReadInput(
 
 export type RenderOplContributionSlot = (
   slot: OplUiContributionSlot,
-  owner: OplContributionSlotOwner
+  owner: OplContributionSlotOwner,
+  options?: { only?: string }
 ) => import("react").ReactNode;
 
 export function createOplContributionActionRequest(

@@ -211,6 +211,12 @@ thread adapter.
 
 ## Model And Settings Boundary
 
+The user-facing Settings information architecture and contribution placement
+SSOT is documented in `docs/settings-information-architecture.md`. It keeps
+App/Framework package and connection truth authoritative while routing
+declarative settings views into the existing Resources, Services, and
+Capabilities destinations; Studio does not create a second package registry.
+
 Model defaults, visible choices, labels, reasoning options, and fallback policy
 come from the App product profile plus fresh Codex `model/list` readback. Native
 must not maintain a second model catalog or silently replace an unavailable

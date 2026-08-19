@@ -2399,6 +2399,16 @@ export const codexWorkbenchStyles = `
     gap: 12px;
   }
 
+  .settings-inline-note {
+    margin-top: -10px;
+    padding: 8px 10px;
+    border: 1px solid var(--opl-border);
+    border-radius: 7px;
+    color: var(--opl-muted);
+    font-size: 11.5px;
+    line-height: 1.45;
+  }
+
   .settings-search-field {
     width: min(100%, 360px);
     min-height: 34px;
@@ -2808,6 +2818,34 @@ export const codexWorkbenchStyles = `
     color: var(--opl-muted);
     font-size: 12px;
     line-height: 1.5;
+  }
+
+  .settings-add-agent-dialog {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+
+  .settings-add-agent-fields {
+    display: grid;
+    gap: 10px;
+  }
+
+  .settings-add-agent-fields label {
+    display: grid;
+    gap: 5px;
+    color: var(--opl-muted);
+    font-size: 11.5px;
+  }
+
+  .settings-add-agent-fields input,
+  .settings-add-agent-fields select {
+    min-height: 32px;
+    width: 100%;
+    padding: 0 9px;
+    border: 1px solid var(--opl-border);
+    border-radius: 6px;
+    background: var(--opl-canvas);
+    color: var(--opl-text);
+    font: inherit;
   }
 
   .settings-action-dialog-actions {

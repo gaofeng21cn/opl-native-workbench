@@ -105,6 +105,17 @@ test("agent catalog keeps agent and workflow packages together while excluding c
   assert.equal(presentation.isAgentCatalogPackage({ packageRole: "framework_capability_package" }), false);
 });
 
+test("agent catalog keeps Official and All scoped to agents while exposing App-owned manifest install", () => {
+  assert.match(settingsSource, /useState<"official" \| "all">\("official"\)/);
+  assert.match(settingsSource, /scope === "all" \|\| item\.official/);
+  assert.match(settingsSource, /当前没有自定义智能体/);
+  assert.match(settingsSource, /添加智能体/);
+  assert.match(settingsSource, /manifest_url: manifestUrl\.trim\(\), trust_tier: trustTier/);
+  assert.match(settingsSource, /actionId: manifestInstallAction\.actionId/);
+  assert.match(settingsSource, /dryRunSupported: manifestInstallAction\.dryRunSupported/);
+  assert.doesNotMatch(settingsSource, /agent_package_install_from_manifest_url/);
+});
+
 test("capability catalog keeps projected capability package roles out of the agent page", () => {
   assert.equal(presentation.isCapabilityCatalogPackage({ packageId: "mas-scholar-skills", packageRole: "capability_package" }), true);
   assert.equal(presentation.isCapabilityCatalogPackage({ packageId: "framework-required", packageRole: "framework_required_capability_package" }), true);

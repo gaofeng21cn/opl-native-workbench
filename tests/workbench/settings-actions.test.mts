@@ -56,7 +56,7 @@ test("managed update host actions come only from the App-projected action catalo
       useHighestSupportedReasoningForUnknown: true
     }
   });
-  const { readProjectedManagedUpdateActions } = await import("../../src/workbench/App.tsx");
+  const { readProjectedManagedUpdateActions, readProjectedManifestInstallAction } = await import("../../src/workbench/App.tsx");
   const actions = readProjectedManagedUpdateActions({
     app_state: {
       app_state: {
@@ -107,6 +107,25 @@ test("managed update host actions come only from the App-projected action catalo
     confirmationRequired: true,
     dryRunSupported: true
   }]);
+
+  assert.deepEqual(readProjectedManifestInstallAction({
+    app_state: {
+      actions: [{
+        action_id: "install_from_manifest_url",
+        payload_fields: ["manifest_url", "trust_tier"],
+        confirmation_required: true,
+        dry_run_supported: true
+      }]
+    }
+  }), {
+    actionId: "install_from_manifest_url",
+    payloadFields: ["manifest_url", "trust_tier"],
+    confirmationRequired: true,
+    dryRunSupported: true
+  });
+  assert.equal(readProjectedManifestInstallAction({
+    app_state: { actions: [{ action_id: "agent_package_install", payload_fields: ["package_id"] }] }
+  }), undefined);
 });
 
 test("settings actions consume projected Gateway actions without creating a credential transport", () => {

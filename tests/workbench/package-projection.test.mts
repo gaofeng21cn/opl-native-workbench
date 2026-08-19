@@ -309,6 +309,28 @@ test("package projection keeps the complete dynamic catalog and separates OPL ro
   assert.equal(model.packageLifecycle.filter((item) => item.roleGroup === "other").length, 3);
 });
 
+test("package projection derives the OPL baseline when official is omitted", () => {
+  const model = deriveWorkbenchModelFromState({
+    app_state: {
+      agent_packages: {
+        directory: {
+          entries: [
+            { package_id: "mas", publisher: "one-person-lab", package_role: "standard_agent", installed: true, activated: true, readiness: { status: "ready", callable: true, launch_allowed: true } },
+            { package_id: "weixin", publisher: "one-person-lab", package_role: "capability_package", installed: true, activated: true, readiness: { status: "ready", callable: true, launch_allowed: true } }
+          ]
+        },
+        status_index: { packages: {} }
+      }
+    }
+  });
+  const standard = model.packageLifecycle.find((item) => item.packageId === "mas");
+  const capability = model.packageLifecycle.find((item) => item.packageId === "weixin");
+  assert.equal(standard?.official, true);
+  assert.equal(capability?.official, true);
+  assert.equal(standard?.roleGroup, "agent");
+  assert.equal(capability?.roleGroup, "supporting");
+});
+
 test("selection availability fails open for unknown diagnostics and blocks explicit owner rejection", () => {
   const model = deriveWorkbenchModelFromState({
     app_state: {
