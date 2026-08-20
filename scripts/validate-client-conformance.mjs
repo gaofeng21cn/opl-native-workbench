@@ -116,7 +116,7 @@ for (const [name, repo] of Object.entries(repos)) {
 const cohort = {
   framework: refEvidence(repos.framework, "origin"),
   app: refEvidence(repos.app, "origin"),
-  aionui: refEvidence(repos.aionui, "gh-https"),
+  aionui: refEvidence(repos.aionui, "origin"),
   studio_main: refEvidence(studioCanonical, "origin"),
   studio_candidate: {
     commit: git(studioRoot, "rev-parse", "HEAD"),
@@ -161,7 +161,7 @@ try {
   assert.equal(hostProjection.contribution_count, 3);
 
   const aionParserPath = "packages/desktop/src/common/types/opl/uiContributions.ts";
-  writeBlobTree(temporary, aionParserPath, readBlob(repos.aionui, "gh-https/main", aionParserPath));
+  writeBlobTree(temporary, aionParserPath, readBlob(repos.aionui, "origin/main", aionParserPath));
   const aionParser = await importFresh(path.join(temporary, aionParserPath));
   const studioProjectionModule = await importFresh(path.join(studioRoot, "src/composition/contributionProjection.ts"));
   const clientCordisModule = await importFresh(path.join(studioRoot, "src/composition/clientCordis.ts"));
@@ -178,7 +178,7 @@ try {
   const appProfile = JSON.parse(readBlob(repos.app, "origin/main", "contracts/app-product-profile.json"));
   const aionProfile = JSON.parse(readBlob(
     repos.aionui,
-    "gh-https/main",
+    "origin/main",
     "packages/desktop/src/common/config/oplProductProfile/oplProductProfile.generated.json"
   ));
   const appComposition = appProfile.delivery_topology.minimum_complete_product.composition_model;
@@ -229,7 +229,7 @@ try {
 
   const aionActionSource = readBlob(
     repos.aionui,
-    "gh-https/main",
+    "origin/main",
     "packages/desktop/src/renderer/components/opl/OplUiContributionSlot.tsx"
   );
   for (const marker of [
