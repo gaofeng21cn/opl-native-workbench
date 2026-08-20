@@ -20,6 +20,7 @@ test("Electron is a thin, isolated adapter over the shared host core", () => {
   assert.match(main, /ipcMain\.handle\("opl:invoke"/);
   assert.match(preload, /contextBridge\.exposeInMainWorld\("oplStudio"/);
   assert.match(preload, /ipcRenderer\.invoke\("opl:invoke"/);
+  assert.match(preload, /readDomainDetailView: \(request\) => invoke\("readDomainDetailView", request\)/);
   assert.doesNotMatch(main, /AionCore|AionUI/);
 });
 

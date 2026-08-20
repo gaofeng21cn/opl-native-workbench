@@ -81,6 +81,7 @@ export function installWebTransport(): void {
     readState: (profile = "fast") => requestJson<OplStateReadback>(`/api/opl/state?profile=${encodeURIComponent(profile)}`),
     readInitialize: () => requestJson("/api/opl/initialize"),
     readFullDrilldown: () => requestJson("/api/opl/drilldown"),
+    readDomainDetailView: (request) => postJson("/api/opl/view/read", request),
     readContribution: (request) => postJson("/api/opl/contribution/read", request),
     executeAction: (request) => postJson("/api/opl/action", request),
     readCodexModels: () => requestJson("/api/codex/models"),

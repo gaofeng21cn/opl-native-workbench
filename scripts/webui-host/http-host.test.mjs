@@ -32,6 +32,18 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
     readState: async (profile) => ({ profile, app_state: { meta: { profile } }, readback: { exitCode: 0 } }),
     readInitialize: async () => ({ system_initialize: { setup_flow: { is_first_run: false, ready_to_launch: true } } }),
     readFullDrilldown: async () => ({ detail: "full", drilldown: {}, readback: { exitCode: 0 } }),
+    readDomainDetailView: async (request) => ({
+      schema_version: "opl_domain_detail_view.v1",
+      surface_kind: "opl_domain_detail_view",
+      item_id: request.itemId,
+      view_id: request.viewId,
+      view_kind: "research-roadmap",
+      availability: "available",
+      revision: 5,
+      not_modified: false,
+      payload: { revision: 5 },
+      conditions: []
+    }),
     readContribution: async (request) => ({ packageId: request.packageId, ref: request.ref, result: { hypotheses: ["fixture"] } }),
     executeAction: async (request) => ({
       actionId: request.actionId,
@@ -151,6 +163,12 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
   assert.equal(state.profile, "full");
   const initialize = await fetch(`${baseUrl}/api/opl/initialize`).then((response) => response.json());
   assert.equal(initialize.system_initialize.setup_flow.ready_to_launch, true);
+  const domainDetail = await post(baseUrl, "/api/opl/view/read", {
+    itemId: "project:one:study-one",
+    viewId: "research-roadmap"
+  });
+  assert.equal(domainDetail.status, 200);
+  assert.equal(domainDetail.body.payload.revision, 5);
   const contribution = await post(baseUrl, "/api/opl/contribution/read", { packageId: "mas", ref: "mas.research-roadmap.v1#current" });
   assert.deepEqual(contribution.body.result.hypotheses, ["fixture"]);
   const action = await post(baseUrl, "/api/opl/action", { actionId: "preview.test", dryRun: true });

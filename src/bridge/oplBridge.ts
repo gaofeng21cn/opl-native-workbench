@@ -219,6 +219,45 @@ export type OplContributionReadback = {
   readback: OplCommandReadback;
 };
 
+export type OplDomainDetailViewAvailability =
+  | "available"
+  | "missing"
+  | "stale"
+  | "invalid"
+  | "read_error";
+
+export type OplDomainDetailViewReadRequest = {
+  itemId: string;
+  viewId: string;
+  ifRevision?: number;
+};
+
+export type OplDomainDetailViewCondition = {
+  type: string;
+  status: string;
+  reason: string;
+  message: string;
+  [key: string]: unknown;
+};
+
+export type OplDomainDetailViewReadback = {
+  schemaVersion: "opl_domain_detail_view.v1";
+  surfaceKind: "opl_domain_detail_view";
+  itemId: string;
+  viewId: string;
+  viewKind: string;
+  availability: OplDomainDetailViewAvailability;
+  revision: number;
+  notModified: boolean;
+  payload: unknown | null;
+  conditions: OplDomainDetailViewCondition[];
+  digest?: string;
+  generation?: number;
+  payloadSchemaRef?: string;
+  payloadSchema?: string;
+  readback: OplCommandReadback;
+};
+
 export type OplActionRequest = {
   actionId: string;
   mode?: OplActionMode;
@@ -448,7 +487,7 @@ export type OplBridgeEvent = OplBridgeTypeEvent | OplBridgeMethodEvent;
 
 export type OplStudioSurface = Pick<
   OplBridge,
-  "platformCapabilities" | "beginWindowDrag" | "readState" | "readInitialize" | "readFullDrilldown" | "readContribution" | "executeAction" | "readCodexModels" | "readCodexCapabilities" | "readCodexPermissionProfiles" | "listPendingServerRequests" | "respondToServerRequest" | "pickFiles" | "pickDirectory" | "setLogDirectory" | "sendMessage" | "steerTurn" | "interruptTurn" | "loginGatewayAccount" | "configureCodexApiKey" | "readNativeAppUpdateStatus" | "checkNativeAppUpdate" | "applyNativeAppUpdate" | "restartNativeApp" | "subscribeEvents"
+  "platformCapabilities" | "beginWindowDrag" | "readState" | "readInitialize" | "readFullDrilldown" | "readContribution" | "readDomainDetailView" | "executeAction" | "readCodexModels" | "readCodexCapabilities" | "readCodexPermissionProfiles" | "listPendingServerRequests" | "respondToServerRequest" | "pickFiles" | "pickDirectory" | "setLogDirectory" | "sendMessage" | "steerTurn" | "interruptTurn" | "loginGatewayAccount" | "configureCodexApiKey" | "readNativeAppUpdateStatus" | "checkNativeAppUpdate" | "applyNativeAppUpdate" | "restartNativeApp" | "subscribeEvents"
 > & Partial<CodexThreadAdapterBridge> & {
   eventSourceUrl?: string;
   connectEvents?: (onEvent: (event: OplBridgeEvent) => void) => () => void;
@@ -458,8 +497,20 @@ export const OPL_COMMANDS = {
   fastState: "opl app state --profile fast --json",
   fullState: "opl app state --profile full --json",
   fullDrilldown: "opl runtime app-operator-drilldown --detail full --json",
+  domainDetailViewPrefix: "opl app view read",
   actionPrefix: "opl app action execute --action"
 } as const;
+
+export function buildDomainDetailViewCommandArgs(request: OplDomainDetailViewReadRequest): string[] {
+  const args = ["opl", "app", "view", "read", "--item-id", request.itemId, "--view-id", request.viewId];
+  if (request.ifRevision !== undefined) args.push("--if-revision", String(request.ifRevision));
+  args.push("--json");
+  return args;
+}
+
+export function buildDomainDetailViewCommand(request: OplDomainDetailViewReadRequest): string {
+  return buildDomainDetailViewCommandArgs(request).join(" ");
+}
 
 export const CODEX_APP_SERVER = {
   transport: "codex app-server --stdio",
@@ -496,6 +547,7 @@ export type OplBridge = CodexThreadAdapterBridge & {
   readInitialize(): Promise<OplInitializeReadback>;
   readFullDrilldown(): Promise<OplFullDrilldownReadback>;
   readContribution(request: OplContributionReadRequest): Promise<OplContributionReadback>;
+  readDomainDetailView(request: OplDomainDetailViewReadRequest): Promise<OplDomainDetailViewReadback>;
   executeAction(request: OplActionRequest): Promise<OplActionReceipt>;
   readCodexModels(): Promise<CodexModelCatalog>;
   readCodexCapabilities(threadId?: string): Promise<CodexCapabilityCatalog>;
@@ -827,6 +879,182 @@ export function normalizeContributionReadback(
     throw new Error("OPL contribution read returned a stale or malformed response");
   }
   return { packageId: request.packageId, ref: request.ref, result: response.result, readback };
+}
+
+const domainDetailViewAvailabilities: OplDomainDetailViewAvailability[] = [
+  "available",
+  "missing",
+  "stale",
+  "invalid",
+  "read_error"
+];
+
+function isDomainDetailViewAvailability(value: unknown): value is OplDomainDetailViewAvailability {
+  return typeof value === "string" && domainDetailViewAvailabilities.includes(value as OplDomainDetailViewAvailability);
+}
+
+function nonNegativeInteger(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
+}
+
+function domainDetailCondition(
+  availability: OplDomainDetailViewAvailability,
+  reason: string,
+  message: string
+): OplDomainDetailViewCondition {
+  return {
+    type: "DomainDetailViewAvailable",
+    status: availability === "available" ? "True" : availability === "missing" ? "Unknown" : "False",
+    reason,
+    message
+  };
+}
+
+function normalizeDomainDetailCondition(value: unknown): OplDomainDetailViewCondition | undefined {
+  const record = asRecord(value);
+  const type = asString(record?.type);
+  const status = asString(record?.status);
+  const reason = asString(record?.reason);
+  const message = asString(record?.message);
+  if (!type || !status || !reason || !message) return undefined;
+  return {
+    ...record,
+    type,
+    status,
+    reason,
+    message
+  };
+}
+
+function domainDetailViewEnvelope(value: unknown): Record<string, unknown> | null {
+  const record = asRecord(value);
+  if (!record) return null;
+  return asRecord(record.opl_domain_detail_view) ?? record;
+}
+
+export function createPlaceholderDomainDetailViewReadback(
+  request: OplDomainDetailViewReadRequest,
+  reason = "bridge_unavailable_placeholder"
+): OplDomainDetailViewReadback {
+  const commandArgs = buildDomainDetailViewCommandArgs(request);
+  const message = reason === "bridge_unavailable_placeholder"
+    ? "Domain detail view bridge is unavailable in this host"
+    : reason;
+  const readback = createCommandReadback(
+    buildDomainDetailViewCommand(request),
+    commandArgs,
+    -1,
+    "",
+    message,
+    false
+  );
+  return {
+    schemaVersion: "opl_domain_detail_view.v1",
+    surfaceKind: "opl_domain_detail_view",
+    itemId: request.itemId,
+    viewId: request.viewId,
+    viewKind: "",
+    availability: "read_error",
+    revision: 0,
+    notModified: false,
+    payload: null,
+    conditions: [domainDetailCondition("read_error", reason, message)],
+    readback
+  };
+}
+
+export function normalizeDomainDetailViewReadback(
+  value: unknown,
+  request: OplDomainDetailViewReadRequest
+): OplDomainDetailViewReadback {
+  const commandArgs = buildDomainDetailViewCommandArgs(request);
+  const fallbackReadback = createCommandReadback(buildDomainDetailViewCommand(request), commandArgs);
+  const raw = asRecord(value) ?? {};
+  const readback = raw.readback
+    ? normalizeCommandReadback(raw.readback, fallbackReadback.command, fallbackReadback.commandArgs)
+    : normalizeCommandReadback(raw, fallbackReadback.command, fallbackReadback.commandArgs);
+  if (readback.timedOut || readback.exitCode !== 0) {
+    const message = readback.stderr || "OPL domain detail view read failed";
+    return {
+      ...createPlaceholderDomainDetailViewReadback(request, message),
+      readback
+    };
+  }
+
+  const parsed = asRecord(raw.parsed)
+    ?? asRecord(raw.stdoutJson)
+    ?? asRecord(parseJsonValue(readback.stdout));
+  const envelope = domainDetailViewEnvelope(parsed ?? raw);
+  const invalid = (reason: string, message: string): OplDomainDetailViewReadback => ({
+    schemaVersion: "opl_domain_detail_view.v1",
+    surfaceKind: "opl_domain_detail_view",
+    itemId: asString(envelope?.item_id) ?? request.itemId,
+    viewId: asString(envelope?.view_id) ?? request.viewId,
+    viewKind: asString(envelope?.view_kind) ?? "",
+    availability: "invalid",
+    revision: nonNegativeInteger(envelope?.revision) ?? 0,
+    notModified: false,
+    payload: null,
+    conditions: [domainDetailCondition("invalid", reason, message)],
+    readback
+  });
+
+  if (!envelope
+    || envelope.schema_version !== "opl_domain_detail_view.v1"
+    || envelope.surface_kind !== "opl_domain_detail_view") {
+    return invalid("domain_detail_view_envelope_invalid", "OPL domain detail view response is malformed");
+  }
+  const itemId = asString(envelope.item_id);
+  const viewId = asString(envelope.view_id);
+  const viewKind = asString(envelope.view_kind);
+  const availability = envelope.availability;
+  const revision = nonNegativeInteger(envelope.revision);
+  const notModified = asBoolean(envelope.not_modified);
+  if (!itemId || !viewId || !viewKind || itemId !== request.itemId || viewId !== request.viewId) {
+    return invalid("domain_detail_view_identity_mismatch", "OPL domain detail view response does not match the requested view");
+  }
+  if (!isDomainDetailViewAvailability(availability)
+    || revision === undefined
+    || notModified === undefined) {
+    return invalid("domain_detail_view_shape_invalid", "OPL domain detail view response has invalid transport fields");
+  }
+  const generation = envelope.generation === undefined ? undefined : nonNegativeInteger(envelope.generation);
+  if (envelope.generation !== undefined && generation === undefined) {
+    return invalid("domain_detail_view_generation_invalid", "OPL domain detail view generation is invalid");
+  }
+  if (generation !== undefined && generation !== revision) {
+    return invalid("domain_detail_view_generation_mismatch", "OPL domain detail view generation does not match revision");
+  }
+  const payload = envelope.payload === undefined ? null : envelope.payload;
+  if (notModified && payload !== null) {
+    return invalid("domain_detail_view_not_modified_payload", "Unchanged domain detail view responses must not include a payload");
+  }
+  if (availability === "available" && !notModified && payload === null) {
+    return invalid("domain_detail_view_payload_missing", "Available domain detail view response is missing its payload");
+  }
+  const conditions = Array.isArray(envelope.conditions)
+    ? envelope.conditions.flatMap((condition) => normalizeDomainDetailCondition(condition) ?? [])
+    : [];
+  const normalizedConditions = conditions.length
+    ? conditions
+    : [domainDetailCondition(availability, `domain_detail_view_${availability}`, `Domain detail view is ${availability}`)];
+  return {
+    schemaVersion: "opl_domain_detail_view.v1",
+    surfaceKind: "opl_domain_detail_view",
+    itemId,
+    viewId,
+    viewKind,
+    availability,
+    revision,
+    notModified,
+    payload: availability === "available" ? payload : null,
+    conditions: normalizedConditions,
+    ...(asString(envelope.digest) ? { digest: asString(envelope.digest) } : {}),
+    ...(generation !== undefined ? { generation } : {}),
+    ...(asString(envelope.payload_schema_ref) ? { payloadSchemaRef: asString(envelope.payload_schema_ref) } : {}),
+    ...(asString(envelope.payload_schema) ? { payloadSchema: asString(envelope.payload_schema) } : {}),
+    readback
+  };
 }
 
 function defaultStateActions(): OplActionDescriptor[] {
@@ -1426,6 +1654,20 @@ export function createBrowserBridge(): OplBridge {
         return Promise.reject(new Error("OPL contribution reads are unavailable in this host"));
       }
       return Promise.resolve(candidate.readContribution(request)).then((value) => normalizeContributionReadback(value, request));
+    },
+    readDomainDetailView(request) {
+      const reader = candidate?.readDomainDetailView;
+      const promise = typeof reader === "function"
+        ? reader(request)
+        : Promise.resolve(createPlaceholderDomainDetailViewReadback(request));
+      return Promise.resolve(promise)
+        .then((value) => typeof reader === "function"
+          ? normalizeDomainDetailViewReadback(value, request)
+          : value)
+        .catch((error) => createPlaceholderDomainDetailViewReadback(
+          request,
+          error instanceof Error ? error.message : String(error)
+        ));
     },
     executeAction(request) {
       const promise = candidate?.executeAction?.(request) ?? Promise.resolve(createPlaceholderActionReceipt(request));

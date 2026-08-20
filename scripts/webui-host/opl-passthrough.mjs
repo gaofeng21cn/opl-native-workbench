@@ -850,6 +850,24 @@ export function createOplPassthrough({
       return { detail: "full", drilldown: jsonValue(result.stdout), readback: commandReadback(args, result) };
     },
 
+    async readDomainDetailView(request = {}) {
+      const itemId = typeof request.itemId === "string" ? request.itemId.trim() : "";
+      const viewId = typeof request.viewId === "string" ? request.viewId.trim() : "";
+      if (!itemId || !viewId) {
+        throw Object.assign(new Error("missing itemId or viewId"), { code: "invalid_request" });
+      }
+      const args = [command, "app", "view", "read", "--item-id", itemId, "--view-id", viewId];
+      if (request.ifRevision !== undefined) {
+        if (!Number.isInteger(request.ifRevision) || request.ifRevision < 0) {
+          throw Object.assign(new Error("ifRevision must be a non-negative integer"), { code: "invalid_request" });
+        }
+        args.push("--if-revision", String(request.ifRevision));
+      }
+      args.push("--json");
+      const result = await run(command, args.slice(1), { cwd, env, timeoutMs: 45_000 });
+      return { ...commandReadback(args, result), stdoutJson: jsonValue(result.stdout) };
+    },
+
     async readContribution(request = {}) {
       const packageId = typeof request.packageId === "string" ? request.packageId.trim() : "";
       const ref = typeof request.ref === "string" ? request.ref.trim() : "";

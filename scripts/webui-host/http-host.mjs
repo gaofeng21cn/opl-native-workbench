@@ -137,6 +137,10 @@ export async function createWebUiHost({
         json(res, 200, await hostCore.invoke("readFullDrilldown"));
         return;
       }
+      if (req.method === "POST" && url.pathname === "/api/opl/view/read") {
+        json(res, 200, await hostCore.invoke("readDomainDetailView", await body(req)));
+        return;
+      }
       if (req.method === "POST" && url.pathname === "/api/opl/contribution/read") {
         json(res, 200, await hostCore.invoke("readContribution", await body(req)));
         return;

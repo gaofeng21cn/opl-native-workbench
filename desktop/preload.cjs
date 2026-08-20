@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld("oplStudio", {
   readState: (profile = "fast") => invoke("readState", { profile }),
   readInitialize: () => invoke("readInitialize"),
   readFullDrilldown: () => invoke("readFullDrilldown"),
+  readDomainDetailView: (request) => invoke("readDomainDetailView", request),
   readContribution: (request) => invoke("readContribution", request),
   executeAction: (request) => invoke("executeAction", request),
   readCodexModels: () => invoke("readCodexModels"),

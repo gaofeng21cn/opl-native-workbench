@@ -240,6 +240,7 @@ export class OplHostCore extends EventEmitter {
       }
       case "readInitialize": return this.opl.readInitialize();
       case "readFullDrilldown": return this.opl.readFullDrilldown();
+      case "readDomainDetailView": return this.opl.readDomainDetailView(payload);
       case "readContribution": return this.opl.readContribution(payload);
       case "executeAction": return this.opl.executeAction(payload);
       case "readCodexModels": return this.transport.listModels();

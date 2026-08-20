@@ -436,6 +436,18 @@ test("shared host core serves desktop and HTTP adapters through one typed method
       readState: async (profile) => ({ profile }),
       readInitialize: async () => ({ system_initialize: { setup_flow: { ready_to_launch: true } } }),
       readFullDrilldown: async () => ({ detail: "full" }),
+      readDomainDetailView: async (request) => ({
+        schema_version: "opl_domain_detail_view.v1",
+        surface_kind: "opl_domain_detail_view",
+        item_id: request.itemId,
+        view_id: request.viewId,
+        view_kind: "research-roadmap",
+        availability: "available",
+        revision: 3,
+        not_modified: false,
+        payload: { revision: 3 },
+        conditions: []
+      }),
       readContribution: async (request) => ({ request }),
       executeAction: async (request) => ({ request, authorityBoundary: "app_bridge_no_domain_authority" })
     },
@@ -494,6 +506,10 @@ test("shared host core serves desktop and HTTP adapters through one typed method
   assert.deepEqual(await core.invoke("readInitialize"), {
     system_initialize: { setup_flow: { ready_to_launch: true } }
   });
+  assert.equal((await core.invoke("readDomainDetailView", {
+    itemId: "project:one:study-one",
+    viewId: "research-roadmap"
+  })).payload.revision, 3);
   assert.equal((await core.invoke("listThreads", {})).data.length, 5);
   assert.deepEqual(await core.invoke("pickFiles"), ["/tmp/one.txt"]);
   assert.equal(await core.invoke("pickDirectory"), "/tmp/project");

@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { chmod, mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import {
   compactFastState,
@@ -11,6 +14,49 @@ test("App state timeout keeps the interactive default and admits a bounded cold-
   assert.doesNotThrow(() => createOplPassthrough({ readStateTimeoutMs: undefined }));
   assert.doesNotThrow(() => createOplPassthrough({ readStateTimeoutMs: 120_000 }));
   assert.throws(() => createOplPassthrough({ readStateTimeoutMs: 120_001 }), /100 through 120000/);
+});
+
+test("domain detail reads use the canonical item/view command and retain owner readback", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "opl-domain-detail-passthrough-test-"));
+  const command = path.join(directory, "fake-opl");
+  await writeFile(command, `#!/bin/sh
+printf '%s' '{"schema_version":"opl_domain_detail_view.v1","surface_kind":"opl_domain_detail_view","item_id":"project:one:study-one","view_id":"research-roadmap","view_kind":"research-roadmap","availability":"available","revision":7,"not_modified":false,"payload":{"revision":7},"conditions":[]}'
+`, "utf8");
+  await chmod(command, 0o755);
+  const passthrough = createOplPassthrough({ command, cwd: directory });
+  const readback = await passthrough.readDomainDetailView({
+    itemId: "project:one:study-one",
+    viewId: "research-roadmap",
+    ifRevision: 6
+  });
+  assert.deepEqual(readback.stdoutJson, {
+    schema_version: "opl_domain_detail_view.v1",
+    surface_kind: "opl_domain_detail_view",
+    item_id: "project:one:study-one",
+    view_id: "research-roadmap",
+    view_kind: "research-roadmap",
+    availability: "available",
+    revision: 7,
+    not_modified: false,
+    payload: { revision: 7 },
+    conditions: []
+  });
+  assert.deepEqual(readback.commandArgs, [
+    "app", "view", "read", "--item-id", "project:one:study-one", "--view-id", "research-roadmap",
+    "--if-revision", "6", "--json"
+  ]);
+});
+
+test("domain detail reads reject arbitrary or invalid request identities before spawning OPL", async () => {
+  const passthrough = createOplPassthrough({ command: "/missing/opl-domain-detail" });
+  await assert.rejects(
+    passthrough.readDomainDetailView({ itemId: "", viewId: "research-roadmap" }),
+    (error) => error.code === "invalid_request"
+  );
+  await assert.rejects(
+    passthrough.readDomainDetailView({ itemId: "item-1", viewId: "view-1", ifRevision: -1 }),
+    (error) => error.code === "invalid_request"
+  );
 });
 
 test("channel callbacks stay dormant unless an optional provider registrar is configured", async () => {
