@@ -8,9 +8,9 @@ import {
   type OplUiContributionsProjection
 } from "../composition/contributionProjection";
 import {
-  readManagedComputerUse,
-  type ManagedComputerUseViewModel
-} from "./managedComputerUse";
+  readManagedCompanions,
+  type ManagedCompanionViewModel
+} from "./managedCompanions";
 import {
   deriveServiceRecoveryModel,
   type ServiceRecoveryModel
@@ -429,11 +429,26 @@ export type ManagedUpdateComponentRef = {
   channel?: string;
   installedVersion?: string;
   latestVersion?: string;
+  currentness?: string;
   autoApplyMode?: string;
   autoApplyEligible: boolean | null;
   backgroundSafe: boolean | null;
   summary?: string;
   guidance?: string;
+  flowDependencies?: ManagedFlowDependencyRef[];
+};
+
+export type ManagedFlowDependencyRef = {
+  dependencyId: string;
+  dependencyKind: string;
+  relationship?: string;
+  status: string;
+  currentness: string;
+  installed: boolean | null;
+  version?: string;
+  latestVersion?: string;
+  owner?: string;
+  lifecycleOwner?: string;
 };
 
 export type ManagedUpdateProjection = {
@@ -645,7 +660,7 @@ export type WorkbenchModel = {
   runtimeOverview?: RuntimeOverviewRef;
   serviceRecovery?: ServiceRecoveryModel;
   workItemRuntime?: WorkItemRuntimeProjection;
-  managedComputerUse: ManagedComputerUseViewModel | null;
+  managedCompanions: ManagedCompanionViewModel[];
   uiContributions: OplUiContributionsProjection;
   stateGeneratedAt?: string;
 };
@@ -657,7 +672,7 @@ export const workbenchBridgeUnavailableDiagnostic = {
 
 export const initialWorkbenchModel: WorkbenchModel = {
   purposes: ["research", "grant", "presentation", "review"],
-  managedComputerUse: null,
+  managedCompanions: [],
   uiContributions: emptyUiContributionsProjection,
   sessions: [],
   results: [],
@@ -3228,7 +3243,7 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
     runtimeOverview,
     serviceRecovery: deriveServiceRecoveryModel({ temporal, actions, stateFresh: true }),
     workItemRuntime,
-    managedComputerUse: readManagedComputerUse(appState),
+    managedCompanions: readManagedCompanions(appState),
     uiContributions: readUiContributionsProjection(state),
     stateGeneratedAt: asString(meta?.generated_at) ?? fallback.stateGeneratedAt
   };
@@ -3236,18 +3251,39 @@ export function deriveWorkbenchModelFromState(state: unknown, fallback: Workbenc
 
 export function readManagedUpdateProjection(value: unknown): ManagedUpdateProjection | null {
   const root = asRecord(value);
+  const outerAppState = asRecord(root?.app_state);
+  const appState = asRecord(outerAppState?.app_state) ?? outerAppState;
   const execution = asRecord(root?.app_action_execution);
   const result = asRecord(execution?.result) ?? asRecord(root?.result);
   const managedUpdate = asRecord(result?.managed_update)
     ?? asRecord(execution?.managed_update)
-    ?? asRecord(root?.managed_update);
+    ?? asRecord(root?.managed_update)
+    ?? asRecord(appState?.managed_update);
   if (!managedUpdate) return null;
   const components = asRecordArray(managedUpdate.components).flatMap((component): ManagedUpdateComponentRef[] => {
     const componentId = asString(component.component_id);
     if (!componentId) return [];
     const current = asRecord(component.current);
+    const dependencyCatalog = asRecord(current?.dependency_catalog);
     const autoApply = asRecord(component.auto_apply);
     const plan = asRecord(component.plan);
+    const flowDependencies = asRecordArray(dependencyCatalog?.flow_dependencies).flatMap((dependency): ManagedFlowDependencyRef[] => {
+      const dependencyId = asString(dependency.dependency_id);
+      const dependencyKind = asString(dependency.dependency_kind);
+      if (!dependencyId || !dependencyKind) return [];
+      return [{
+        dependencyId,
+        dependencyKind,
+        ...(asString(dependency.relationship) ? { relationship: asString(dependency.relationship) as string } : {}),
+        status: asString(dependency.status) ?? "unknown",
+        currentness: asString(dependency.currentness) ?? "unknown",
+        installed: asOptionalBoolean(dependency.installed),
+        ...(asString(dependency.version) ? { version: asString(dependency.version) as string } : {}),
+        ...(asString(dependency.latest_version) ? { latestVersion: asString(dependency.latest_version) as string } : {}),
+        ...(asString(dependency.owner) ? { owner: asString(dependency.owner) as string } : {}),
+        ...(asString(dependency.lifecycle_owner) ? { lifecycleOwner: asString(dependency.lifecycle_owner) as string } : {})
+      }];
+    });
     return [{
       componentId,
       lifecycleOwner: asString(component.lifecycle_owner) ?? componentId,
@@ -3258,11 +3294,13 @@ export function readManagedUpdateProjection(value: unknown): ManagedUpdateProjec
         : {}),
       ...(asString(current?.installed_version) ? { installedVersion: asString(current?.installed_version) as string } : {}),
       ...(asString(current?.latest_version) ? { latestVersion: asString(current?.latest_version) as string } : {}),
+      ...(asString(current?.currentness) ? { currentness: asString(current?.currentness) as string } : {}),
       ...(asString(autoApply?.mode) ? { autoApplyMode: asString(autoApply?.mode) as string } : {}),
       autoApplyEligible: asOptionalBoolean(autoApply?.eligible),
       backgroundSafe: asOptionalBoolean(autoApply?.app_background_safe),
       ...(asString(plan?.summary) ? { summary: asString(plan?.summary) as string } : {}),
-      ...(asString(current?.manual_guidance) ? { guidance: asString(current?.manual_guidance) as string } : {})
+      ...(asString(current?.manual_guidance) ? { guidance: asString(current?.manual_guidance) as string } : {}),
+      ...(flowDependencies.length ? { flowDependencies } : {})
     }];
   });
   return {

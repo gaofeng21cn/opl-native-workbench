@@ -115,7 +115,6 @@ import type {
 } from "../composition/contributionProjection";
 import { groupSettingsContributions, settingsContributionDestination } from "../composition/contributionProjection";
 import { createOplContributionActionRequest } from "../composition/contributionProjection";
-import { isManagedComputerUseActionId } from "./managedComputerUse";
 import type { OplSetupOperationResult, OplStudioPrimaryView, RenderOplStudioShell } from "../composition/oplStudioSurface";
 import { CodexServerRequestPanel } from "./CodexServerRequestPanel";
 
@@ -1244,7 +1243,7 @@ export function App({
         if (request.actionId === "settings_diagnose_docker_webui") {
           // The doctor is a receipt-only read; its result is already authoritative
           // for this check and does not require a second full App-state read.
-        } else if (isManagedComputerUseActionId(request.actionId)) await loadState("full");
+        } else if (model.managedCompanions.some((companion) => companion.actions.some((action) => action.actionId === request.actionId))) await loadState("full");
         else await loadState(settings.runtimeProfile);
         if (initializationActionIds.has(request.actionId)) await loadInitialize();
       }
@@ -1274,7 +1273,7 @@ export function App({
       });
       if (receipt.status === "executed") {
         captureManagedUpdateReceipt(receipt);
-        if (isManagedComputerUseActionId(confirmation.request.actionId)) await loadState("full");
+        if (model.managedCompanions.some((companion) => companion.actions.some((action) => action.actionId === confirmation.request.actionId))) await loadState("full");
         else await loadState(settings.runtimeProfile);
         if (initializationActionIds.has(confirmation.request.actionId)) await loadInitialize();
       }

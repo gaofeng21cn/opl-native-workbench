@@ -399,6 +399,57 @@ test("managed update action results preserve owner components across fresh actio
   assert.equal(merged.channel, "stable");
 });
 
+test("managed update reads fast-state currentness and OPL Flow dependencies", () => {
+  const projection = readManagedUpdateProjection({
+    app_state: {
+      managed_update: {
+        operation: "status",
+        update_channel: "stable",
+        components: [{
+          component_id: "opl_base",
+          lifecycle_owner: "opl_base",
+          label: "OPL Base",
+          state: "current",
+          current: {
+            installed_version: "0.148.0",
+            currentness: "current",
+            dependency_catalog: {
+              flow_dependencies: [{
+                dependency_id: "officecli",
+                dependency_kind: "cli",
+                relationship: "recommended",
+                status: "ready",
+                currentness: "current",
+                installed: true,
+                version: "1.0.144",
+                latest_version: "1.0.143",
+                owner: "iofficeai",
+                lifecycle_owner: "opl-framework"
+              }]
+            }
+          },
+          auto_apply: { mode: "controlled_apply", eligible: false, app_background_safe: false }
+        }]
+      }
+    }
+  });
+
+  assert.ok(projection);
+  assert.equal(projection.components[0]?.currentness, "current");
+  assert.deepEqual(projection.components[0]?.flowDependencies, [{
+    dependencyId: "officecli",
+    dependencyKind: "cli",
+    relationship: "recommended",
+    status: "ready",
+    currentness: "current",
+    installed: true,
+    version: "1.0.144",
+    latestVersion: "1.0.143",
+    owner: "iofficeai",
+    lifecycleOwner: "opl-framework"
+  }]);
+});
+
 test("browser bridge normalization preserves App-projected Temporal runtime details", async () => {
   Object.assign(globalThis, {
     __OPL_CODEX_MODEL_POLICY__: {
@@ -496,7 +547,7 @@ test("browser bridge normalization preserves App-projected Temporal runtime deta
   assert.equal(model.runtimeOverview?.temporal.serviceStatus, "loaded_running");
   assert.equal(model.runtimeOverview?.temporal.workerStatus, "ready");
   assert.equal(model.runtimeOverview?.temporal.schedulerStatus, "attention_needed");
-  assert.equal(model.managedComputerUse?.providerId, "kimi-cu");
+  assert.equal(model.managedCompanions[0]?.providerId, "kimi-cu");
   assert.equal(model.workItemRuntime?.items[0]?.title, "Study one");
   assert.deepEqual(readback.app_state.managed_companions.map((item) => item.provider_id), ["kimi-cu"]);
   assert.deepEqual(readback.app_state.actions[0], {

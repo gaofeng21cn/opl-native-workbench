@@ -44,7 +44,7 @@ import {
   type ResolvedCodexModelOption
 } from "./modelPolicy";
 import type { SettingKey, WorkbenchSettings } from "./settingsModel";
-import type { ManagedComputerUseAction, ManagedComputerUseViewModel } from "./managedComputerUse";
+import type { ManagedCompanionViewModel } from "./managedCompanions";
 import {
   actionPayloadComplete,
   buildSettingsActionViewModel,
@@ -1322,13 +1322,13 @@ function RuntimeActionButton({
   );
 }
 
-function ManagedComputerUseGroup({
-  companion,
+function ManagedCompanionsGroup({
+  companions,
   locale,
   busyKey,
   onAction
 }: {
-  companion: ManagedComputerUseViewModel;
+  companions: ManagedCompanionViewModel[];
   locale: WorkbenchSettings["locale"];
   busyKey: string | null;
   onAction: (request: SettingsActionRequest) => void;
@@ -1336,70 +1336,40 @@ function ManagedComputerUseGroup({
   const yesNo = (value: boolean) => value
     ? (locale === "zh" ? "是" : "Yes")
     : (locale === "zh" ? "否" : "No");
-  const actionLabel = (action: ManagedComputerUseAction): string => {
-    const labels: Record<string, [string, string]> = {
-      settings_request_computer_use_permissions: ["授予权限", "Allow permissions"],
-      settings_recheck_computer_use: ["重新检查", "Recheck"],
-      settings_repair_computer_use: ["修复", "Repair"],
-      settings_reinstall_computer_use: ["重新安装", "Reinstall"]
-    };
-    return labels[action.actionId]?.[locale === "zh" ? 0 : 1] ?? action.label;
-  };
-
   return (
     <SettingsGroup title={locale === "zh" ? "OPL 托管" : "OPL managed"}>
-      <SettingRow
-        label={`${companion.productName}${companion.version ? ` ${companion.version}` : ""}`}
-        detail={companion.providerId}
-      >
-        <StatusValue status={companion.status} locale={locale} />
-      </SettingRow>
-      <SettingRow label={locale === "zh" ? "安装与启用" : "Install and enablement"}>
-        <span data-testid="opl-managed-computer-use-installation">
-          {locale === "zh"
+      {companions.map((companion) => <div key={companion.providerId} data-testid="opl-managed-companion" data-provider-id={companion.providerId}>
+        <SettingRow label={`${companion.productName}${companion.version ? ` ${companion.version}` : ""}`} detail={companion.providerId}>
+          <StatusValue status={companion.status} locale={locale} />
+        </SettingRow>
+        <SettingRow label={locale === "zh" ? "安装与启用" : "Install and enablement"}>
+          <span>{locale === "zh"
             ? `已安装 ${yesNo(companion.installed)} · 已注册 ${yesNo(companion.registered)} · 已启用 ${yesNo(companion.enabled)}`
-            : `Installed ${yesNo(companion.installed)} · Registered ${yesNo(companion.registered)} · Enabled ${yesNo(companion.enabled)}`}
-        </span>
-      </SettingRow>
-      <SettingRow label={locale === "zh" ? "权限" : "Permissions"} detail={companion.healthRef}>
-        <StatusValue status={companion.permission} locale={locale} />
-      </SettingRow>
-      {companion.actions.length ? (
-        <SettingRow label={locale === "zh" ? "操作" : "Actions"}>
-          <span className="runtime-setting-control" data-testid="opl-managed-computer-use-actions">
+            : `Installed ${yesNo(companion.installed)} · Registered ${yesNo(companion.registered)} · Enabled ${yesNo(companion.enabled)}`}</span>
+        </SettingRow>
+        <SettingRow label={locale === "zh" ? "权限" : "Permissions"} detail={companion.healthRef}>
+          <StatusValue status={companion.permission} locale={locale} />
+        </SettingRow>
+        {companion.actions.length ? <SettingRow label={locale === "zh" ? "操作" : "Actions"}>
+          <span className="runtime-setting-control">
             {companion.actions.map((action) => {
-              const key = `managed-computer-use:${action.actionId}`;
-              const label = actionLabel(action);
-              const refreshOnly = action.actionId === "settings_recheck_computer_use";
-              return (
-                <button
-                  key={action.actionId}
-                  className={`${refreshOnly ? "settings-icon-button" : "settings-action-button"} ${action.dangerLevel === "medium" ? "danger" : ""}`}
-                  type="button"
-                  aria-label={label}
-                  title={label}
-                  data-testid={`opl-managed-computer-use-action-${action.actionId}`}
-                  disabled={busyKey !== null}
-                  onClick={() => onAction({
-                    key,
-                    actionId: action.actionId,
-                    label,
-                    payload: {},
-                    confirmationRequired: action.confirmationRequired
-                  })}
-                >
-                  {busyKey === key
-                    ? <LoaderCircle className="spin" aria-hidden="true" size={13} />
-                    : refreshOnly
-                      ? <RefreshCw aria-hidden="true" size={13} />
-                      : <Wrench aria-hidden="true" size={13} />}
-                  {refreshOnly ? <span className="visually-hidden">{label}</span> : label}
-                </button>
-              );
+              const key = `managed-companion:${companion.providerId}:${action.actionId}`;
+              return <button
+                key={action.actionId}
+                className={`settings-action-button ${action.dangerLevel === "medium" ? "danger" : ""}`}
+                type="button"
+                aria-label={action.label}
+                title={action.label}
+                disabled={busyKey !== null}
+                onClick={() => onAction({ key, actionId: action.actionId, label: action.label, payload: {}, confirmationRequired: action.confirmationRequired })}
+              >
+                {busyKey === key ? <LoaderCircle className="spin" aria-hidden="true" size={13} /> : <Wrench aria-hidden="true" size={13} />}
+                {action.label}
+              </button>;
             })}
           </span>
-        </SettingRow>
-      ) : null}
+        </SettingRow> : null}
+      </div>)}
     </SettingsGroup>
   );
 }
@@ -1534,9 +1504,14 @@ function ManagedUpdateGroup({
         </span>
       </SettingRow>
       <SettingRow label={locale === "zh" ? "版本" : "Version"}><span>{version}</span></SettingRow>
+      {component?.currentness ? <SettingRow label={locale === "zh" ? "当前状态" : "Currentness"}><StatusValue status={component.currentness} locale={locale} /></SettingRow> : null}
       <SettingRow label={locale === "zh" ? "更新通道" : "Update channel"}><span>{formatUpdateChannel(component?.channel ?? managedChannel, locale)}</span></SettingRow>
       {nativeUpdate ? <SettingRow label={locale === "zh" ? "更新源" : "Update source"}><span>{nativeUpdateSource ?? "--"}</span></SettingRow> : null}
       <SettingRow label={nativeUpdate ? (locale === "zh" ? "更新方式" : "Update behavior") : (locale === "zh" ? "自动更新" : "Automatic updates")}><span>{autoPolicy}</span></SettingRow>
+      {component?.flowDependencies?.length ? <details className="settings-advanced-actions" data-testid="opl-flow-dependency-currentness">
+        <summary>{locale === "zh" ? `OPL Flow 依赖 ${component.flowDependencies.length} 项` : `${component.flowDependencies.length} OPL Flow dependencies`}<ChevronDown aria-hidden="true" size={14} /></summary>
+        <div>{component.flowDependencies.map((dependency) => <SettingRow key={`${dependency.dependencyId}:${dependency.dependencyKind}`} label={dependency.dependencyId} detail={[dependency.dependencyKind, dependency.version].filter(Boolean).join(" · ")}><StatusValue status={dependency.currentness || dependency.status} locale={locale} /></SettingRow>)}</div>
+      </details> : null}
     </SettingsGroup>
   );
 }
@@ -2115,9 +2090,9 @@ export function SettingsPanel({
       return (
         <>
           <CapabilityDirectory packageLifecycle={model.packageLifecycle} catalog={capabilityCatalog} status={capabilityStatus} error={capabilityError} locale={settings.locale} showTechnicalDetails={settings.developerDetails} onRefresh={onRefreshCapabilities} />
-          {model.managedComputerUse ? (
-            <ManagedComputerUseGroup
-              companion={model.managedComputerUse}
+          {model.managedCompanions.length ? (
+            <ManagedCompanionsGroup
+              companions={model.managedCompanions}
               locale={settings.locale}
               busyKey={actionBusyKey}
               onAction={onAction}

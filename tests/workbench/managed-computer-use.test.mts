@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { readManagedComputerUse } from "../../src/workbench/managedComputerUse.ts";
+import { readManagedCompanions } from "../../src/workbench/managedCompanions.ts";
 
 function validAction(actionId: string, overrides: Record<string, unknown> = {}) {
   return {
@@ -17,8 +17,8 @@ function validAction(actionId: string, overrides: Record<string, unknown> = {}) 
   };
 }
 
-test("managed Computer Use consumes only the Framework companion and canonical action catalog", () => {
-  const projection = readManagedComputerUse({
+test("managed companions consume every Framework companion through the canonical action catalog", () => {
+  const projection = readManagedCompanions({
     app_state: {
       managed_companions: [{
         surface_kind: "opl_managed_computer_use_projection",
@@ -39,6 +39,17 @@ test("managed Computer Use consumes only the Framework companion and canonical a
           "settings_reinstall_computer_use",
           "settings_unknown_computer_use"
         ]
+      }, {
+        surface_kind: "opl_managed_browser_automation_projection",
+        provider_id: "playwright-mcp",
+        product_name: "Browser Automation",
+        status: "not_registered",
+        ready: false,
+        installed: true,
+        registered: false,
+        enabled: false,
+        permission: "not_required",
+        available_actions: ["settings_recheck_browser_automation"]
       }],
       actions: [
         validAction("settings_request_computer_use_permissions", { label: "Allow permissions" }),
@@ -49,12 +60,13 @@ test("managed Computer Use consumes only the Framework companion and canonical a
           confirmation_required: true,
           danger_level: "medium"
         }),
-        validAction("settings_unknown_computer_use")
+        validAction("settings_recheck_browser_automation", { label: "Recheck browser" })
       ]
     }
   });
 
-  assert.deepEqual(projection, {
+  assert.deepEqual(projection[0], {
+    surfaceKind: "opl_managed_computer_use_projection",
     providerId: "kimi-cu",
     productName: "KimiCU",
     version: "0.5.4",
@@ -72,11 +84,13 @@ test("managed Computer Use consumes only the Framework companion and canonical a
       { actionId: "settings_reinstall_computer_use", label: "Reinstall", confirmationRequired: true, dangerLevel: "medium" }
     ]
   });
+  assert.equal(projection[1]?.providerId, "playwright-mcp");
+  assert.deepEqual(projection[1]?.actions.map((action) => action.actionId), ["settings_recheck_browser_automation"]);
 });
 
-test("managed Computer Use stays absent when the producer is absent or malformed", () => {
-  assert.equal(readManagedComputerUse({ app_state: { actions: [] } }), null);
-  assert.equal(readManagedComputerUse({
+test("managed companions stay absent when the producer is absent or outside the Framework namespace", () => {
+  assert.deepEqual(readManagedCompanions({ app_state: { actions: [] } }), []);
+  assert.deepEqual(readManagedCompanions({
     app_state: {
       managed_companions: [{
         surface_kind: "forged_computer_use_projection",
@@ -85,11 +99,11 @@ test("managed Computer Use stays absent when the producer is absent or malformed
       }],
       actions: []
     }
-  }), null);
+  }), []);
 });
 
 test("managed Computer Use drops actions that bypass the canonical App action boundary", () => {
-  const projection = readManagedComputerUse({
+  const projection = readManagedCompanions({
     app_state: {
       managed_companions: [{
         surface_kind: "opl_managed_computer_use_projection",
@@ -109,6 +123,6 @@ test("managed Computer Use drops actions that bypass the canonical App action bo
     }
   });
 
-  assert.ok(projection);
-  assert.deepEqual(projection.actions, []);
+  assert.equal(projection.length, 1);
+  assert.deepEqual(projection[0]?.actions, []);
 });

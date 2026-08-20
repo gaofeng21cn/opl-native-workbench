@@ -460,12 +460,10 @@ test("Framework managed updates reuse the projected App action bus", () => {
   assert.doesNotMatch(app, /Framework 尚未投影此更新操作|Framework has not projected this update operation/);
 });
 
-test("Framework managed Computer Use is projected into Capabilities through the App action bus", () => {
-  assert.match(settingsPanel, /model\.managedComputerUse/);
-  assert.match(settingsPanel, /data-testid="opl-managed-computer-use-installation"/);
-  assert.match(settingsPanel, /opl-managed-computer-use-action-/);
-  assert.match(app, /isManagedComputerUseActionId\(request\.actionId\)\) await loadState\("full"\)/);
-  assert.match(app, /isManagedComputerUseActionId\(confirmation\.request\.actionId\)\) await loadState\("full"\)/);
+test("Framework managed companions are projected into Capabilities through the App action bus", () => {
+  assert.match(settingsPanel, /model\.managedCompanions/);
+  assert.match(settingsPanel, /data-testid="opl-managed-companion"/);
+  assert.match(app, /model\.managedCompanions\.some/);
 });
 
 test("channel_access stays declarative and forwards only owner-projected scoped input", () => {
