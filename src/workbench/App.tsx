@@ -590,6 +590,26 @@ function formatReceipt(value: unknown): string {
   }
 }
 
+function contributionReceiptForDisplay(entry: OplUiContribution, receipt: OplActionReceipt): OplActionReceipt | Record<string, unknown> {
+  if (entry.view?.viewType !== "remote_companion_access") return receipt;
+  // Remote pairing input and provider output are transient; keep only action metadata in the global receipt panel.
+  return {
+    actionId: receipt.actionId,
+    dryRun: receipt.dryRun,
+    confirmationRequired: receipt.confirmationRequired,
+    canExecute: receipt.canExecute,
+    receiptKind: receipt.receiptKind,
+    authorityBoundary: receipt.authorityBoundary,
+    requestedMode: receipt.requestedMode,
+    status: receipt.status,
+    exitCode: receipt.exitCode,
+    timedOut: receipt.timedOut,
+    ...(receipt.confirmationId ? { confirmationId: receipt.confirmationId } : {}),
+    ...(receipt.receiptId ? { receiptId: receipt.receiptId } : {}),
+    ...(receipt.rollbackRef ? { rollbackRef: receipt.rollbackRef } : {})
+  };
+}
+
 function firstPreviewAction(actions: WorkbenchActionRef[]): WorkbenchActionRef | undefined {
   return actions.find((action) => action.dryRunSupported && action.payloadFields.length === 0)
     ?? actions.find((action) => action.dryRunSupported);
@@ -1809,7 +1829,7 @@ export function App({
       const actionRequest = createOplContributionActionRequest(entry, command, confirmed);
       actionRequest.payload.input = input;
       const receipt = await bridge.executeAction(actionRequest);
-      setLastDryRun(formatReceipt(receipt));
+      setLastDryRun(formatReceipt(contributionReceiptForDisplay(entry, receipt)));
       if (receipt.status === "executed") {
         await loadState(settings.runtimeProfile);
         setContributionRefreshRevision((revision) => revision + 1);

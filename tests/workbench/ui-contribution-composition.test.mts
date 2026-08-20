@@ -6,6 +6,7 @@ import {
   createOplContributionReadInput,
   groupSettingsContributions,
   readChannelAccessResult,
+  readRemoteCompanionAccessResult,
   readUiContributionsProjection,
   settingsContributionDestination,
   type OplUiContributionsProjection
@@ -122,6 +123,7 @@ const projectionState = {
 describe("OPL Studio DSH contribution composition", () => {
   test("routes settings contributions by declared view semantics", () => {
     expect(settingsContributionDestination({ view: { viewId: "wechat", viewType: "channel_access", title: {}, dataRef: "wechat#state" } })).toBe("resources");
+    expect(settingsContributionDestination({ view: { viewId: "opl-link", viewType: "remote_companion_access", title: {}, dataRef: "opl-link#state" } })).toBe("resources");
     expect(settingsContributionDestination({ view: { viewId: "fleet", viewType: "activity_log", title: {}, dataRef: "fleet#state" } })).toBeNull();
     expect(settingsContributionDestination({ view: { viewId: "capability", viewType: "table", title: {}, dataRef: "capability#state" } })).toBe("capabilities");
   });
@@ -398,6 +400,84 @@ describe("OPL Studio DSH contribution composition", () => {
     })).toBeNull();
   });
 
+  test("parses the closed remote_companion_access result contract and keeps invalid states local", () => {
+    const actions = [
+      { command_id: "pair.start", input: { invitation_code: "invite-once", display_name: "Desktop" } },
+      { command_id: "pair.refresh", input: { pairing_id: "pair-001" } },
+      { command_id: "pair.confirm", input: { pairing_id: "pair-001", authentication_digits: "123456" } },
+      { command_id: "pair.cancel", input: { pairing_id: "pair-001" } },
+      { command_id: "device.rename", input: { device_id: "ios-001", display_name: "Phone" } },
+      { command_id: "pair.revoke", input: { pairing_id: "pair-001" } }
+    ];
+    const qrReady = readRemoteCompanionAccessResult({
+      schema_version: "opl-app-remote-companion-access.v1",
+      status: "qr_ready",
+      pairing: {
+        pairing_id: "pair-001",
+        expires_at: "2026-08-19T12:00:00Z",
+        manual_code: "0123456789AB",
+        qr_payload: "opllink://pair?payload=temporary"
+      },
+      actions,
+      refresh_after_ms: 1_000
+    });
+    expect(qrReady).toMatchObject({
+      schemaVersion: "opl-app-remote-companion-access.v1",
+      status: "qr_ready",
+      pairing: { pairingId: "pair-001", manualCode: "0123456789AB", qrPayload: "opllink://pair?payload=temporary" }
+    });
+    expect(qrReady?.actions.map((action) => action.commandId)).toEqual([
+      "pair.start",
+      "pair.refresh",
+      "pair.confirm",
+      "pair.cancel",
+      "device.rename",
+      "pair.revoke"
+    ]);
+
+    const active = readRemoteCompanionAccessResult({
+      schema_version: "opl-app-remote-companion-access.v1",
+      status: "active",
+      pairing: { pairing_id: "pair-001", expires_at: "2026-08-19T12:00:00Z" },
+      devices: [{
+        device_id: "desktop-001",
+        device_type: "desktop",
+        display_name: "Desktop",
+        authorization_state: "authorized",
+        last_activity_at: "2026-08-19T11:59:00Z"
+      }],
+      actions
+    });
+    expect(active?.devices?.[0]).toMatchObject({ deviceId: "desktop-001", authorizationState: "authorized" });
+
+    expect(readRemoteCompanionAccessResult({
+      schema_version: "opl-app-remote-companion-access.v1",
+      status: "qr_ready",
+      pairing: {
+        pairing_id: "pair-001",
+        expires_at: "2026-08-19T12:00:00Z",
+        manual_code: "0123456789AB",
+        qr_payload: "qr",
+        authentication_digits: "123456"
+      },
+      actions
+    })).toBeNull();
+    expect(readRemoteCompanionAccessResult({
+      schema_version: "opl-app-remote-companion-access.v1",
+      status: "active",
+      pairing: { pairing_id: "pair-001", expires_at: "2026-08-19T12:00:00Z" },
+      devices: [{
+        device_id: "desktop-001",
+        device_type: "desktop",
+        display_name: "Desktop",
+        authorization_state: "authorized",
+        last_activity_at: null,
+        claim_secret: "forbidden"
+      }],
+      actions: []
+    })).toBeNull();
+  });
+
   test("collapses alias-linked catalog rows into one App-owned model option", () => {
     const options = resolveCodexModelOptions([{
       id: "codex-fixture",
@@ -456,5 +536,24 @@ describe("OPL Studio DSH contribution composition", () => {
     expect(source).toMatch(/<QRCodeSVG/);
     expect(source).toMatch(/value=\{qr\.payload\}/);
     expect(source).not.toMatch(/<code>\{qr\.payload\}<\/code>/);
+  });
+
+  test("keeps remote pairing material in transient component state and routes actions through the owner bridge", () => {
+    const source = readFileSync(
+      new URL("../../src/composition/contributionComponents.tsx", import.meta.url),
+      "utf8"
+    );
+    expect(source).toMatch(/viewType === "remote_companion_access"/);
+    expect(source).toMatch(/readRemoteCompanionAccessResult/);
+    expect(source).toMatch(/owner\.onAction\(entry, command, input\)/);
+    expect(source).toMatch(/useState\(""\)/);
+    expect(source).toMatch(/<QRCodeSVG\s+value=\{qrPayload\}/);
+    expect(source).not.toMatch(/localStorage/);
+    expect(source).not.toMatch(/console\.(log|warn|error)/);
+    expect(source).toMatch(/function remoteCompanionActionKey/);
+
+    const appSource = readFileSync(new URL("../../src/workbench/App.tsx", import.meta.url), "utf8");
+    expect(appSource).toMatch(/function contributionReceiptForDisplay/);
+    expect(appSource).toMatch(/setLastDryRun\(formatReceipt\(contributionReceiptForDisplay\(entry, receipt\)\)\)/);
   });
 });

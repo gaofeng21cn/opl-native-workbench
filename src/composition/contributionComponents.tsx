@@ -1,14 +1,18 @@
 import { Button, Pill, StateDot, Tooltip, type StateDotState } from "@deepseek-ai/dsh-client-ui-primitives";
-import { Boxes, Play, QrCode, ShieldCheck, Users } from "lucide-react";
+import { Boxes, Check, Link2, Pencil, Play, QrCode, RefreshCw, ShieldCheck, Trash2, Users } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   contributionLabel,
   createOplContributionReadInput,
   readChannelAccessResult,
+  readRemoteCompanionAccessResult,
   type OplContributionSlotOwner,
   type OplChannelAccessAction,
   type OplChannelAccessResult,
+  type OplRemoteCompanionAccessAction,
+  type OplRemoteCompanionAccessResult,
+  type OplRemoteCompanionAccessDevice,
   type OplUiContribution,
   type OplUiContributionBadge
 } from "./contributionProjection";
@@ -68,7 +72,7 @@ function ContributionActions({ entry, owner }: {
   entry: OplUiContribution;
   owner: OplContributionSlotOwner;
 }) {
-  if (!entry.commands.length) return null;
+  if (!entry.commands.length || entry.view?.viewType === "remote_companion_access") return null;
   return (
     <div className="opl-contribution-actions">
       {entry.commands.map((command) => {
@@ -373,9 +377,9 @@ function ContributionView({ entry, owner }: {
   entry: OplUiContribution;
   owner: OplContributionSlotOwner;
 }) {
-  return entry.view?.viewType === "channel_access"
-    ? <ChannelAccessView entry={entry} owner={owner} />
-    : <StructuredContributionView entry={entry} owner={owner} />;
+  if (entry.view?.viewType === "channel_access") return <ChannelAccessView entry={entry} owner={owner} />;
+  if (entry.view?.viewType === "remote_companion_access") return <RemoteCompanionAccessView entry={entry} owner={owner} />;
+  return <StructuredContributionView entry={entry} owner={owner} />;
 }
 
 function StructuredContributionView({ entry, owner }: {
@@ -606,6 +610,291 @@ function ChannelAccessView({ entry, owner }: {
           </div>
         ) : <p className="opl-structured-empty">{owner.locale === "zh" ? "暂无已授权用户" : "No authorized users"}</p>}
       </section>
+    </div>
+  );
+}
+
+function remoteCompanionStatusLabel(
+  result: OplRemoteCompanionAccessResult,
+  locale: OplContributionSlotOwner["locale"]
+): string {
+  const labels: Record<OplRemoteCompanionAccessResult["status"], [string, string]> = {
+    unavailable: ["不可用", "Unavailable"],
+    unpaired: ["未配对", "Not paired"],
+    reserving: ["正在准备配对", "Preparing pairing"],
+    qr_ready: ["等待扫码", "Scan required"],
+    awaiting_confirmation: ["等待确认", "Awaiting confirmation"],
+    active: ["已连接", "Connected"],
+    revoking: ["正在撤销", "Revoking"],
+    attention: ["需要处理", "Needs attention"]
+  };
+  return labels[result.status][locale === "zh" ? 0 : 1];
+}
+
+function remoteCompanionStatusState(status: OplRemoteCompanionAccessResult["status"]): StateDotState {
+  if (status === "active") return "done";
+  if (status === "unavailable") return "error";
+  if (status === "attention" || status === "revoking") return "warning";
+  return "ongoing";
+}
+
+function formatRemoteManualCode(value: string): string {
+  return value.replace(/(.{4})(.{4})(.{4})/u, "$1 $2 $3");
+}
+
+function formatRemoteAuthenticationDigits(value: string): string {
+  return value.length === 6 ? `${value.slice(0, 3)} ${value.slice(3)}` : value;
+}
+
+function remoteCompanionActionKey(action: OplRemoteCompanionAccessAction): string {
+  if (action.commandId === "pair.start") return action.commandId;
+  if (action.commandId === "device.rename") return `${action.commandId}:${action.input.device_id}`;
+  return `${action.commandId}:${action.input.pairing_id}`;
+}
+
+function remoteCompanionActionIcon(commandId: OplRemoteCompanionAccessAction["commandId"]): ReactNode {
+  if (commandId === "pair.start") return <Link2 aria-hidden="true" size={13} />;
+  if (commandId === "pair.confirm") return <Check aria-hidden="true" size={13} />;
+  if (commandId === "pair.revoke") return <Trash2 aria-hidden="true" size={13} />;
+  if (commandId === "device.rename") return <Pencil aria-hidden="true" size={13} />;
+  return <RefreshCw aria-hidden="true" size={13} />;
+}
+
+function prepareRemoteCompanionActionInput(
+  action: OplRemoteCompanionAccessAction,
+  fields: {
+    invitationCode: string;
+    pairDisplayName: string;
+    authenticationDigits: string;
+    deviceNames: Record<string, string>;
+  }
+): Record<string, unknown> | null {
+  if (action.commandId === "pair.start") {
+    const invitationCode = fields.invitationCode.trim();
+    const displayName = fields.pairDisplayName.trim();
+    return invitationCode.length > 0 && invitationCode.length <= 512 && displayName.length > 0 && displayName.length <= 256
+      ? { invitation_code: invitationCode, display_name: displayName }
+      : null;
+  }
+  if (action.commandId === "pair.confirm") {
+    return /^[0-9]{6}$/.test(fields.authenticationDigits)
+      ? { pairing_id: action.input.pairing_id, authentication_digits: fields.authenticationDigits }
+      : null;
+  }
+  if (action.commandId === "device.rename") {
+    const displayName = (fields.deviceNames[action.input.device_id] ?? "").trim();
+    return displayName.length > 0 && displayName.length <= 256
+      ? { device_id: action.input.device_id, display_name: displayName }
+      : null;
+  }
+  return action.input;
+}
+
+function RemoteCompanionActions({
+  actions,
+  entry,
+  owner,
+  fields,
+  onAction
+}: {
+  actions: OplRemoteCompanionAccessAction[];
+  entry: OplUiContribution;
+  owner: OplContributionSlotOwner;
+  fields: {
+    invitationCode: string;
+    pairDisplayName: string;
+    authenticationDigits: string;
+    deviceNames: Record<string, string>;
+  };
+  onAction: (action: OplRemoteCompanionAccessAction) => void;
+}) {
+  const available = actions.flatMap((action) => {
+    const command = entry.commands.find((candidate) => candidate.commandId === action.commandId);
+    const input = prepareRemoteCompanionActionInput(action, fields);
+    return command ? [{ action, command, input }] : [];
+  });
+  if (!available.length) return null;
+  return (
+    <div className="opl-contribution-actions" data-testid="opl-remote-companion-access-actions">
+      {available.map(({ action, command, input }) => (
+        <Tooltip
+          key={remoteCompanionActionKey(action)}
+          label={!owner.actionAvailable
+            ? (owner.locale === "zh" ? "当前 App action catalog 未提供此操作" : "Unavailable in the current App action catalog")
+            : command.confirmationRequired
+              ? (owner.locale === "zh" ? "确认后通过 OPL App 执行" : "Confirm before execution through OPL App")
+              : (owner.locale === "zh" ? "通过 OPL App 执行" : "Execute through OPL App")}
+          side="top"
+        >
+          <Button
+            variant={command.confirmationRequired ? "outline" : "ghost"}
+            size="sm"
+            icon={remoteCompanionActionIcon(action.commandId)}
+            disabled={!owner.actionAvailable || input === null}
+            onClick={() => onAction(action)}
+          >
+            {contributionLabel(command.label, owner.locale, command.commandId)}
+          </Button>
+        </Tooltip>
+      ))}
+    </div>
+  );
+}
+
+function RemoteCompanionDeviceRow({
+  device,
+  result,
+  owner,
+  deviceNames,
+  setDeviceNames
+}: {
+  device: OplRemoteCompanionAccessDevice;
+  result: OplRemoteCompanionAccessResult;
+  owner: OplContributionSlotOwner;
+  deviceNames: Record<string, string>;
+  setDeviceNames: (update: (current: Record<string, string>) => Record<string, string>) => void;
+}) {
+  const renameAvailable = result.actions.some((action) => action.commandId === "device.rename" && action.input.device_id === device.deviceId);
+  return (
+    <div className="opl-remote-companion-device-row">
+      <div>
+        <strong>{device.displayName}</strong>
+        <span>{device.deviceType === "mobile" ? (owner.locale === "zh" ? "移动设备" : "Mobile") : (owner.locale === "zh" ? "桌面设备" : "Desktop")}</span>
+      </div>
+      {renameAvailable ? (
+        <label>
+          <span>{owner.locale === "zh" ? "设备名称" : "Device name"}</span>
+          <input
+            value={deviceNames[device.deviceId] ?? device.displayName}
+            maxLength={256}
+            autoComplete="off"
+            onChange={(event) => setDeviceNames((current) => ({ ...current, [device.deviceId]: event.currentTarget.value }))}
+          />
+        </label>
+      ) : null}
+    </div>
+  );
+}
+
+function RemoteCompanionAccessView({ entry, owner }: {
+  entry: OplUiContribution;
+  owner: OplContributionSlotOwner;
+}) {
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [result, setResult] = useState<OplRemoteCompanionAccessResult | null>(null);
+  const [error, setError] = useState("");
+  const [timerRevision, setTimerRevision] = useState(0);
+  const [invitationCode, setInvitationCode] = useState("");
+  const [pairDisplayName, setPairDisplayName] = useState("");
+  const [authenticationDigits, setAuthenticationDigits] = useState("");
+  const [deviceNames, setDeviceNames] = useState<Record<string, string>>({});
+  const view = entry.view!;
+  const pairingId = result?.pairing?.pairingId;
+  const deviceFingerprint = result?.devices?.map((device) => `${device.deviceId}:${device.displayName}`).join("\u0000");
+
+  useEffect(() => {
+    let active = true;
+    if (!result) setState("loading");
+    setError("");
+    void owner.readData(entry, {}).then((value) => {
+      if (!active) return;
+      const parsed = readRemoteCompanionAccessResult(value);
+      if (!parsed) throw new Error("invalid remote_companion_access contribution result");
+      setResult(parsed);
+      setState("ready");
+    }).catch((reason) => {
+      if (!active) return;
+      setResult(null);
+      setError(String(reason));
+      setState("error");
+    });
+    return () => { active = false; };
+  }, [entry.contributionKey, entry.packageId, owner.readData, owner.refreshRevision, timerRevision, view.dataRef]);
+
+  useEffect(() => {
+    if (state !== "ready" || !result?.refreshAfterMs) return;
+    const timeout = window.setTimeout(() => setTimerRevision((revision) => revision + 1), result.refreshAfterMs);
+    return () => window.clearTimeout(timeout);
+  }, [result?.refreshAfterMs, result?.status, state]);
+
+  useEffect(() => {
+    if (result?.status !== "awaiting_confirmation") {
+      setAuthenticationDigits("");
+    }
+  }, [pairingId, result?.status]);
+
+  useEffect(() => {
+    if (!result?.devices) {
+      setDeviceNames({});
+      return;
+    }
+    setDeviceNames((current) => Object.fromEntries(result.devices!.map((device) => [device.deviceId, current[device.deviceId] ?? device.displayName])));
+  }, [deviceFingerprint]);
+
+  const fields = { invitationCode, pairDisplayName, authenticationDigits, deviceNames };
+  const runAction = (action: OplRemoteCompanionAccessAction) => {
+    const command = entry.commands.find((candidate) => candidate.commandId === action.commandId);
+    const input = prepareRemoteCompanionActionInput(action, fields);
+    if (!command || input === null) return;
+    owner.onAction(entry, command, input);
+  };
+
+  if (state === "loading") {
+    return <p className="opl-contribution-fallback" role="status"><StateDot state="ongoing" size={10} />{owner.locale === "zh" ? "正在读取远程配对" : "Loading remote pairing"}</p>;
+  }
+  if (state === "error" || !result) {
+    return <p className="opl-contribution-fallback" role="status" title={error}><StateDot state="warning" size={10} />{view.emptyState ? contributionLabel(view.emptyState, owner.locale, "") : (owner.locale === "zh" ? "远程配对当前不可用" : "Remote pairing is unavailable")}</p>;
+  }
+
+  const pairStartAction = result.actions.some((action) => action.commandId === "pair.start");
+  const qr = result.status === "qr_ready"
+    && result.pairing?.qrPayload
+    && Date.parse(result.pairing.expiresAt) > Date.now()
+    ? result.pairing
+    : undefined;
+  const qrPayload = qr?.qrPayload;
+  return (
+    <div className="opl-contribution-result" data-view-type="remote_companion_access" data-testid={`opl-ui-contribution-result-${entry.contributionKey}`}>
+      <div className="opl-contribution-badges">
+        <Pill><StateDot state={remoteCompanionStatusState(result.status)} size={9} />{remoteCompanionStatusLabel(result, owner.locale)}</Pill>
+      </div>
+      {result.status === "unavailable" ? (
+        <p className="opl-contribution-fallback" role="status">{owner.locale === "zh" ? "远程配对服务当前不可用" : "Remote pairing service is unavailable"}</p>
+      ) : null}
+      {pairStartAction ? (
+        <section className="opl-remote-companion-start" data-testid="opl-remote-companion-access-start">
+          <label>
+            <span>{owner.locale === "zh" ? "邀请代码" : "Invitation code"}</span>
+            <input value={invitationCode} maxLength={512} autoComplete="off" onChange={(event) => setInvitationCode(event.currentTarget.value)} />
+          </label>
+          <label>
+            <span>{owner.locale === "zh" ? "设备名称" : "Device name"}</span>
+            <input value={pairDisplayName} maxLength={256} autoComplete="off" onChange={(event) => setPairDisplayName(event.currentTarget.value)} />
+          </label>
+        </section>
+      ) : null}
+      {qrPayload ? (
+        <section className="opl-remote-companion-qr" data-testid="opl-remote-companion-access-qr-ready">
+          <QRCodeSVG value={qrPayload} size={176} level="M" marginSize={2} title={owner.locale === "zh" ? "远程配对二维码" : "Remote pairing QR code"} />
+          {qr.manualCode ? <strong>{formatRemoteManualCode(qr.manualCode)}</strong> : null}
+        </section>
+      ) : null}
+      {result.status === "awaiting_confirmation" && result.pairing?.authenticationDigits ? (
+        <section className="opl-remote-companion-confirmation" data-testid="opl-remote-companion-access-confirmation">
+          <strong>{formatRemoteAuthenticationDigits(result.pairing.authenticationDigits)}</strong>
+          <label>
+            <span>{owner.locale === "zh" ? "确认数字" : "Authentication digits"}</span>
+            <input value={authenticationDigits} maxLength={6} inputMode="numeric" autoComplete="off" onChange={(event) => setAuthenticationDigits(event.currentTarget.value.replace(/\D/gu, "").slice(0, 6))} />
+          </label>
+        </section>
+      ) : null}
+      {result.devices?.length ? (
+        <section className="opl-remote-companion-devices" data-testid="opl-remote-companion-access-devices">
+          <h3><Users aria-hidden="true" size={15} />{owner.locale === "zh" ? "已连接设备" : "Connected devices"}</h3>
+          {result.devices.map((device) => <RemoteCompanionDeviceRow key={device.deviceId} device={device} result={result} owner={owner} deviceNames={deviceNames} setDeviceNames={setDeviceNames} />)}
+        </section>
+      ) : null}
+      <RemoteCompanionActions actions={result.actions} entry={entry} owner={owner} fields={fields} onAction={runAction} />
     </div>
   );
 }
