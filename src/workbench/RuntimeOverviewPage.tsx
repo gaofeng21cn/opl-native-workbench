@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { WorkItemRuntimeItem, WorkItemRuntimeProjection } from "./workbenchModel";
 import type { ServiceRecoveryAction, ServiceRecoveryModel } from "./serviceRecoveryModel";
+import { DomainDetailViews, type DomainDetailViewRead } from "./domainDetailViews";
 
 type RuntimeOverviewPageProps = {
   locale: "zh" | "en";
@@ -27,6 +28,7 @@ type RuntimeOverviewPageProps = {
   onRefresh(): void;
   onRunServiceRecovery(action: ServiceRecoveryAction): void;
   onOpenWorkItem(item: WorkItemRuntimeItem): void;
+  readDomainDetailView?: DomainDetailViewRead;
 };
 
 type StatusFilter = "all" | "running" | "attention" | "paused" | "completed" | "stopped";
@@ -119,7 +121,8 @@ export function RuntimeOverviewPage({
   snapshotCachedAt,
   onRefresh,
   onRunServiceRecovery,
-  onOpenWorkItem
+  onOpenWorkItem,
+  readDomainDetailView
 }: RuntimeOverviewPageProps) {
   const [agentId, setAgentId] = useState("all");
   const [projectId, setProjectId] = useState("all");
@@ -364,8 +367,9 @@ export function RuntimeOverviewPage({
             ? localizedStageName(item, item.currentStageId, locale)
             : item.currentStageName ?? copy.noStage;
           const stagesOpen = openStagesFor === item.id;
+          const selected = selectedWorkItemId === item.workItemId || selectedWorkItemId === item.id;
           return (
-            <article className="runtime-work-row" key={item.id} data-status={category} data-selected={selectedWorkItemId === item.workItemId}>
+            <article className="runtime-work-row" key={item.id} data-status={category} data-selected={selected}>
               <div className="runtime-work-identity">
                 <button type="button" aria-label={`${copy.openDetails}: ${item.title}`} onClick={() => onOpenWorkItem(item)}>
                   <strong>{item.projectDisplayName}</strong>
@@ -398,6 +402,7 @@ export function RuntimeOverviewPage({
                 <div><dt>{copy.cumulativeUsage}</dt><dd>{formatTokens(item.totalTokens, locale)}</dd></div>
                 <div className="runtime-work-time"><Clock3 aria-hidden="true" size={13} /><span>{item.updatedAt ? formatTimestamp(item.updatedAt, locale) : "-"}</span></div>
               </dl>
+              {selected ? <DomainDetailViews item={item} locale={locale} readDomainDetailView={readDomainDetailView} /> : null}
             </article>
           );
         })}

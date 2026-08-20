@@ -69,6 +69,7 @@ import {
 } from "./settingsModel";
 import { codexWorkbenchStyles } from "./codexWorkbenchStyles";
 import { RuntimeOverviewPage } from "./RuntimeOverviewPage";
+import type { DomainDetailViewReadRequest } from "./domainDetailViews";
 import {
   readRuntimeOverviewCache,
   runtimeOverviewModelFromCache,
@@ -776,6 +777,15 @@ export function App({
   onHostStateDispose
 }: AppProps) {
   const bridge = useMemo(() => createBrowserBridge(), []);
+  const readDomainDetailView = useCallback((request: DomainDetailViewReadRequest) => {
+    const domainDetailBridge = bridge as typeof bridge & {
+      readDomainDetailView?: (input: DomainDetailViewReadRequest) => Promise<unknown>;
+    };
+    if (!domainDetailBridge.readDomainDetailView) {
+      return Promise.reject(new Error("OPL domain detail view reads are unavailable in this host"));
+    }
+    return domainDetailBridge.readDomainDetailView(request);
+  }, [bridge]);
   const persistedUi = useMemo(() => readPersistedWorkbenchUi(), []);
   const cachedRuntime = useMemo(() => readRuntimeOverviewCache(), []);
   const conversationRef = useRef<HTMLElement | null>(null);
@@ -2626,6 +2636,7 @@ export function App({
         setSelectedRuntimeWorkItemId(item.workItemId);
         requestDetails("opl-runtime-status-panel");
       }}
+      readDomainDetailView={readDomainDetailView}
     />,
     openPrimaryView: setPrimaryView,
     composerAccessory: studioComposerAccessory,
