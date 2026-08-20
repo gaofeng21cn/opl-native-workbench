@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   deriveWorkbenchModelFromState,
   mergeManagedUpdateProjections,
+  parseDomainDetailViewDescriptors,
   readManagedUpdateProjection
 } from "../../src/workbench/workbenchModel.ts";
 
@@ -92,6 +93,72 @@ test("runtime projection keeps component health, carriers, and only App-projecte
     "provider_scheduler_status"
   ]);
   assert.equal(model.runtimeOverview?.recommendedActionId, "provider_scheduler_status");
+});
+
+test("work-item projection parses typed domain detail view locators without agent-specific branching", () => {
+  const model = deriveWorkbenchModelFromState({
+    app_state: {
+      operator: {
+        workbench: {
+          work_item_projection_v2: {
+            schema_version: "work-item-projection.v2",
+            summary: {},
+            agent_catalog: [{ agent_id: "other-agent", display_name: "Other Agent" }],
+            project_catalog: [{ project_id: "project:one", agent_id: "other-agent", display_name: "Project" }],
+            items: [{
+              item_id: "project:one:study-one",
+              identity: {
+                agent_id: "other-agent",
+                project_id: "project:one",
+                project_display_name: "Project",
+                work_item_id: "study-one",
+                work_item_display_name: "Study one"
+              },
+              lifecycle: { primary_state: "active" },
+              execution: { state: "idle" },
+              domain_detail_views: [{
+                item_id: "project:one:study-one",
+                view_id: "research-roadmap",
+                view_kind: "research-roadmap",
+                title: "Research roadmap",
+                schema_ref: "contracts/schemas/v2/mas-research-trajectory-snapshot-v2.schema.json",
+                schema_version: "mas-research-trajectory-snapshot.v2",
+                revision: 4,
+                digest: "sha256:abc",
+                availability: "unread"
+              }, {
+                item_id: "wrong-item",
+                view_id: "unknown-view",
+                view_kind: "future_view",
+                availability: "available"
+              }]
+            }]
+          }
+        }
+      }
+    }
+  });
+
+  assert.deepEqual(model.workItemRuntime?.items[0]?.domainDetailViews, [{
+    itemId: "project:one:study-one",
+    viewId: "research-roadmap",
+    viewKind: "research-roadmap",
+    title: "Research roadmap",
+    schemaRef: "contracts/schemas/v2/mas-research-trajectory-snapshot-v2.schema.json",
+    schemaVersion: "mas-research-trajectory-snapshot.v2",
+    revision: 4,
+    digest: "sha256:abc",
+    availability: "unread",
+    valid: true
+  }, {
+    itemId: "wrong-item",
+    viewId: "unknown-view",
+    viewKind: "future_view",
+    availability: "invalid",
+    valid: false,
+    invalidReason: "item_id_mismatch"
+  }]);
+  assert.equal(parseDomainDetailViewDescriptors(undefined, "project:one:study-one").length, 0);
 });
 
 test("work-item runtime projection preserves user status semantics and unknown telemetry", () => {

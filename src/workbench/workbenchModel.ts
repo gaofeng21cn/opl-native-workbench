@@ -187,6 +187,28 @@ export type WorkItemRuntimeStage = {
   totalTokens: number | null;
 };
 
+export type DomainDetailViewAvailability =
+  | "unread"
+  | "available"
+  | "missing"
+  | "stale"
+  | "invalid"
+  | "read_error";
+
+export type DomainDetailViewDescriptor = {
+  itemId: string;
+  viewId: string;
+  viewKind: string;
+  title?: string;
+  schemaRef?: string;
+  schemaVersion?: string;
+  revision?: number;
+  digest?: string;
+  availability: DomainDetailViewAvailability;
+  valid: boolean;
+  invalidReason?: string;
+};
+
 export type WorkItemRuntimeItem = {
   id: string;
   agentId: string;
@@ -222,6 +244,7 @@ export type WorkItemRuntimeItem = {
   telemetryMissingReason?: string;
   archived: boolean;
   stages: WorkItemRuntimeStage[];
+  domainDetailViews?: DomainDetailViewDescriptor[];
 };
 
 export type WorkItemRuntimeProjection = {
@@ -870,6 +893,71 @@ function asLocalizedText(value: unknown): AgentPackageLocalizedText {
   };
 }
 
+const domainDetailViewAvailabilities = new Set<DomainDetailViewAvailability>([
+  "unread",
+  "available",
+  "missing",
+  "stale",
+  "invalid",
+  "read_error"
+]);
+
+function readDomainDetailViewAvailability(value: unknown): DomainDetailViewAvailability | null {
+  const candidate = asString(value);
+  return candidate && domainDetailViewAvailabilities.has(candidate as DomainDetailViewAvailability)
+    ? candidate as DomainDetailViewAvailability
+    : null;
+}
+
+function readDomainDetailViewRevision(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const revision = asFiniteNumber(value);
+  return revision !== null && Number.isSafeInteger(revision) && revision >= 0 ? revision : undefined;
+}
+
+export function parseDomainDetailViewDescriptors(value: unknown, itemId: string): DomainDetailViewDescriptor[] {
+  if (!Array.isArray(value)) return [];
+  const seenViewIds = new Set<string>();
+  return value.map((candidate, index): DomainDetailViewDescriptor => {
+    const record = asRecord(candidate);
+    const declaredItemId = asString(record?.item_id);
+    const viewId = asString(record?.view_id) ?? `invalid-view-${index + 1}`;
+    const viewKind = asString(record?.view_kind) ?? "unknown";
+    const title = asString(record?.title) ?? undefined;
+    const schemaRef = asString(record?.schema_ref) ?? undefined;
+    const schemaVersion = asString(record?.schema_version) ?? undefined;
+    const digest = asString(record?.digest) ?? undefined;
+    const availability = readDomainDetailViewAvailability(record?.availability);
+    const revisionValue = record?.revision;
+    const revision = readDomainDetailViewRevision(revisionValue);
+    const invalidReasons: string[] = [];
+    if (!record) invalidReasons.push("descriptor_not_object");
+    if (!declaredItemId) invalidReasons.push("item_id_missing");
+    else if (declaredItemId !== itemId) invalidReasons.push("item_id_mismatch");
+    if (!asString(record?.view_id)) invalidReasons.push("view_id_missing");
+    if (!asString(record?.view_kind)) invalidReasons.push("view_kind_missing");
+    if (!availability) invalidReasons.push("availability_invalid");
+    if (revisionValue !== undefined && revisionValue !== null && revision === undefined) {
+      invalidReasons.push("revision_invalid");
+    }
+    if (seenViewIds.has(viewId)) invalidReasons.push("view_id_duplicate");
+    seenViewIds.add(viewId);
+    return {
+      itemId: declaredItemId ?? itemId,
+      viewId,
+      viewKind,
+      ...(title ? { title } : {}),
+      ...(schemaRef ? { schemaRef } : {}),
+      ...(schemaVersion ? { schemaVersion } : {}),
+      ...(revision !== undefined ? { revision } : {}),
+      ...(digest ? { digest } : {}),
+      availability: invalidReasons.length ? "invalid" : availability as DomainDetailViewAvailability,
+      valid: invalidReasons.length === 0,
+      ...(invalidReasons.length ? { invalidReason: invalidReasons.join(",") } : {})
+    };
+  });
+}
+
 function readWorkItemRuntimeProjection(value: unknown): WorkItemRuntimeProjection | undefined {
   const projection = asRecord(value);
   if (!projection || asString(projection.schema_version) !== "work-item-projection.v2") return undefined;
@@ -911,6 +999,7 @@ function readWorkItemRuntimeProjection(value: unknown): WorkItemRuntimeProjectio
     const identityState = asString(identity?.identity_state);
     const title = asString(identity?.work_item_display_name);
     if (!id || !agentId || !projectId || !workItemId || !title) return [];
+    const domainDetailViews = parseDomainDetailViewDescriptors(item.domain_detail_views, id);
     const status = asString(lifecycle?.primary_state) ?? asString(lifecycle?.business_state) ?? "unknown";
     return [{
       id,
@@ -972,7 +1061,8 @@ function readWorkItemRuntimeProjection(value: unknown): WorkItemRuntimeProjectio
           elapsedSeconds: asFiniteNumber(stage.elapsed_seconds),
           totalTokens: asFiniteNumber(usage?.total_tokens)
         }];
-      })
+      }),
+      ...(Array.isArray(item.domain_detail_views) ? { domainDetailViews } : {})
     }];
   });
 
