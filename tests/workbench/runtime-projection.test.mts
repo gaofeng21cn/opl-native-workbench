@@ -474,28 +474,43 @@ test("managed update reads fast-state currentness and OPL Flow dependencies", ()
         update_channel: "stable",
         components: [{
           component_id: "opl_base",
-          lifecycle_owner: "opl_base",
+          lifecycle_owner: "one-person-lab",
           label: "OPL Base",
           state: "current",
+          channel: "stable",
           current: {
-            installed_version: "0.148.0",
+            installed_version: "0.125.0",
+            latest_version: "0.125.0",
             currentness: "current",
+            manual_guidance: null,
             dependency_catalog: {
               flow_dependencies: [{
                 dependency_id: "officecli",
                 dependency_kind: "cli",
-                relationship: "recommended",
+                activation: "task_routed",
+                offline_bundle: "none",
+                online_install_default: true,
+                source: "installed_owner_descriptor",
+                source_path: "/opt/opl-flow",
+                owner: "opl-flow",
+                bundle_id: "officecli",
+                version_requirement: ">=1.0.0",
+                install_source: "native",
+                relationship: "required",
+                lifecycle_owner: "opl_base",
+                update_mode: "silent_managed",
+                installed: true,
+                observed_status: null,
                 status: "ready",
                 currentness: "current",
-                installed: true,
-                version: "1.0.144",
-                latest_version: "1.0.143",
-                owner: "iofficeai",
-                lifecycle_owner: "opl-framework"
+                version: "1.0.0",
+                latest_version: "1.0.0",
+                ownership: "opl_managed"
               }]
             }
           },
-          auto_apply: { mode: "controlled_apply", eligible: false, app_background_safe: false }
+          auto_apply: { mode: "silent_managed", eligible: false, app_background_safe: true },
+          plan: { summary: "No update required" }
         }]
       }
     }
@@ -506,14 +521,25 @@ test("managed update reads fast-state currentness and OPL Flow dependencies", ()
   assert.deepEqual(projection.components[0]?.flowDependencies, [{
     dependencyId: "officecli",
     dependencyKind: "cli",
-    relationship: "recommended",
+    activation: "task_routed",
+    offlineBundle: "none",
+    onlineInstallDefault: true,
+    source: "installed_owner_descriptor",
+    sourcePath: "/opt/opl-flow",
+    owner: "opl-flow",
+    bundleId: "officecli",
+    versionRequirement: ">=1.0.0",
+    installSource: "native",
+    relationship: "required",
+    lifecycleOwner: "opl_base",
+    updateMode: "silent_managed",
+    installed: true,
+    observedStatus: null,
     status: "ready",
     currentness: "current",
-    installed: true,
-    version: "1.0.144",
-    latestVersion: "1.0.143",
-    owner: "iofficeai",
-    lifecycleOwner: "opl-framework"
+    version: "1.0.0",
+    latestVersion: "1.0.0",
+    ownership: "opl_managed"
   }]);
 });
 

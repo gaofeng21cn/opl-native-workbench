@@ -444,6 +444,8 @@ export type RuntimeMaintenanceActionRef = {
   dangerLevel?: string;
 };
 
+export type ManagedUpdateDependencyVersion = string | Record<string, string | null> | null;
+
 export type ManagedUpdateComponentRef = {
   componentId: "opl_app" | "opl_base" | "opl_packages" | string;
   lifecycleOwner: string;
@@ -464,14 +466,25 @@ export type ManagedUpdateComponentRef = {
 export type ManagedFlowDependencyRef = {
   dependencyId: string;
   dependencyKind: string;
-  relationship?: string;
+  activation: string;
+  offlineBundle: string;
+  onlineInstallDefault: boolean | null;
+  source: string | null;
+  sourcePath: string | null;
+  owner: string | null;
+  bundleId: string | null;
+  versionRequirement: string | null;
+  installSource: string | null;
+  relationship: string;
+  lifecycleOwner: string;
+  updateMode: string;
+  installed: boolean | null;
+  observedStatus: string | null;
   status: string;
   currentness: string;
-  installed: boolean | null;
-  version?: string;
-  latestVersion?: string;
-  owner?: string;
-  lifecycleOwner?: string;
+  version: ManagedUpdateDependencyVersion;
+  latestVersion: ManagedUpdateDependencyVersion;
+  ownership: string | null;
 };
 
 export type ManagedUpdateProjection = {
@@ -881,6 +894,43 @@ function asFiniteNumber(value: unknown): number | null {
 
 function asRecordArray(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? value.map(asRecord).filter((item): item is Record<string, unknown> => Boolean(item)) : [];
+}
+
+function readManagedUpdateDependencyVersion(value: unknown): ManagedUpdateDependencyVersion {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string") return value;
+  const record = asRecord(value);
+  if (!record || Object.values(record).some((item) => item !== null && typeof item !== "string")) return null;
+  return Object.fromEntries(Object.entries(record)) as Record<string, string | null>;
+}
+
+function readManagedUpdateFlowDependency(value: Record<string, unknown>): ManagedFlowDependencyRef | null {
+  const dependencyId = asString(value.dependency_id);
+  const dependencyKind = asString(value.dependency_kind);
+  if (!dependencyId || !dependencyKind) return null;
+  return {
+    dependencyId,
+    dependencyKind,
+    activation: asString(value.activation) ?? "unknown",
+    offlineBundle: asString(value.offline_bundle) ?? "none",
+    onlineInstallDefault: asOptionalBoolean(value.online_install_default),
+    source: asString(value.source),
+    sourcePath: asString(value.source_path),
+    owner: asString(value.owner),
+    bundleId: asString(value.bundle_id),
+    versionRequirement: asString(value.version_requirement),
+    installSource: asString(value.install_source),
+    relationship: asString(value.relationship) ?? "required",
+    lifecycleOwner: asString(value.lifecycle_owner) ?? "unknown",
+    updateMode: asString(value.update_mode) ?? "unknown",
+    installed: asOptionalBoolean(value.installed),
+    observedStatus: asString(value.observed_status),
+    status: asString(value.status) ?? "unknown",
+    currentness: asString(value.currentness) ?? "unknown",
+    version: readManagedUpdateDependencyVersion(value.version),
+    latestVersion: readManagedUpdateDependencyVersion(value.latest_version),
+    ownership: asString(value.ownership)
+  };
 }
 
 function asLocalizedText(value: unknown): AgentPackageLocalizedText {
@@ -3357,23 +3407,12 @@ export function readManagedUpdateProjection(value: unknown): ManagedUpdateProjec
     const dependencyCatalog = asRecord(current?.dependency_catalog);
     const autoApply = asRecord(component.auto_apply);
     const plan = asRecord(component.plan);
-    const flowDependencies = asRecordArray(dependencyCatalog?.flow_dependencies).flatMap((dependency): ManagedFlowDependencyRef[] => {
-      const dependencyId = asString(dependency.dependency_id);
-      const dependencyKind = asString(dependency.dependency_kind);
-      if (!dependencyId || !dependencyKind) return [];
-      return [{
-        dependencyId,
-        dependencyKind,
-        ...(asString(dependency.relationship) ? { relationship: asString(dependency.relationship) as string } : {}),
-        status: asString(dependency.status) ?? "unknown",
-        currentness: asString(dependency.currentness) ?? "unknown",
-        installed: asOptionalBoolean(dependency.installed),
-        ...(asString(dependency.version) ? { version: asString(dependency.version) as string } : {}),
-        ...(asString(dependency.latest_version) ? { latestVersion: asString(dependency.latest_version) as string } : {}),
-        ...(asString(dependency.owner) ? { owner: asString(dependency.owner) as string } : {}),
-        ...(asString(dependency.lifecycle_owner) ? { lifecycleOwner: asString(dependency.lifecycle_owner) as string } : {})
-      }];
-    });
+    const flowDependencies = dependencyCatalog && Array.isArray(dependencyCatalog.flow_dependencies)
+      ? asRecordArray(dependencyCatalog.flow_dependencies).flatMap((dependency) => {
+        const projection = readManagedUpdateFlowDependency(dependency);
+        return projection ? [projection] : [];
+      })
+      : undefined;
     return [{
       componentId,
       lifecycleOwner: asString(component.lifecycle_owner) ?? componentId,
@@ -3390,7 +3429,7 @@ export function readManagedUpdateProjection(value: unknown): ManagedUpdateProjec
       backgroundSafe: asOptionalBoolean(autoApply?.app_background_safe),
       ...(asString(plan?.summary) ? { summary: asString(plan?.summary) as string } : {}),
       ...(asString(current?.manual_guidance) ? { guidance: asString(current?.manual_guidance) as string } : {}),
-      ...(flowDependencies.length ? { flowDependencies } : {})
+      ...(flowDependencies ? { flowDependencies } : {})
     }];
   });
   return {
