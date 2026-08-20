@@ -28,6 +28,8 @@
     "codex_cli_fixed_executor_home",
     "electron_context_isolated_ipc_bridge",
     "shared_node_host_core",
+    "electron_desktop_adapter",
+    "http_sse_web_adapter",
     "cross_platform_electron_desktop",
     "headless_webui",
     "codex_app_server_thread_turn_backend",
