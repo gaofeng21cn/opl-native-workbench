@@ -2,6 +2,18 @@ export function workspaceTitleOf(cwd: string): string {
   return cwd.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? "";
 }
 
+function isWindowsStylePath(value: string): boolean {
+  return /^[A-Za-z]:[/\\]/.test(value) || value.startsWith("\\\\");
+}
+
+export function abbreviateHomePath(path: string, home?: string): string {
+  if (!home || isWindowsStylePath(path) || isWindowsStylePath(home)) return path;
+  const root = home.replace(/\/+$/, "");
+  if (!root || root === "/") return path;
+  if (path.replace(/\/+$/, "") === root) return "~";
+  return path.startsWith(`${root}/`) ? `~${path.slice(root.length)}` : path;
+}
+
 export type SessionId = string;
 export type WorkspaceId = string;
 export type PendingInteractionStatus = "approval" | "plan-review" | "question";

@@ -623,8 +623,8 @@
     },
     "primary_visual_reference": {
       "reference_product": "DeepSeek Harness",
-      "reference_version": "47f943859bef60e4160492346772ded9b24f765a",
-      "reference_date": "2026-08-14",
+      "reference_version": "141eb6fef83422698aef7a981029e843e8161534",
+      "reference_date": "2026-08-20",
       "source_usage": "direct_mit_gui_source_reuse",
       "left_side": "persistent project and conversation rail with search and Settings only",
       "center": "single dominant conversation timeline with bottom composer",
@@ -663,9 +663,9 @@
     },
     "visual_style_reference": {
       "reference_product": "DeepSeek Harness",
-      "reference_version": "47f943859bef60e4160492346772ded9b24f765a",
-      "reference_date": "2026-08-14",
-      "scope": "ten_pinned_gui_package_source_trees_with_vendor_external_opl_adapters",
+      "reference_version": "141eb6fef83422698aef7a981029e843e8161534",
+      "reference_date": "2026-08-20",
+      "scope": "eleven_pinned_gui_package_source_trees_with_opl_slot_adapters",
       "token_source": "src/vendor/deepseek-harness/packages/client/ui-theme/src/styles/design-platform.css",
       "palette": {
         "canvas": "#fff",
@@ -703,8 +703,8 @@
   },
   "reuse_policy": {
     "deepseek_harness_source_usage": "direct_mit_gui_source_reuse",
-    "deepseek_harness_source_ref": "47f943859bef60e4160492346772ded9b24f765a",
-    "deepseek_harness_ui_package_version": "0.1.0-rc.6",
+    "deepseek_harness_source_ref": "141eb6fef83422698aef7a981029e843e8161534",
+    "deepseek_harness_ui_package_version": "0.1.0-rc.8",
     "deepseek_harness_selected_source_reused": true,
     "other_external_gui_source_copied": false,
     "runtime_authority_transfer": false,
@@ -727,12 +727,14 @@
   "reused_oss_module_policy": {
     "policy": "pinned_direct_reuse_for_deepseek_harness_reference_only_for_other_gui_sources",
     "direct_reuse_modules": [
-      "@deepseek-ai/dsh-client-ui-slots@0.1.0-rc.6",
-      "@deepseek-ai/dsh-client-web-react@0.1.0-rc.6"
+      "@deepseek-ai/dsh-client-ui-slots@0.1.0-rc.8",
+      "@deepseek-ai/dsh-invariants@0.1.0-rc.8",
+      "@deepseek-ai/cordis@4.0.1",
+      "use-sync-external-store@1.2.0"
     ],
     "vendored_source_root": "src/vendor/deepseek-harness",
     "source_manifest": "src/composition/deepseekHarnessSourceManifest.json",
-    "vendored_file_count": 263,
+    "vendored_file_count": 277,
     "byte_identical": true,
     "byte_identical_to_pinned_ref": true,
     "vendored_package_roots": [
@@ -745,7 +747,8 @@
       "packages/client/ui-workspace/src",
       "packages/client/ui-settings-general/src",
       "packages/client/ui-theme/src",
-      "packages/client/ui-primitives/src"
+      "packages/client/ui-primitives/src",
+      "packages/client/ui-renderer/src"
     ],
     "ui_primitives_index": "packages/client/ui-primitives/src/index.ts",
     "direct_ui_primitives": [
@@ -758,7 +761,11 @@
       "Menu",
       "icons"
     ],
-    "brand_override": "vendor_external_text_only_branding",
+    "brand_override": "upstream_rc8_brand_slots_with_text_only_opl_occupants",
+    "slot_renderer_source": "packages/client/ui-renderer/src/client/scoped-slots.tsx#createSlotRenderer",
+    "attachment_slot_policy": "registered_empty_occupant_no_multimodal_runtime",
+    "workspace_host_description_policy": "unavailable_until_app_abi_exists",
+    "home_path_abbreviation_policy": "posix_boundary_shim_windows_fail_open_without_app_home_field",
     "active_gui_roots": [
       "packages/client/ui-layout/src/client/AppFrame.tsx#AppFrame",
       "packages/client/ui-sidebar/src/client/SidebarRoot.tsx#SidebarRoot",
@@ -766,7 +773,8 @@
       "packages/client/ui-conversation/src/client/skeleton/ConversationRoot.tsx#ConversationRoot+EmptyHero",
       "packages/client/ui-conversation/src/client/skeleton/InputBar.tsx#InputBar",
       "packages/client/ui-agent-preset/src/client/AgentPresetSeat.tsx#AgentPresetSeat",
-      "packages/client/ui-settings-general/src/client/SettingsRoot.tsx#SettingsRoot"
+      "packages/client/ui-settings-general/src/client/SettingsRoot.tsx#SettingsRoot",
+      "packages/client/ui-renderer/src/client/scoped-slots.tsx#createSlotRenderer"
     ],
     "other_gui_source_reuse": [],
     "deepseek_harness_selected_source_reused": true,

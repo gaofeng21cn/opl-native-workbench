@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { CodexAppServerTransport } from "../../scripts/webui-host/app-server-transport.mjs";
+import { abbreviateHomePath } from "../../src/integrations/deepseek-harness/runtimeShim.ts";
 import { assistantDisplayMarkdown } from "../../src/workbench/messageDisplay.ts";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -36,8 +37,12 @@ const gatewayLoginHost = read("scripts/webui-host/gateway-account-login.mjs");
 const contributionComponents = read("src/composition/contributionComponents.tsx");
 const contributionProjection = read("src/composition/contributionProjection.ts");
 const primitiveIndex = read("src/vendor/deepseek-harness/packages/client/ui-primitives/src/index.ts");
+const scopedSlots = read("src/vendor/deepseek-harness/packages/client/ui-renderer/src/client/scoped-slots.tsx");
+const runtimeShim = read("src/integrations/deepseek-harness/runtimeShim.ts");
+const bunBuild = read("scripts/bun-build-renderer-entry.ts");
 const sourceManifest = JSON.parse(read("src/composition/deepseekHarnessSourceManifest.json"));
 const candidateEvidence = JSON.parse(read("src/candidateContractEvidence.json"));
+const packageJson = JSON.parse(read("package.json"));
 const tsconfig = JSON.parse(read("tsconfig.json"));
 const typecheckConfig = JSON.parse(read("tsconfig.typecheck.json"));
 
@@ -65,6 +70,14 @@ test("renderer consumes one standard Codex thread adapter", () => {
     "CoordinationLedger",
     "ThreadCoordinationHost"
   ]) assert.doesNotMatch(runtimeSources, new RegExp(retired));
+});
+
+test("DSH workspace home abbreviation is POSIX-boundary-safe and Windows fail-open", () => {
+  assert.equal(abbreviateHomePath("/Users/opl/project", "/Users/opl"), "~/project");
+  assert.equal(abbreviateHomePath("/Users/opl/", "/Users/opl/"), "~");
+  assert.equal(abbreviateHomePath("/Users/opl-other/project", "/Users/opl"), "/Users/opl-other/project");
+  assert.equal(abbreviateHomePath("C:\\Users\\opl\\project", "C:\\Users\\opl"), "C:\\Users\\opl\\project");
+  assert.equal(abbreviateHomePath("\\\\server\\share\\project", "\\\\server\\share"), "\\\\server\\share\\project");
 });
 
 test("ordinary fallback data and example content stay out of the renderer", () => {
@@ -536,16 +549,29 @@ test("desktop visual shell uses vendored DeepSeek Harness roots and theme tokens
   assert.match(styles, /\[data-streamdown="code-block"\]/);
 });
 
-test("DSH controls resolve to the complete pinned upstream primitives tree while OPL identity stays text-only", () => {
+test("DSH rc8 controls resolve to the complete pinned source cohort and OPL-owned slots", () => {
   const primitiveAlias = ["src/vendor/deepseek-harness/packages/client/ui-primitives/src/index.ts"];
   assert.deepEqual(tsconfig.compilerOptions.paths["@deepseek-ai/dsh-client-ui-primitives"], primitiveAlias);
   assert.deepEqual(typecheckConfig.compilerOptions.paths["@deepseek-ai/dsh-client-ui-primitives"], primitiveAlias);
-  assert.equal(sourceManifest.snapshot.file_count, 263);
-  assert.equal(sourceManifest.files.length, 263);
+  assert.equal(sourceManifest.upstream.ref, "141eb6fef83422698aef7a981029e843e8161534");
+  assert.equal(sourceManifest.upstream.source_package_version, "0.1.0-rc.8");
+  assert.equal(sourceManifest.snapshot.file_count, 277);
+  assert.equal(sourceManifest.files.length, 277);
   assert.equal(sourceManifest.snapshot.byte_identical_to_pinned_ref, true);
   assert.ok(sourceManifest.snapshot.package_roots.includes("packages/client/ui-primitives/src"));
-  assert.equal(candidateEvidence.reused_oss_module_policy.vendored_file_count, 263);
+  assert.ok(sourceManifest.snapshot.package_roots.includes("packages/client/ui-renderer/src"));
+  assert.equal(candidateEvidence.reused_oss_module_policy.vendored_file_count, 277);
   assert.equal(candidateEvidence.reused_oss_module_policy.byte_identical_to_pinned_ref, true);
+  assert.deepEqual(candidateEvidence.reused_oss_module_policy.direct_reuse_modules, [
+    "@deepseek-ai/dsh-client-ui-slots@0.1.0-rc.8",
+    "@deepseek-ai/dsh-invariants@0.1.0-rc.8",
+    "@deepseek-ai/cordis@4.0.1",
+    "use-sync-external-store@1.2.0"
+  ]);
+  assert.equal(packageJson.dependencies["@deepseek-ai/dsh-client-ui-slots"], "0.1.0-rc.8");
+  assert.equal(packageJson.dependencies["@deepseek-ai/dsh-invariants"], "0.1.0-rc.8");
+  assert.equal(packageJson.dependencies["@deepseek-ai/dsh-client-web-react"], undefined);
+  assert.equal(packageJson.dependencies["@deepseek-ai/dsh-client-ui-renderer"], undefined);
   assert.equal(fs.existsSync(path.join(root, "src/integrations/deepseek-harness/uiPrimitives.tsx")), false);
 
   for (const [source, primitives] of [
@@ -557,10 +583,19 @@ test("DSH controls resolve to the complete pinned upstream primitives tree while
     for (const primitive of primitives) assert.match(primitiveIndex, new RegExp(`export \\{ ${primitive} \\}`));
   }
 
-  assert.match(adapterStyles, /svg\[viewBox="0 0 182 24"\]/);
-  assert.match(adapterStyles, /svg\[viewBox="0 0 23\.16 17\.04"\]/);
-  assert.match(adapterStyles, /display: none/);
-  assert.match(adapterStyles, /content: "One Person Lab"/);
+  assert.match(scopedSlots, /export function createSlotRenderer/);
+  assert.match(slotHost, /ui-renderer\/src\/client\/scoped-slots\.tsx/);
+  for (const slot of ["sidebar.brand.mark", "sidebar.brand.name", "conversation.hero.brand.mark", "conversation.input.attachments"]) {
+    assert.ok(slotHost.includes(`register({ name: "${slot}", registrant: "opl-studio" }`));
+  }
+  assert.match(slotHost, /function OplBrandMarkSlot/);
+  assert.match(slotHost, />\s*OPL\s*<\/span>/);
+  assert.match(slotHost, /function OplBrandNameSlot\(\) \{ return <>One Person Lab<\/>; \}/);
+  assert.match(slotHost, /function EmptyAttachmentSlot\(\) \{ return null; \}/);
+  assert.match(slotHost, /useHostDescription=\{\(selector: any\) => selector\(undefined\)\}/);
+  assert.match(runtimeShim, /export function abbreviateHomePath/);
+  assert.match(runtimeShim, /isWindowsStylePath/);
+  assert.match(bunBuild, /"process\.env\.DSH_CLIENT_COMMIT_HASH": JSON\.stringify\(""\)/);
   assert.match(slotHost, /"hero.headline": \["One Person Lab", "One Person Lab"\]/);
   assert.match(slotHost, /"hero.preview": \["预览版", "Preview"\]/);
   assert.match(slotHost, /function SettingsHeaderSlot\(\) \{ return <>One Person Lab<\/>; \}/);

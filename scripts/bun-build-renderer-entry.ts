@@ -9,6 +9,9 @@ const result = await Bun.build({
   outdir,
   target: "browser",
   format: format as "esm" | "cjs" | "iife",
+  define: {
+    "process.env.DSH_CLIENT_COMMIT_HASH": JSON.stringify("")
+  },
   tsconfig: path.join(root, "tsconfig.json")
 });
 

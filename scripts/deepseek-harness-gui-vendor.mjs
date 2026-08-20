@@ -8,7 +8,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const vendorRoot = path.join(root, "src", "vendor", "deepseek-harness");
 const manifestPath = path.join(root, "src", "composition", "deepseekHarnessSourceManifest.json");
 const upstreamRepo = "https://github.com/deepseek-ai/deepseek-harness";
-const upstreamRef = "47f943859bef60e4160492346772ded9b24f765a";
+const upstreamRef = "141eb6fef83422698aef7a981029e843e8161534";
 const packageRoots = [
   "packages/client/ui-layout/src",
   "packages/client/ui-sidebar/src",
@@ -19,7 +19,8 @@ const packageRoots = [
   "packages/client/ui-workspace/src",
   "packages/client/ui-settings-general/src",
   "packages/client/ui-theme/src",
-  "packages/client/ui-primitives/src"
+  "packages/client/ui-primitives/src",
+  "packages/client/ui-renderer/src"
 ];
 
 function fail(message) {
@@ -114,7 +115,7 @@ function sync(sourceRoot) {
       repo: upstreamRepo,
       ref: upstreamRef,
       branch_at_intake: "master",
-      source_package_version: "0.1.0-rc.5",
+      source_package_version: "0.1.0-rc.8",
       license: "MIT"
     },
     snapshot: {

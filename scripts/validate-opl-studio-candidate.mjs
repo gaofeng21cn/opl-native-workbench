@@ -49,6 +49,8 @@ const requiredFiles = [
   "src/vendor/deepseek-harness/packages/client/ui-settings-general/src/client/SettingsRoot.tsx",
   "src/vendor/deepseek-harness/packages/client/ui-theme/src/styles/design-platform.css",
   "src/vendor/deepseek-harness/packages/client/ui-primitives/src/index.ts",
+  "src/vendor/deepseek-harness/packages/client/ui-renderer/src/client/scoped-slots.tsx",
+  "src/types/use-sync-external-store.d.ts",
   "src/renderer-shell.html",
   "src/workbench/App.tsx",
   "src/workbench/codexWorkbenchStyles.ts",
@@ -321,15 +323,16 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
   const primitiveIndex = read("src/vendor/deepseek-harness/packages/client/ui-primitives/src/index.ts");
   const composerPalette = read("src/workbench/ComposerCapabilityPalette.tsx");
   const contributionComponents = read("src/composition/contributionComponents.tsx");
-  const adapterStyles = read("src/integrations/deepseek-harness/oplAdapter.css");
+  const runtimeShim = read("src/integrations/deepseek-harness/runtimeShim.ts");
+  const bunBuild = read("scripts/bun-build-renderer-entry.ts");
   const notices = read("THIRD_PARTY_NOTICES.md");
   const architecture = read("docs/architecture.md");
   const activePlan = read("docs/active/current-state-vs-ideal-gap.md");
   const publicEntry = read("README.md");
   assert(alignment, "missing DeepSeek Harness GUI source-reuse evidence");
   assert(alignment.reference_product === "DeepSeek Harness", "DeepSeek Harness must be the primary GUI reference");
-  assert(alignment.reference_version === "47f943859bef60e4160492346772ded9b24f765a", "pinned DeepSeek Harness source ref must be recorded");
-  assert(alignment.reference_date === "2026-08-14", "DeepSeek Harness inspection date must be recorded");
+  assert(alignment.reference_version === "141eb6fef83422698aef7a981029e843e8161534", "pinned DeepSeek Harness source ref must be recorded");
+  assert(alignment.reference_date === "2026-08-20", "DeepSeek Harness inspection date must be recorded");
   assert(alignment.source_usage === "direct_mit_gui_source_reuse", "DeepSeek Harness use must be direct GUI source reuse");
   assert(alignment.left_side === "persistent project and conversation rail with search and Settings only", "project rail placement must be recorded");
   assert(alignment.center === "single dominant conversation timeline with bottom composer", "conversation placement must be recorded");
@@ -339,7 +342,7 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
   assert(evidence.default_home_layout?.details_default_open === false, "task details must be closed by default");
   assert(evidence.webui_parity?.desktop_and_webui_default_home === "chat_first_default_collapsed", "desktop and WebUI must share the chat-first default-collapsed home");
   assert(visualStyle?.reference_version === alignment.reference_version, "visual tokens must bind to the same DeepSeek Harness source ref");
-  assert(visualStyle?.scope === "ten_pinned_gui_package_source_trees_with_vendor_external_opl_adapters", "visual source scope must cover all ten pinned DSH GUI package trees");
+  assert(visualStyle?.scope === "eleven_pinned_gui_package_source_trees_with_opl_slot_adapters", "visual source scope must cover all eleven pinned DSH GUI package trees");
   assert(visualStyle?.token_source === "src/vendor/deepseek-harness/packages/client/ui-theme/src/styles/design-platform.css", "DeepSeek Harness token source must be exact");
   for (const marker of ["--dsw-static-deepseek-450", "--dsw-alias-button-primary-fill", "--dsw-alias-tooltip-bg"]) {
     assert(themeSource.includes(marker), `missing vendored DeepSeek Harness design token ${marker}`);
@@ -347,6 +350,10 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
   for (const marker of ["SlotCore", "createSlotRenderer", "core.register", "core.onEntryError", "active.dispose()"]){
     assert(slotHost.includes(marker), `missing DeepSeek Harness slot lifecycle marker ${marker}`);
   }
+  assert(
+    slotHost.includes('import { createSlotRenderer } from "../vendor/deepseek-harness/packages/client/ui-renderer/src/client/scoped-slots.tsx"'),
+    "createSlotRenderer must come from the pinned rc8 source cohort"
+  );
   for (const [component, moduleName] of [
     ["AppFrame", "@opl-vendor/dsh-app-frame"],
     ["SidebarRoot", "@opl-vendor/dsh-sidebar-root"],
@@ -365,6 +372,15 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
     slotHost.includes('register({ name: "conversation.input.dock", id: "queue", order: 20, registrant: "dsh-ui-conversation" }, QueueDockSlot)'),
     "DSH QueueDock must occupy the ordered conversation input dock slot"
   );
+  for (const slot of ["sidebar.brand.mark", "sidebar.brand.name", "conversation.hero.brand.mark", "conversation.input.attachments"]) {
+    assert(slotHost.includes(`register({ name: "${slot}", registrant: "opl-studio" }`), `missing rc8 OPL slot occupant ${slot}`);
+  }
+  assert(slotHost.includes("function OplBrandNameSlot() { return <>One Person Lab</>; }"), "rc8 brand name slot must render One Person Lab text");
+  assert(slotHost.includes("OPL\n    </span>"), "rc8 brand mark slot must render OPL text");
+  assert(slotHost.includes("function EmptyAttachmentSlot() { return null; }"), "rc8 attachment slot must remain an empty adapter");
+  assert(slotHost.includes("useHostDescription={(selector: any) => selector(undefined)}"), "workspace host description must remain unavailable without a new App ABI field");
+  assert(runtimeShim.includes("export function abbreviateHomePath") && runtimeShim.includes("isWindowsStylePath"), "runtime shim must provide POSIX home abbreviation with Windows fail-open");
+  assert(bunBuild.includes('"process.env.DSH_CLIENT_COMMIT_HASH": JSON.stringify("")'), "browser build must not read Node process for the DSH commit hash");
   assert(
     /bridge\.steerTurn\(\{\s*threadId: active\.threadId,\s*expectedTurnId: active\.turnId,/s.test(appSource),
     "queued follow-ups must steer the exact active Codex thread and turn"
@@ -375,15 +391,22 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
   assert(mainSource.includes('import { renderOplStudioRoot } from "./composition/dshSlotHost"'), "main must import the DSH composition host");
   assert(mainSource.includes("createRoot(rootElement).render(renderOplStudioRoot())"), "main must render the DSH composition root");
   assert(sourceManifest.upstream?.ref === alignment.reference_version, "vendor manifest must bind to the pinned DSH ref");
-  assert(sourceManifest.upstream?.source_package_version === "0.1.0-rc.5", "vendor manifest must record the pinned source package version");
+  assert(sourceManifest.upstream?.source_package_version === "0.1.0-rc.8", "vendor manifest must record the pinned source package version");
   assert(sourceManifest.snapshot?.local_root === "src/vendor/deepseek-harness", "vendor manifest root must be canonical");
   assert(sourceManifest.snapshot?.byte_identical === true, "vendor snapshot must remain byte-identical");
   assert(sourceManifest.snapshot?.byte_identical_to_pinned_ref === true, "vendor snapshot byte identity must bind to the pinned DSH ref");
-  assert(sourceManifest.snapshot?.file_count === 263 && sourceManifest.files?.length === 263, "vendor manifest must inventory 263 files");
+  assert(sourceManifest.snapshot?.file_count === 277 && sourceManifest.files?.length === 277, "vendor manifest must inventory 277 files");
+  assert(sourceManifest.snapshot?.package_roots?.includes("packages/client/ui-renderer/src"), "vendor manifest must include the rc8 ui-renderer source root");
   assert(JSON.stringify(sourceManifest.snapshot?.package_roots) === JSON.stringify(evidence.reused_oss_module_policy.vendored_package_roots), "candidate evidence package roots must match the vendor manifest");
   const vendorCheck = spawnSync(process.execPath, [path.join(root, "scripts/deepseek-harness-gui-vendor.mjs"), "check"], { cwd: root, encoding: "utf8" });
   assert(vendorCheck.status === 0, `vendored DSH GUI byte parity failed: ${vendorCheck.stderr}`);
   assert(packageJson.dependencies?.clsx === "2.1.1", "DeepSeek Harness GUI closure must declare clsx directly");
+  assert(packageJson.dependencies?.["@deepseek-ai/dsh-client-ui-slots"] === "0.1.0-rc.8", "DSH slot runtime must be pinned to rc8");
+  assert(packageJson.dependencies?.["@deepseek-ai/dsh-invariants"] === "0.1.0-rc.8", "DSH invariants must be pinned to rc8");
+  assert(packageJson.dependencies?.["@deepseek-ai/cordis"] === "4.0.1", "Cordis boundary must remain pinned to 4.0.1");
+  assert(packageJson.dependencies?.["use-sync-external-store"] === "1.2.0", "vendored rc8 renderer closure must declare use-sync-external-store directly");
+  assert(packageJson.dependencies?.["@deepseek-ai/dsh-client-web-react"] === undefined, "obsolete dsh-client-web-react must stay removed");
+  assert(packageJson.dependencies?.["@deepseek-ai/dsh-client-ui-renderer"] === undefined, "ui-renderer must be reused as pinned source, not installed as a package");
   const primitiveAlias = ["src/vendor/deepseek-harness/packages/client/ui-primitives/src/index.ts"];
   assert(JSON.stringify(tsconfig.compilerOptions?.paths?.["@deepseek-ai/dsh-client-ui-primitives"]) === JSON.stringify(primitiveAlias), "renderer imports must resolve the DSH primitives specifier to the vendored upstream index");
   assert(JSON.stringify(typecheckConfig.compilerOptions?.paths?.["@deepseek-ai/dsh-client-ui-primitives"]) === JSON.stringify(primitiveAlias), "typecheck imports must resolve the DSH primitives specifier to the vendored upstream index");
@@ -396,11 +419,8 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
     assert(source.includes('from "@deepseek-ai/dsh-client-ui-primitives"'), "OPL primitive consumers must import the upstream DSH package specifier directly");
     for (const name of names) assert(primitiveIndex.includes(`export { ${name} }`), `vendored DSH primitive index must export ${name}`);
   }
-  for (const marker of ['svg[viewBox="0 0 182 24"]', 'svg[viewBox="0 0 23.16 17.04"]', "display: none", 'content: "One Person Lab"']) {
-    assert(adapterStyles.includes(marker), `vendor-external text-only OPL identity must preserve ${marker}`);
-  }
   assert(!mainSource.includes("--opl-brand-logo") && !mainSource.includes("branding/opl-app-logo.png"), "renderer must keep OPL identity text-only without a Logo asset");
-  assert(notices.includes("47f943859bef60e4160492346772ded9b24f765a") && notices.includes("MIT License"), "third-party notices must preserve pinned DSH source and MIT license");
+  assert(notices.includes("141eb6fef83422698aef7a981029e843e8161534") && notices.includes("use-sync-external-store") && notices.includes("MIT License"), "third-party notices must preserve pinned rc8 source and runtime licenses");
   assert(architecture.includes("Model And Settings Boundary") && architecture.includes("App product profile"), "architecture must route model and settings authority to App");
   assert(architecture.includes("Codex App Server owns canonical thread identity"), "architecture must route thread truth to Codex App Server");
   assert(architecture.includes("AionUI is the current active release shell"), "architecture must preserve the active-shell boundary");
@@ -611,20 +631,30 @@ for (const capability of [
   assert(evidence.capabilities.includes(capability), `missing evidence capability ${capability}`);
 }
 assert(evidence.reuse_policy.deepseek_harness_source_usage === "direct_mit_gui_source_reuse", "DeepSeek Harness GUI use must be direct and pinned");
-assert(evidence.reuse_policy.deepseek_harness_source_ref === "47f943859bef60e4160492346772ded9b24f765a", "DeepSeek Harness source ref must be pinned");
-assert(evidence.reuse_policy.deepseek_harness_ui_package_version === "0.1.0-rc.6", "DeepSeek Harness UI packages must use the verified version");
+assert(evidence.reuse_policy.deepseek_harness_source_ref === "141eb6fef83422698aef7a981029e843e8161534", "DeepSeek Harness source ref must be pinned");
+assert(evidence.reuse_policy.deepseek_harness_ui_package_version === "0.1.0-rc.8", "DeepSeek Harness UI packages must use the verified version");
 assert(evidence.reuse_policy.deepseek_harness_selected_source_reused === true, "selected DeepSeek Harness source must be declared as reused");
 assert(evidence.reused_oss_module_policy.vendored_source_root === "src/vendor/deepseek-harness", "DeepSeek Harness source must have one explicit vendor root");
 assert(evidence.reused_oss_module_policy.source_manifest === "src/composition/deepseekHarnessSourceManifest.json", "DeepSeek Harness source manifest must be canonical");
-assert(evidence.reused_oss_module_policy.vendored_file_count === 263, "DeepSeek Harness source inventory must contain 263 files");
+assert(evidence.reused_oss_module_policy.vendored_file_count === 277, "DeepSeek Harness source inventory must contain 277 files");
 assert(evidence.reused_oss_module_policy.byte_identical === true, "DeepSeek Harness vendor source must remain byte-identical");
 assert(evidence.reused_oss_module_policy.byte_identical_to_pinned_ref === true, "DeepSeek Harness vendor source byte identity must bind to the pinned ref");
 assert(evidence.reused_oss_module_policy.vendored_package_roots?.includes("packages/client/ui-primitives/src"), "DeepSeek Harness source reuse must include the complete ui-primitives tree");
+assert(evidence.reused_oss_module_policy.vendored_package_roots?.includes("packages/client/ui-renderer/src"), "DeepSeek Harness source reuse must include the complete ui-renderer tree");
 assert(evidence.reused_oss_module_policy.ui_primitives_index === "packages/client/ui-primitives/src/index.ts", "DeepSeek Harness primitive reuse must name the upstream index");
+assert(JSON.stringify(evidence.reused_oss_module_policy.direct_reuse_modules) === JSON.stringify([
+  "@deepseek-ai/dsh-client-ui-slots@0.1.0-rc.8",
+  "@deepseek-ai/dsh-invariants@0.1.0-rc.8",
+  "@deepseek-ai/cordis@4.0.1",
+  "use-sync-external-store@1.2.0"
+]), "DeepSeek Harness runtime closure must match the rc8 adapter boundary");
   for (const primitive of ["Button", "Pill", "Input", "Tooltip", "StateDot", "MessageText", "Menu", "icons"]) {
   assert(evidence.reused_oss_module_policy.direct_ui_primitives?.includes(primitive), `missing direct DeepSeek Harness primitive evidence ${primitive}`);
 }
-assert(evidence.reused_oss_module_policy.brand_override === "vendor_external_text_only_branding", "OPL branding must stay text-only and outside vendored DSH source");
+assert(evidence.reused_oss_module_policy.brand_override === "upstream_rc8_brand_slots_with_text_only_opl_occupants", "OPL branding must use the rc8 brand slots");
+assert(evidence.reused_oss_module_policy.slot_renderer_source === "packages/client/ui-renderer/src/client/scoped-slots.tsx#createSlotRenderer", "candidate evidence must name the pinned slot renderer source");
+assert(evidence.reused_oss_module_policy.attachment_slot_policy === "registered_empty_occupant_no_multimodal_runtime", "candidate evidence must not claim multimodal attachment support");
+assert(evidence.reused_oss_module_policy.workspace_host_description_policy === "unavailable_until_app_abi_exists", "candidate evidence must not claim a host-description ABI");
 for (const rootName of ["AppFrame", "SidebarRoot", "ConversationRoot", "InputBar", "SettingsRoot"]) {
   assert(evidence.reused_oss_module_policy.active_gui_roots.some((entry) => entry.includes(rootName)), `missing active DeepSeek Harness GUI root ${rootName}`);
 }
