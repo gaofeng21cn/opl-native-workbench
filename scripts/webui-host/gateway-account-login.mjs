@@ -127,6 +127,9 @@ function commandResult({ command, args, cwd, env, stdin, spawnImpl, timeoutMs, m
     child.stderr.setEncoding("utf8");
     child.stdout.on("data", (chunk) => { stdout = append(stdout, chunk); });
     child.stderr.on("data", (chunk) => { stderr = append(stderr, chunk); });
+    child.stdin.on("error", (error) => {
+      stderr = append(stderr, error.message);
+    });
     child.once("error", (error) => {
       stderr = append(stderr, error.message);
       finish(-1);
