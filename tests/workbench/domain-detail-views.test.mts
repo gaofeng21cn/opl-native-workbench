@@ -55,16 +55,16 @@ function payload() {
 
 function readback(overrides: Record<string, unknown> = {}) {
   return {
-    schema_version: "opl_domain_detail_view.v1",
-    surface_kind: "opl_domain_detail_view",
-    item_id: descriptor.itemId,
-    view_id: descriptor.viewId,
-    view_kind: descriptor.viewKind,
+    schemaVersion: "opl_domain_detail_view.v1",
+    surfaceKind: "opl_domain_detail_view",
+    itemId: descriptor.itemId,
+    viewId: descriptor.viewId,
+    viewKind: descriptor.viewKind,
     availability: "available",
     revision: 4,
-    not_modified: false,
+    notModified: false,
     payload: payload(),
-    payload_schema_ref: descriptor.schemaRef,
+    payloadSchemaRef: descriptor.schemaRef,
     conditions: [],
     ...overrides
   };
@@ -90,18 +90,18 @@ test("domain detail readback rejects wrong envelope and identity while accepting
     assert.equal(valid.readback.payloadSchemaRef, descriptor.schemaRef);
   }
   assert.deepEqual(
-    parseDomainDetailViewReadback(readback({ item_id: "other-item" }), descriptor),
+    parseDomainDetailViewReadback(readback({ itemId: "other-item" }), descriptor),
     { ok: false, reason: "readback_item_id_mismatch" }
   );
   assert.deepEqual(
-    parseDomainDetailViewReadback(readback({ payload_schema_ref: "wrong.schema.json" }), descriptor),
+    parseDomainDetailViewReadback(readback({ payloadSchemaRef: "wrong.schema.json" }), descriptor),
     { ok: false, reason: "readback_schema_ref_mismatch" }
   );
-  const unchanged = parseDomainDetailViewReadback(readback({ not_modified: true, payload: null }), descriptor);
+  const unchanged = parseDomainDetailViewReadback(readback({ notModified: true, payload: null }), descriptor);
   assert.equal(unchanged.ok, true);
   if (unchanged.ok) assert.equal(unchanged.readback.payload, null);
   assert.deepEqual(
-    parseDomainDetailViewReadback(readback({ schema_version: "wrong.v1" }), descriptor),
+    parseDomainDetailViewReadback(readback({ schemaVersion: "wrong.v1" }), descriptor),
     { ok: false, reason: "readback_schema_invalid" }
   );
 });
@@ -118,6 +118,8 @@ test("runtime integration uses descriptor callbacks and does not branch on agent
   const runtimePage = fs.readFileSync(path.join(root, "src/workbench/RuntimeOverviewPage.tsx"), "utf8");
   const app = fs.readFileSync(path.join(root, "src/workbench/App.tsx"), "utf8");
   const renderer = fs.readFileSync(path.join(root, "src/workbench/domainDetailViews.tsx"), "utf8");
+  assert.match(runtimePage, /<DomainDetailViewEntryList/);
+  assert.match(runtimePage, /data-route=\{route\}/);
   assert.match(runtimePage, /<DomainDetailViews/);
   assert.match(runtimePage, /readDomainDetailView/);
   assert.match(app, /readDomainDetailView/);

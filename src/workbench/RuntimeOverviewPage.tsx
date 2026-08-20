@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   Activity,
+  ArrowLeft,
   Archive,
   ChevronDown,
   Clock3,
@@ -12,7 +13,11 @@ import {
 } from "lucide-react";
 import type { WorkItemRuntimeItem, WorkItemRuntimeProjection } from "./workbenchModel";
 import type { ServiceRecoveryAction, ServiceRecoveryModel } from "./serviceRecoveryModel";
-import { DomainDetailViews, type DomainDetailViewRead } from "./domainDetailViews";
+import {
+  DomainDetailViewEntryList,
+  DomainDetailViews,
+  type DomainDetailViewRead
+} from "./domainDetailViews";
 
 type RuntimeOverviewPageProps = {
   locale: "zh" | "en";
@@ -32,6 +37,11 @@ type RuntimeOverviewPageProps = {
 };
 
 type StatusFilter = "all" | "running" | "attention" | "paused" | "completed" | "stopped";
+
+type ActiveDomainDetailRoute = {
+  itemId: string;
+  viewId: string;
+};
 
 function statusCategory(item: WorkItemRuntimeItem): Exclude<StatusFilter, "all"> | "other" {
   if (item.executionState === "running" || item.status === "running") return "running";
@@ -130,6 +140,7 @@ export function RuntimeOverviewPage({
   const [showArchived, setShowArchived] = useState(false);
   const [openStagesFor, setOpenStagesFor] = useState<string | null>(null);
   const [pendingRecoveryAction, setPendingRecoveryAction] = useState<ServiceRecoveryAction | null>(null);
+  const [activeDomainDetailRoute, setActiveDomainDetailRoute] = useState<ActiveDomainDetailRoute | null>(null);
   const copy = locale === "zh" ? {
     title: "项目运行总览",
     scope: "查看范围",
@@ -232,6 +243,16 @@ export function RuntimeOverviewPage({
     && (projectId === "all" || item.projectId === projectId)
     && (status === "all" || statusCategory(item) === status)
   )), [agentId, projectId, projection?.items, showArchived, status]);
+  const activeDomainDetailItem = useMemo(() => {
+    if (!activeDomainDetailRoute) return undefined;
+    const item = projection?.items.find((candidate) => candidate.id === activeDomainDetailRoute.itemId);
+    if (!item) return undefined;
+    return {
+      ...item,
+      domainDetailViews: (item.domainDetailViews ?? []).filter((view) => view.viewId === activeDomainDetailRoute.viewId)
+    };
+  }, [activeDomainDetailRoute, projection?.items]);
+  const activeDomainDetailView = activeDomainDetailItem?.domainDetailViews?.[0];
   const recoveryNeedsAttention = serviceRecovery !== undefined && serviceRecovery.causalRoot.status !== "ready";
   const attentionCount = projection
     ? projection.summary.userAttentionCount + projection.summary.systemAttentionCount + (recoveryNeedsAttention ? 1 : 0)
@@ -252,6 +273,41 @@ export function RuntimeOverviewPage({
     const project = projection?.projects.find((candidate) => candidate.id === projectId);
     if (value !== "all" && project?.agentId !== value) setProjectId("all");
   };
+
+  if (activeDomainDetailRoute) {
+    const route = `/runtime/item/${encodeURIComponent(activeDomainDetailRoute.itemId)}/insights/${encodeURIComponent(activeDomainDetailRoute.viewId)}`;
+    return (
+      <section className="opl-runtime-overview runtime-domain-view" data-testid="opl-runtime-domain-detail-page" data-route={route} aria-labelledby="runtime-domain-view-title">
+        <header className="runtime-overview-header runtime-domain-view-header">
+          <div>
+            <button
+              type="button"
+              className="runtime-icon-button"
+              aria-label={locale === "zh" ? "返回项目运行总览" : "Back to project runtime overview"}
+              title={locale === "zh" ? "返回项目运行总览" : "Back to project runtime overview"}
+              onClick={() => setActiveDomainDetailRoute(null)}
+            >
+              <ArrowLeft aria-hidden="true" size={16} />
+            </button>
+            <div className="runtime-domain-view-title">
+              <span>{activeDomainDetailItem?.projectDisplayName ?? copy.title}</span>
+              <h1 id="runtime-domain-view-title">{activeDomainDetailView?.title ?? activeDomainDetailRoute.viewId}</h1>
+            </div>
+          </div>
+        </header>
+        {activeDomainDetailItem && activeDomainDetailView ? (
+          <DomainDetailViews
+            item={activeDomainDetailItem}
+            locale={locale}
+            readDomainDetailView={readDomainDetailView}
+            initialViewId={activeDomainDetailView.viewId}
+          />
+        ) : (
+          <p className="runtime-overview-empty" role="status">{locale === "zh" ? "此任务详情视图暂不可用" : "This work item detail view is unavailable"}</p>
+        )}
+      </section>
+    );
+  }
 
   return (
     <section className="opl-runtime-overview" data-testid="opl-runtime-overview-page" aria-labelledby="opl-runtime-overview-title">
@@ -402,7 +458,13 @@ export function RuntimeOverviewPage({
                 <div><dt>{copy.cumulativeUsage}</dt><dd>{formatTokens(item.totalTokens, locale)}</dd></div>
                 <div className="runtime-work-time"><Clock3 aria-hidden="true" size={13} /><span>{item.updatedAt ? formatTimestamp(item.updatedAt, locale) : "-"}</span></div>
               </dl>
-              {selected ? <DomainDetailViews item={item} locale={locale} readDomainDetailView={readDomainDetailView} /> : null}
+              {selected ? (
+                <DomainDetailViewEntryList
+                  item={item}
+                  locale={locale}
+                  onOpen={(view) => setActiveDomainDetailRoute({ itemId: item.id, viewId: view.viewId })}
+                />
+              ) : null}
             </article>
           );
         })}

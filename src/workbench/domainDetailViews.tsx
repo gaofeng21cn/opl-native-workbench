@@ -26,8 +26,7 @@ type RecordValue = Record<string, unknown>;
 const READBACK_SCHEMA_VERSION = "opl_domain_detail_view.v1";
 const READBACK_SURFACE_KIND = "opl_domain_detail_view";
 const RESEARCH_ROADMAP_SCHEMA_REFS = [
-  "contracts/schemas/v2/mas-research-trajectory-snapshot-v2.schema.json",
-  "contracts/schemas/research-roadmap.schema.json"
+  "contracts/schemas/v2/mas-research-trajectory-snapshot-v2.schema.json"
 ] as const;
 
 function asRecord(value: unknown): RecordValue | null {
@@ -222,6 +221,7 @@ export type DomainDetailViewReadback = {
   payloadSchemaRef?: string;
   payloadSchema?: unknown;
   conditions: unknown[];
+  readback?: unknown;
 };
 
 export type DomainDetailViewReadValidation =
@@ -241,22 +241,22 @@ export function parseDomainDetailViewReadback(
 ): DomainDetailViewReadValidation {
   const record = asRecord(value);
   if (!record) return { ok: false, reason: "readback_not_object" };
-  if (record.schema_version !== READBACK_SCHEMA_VERSION) return { ok: false, reason: "readback_schema_invalid" };
-  if (record.surface_kind !== READBACK_SURFACE_KIND) return { ok: false, reason: "readback_surface_invalid" };
-  const itemId = asText(record.item_id);
-  const viewId = asText(record.view_id);
-  const viewKind = asText(record.view_kind);
+  if (record.schemaVersion !== READBACK_SCHEMA_VERSION) return { ok: false, reason: "readback_schema_invalid" };
+  if (record.surfaceKind !== READBACK_SURFACE_KIND) return { ok: false, reason: "readback_surface_invalid" };
+  const itemId = asText(record.itemId);
+  const viewId = asText(record.viewId);
+  const viewKind = asText(record.viewKind);
   const availability = readbackAvailability(record.availability);
   const revision = safeRevision(record.revision);
   if (!itemId || !viewId || !viewKind || !availability || revision === undefined) {
     return { ok: false, reason: "readback_identity_invalid" };
   }
-  if (typeof record.not_modified !== "boolean") return { ok: false, reason: "readback_not_modified_invalid" };
+  if (typeof record.notModified !== "boolean") return { ok: false, reason: "readback_not_modified_invalid" };
+  const payloadSchemaRef = asText(record.payloadSchemaRef);
   if (descriptor) {
     if (itemId !== descriptor.itemId) return { ok: false, reason: "readback_item_id_mismatch" };
     if (viewId !== descriptor.viewId) return { ok: false, reason: "readback_view_id_mismatch" };
     if (viewKind !== descriptor.viewKind) return { ok: false, reason: "readback_view_kind_mismatch" };
-    const payloadSchemaRef = asText(record.payload_schema_ref);
     if (descriptor.schemaRef && payloadSchemaRef && descriptor.schemaRef !== payloadSchemaRef) {
       return { ok: false, reason: "readback_schema_ref_mismatch" };
     }
@@ -264,10 +264,11 @@ export function parseDomainDetailViewReadback(
       return { ok: false, reason: "readback_schema_version_mismatch" };
     }
   }
-  if (record.not_modified && record.payload !== null && record.payload !== undefined) {
+  if (record.notModified && record.payload !== null && record.payload !== undefined) {
     return { ok: false, reason: "readback_not_modified_payload" };
   }
   const conditions = Array.isArray(record.conditions) ? record.conditions : [];
+  const generation = safeRevision(record.generation);
   return {
     ok: true,
     readback: {
@@ -278,13 +279,14 @@ export function parseDomainDetailViewReadback(
       viewKind,
       availability,
       revision,
-      notModified: record.not_modified,
+      notModified: record.notModified,
       payload: record.payload ?? null,
       ...(asText(record.digest) ? { digest: asText(record.digest) } : {}),
-      ...(safeRevision(record.generation) !== undefined ? { generation: safeRevision(record.generation) } : {}),
-      ...(asText(record.payload_schema_ref) ? { payloadSchemaRef: asText(record.payload_schema_ref) } : {}),
-      ...(record.payload_schema !== undefined ? { payloadSchema: record.payload_schema } : {}),
-      conditions
+      ...(generation !== undefined ? { generation } : {}),
+      ...(payloadSchemaRef ? { payloadSchemaRef } : {}),
+      ...(record.payloadSchema !== undefined ? { payloadSchema: record.payloadSchema } : {}),
+      conditions,
+      ...(record.readback !== undefined ? { readback: record.readback } : {})
     }
   };
 }
@@ -421,15 +423,49 @@ export type DomainDetailViewsProps = {
   item: WorkItemRuntimeItem;
   locale: "zh" | "en";
   readDomainDetailView?: DomainDetailViewRead;
+  initialViewId?: string;
 };
 
-export function DomainDetailViews({ item, locale, readDomainDetailView }: DomainDetailViewsProps) {
+export type DomainDetailViewEntryListProps = {
+  item: WorkItemRuntimeItem;
+  locale: "zh" | "en";
+  onOpen(view: DomainDetailViewDescriptor): void;
+};
+
+export function DomainDetailViewEntryList({ item, locale, onOpen }: DomainDetailViewEntryListProps) {
+  const views = item.domainDetailViews ?? [];
+  if (!views.length) return null;
+  return (
+    <div className="opl-runtime-detail-result runtime-domain-view-entries" data-testid="opl-domain-detail-view-entries">
+      <h4>{locale === "zh" ? "任务详情视图" : "Work item detail views"}</h4>
+      <div className="runtime-domain-view-entry-list" role="list">
+        {views.map((view) => (
+          <button
+            key={view.viewId}
+            type="button"
+            role="listitem"
+            data-view-id={view.viewId}
+            data-view-kind={view.viewKind}
+            aria-label={`${locale === "zh" ? "打开" : "Open"} ${view.title ?? view.viewId}`}
+            onClick={() => onOpen(view)}
+          >
+            <Route aria-hidden="true" size={14} />
+            {view.title ?? view.viewId}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function DomainDetailViews({ item, locale, readDomainDetailView, initialViewId }: DomainDetailViewsProps) {
   const views = item.domainDetailViews ?? [];
   const itemId = item.id;
-  const [selectedViewId, setSelectedViewId] = useState<string | undefined>(views[0]?.viewId);
+  const [selectedViewId, setSelectedViewId] = useState<string | undefined>(initialViewId ?? views[0]?.viewId);
   const [viewStates, setViewStates] = useState<Record<string, ParsedDomainViewState>>({});
   const viewStatesRef = useRef(viewStates);
   const previousItemIdRef = useRef(itemId);
+  const initialLoadKeyRef = useRef<string | undefined>();
   useEffect(() => {
     viewStatesRef.current = viewStates;
   }, [viewStates]);
@@ -442,6 +478,14 @@ export function DomainDetailViews({ item, locale, readDomainDetailView }: Domain
   useEffect(() => {
     setSelectedViewId((current) => views.some((view) => view.viewId === current) ? current : views[0]?.viewId);
   }, [views]);
+  useEffect(() => {
+    if (!initialViewId) return;
+    const key = `${itemId}:${initialViewId}`;
+    if (initialLoadKeyRef.current === key) return;
+    initialLoadKeyRef.current = key;
+    const view = views.find((candidate) => candidate.viewId === initialViewId);
+    if (view) setSelectedViewId(view.viewId);
+  }, [initialViewId, itemId, views]);
 
   const loadView = useCallback(async (view: DomainDetailViewDescriptor) => {
     const previous = viewStatesRef.current[view.viewId];
@@ -505,6 +549,16 @@ export function DomainDetailViews({ item, locale, readDomainDetailView }: Domain
     }
   }, [itemId, item.domainWorkItemId, item.workItemId, readDomainDetailView]);
 
+  useEffect(() => {
+    if (!initialViewId) return;
+    const key = `${itemId}:${initialViewId}:read`;
+    if (initialLoadKeyRef.current === key) return;
+    const view = views.find((candidate) => candidate.viewId === initialViewId);
+    if (!view) return;
+    initialLoadKeyRef.current = key;
+    void loadView(view);
+  }, [initialViewId, itemId, loadView, views]);
+
   const selectedView = useMemo(
     () => views.find((view) => view.viewId === selectedViewId) ?? views[0],
     [selectedViewId, views]
@@ -514,7 +568,7 @@ export function DomainDetailViews({ item, locale, readDomainDetailView }: Domain
   const selectedRenderer = selectedView ? resolveDomainDetailViewRenderer(selectedView.viewKind) : undefined;
 
   return (
-    <section className="opl-runtime-detail-result" data-testid="opl-domain-detail-views" aria-label={locale === "zh" ? "任务详情视图" : "Work item detail views"}>
+    <section className="opl-runtime-detail-result runtime-domain-detail-view" data-testid="opl-domain-detail-views" aria-label={locale === "zh" ? "任务详情视图" : "Work item detail views"}>
       <header>
         <h4><Route aria-hidden="true" size={15} />{locale === "zh" ? "任务详情" : "Work item details"}</h4>
       </header>

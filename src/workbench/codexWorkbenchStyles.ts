@@ -3930,6 +3930,106 @@ export const codexWorkbenchStyles = `
     color: var(--opl-text);
   }
 
+  .runtime-domain-view-header > div {
+    flex: 1;
+  }
+
+  .runtime-domain-view-title {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+  }
+
+  .runtime-domain-view-title > span {
+    color: var(--opl-muted);
+    font-size: 11px;
+  }
+
+  .runtime-domain-view-title h1 {
+    overflow-wrap: anywhere;
+  }
+
+  .runtime-domain-detail-view {
+    margin-top: 24px;
+  }
+
+  .runtime-domain-detail-view > header h4,
+  .runtime-domain-view-entries > h4 {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .runtime-domain-detail-view > header h4 {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .runtime-domain-detail-view > nav,
+  .runtime-domain-view-entry-list {
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .runtime-domain-detail-view > nav button,
+  .runtime-domain-view-entry-list > button {
+    min-width: 0;
+    min-height: 34px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 10px;
+    border: 1px solid var(--opl-border);
+    border-radius: 7px;
+    background: var(--opl-canvas);
+    color: var(--opl-text);
+    overflow-wrap: anywhere;
+    text-align: left;
+  }
+
+  .runtime-domain-detail-view > nav button[aria-selected="true"],
+  .runtime-domain-detail-view > nav button:hover,
+  .runtime-domain-view-entry-list > button:hover {
+    border-color: var(--opl-border-heavy);
+    background: var(--opl-hover);
+  }
+
+  .runtime-domain-detail-view > [role="tabpanel"] {
+    min-width: 0;
+    padding-top: 16px;
+    border-top: 1px solid var(--opl-border);
+  }
+
+  .runtime-domain-detail-view > [role="tabpanel"] > p {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0;
+    color: var(--opl-muted);
+  }
+
+  .runtime-domain-detail-view > [role="tabpanel"] > button {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 12px;
+    border: 1px solid var(--opl-border);
+    border-radius: 7px;
+    background: var(--opl-canvas);
+    color: var(--opl-muted);
+  }
+
+  .runtime-domain-view-entries {
+    grid-column: 1 / -1;
+    padding-top: 12px;
+    border-top: 1px solid var(--opl-border);
+  }
+
   .runtime-scope-band {
     min-width: 0;
     display: grid;
