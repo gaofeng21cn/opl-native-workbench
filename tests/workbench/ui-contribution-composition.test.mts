@@ -42,6 +42,7 @@ const projectionState = {
         trust_tier: "declarative",
         scope: "work_item",
         sort_order: 20,
+        action_boundary: "opl app action execute --json",
         view: {
           view_id: "roadmap",
           view_type: "task_board",
@@ -263,6 +264,7 @@ describe("OPL Studio DSH contribution composition", () => {
       "mas:research-roadmap"
     ]);
     expect(projection.entries[1]?.view?.dataRef).toBe("mas.research-roadmap.v1#current");
+    expect(projection.entries[1]?.actionBoundary).toBe("opl app action execute --json");
     expect(projection.entries[1]?.commands[0]?.actionRef).toBe("mas.research-roadmap.v1#refresh");
     expect(Object.keys(projection.entries[1]?.commands[0] ?? {}).sort()).toEqual([
       "actionRef",

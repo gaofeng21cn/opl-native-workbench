@@ -87,6 +87,7 @@ export type OplUiContribution = {
   trustTier: string;
   scope: string;
   sortOrder: number;
+  actionBoundary?: string;
   view?: OplUiContributionView;
   commands: OplUiContributionCommand[];
   badges: OplUiContributionBadge[];
@@ -756,6 +757,7 @@ function parseEntry(value: unknown): OplUiContribution | null {
   ) return null;
 
   const view = parseView(entry?.view);
+  const actionBoundary = asString(entry?.action_boundary);
   return {
     contributionKey,
     contributionId,
@@ -767,6 +769,7 @@ function parseEntry(value: unknown): OplUiContribution | null {
     sortOrder: typeof entry?.sort_order === "number" && Number.isFinite(entry.sort_order)
       ? entry.sort_order
       : 0,
+    ...(actionBoundary ? { actionBoundary } : {}),
     ...(view ? { view } : {}),
     commands: Array.isArray(entry?.commands)
       ? entry.commands.map(parseCommand).filter((command): command is OplUiContributionCommand => command !== null)

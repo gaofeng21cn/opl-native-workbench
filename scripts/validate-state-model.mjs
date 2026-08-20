@@ -72,12 +72,6 @@ function loadSampleState() {
   const existing = fs.existsSync(sampleStatePath)
     ? JSON.parse(fs.readFileSync(sampleStatePath, "utf8"))
     : null;
-  if (
-    getPath(existing, "app_state.agent_packages")
-    && Array.isArray(getPath(existing, "app_state.actions"))
-  ) {
-    return existing;
-  }
   try {
     const stdout = execFileSync("opl", ["app", "state", "--profile", "fast", "--json"], {
       encoding: "utf8",

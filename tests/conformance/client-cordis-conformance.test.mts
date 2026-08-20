@@ -82,6 +82,7 @@ const hostState = {
         trust_tier: "declarative",
         scope: "work_item",
         sort_order: 20,
+        action_boundary: "opl app action execute --json",
         view: {
           view_id: "roadmap",
           view_type: "task_board",
@@ -141,6 +142,7 @@ describe("OPL Studio Client Cordis conformance", () => {
     expect(composition.contributions.readSlot("runtime.detail")).toMatchObject([{
       contributionKey: "mas:roadmap",
       packageId: "mas",
+      actionBoundary: "opl app action execute --json",
       view: { title: { "en-US": "Roadmap" } },
       commands: [{ label: { "en-US": "Refresh" }, actionRef: "mas.roadmap.v1#refresh" }]
     }]);
