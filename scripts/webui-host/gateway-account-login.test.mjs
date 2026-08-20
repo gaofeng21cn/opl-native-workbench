@@ -14,15 +14,15 @@ function fakeSpawn(response, observed) {
     child.stdout.setEncoding = () => undefined;
     child.stderr.setEncoding = () => undefined;
     child.kill = () => undefined;
-    child.stdin = {
-      end(input) {
-        observed.stdin = input;
-        queueMicrotask(() => {
-          if (response.stdout) child.stdout.emit("data", response.stdout);
-          if (response.stderr) child.stderr.emit("data", response.stderr);
-          child.emit("close", response.exitCode ?? 0);
-        });
-      }
+    child.stdin = new EventEmitter();
+    child.stdin.end = (input) => {
+      observed.stdin = input;
+      queueMicrotask(() => {
+        if (response.stdinError) child.stdin.emit("error", response.stdinError);
+        if (response.stdout) child.stdout.emit("data", response.stdout);
+        if (response.stderr) child.stderr.emit("data", response.stderr);
+        child.emit("close", response.exitCode ?? 0);
+      });
     };
     return child;
   };
@@ -47,6 +47,23 @@ test("Gateway account login keeps credentials on stdin and returns only the type
   assert.equal(observed.stdin.includes("device_label"), false);
   assert.equal(JSON.stringify({ result, args: observed.args }).includes(password), false);
   assert.equal("stdout" in result || "stderr" in result, false);
+});
+
+test("Gateway account login contains stdin EPIPE after a successful child exit", async () => {
+  const observed = {};
+  const stdinError = new Error("write EPIPE");
+  stdinError.code = "EPIPE";
+  const login = createGatewayAccountLogin({
+    spawnImpl: fakeSpawn({
+      stdinError,
+      stdout: JSON.stringify({ ok: true, account: "user@example.com" })
+    }, observed)
+  });
+
+  assert.deepEqual(await login({ email: "user@example.com", password: "secret" }), {
+    ok: true,
+    stateRefreshRequired: true
+  });
 });
 
 test("Gateway account login rejects unexpected request fields before spawning", async () => {
