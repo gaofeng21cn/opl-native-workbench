@@ -777,15 +777,10 @@ export function App({
   onHostStateDispose
 }: AppProps) {
   const bridge = useMemo(() => createBrowserBridge(), []);
-  const readDomainDetailView = useCallback((request: DomainDetailViewReadRequest) => {
-    const domainDetailBridge = bridge as typeof bridge & {
-      readDomainDetailView?: (input: DomainDetailViewReadRequest) => Promise<unknown>;
-    };
-    if (!domainDetailBridge.readDomainDetailView) {
-      return Promise.reject(new Error("OPL domain detail view reads are unavailable in this host"));
-    }
-    return domainDetailBridge.readDomainDetailView(request);
-  }, [bridge]);
+  const readDomainDetailView = useCallback(
+    (request: DomainDetailViewReadRequest) => bridge.readDomainDetailView(request),
+    [bridge]
+  );
   const persistedUi = useMemo(() => readPersistedWorkbenchUi(), []);
   const cachedRuntime = useMemo(() => readRuntimeOverviewCache(), []);
   const conversationRef = useRef<HTMLElement | null>(null);

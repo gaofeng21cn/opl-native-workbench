@@ -8,18 +8,18 @@ import {
   type ReactNode
 } from "react";
 import type {
+  OplDomainDetailViewReadRequest,
+  OplDomainDetailViewReadback
+} from "../bridge/oplBridge";
+import type {
   DomainDetailViewDescriptor,
   DomainDetailViewAvailability,
   WorkItemRuntimeItem
 } from "./workbenchModel";
 
-export type DomainDetailViewReadRequest = {
-  itemId: string;
-  viewId: string;
-  ifRevision?: number;
-};
+export type DomainDetailViewReadRequest = OplDomainDetailViewReadRequest;
 
-export type DomainDetailViewRead = (request: DomainDetailViewReadRequest) => Promise<unknown>;
+export type DomainDetailViewRead = (request: DomainDetailViewReadRequest) => Promise<OplDomainDetailViewReadback>;
 
 type RecordValue = Record<string, unknown>;
 
