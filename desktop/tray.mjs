@@ -10,9 +10,19 @@ export function shouldCreateDesktopTray({
 
 function threadLabel(thread, index) {
   for (const candidate of [thread?.name, thread?.title, thread?.preview]) {
-    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+    if (typeof candidate === "string" && candidate.trim()) return truncateMenuTitle(candidate);
   }
   return `Task ${index + 1}`;
+}
+
+export const MAX_RECENT_THREAD_TITLE_LENGTH = 48;
+
+export function truncateMenuTitle(value, maxLength = MAX_RECENT_THREAD_TITLE_LENGTH) {
+  const title = typeof value === "string" ? value.trim() : "";
+  const characters = Array.from(title);
+  if (characters.length <= maxLength) return title;
+  if (maxLength <= 1) return "…".slice(0, maxLength);
+  return `${characters.slice(0, maxLength - 1).join("")}…`;
 }
 
 function threadId(thread) {

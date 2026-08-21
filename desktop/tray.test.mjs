@@ -4,8 +4,10 @@ import test from "node:test";
 import {
   buildDesktopTrayMenu,
   createDesktopTray,
+  MAX_RECENT_THREAD_TITLE_LENGTH,
   readProjectedRunningCount,
-  shouldCreateDesktopTray
+  shouldCreateDesktopTray,
+  truncateMenuTitle
 } from "./tray.mjs";
 
 test("macOS ordinary desktop enables the tray while IPC smoke launches stay isolated", () => {
@@ -56,6 +58,32 @@ test("tray menu exposes real window, runtime, recent-thread, update, restart, an
   byLabel.get("重新启动")?.click();
   byLabel.get("退出 One Person Lab")?.click();
   assert.deepEqual(calls, ["show", "runtime", "thread:thread-1", "update", "restart", "quit"]);
+});
+
+test("recent thread labels stay bounded without changing the thread target", () => {
+  const longTitle = `ACTIVE | OPL Studio | ${"更新投影与完整 App 集成 ".repeat(12)}`;
+  const opened = [];
+  const template = buildDesktopTrayMenu({
+    locale: "zh",
+    recentThreads: [{ id: "thread-long", title: longTitle }],
+    actions: {
+      showWindow: () => undefined,
+      hideWindow: () => undefined,
+      newTask: () => undefined,
+      openRuntime: () => undefined,
+      openThread: (id) => opened.push(id),
+      checkForUpdates: () => undefined,
+      showAbout: () => undefined,
+      restart: () => undefined,
+      quit: () => undefined
+    }
+  });
+  const item = template.find((entry) => entry.label?.endsWith("…"));
+  assert.ok(item);
+  assert.equal(Array.from(item.label).length, MAX_RECENT_THREAD_TITLE_LENGTH);
+  assert.equal(truncateMenuTitle(longTitle), item.label);
+  item.click();
+  assert.deepEqual(opened, ["thread-long"]);
 });
 
 test("tray controller reads recent threads and routes menu actions through existing host and renderer callers", async () => {
