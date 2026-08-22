@@ -54,6 +54,13 @@ COPY tsconfig.json tsconfig.typecheck.json ./
 COPY --from=app-product-profile /src/one-person-lab-app/contracts/app-product-profile.json ./one-person-lab-app/contracts/app-product-profile.json
 RUN npm run build:webui
 
+FROM ${NODE_IMAGE} AS production-dependencies
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY packages ./packages
+RUN npm ci --omit=dev \
+  && npm cache clean --force
+
 FROM ${NODE_IMAGE} AS runtime
 ARG OPL_SOURCE_REVISION=local-candidate
 WORKDIR /app
@@ -71,6 +78,9 @@ RUN apt-get update \
 
 COPY --from=framework-builder /opt/opl-framework /opt/opl-framework
 COPY --from=codex-builder /opt/codex /opt/codex
+COPY --from=production-dependencies --chown=node:node /app/package.json ./package.json
+COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_modules
+COPY --from=production-dependencies --chown=node:node /app/packages ./packages
 COPY --from=renderer-builder --chown=node:node /app/dist/webui ./dist/webui
 COPY --from=renderer-builder --chown=node:node /app/scripts/headless ./scripts/headless
 COPY --from=renderer-builder --chown=node:node /app/scripts/webui-host ./scripts/webui-host

@@ -16,17 +16,25 @@ test("OCI carrier runs only the Node headless host with persistent non-root defa
   assert.match(dockerfile, /ARG OPL_APP_REF=9a7775704619c4e2d6f607874f8aa20227b103fb/);
   assert.match(dockerfile, /npm pack --workspaces --ignore-scripts/);
   assert.match(dockerfile, /npm install --global --prefix \/opt\/opl-framework --omit=dev \/tmp\/one-person-lab-\*\.tgz \/tmp\/opl-framework-\*\.tgz/);
+  const productionDependencies = dockerfile.slice(
+    dockerfile.indexOf("FROM ${NODE_IMAGE} AS production-dependencies"),
+    dockerfile.indexOf("FROM ${NODE_IMAGE} AS runtime")
+  );
+  assert.match(productionDependencies, /COPY packages \.\/packages/);
+  assert.match(productionDependencies, /npm ci --omit=dev/);
   assert.match(compose, /OPL_FRAMEWORK_REF:-b0811d88051beee0296345a1692bcccfc3971daf/);
   assert.match(compose, /OPL_APP_REF:-9a7775704619c4e2d6f607874f8aa20227b103fb/);
   const runtime = dockerfile.slice(dockerfile.indexOf("FROM ${NODE_IMAGE} AS runtime"));
   assert.match(runtime, /org\.opencontainers\.image\.revision="\$\{OPL_SOURCE_REVISION\}"/);
+  assert.match(runtime, /COPY --from=production-dependencies --chown=node:node \/app\/package\.json \.\/package\.json/);
+  assert.match(runtime, /COPY --from=production-dependencies --chown=node:node \/app\/node_modules \.\/node_modules/);
+  assert.match(runtime, /COPY --from=production-dependencies --chown=node:node \/app\/packages \.\/packages/);
   assert.doesNotMatch(runtime, /org\.opencontainers\.image\.licenses/);
   assert.match(runtime, /USER node/);
   assert.match(runtime, /VOLUME \["\/data", "\/projects"\]/);
   assert.match(runtime, /HEALTHCHECK[\s\S]*\/healthz/);
   assert.match(runtime, /CMD \["node", "scripts\/headless\/run\.mjs"\]/);
   assert.doesNotMatch(runtime, /electron|aionui|aioncore/i);
-  assert.doesNotMatch(runtime, /package\.json/);
   assert.match(compose, /127\.0\.0\.1:\$\{OPL_APP_PORT:-4178\}/);
   assert.match(compose, /opl-data:\/data/);
   assert.match(compose, /opl-projects:\/projects/);
