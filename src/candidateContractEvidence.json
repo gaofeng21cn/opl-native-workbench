@@ -914,12 +914,12 @@
     "receipt_path": "out/qualification/client-conformance.json",
     "receipt_is_git_ignored": true,
     "external_cohort": {
-      "framework_commit": "d3f7ec9f02580aab6e2083b2008a1d340186b52c",
-      "framework_tree": "4e444b56d6520666c13776764c4fbdffb78e20b8",
-      "app_commit": "c4a207fde359287c5ab05c91e1a994e39d165e5a",
-      "app_tree": "77514717aa4fe5de4390c7f6312b1558c9b6eeae",
-      "aionui_commit": "724c14d23df8d0d796e6d85b09271402ae6066d4",
-      "aionui_tree": "24aef1fe81f6e1d821ce5d5fc7b2c1c64660791b"
+      "framework_commit": "98f9bfa714270550d3e1906a13bce2baf0fac822",
+      "framework_tree": "40fd94d678e58016e561e6aaf6a1b89c2331f4fc",
+      "app_commit": "9aa8c5065df6649c7a7e06b4d458a100fae1f67b",
+      "app_tree": "5e1cc49721ee07860e649675c0e83fbf7df4e0e0",
+      "aionui_commit": "cab89d2699395de3c1c612dab9f78319964d9118",
+      "aionui_tree": "a638d24e9a3c57976ee44d8a9fd01bc65c86bc94"
     },
     "framework_producer": "src/read-models/operator/app-state-ui-contributions.ts#buildAppUiContributionsProjection",
     "host_app_studio_e2e": true,
