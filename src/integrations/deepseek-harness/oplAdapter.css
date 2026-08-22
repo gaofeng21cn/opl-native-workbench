@@ -156,6 +156,31 @@ select {
   display: none;
 }
 
+.opl-studio-dsh-root [data-slot="sidebar.brand.mark"] {
+  display: none;
+}
+
+.opl-studio-dsh-root button:has([data-slot="sidebar.brand.mark"]) > svg {
+  display: inline !important;
+}
+
+.opl-studio-dsh-root div:has(> span > [data-slot="conversation.hero.brand.mark"]) {
+  grid-template-columns: auto auto;
+  column-gap: 7px;
+}
+
+.opl-studio-dsh-root div:has(> span > [data-slot="conversation.hero.brand.mark"]) > span:has(> [data-slot="conversation.hero.brand.mark"]) {
+  display: none;
+}
+
+.opl-studio-dsh-root div:has(> span > [data-slot="conversation.hero.brand.mark"]) > span:has(> [data-slot="conversation.hero.brand.mark"]) + span {
+  grid-column: 1;
+}
+
+.opl-studio-dsh-root div:has(> span > [data-slot="conversation.hero.brand.mark"]) > span:has(> [data-slot="conversation.hero.brand.mark"]) + span + span {
+  grid-column: 2;
+}
+
 .opl-studio-dsh-root button:has(> svg[viewBox="0 0 182 24"])::after {
   content: "One Person Lab";
   overflow: hidden;

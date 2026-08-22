@@ -441,6 +441,10 @@ test("Web host exposes the product brand while keeping Studio as an internal cli
   assert.match(webHostTransport, /name: "opl-studio-webui"/);
   assert.match(webHostTransport, /title: "One Person Lab"/);
   assert.doesNotMatch(webHostTransport, /title: "OPL Studio WebUI"/);
+  assert.match(adapterStyles, /\[data-slot="sidebar\.brand\.mark"\] \{\s*display: none;/s);
+  assert.match(adapterStyles, /button:has\(\[data-slot="sidebar\.brand\.mark"\]\) > svg \{\s*display: inline !important;/s);
+  assert.match(adapterStyles, /conversation\.hero\.brand\.mark[^}]*grid-template-columns: auto auto/s);
+  assert.match(adapterStyles, /conversation\.hero\.brand\.mark[^}]*display: none/s);
 });
 
 test("App update restart follows the carrier result instead of a host-name special case", () => {
@@ -781,6 +785,8 @@ test("ordinary startup waits for four truthful readiness reads before exposing t
   }
   assert.match(startupView, /`已就绪 \$\{startupReadyCount\} \/ \$\{startupStages\.length\}`/);
   assert.match(startupView, /data-testid="opl-startup-readiness"/);
+  assert.match(startupView, /<div className="startup-readiness-wordmark">One Person Lab<\/div>/);
+  assert.doesNotMatch(startupView, /startup-readiness-wordmark[^\n]*OPL/);
   assert.match(startupView, /重新加载/);
   assert.match(startupView, /受限进入/);
   assert.doesNotMatch(startupView, /%|progressPercent|Math\.round/);

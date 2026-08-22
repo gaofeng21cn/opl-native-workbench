@@ -2661,10 +2661,7 @@ export function App({
         <style>{codexWorkbenchStyles}</style>
         <main className="startup-readiness" data-testid="opl-startup-readiness" aria-busy={!startupHasFailure}>
           <section className="startup-readiness-content" aria-labelledby="opl-startup-title">
-            <div className="startup-readiness-wordmark" aria-label="One Person Lab">
-              <span aria-hidden="true">OPL</span>
-              <strong>One Person Lab</strong>
-            </div>
+            <div className="startup-readiness-wordmark">One Person Lab</div>
             <h1 id="opl-startup-title">{settings.locale === "zh" ? "正在准备工作区" : "Preparing your workspace"}</h1>
             <p className="startup-readiness-count" aria-live="polite">
               {settings.locale === "zh"

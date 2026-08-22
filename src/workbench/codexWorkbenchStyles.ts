@@ -116,23 +116,9 @@ export const codexWorkbenchStyles = `
   }
 
   .startup-readiness-wordmark {
-    display: flex;
-    gap: 18px;
-    align-items: baseline;
     min-width: 0;
     margin-bottom: 26px;
     color: var(--opl-text, rgb(15, 17, 21));
-  }
-
-  .startup-readiness-wordmark > span {
-    flex: 0 0 auto;
-    font-size: 18px;
-    font-weight: 760;
-    line-height: 1;
-  }
-
-  .startup-readiness-wordmark > strong {
-    min-width: 0;
     overflow-wrap: anywhere;
     font-size: 32px;
     font-weight: 680;
