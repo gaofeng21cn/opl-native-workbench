@@ -918,8 +918,8 @@
       "framework_tree": "40fd94d678e58016e561e6aaf6a1b89c2331f4fc",
       "app_commit": "9aa8c5065df6649c7a7e06b4d458a100fae1f67b",
       "app_tree": "5e1cc49721ee07860e649675c0e83fbf7df4e0e0",
-      "aionui_commit": "cab89d2699395de3c1c612dab9f78319964d9118",
-      "aionui_tree": "a638d24e9a3c57976ee44d8a9fd01bc65c86bc94"
+      "aionui_commit": "02d9a7e553ae45f4ec5050ccd7074225d319228b",
+      "aionui_tree": "9c98945fcc1293e9d1c3ffd195c2f02116deaead"
     },
     "framework_producer": "src/read-models/operator/app-state-ui-contributions.ts#buildAppUiContributionsProjection",
     "host_app_studio_e2e": true,

@@ -121,7 +121,7 @@ const cohort = {
   studio_candidate: {
     commit: git(studioRoot, "rev-parse", "HEAD"),
     tree: git(studioRoot, "rev-parse", "HEAD^{tree}"),
-    dirty: git(studioRoot, "status", "--porcelain").length > 0
+    dirty: git(studioRoot, "status", "--porcelain", "--untracked-files=no").length > 0
   }
 };
 const candidateEvidence = JSON.parse(
