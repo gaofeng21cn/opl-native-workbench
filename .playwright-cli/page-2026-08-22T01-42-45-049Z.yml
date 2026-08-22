@@ -1,0 +1,19 @@
+- main [ref=e4]:
+  - region [ref=e5]:
+    - generic [ref=e6]: OPL
+    - paragraph [ref=e7]: One Person Lab
+    - heading "正在准备工作区" [level=1] [ref=e8]
+    - paragraph [ref=e9]: 已就绪 0 / 4
+    - list [ref=e10]:
+      - listitem [ref=e11]:
+        - strong [ref=e16]: 应用状态与智能体
+        - generic [ref=e17]: 加载中
+      - listitem [ref=e18]:
+        - strong [ref=e23]: 对话
+        - generic [ref=e24]: 加载中
+      - listitem [ref=e25]:
+        - strong [ref=e30]: 模型
+        - generic [ref=e31]: 加载中
+      - listitem [ref=e32]:
+        - strong [ref=e37]: Skill、Plugin 与 App
+        - generic [ref=e38]: 加载中

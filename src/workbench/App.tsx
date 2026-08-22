@@ -2,11 +2,16 @@ import { Button, MessageText, Modal, Pill } from "@deepseek-ai/dsh-client-ui-pri
 import { Streamdown } from "streamdown";
 import {
   Activity,
+  AlertTriangle,
+  ArrowRight,
+  Check,
   CircleEllipsis,
+  Clock3,
   Download,
   Files,
   FileText,
   Folder,
+  LoaderCircle,
   Puzzle,
   RefreshCw,
   Search,
@@ -125,6 +130,15 @@ const contextTabs = [
   "opl-agents-capabilities-panel"
 ] as const;
 type ContextTabId = (typeof contextTabs)[number];
+
+type StartupReadStatus = "loading" | "ready" | "error" | "timeout";
+
+type StartupReadinessStage = {
+  id: "app-state-and-agents" | "conversations" | "models" | "capabilities";
+  label: string;
+  status: StartupReadStatus;
+  detail?: string;
+};
 
 const managedUpdateActionSpecs = [
   {
@@ -790,6 +804,7 @@ export function App({
   const activeTurnRef = useRef<{ threadId: string; turnId: string } | null>(null);
   const ephemeralQueueRef = useRef<EphemeralQueueItem[]>([]);
   const projectedGatewayActionsRef = useRef<ProjectedGatewayAction[]>([]);
+  const startupLoadKeyRef = useRef("");
   const [model, setModel] = useState<WorkbenchModel>(() => {
     const cachedModel = runtimeOverviewModelFromCache(cachedRuntime);
     return cachedModel
@@ -847,6 +862,8 @@ export function App({
   const [lifecycleConfirmation, setLifecycleConfirmation] = useState<{ thread: WorkbenchThreadItem; action: ThreadLifecycleAction } | null>(null);
   const [settings, setSettings] = useState<WorkbenchSettings>(() => readSettings());
   const [codexCatalog, setCodexCatalog] = useState<CodexModelCatalogEntry[]>([]);
+  const [modelCatalogStatus, setModelCatalogStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [modelCatalogError, setModelCatalogError] = useState("");
   const [capabilityCatalog, setCapabilityCatalog] = useState<CodexCapabilityCatalog>(emptyCapabilityCatalog);
   const [capabilityStatus, setCapabilityStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [capabilityError, setCapabilityError] = useState("");
@@ -868,6 +885,9 @@ export function App({
   const [pendingInputFiles, setPendingInputFiles] = useState<WorkbenchArtifactRef[]>([]);
   const [activeContextTab, setActiveContextTab] = useState<ContextTabId>("opl-runtime-status-panel");
   const [primaryView, setPrimaryView] = useState<OplStudioPrimaryView>("conversation");
+  const [startupAttempt, setStartupAttempt] = useState(0);
+  const [startupTimedOut, setStartupTimedOut] = useState(false);
+  const [startupGateOpen, setStartupGateOpen] = useState(false);
   const t = uiCopy[settings.locale];
   const contextTabLabels: Record<ContextTabId, string> = {
     "opl-runtime-status-panel": settings.locale === "zh" ? "运行状态" : "Run status",
@@ -964,6 +984,37 @@ export function App({
   const selectedPreview = previewItems.find((preview) => preview.id === selectedPreviewId) ?? previewItems[0];
   const sidebarSources = runDetail.files.map((file) => ({ id: file.id, label: file.title, summary: file.summary }));
   const modelOptions = useMemo(() => resolveCodexModelOptions(codexCatalog), [codexCatalog]);
+  const startupStages: StartupReadinessStage[] = [
+    {
+      id: "app-state-and-agents",
+      label: settings.locale === "zh" ? "应用状态与智能体" : "App state and Agents",
+      status: stateStatus === "loading" && startupTimedOut ? "timeout" : stateStatus,
+      ...(stateError ? { detail: stateError } : {})
+    },
+    {
+      id: "conversations",
+      label: settings.locale === "zh" ? "对话" : "Conversations",
+      status: threadDirectoryStatus === "loading" && startupTimedOut ? "timeout" : threadDirectoryStatus,
+      ...(threadDirectoryError ? { detail: threadDirectoryError } : {})
+    },
+    {
+      id: "models",
+      label: settings.locale === "zh" ? "模型" : "Models",
+      status: modelCatalogStatus === "loading" && startupTimedOut ? "timeout" : modelCatalogStatus,
+      ...(modelCatalogError ? { detail: modelCatalogError } : {})
+    },
+    {
+      id: "capabilities",
+      label: settings.locale === "zh" ? "Skill、Plugin 与 App" : "Skills, plugins, and apps",
+      status: (capabilityStatus === "idle" || capabilityStatus === "loading") && startupTimedOut
+        ? "timeout"
+        : capabilityStatus === "idle" ? "loading" : capabilityStatus,
+      ...(capabilityError ? { detail: capabilityError } : {})
+    }
+  ];
+  const startupReadyCount = startupStages.filter((stage) => stage.status === "ready").length;
+  const startupHasFailure = startupStages.some((stage) => stage.status === "error" || stage.status === "timeout");
+  const startupAllReady = startupReadyCount === startupStages.length;
   const {
     model: resolvedModel,
     reasoningEffort: resolvedReasoning,
@@ -1559,7 +1610,7 @@ export function App({
     }
   }
 
-  async function openThread(thread: WorkbenchThreadItem) {
+  async function openThread(thread: WorkbenchThreadItem): Promise<string | null> {
     setPrimaryView("conversation");
     setSelectedRuntimeWorkItemId(undefined);
     setThreadActionBusy(true);
@@ -1589,8 +1640,11 @@ export function App({
       setMessages(nextMessages);
       messagesRef.current = nextMessages;
       setThreadDetail(null);
+      return null;
     } catch (error) {
-      setThreadActionError(String(error));
+      const message = String(error);
+      setThreadActionError(message);
+      return message;
     } finally {
       setThreadActionBusy(false);
     }
@@ -1678,36 +1732,68 @@ export function App({
         : persistedProject ?? selectedThreadProject ?? currentWorkspaceProject
           ?? directoryProjects.find((project) => !project.projectless);
       if (selectedProject && selectedProject.id !== uiMetadata.selectedProjectId) updateUiMetadata({ selectedProjectId: selectedProject.id });
-      setThreadDirectoryStatus("ready");
       if (openSavedThread && scope !== "archived" && selectedThreadId) {
         const savedThread = activeProjects.flatMap((project) => project.threads).find((thread) => thread.id === selectedThreadId);
-        if (savedThread) await openThread(savedThread);
+        if (savedThread) {
+          const openError = await openThread(savedThread);
+          if (openError) {
+            setThreadDirectoryStatus("error");
+            setThreadDirectoryError(openError);
+            return;
+          }
+        }
       }
+      setThreadDirectoryStatus("ready");
     } catch (error) {
       setThreadDirectoryStatus("error");
       setThreadDirectoryError(String(error));
     }
   }
 
+  function loadModels() {
+    setModelCatalogStatus("loading");
+    setModelCatalogError("");
+    return bridge.readCodexModels()
+      .then((catalog) => {
+        setCodexCatalog(catalog.models);
+        setModelCatalogStatus("ready");
+        return true;
+      })
+      .catch((error) => {
+        setCodexCatalog([]);
+        setModelCatalogStatus("error");
+        setModelCatalogError(String(error));
+        return false;
+      });
+  }
+
   useEffect(() => {
-    void loadState(settings.runtimeProfile);
-  }, [bridge, settings.runtimeProfile]);
+    const loadKey = `${settings.runtimeProfile}:${startupAttempt}`;
+    if (startupLoadKeyRef.current === loadKey) return;
+    startupLoadKeyRef.current = loadKey;
+    setStartupTimedOut(false);
+    void Promise.all([
+      loadState(settings.runtimeProfile),
+      loadThreadDirectory(true),
+      loadModels(),
+      loadCapabilities(true)
+    ]);
+  }, [bridge, settings.runtimeProfile, startupAttempt]);
+
+  useEffect(() => {
+    if (startupGateOpen || startupAllReady) {
+      if (startupAllReady && !startupGateOpen) setStartupGateOpen(true);
+      return;
+    }
+    const timeout = globalThis.setTimeout(() => setStartupTimedOut(true), 20_000);
+    return () => globalThis.clearTimeout(timeout);
+  }, [startupAllReady, startupAttempt, startupGateOpen]);
 
   useEffect(() => {
     void loadInitialize();
   }, [bridge]);
 
   useEffect(() => () => onHostStateDispose?.(), [onHostStateDispose]);
-
-  useEffect(() => {
-    void loadThreadDirectory(true);
-  }, [bridge]);
-
-  useEffect(() => {
-    void bridge.readCodexModels()
-      .then((catalog) => setCodexCatalog(catalog.models))
-      .catch(() => setCodexCatalog([]));
-  }, [bridge]);
 
   useEffect(() => {
     void bridge.readNativeAppUpdateStatus().then(setNativeAppUpdate).catch(() => setNativeAppUpdate(null));
@@ -2222,8 +2308,8 @@ export function App({
     setSelectedAgent(agentPackageSelectionIntent(agent));
   }
 
-  async function loadCapabilities() {
-    if (capabilityStatus === "loading") return;
+  async function loadCapabilities(force = false) {
+    if (capabilityStatus === "loading" && !force) return false;
     setCapabilityStatus("loading");
     setCapabilityError("");
     try {
@@ -2232,12 +2318,15 @@ export function App({
       if (catalog.errors.length && !catalog.skills.length && !catalog.plugins.length && !catalog.apps.length) {
         setCapabilityStatus("error");
         setCapabilityError(catalog.errors.join("\n"));
+        return false;
       } else {
         setCapabilityStatus("ready");
+        return true;
       }
     } catch (error) {
       setCapabilityStatus("error");
       setCapabilityError(String(error));
+      return false;
     }
   }
 
@@ -2556,6 +2645,64 @@ export function App({
       })()}
     />
   );
+
+  if (!startupGateOpen) {
+    const statusLabel: Record<StartupReadStatus, string> = settings.locale === "zh"
+      ? { loading: "加载中", ready: "已就绪", error: "失败", timeout: "超时" }
+      : { loading: "Loading", ready: "Ready", error: "Failed", timeout: "Timed out" };
+    const statusIcon = (status: StartupReadStatus) => {
+      if (status === "ready") return <Check aria-hidden="true" size={16} />;
+      if (status === "error") return <AlertTriangle aria-hidden="true" size={16} />;
+      if (status === "timeout") return <Clock3 aria-hidden="true" size={16} />;
+      return <LoaderCircle aria-hidden="true" className="startup-readiness-spinner" size={16} />;
+    };
+    return (
+      <>
+        <style>{codexWorkbenchStyles}</style>
+        <main className="startup-readiness" data-testid="opl-startup-readiness" aria-busy={!startupHasFailure}>
+          <section className="startup-readiness-content" aria-labelledby="opl-startup-title">
+            <div className="startup-readiness-wordmark" aria-label="One Person Lab">
+              <span aria-hidden="true">OPL</span>
+              <strong>One Person Lab</strong>
+            </div>
+            <h1 id="opl-startup-title">{settings.locale === "zh" ? "正在准备工作区" : "Preparing your workspace"}</h1>
+            <p className="startup-readiness-count" aria-live="polite">
+              {settings.locale === "zh"
+                ? `已就绪 ${startupReadyCount} / ${startupStages.length}`
+                : `${startupReadyCount} / ${startupStages.length} ready`}
+            </p>
+            <ol className="startup-readiness-stages">
+              {startupStages.map((stage) => (
+                <li key={stage.id} data-status={stage.status}>
+                  <span className="startup-readiness-stage-icon">{statusIcon(stage.status)}</span>
+                  <span className="startup-readiness-stage-copy">
+                    <strong>{stage.label}</strong>
+                    {stage.detail && stage.status !== "ready" ? <span title={stage.detail}>{stage.detail}</span> : null}
+                  </span>
+                  <span className="startup-readiness-stage-status">{statusLabel[stage.status]}</span>
+                </li>
+              ))}
+            </ol>
+            {startupHasFailure ? (
+              <div className="startup-readiness-actions">
+                <button type="button" className="startup-readiness-retry" onClick={() => {
+                  setStartupGateOpen(false);
+                  setStartupTimedOut(false);
+                  setStartupAttempt((attempt) => attempt + 1);
+                }}><RefreshCw aria-hidden="true" size={16} />{settings.locale === "zh" ? "重新加载" : "Retry"}</button>
+                <button type="button" className="startup-readiness-limited" onClick={() => setStartupGateOpen(true)}>
+                  {settings.locale === "zh" ? "受限进入" : "Enter with limits"}<ArrowRight aria-hidden="true" size={16} />
+                </button>
+                <p>{settings.locale === "zh"
+                  ? "未就绪的功能将保持不可用，已加载的功能可以继续使用。"
+                  : "Unavailable features remain disabled; loaded features can still be used."}</p>
+              </div>
+            ) : null}
+          </section>
+        </main>
+      </>
+    );
+  }
 
   return renderShell({
     locale: settings.locale,

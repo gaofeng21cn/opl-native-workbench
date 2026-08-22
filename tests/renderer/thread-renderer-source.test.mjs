@@ -768,6 +768,26 @@ test("Settings directly reuses DSH appearance controls and applies the selected 
   assert.match(styles, /--opl-canvas: var\(--dsw-alias-bg-base\)/);
 });
 
+test("ordinary startup waits for four truthful readiness reads before exposing the shell", () => {
+  const startupView = app.match(/if \(!startupGateOpen\) \{[\s\S]*?\n  return renderShell\(/)?.[0] ?? "";
+  assert.match(app, /void Promise\.all\(\[\s*loadState\(settings\.runtimeProfile\),\s*loadThreadDirectory\(true\),\s*loadModels\(\),\s*loadCapabilities\(true\)\s*\]\)/s);
+  assert.match(app, /const startupReadyCount = startupStages\.filter\(\(stage\) => stage\.status === "ready"\)\.length/);
+  assert.match(app, /const startupAllReady = startupReadyCount === startupStages\.length/);
+  assert.match(app, /globalThis\.setTimeout\(\(\) => setStartupTimedOut\(true\), 20_000\)/);
+  assert.match(app, /const openError = await openThread\(savedThread\)/);
+  assert.match(app, /setThreadDirectoryStatus\("error"\);\s*setThreadDirectoryError\(openError\);\s*return;/s);
+  for (const id of ["app-state-and-agents", "conversations", "models", "capabilities"]) {
+    assert.match(app, new RegExp(`id: "${id}"`));
+  }
+  assert.match(startupView, /`已就绪 \$\{startupReadyCount\} \/ \$\{startupStages\.length\}`/);
+  assert.match(startupView, /data-testid="opl-startup-readiness"/);
+  assert.match(startupView, /重新加载/);
+  assert.match(startupView, /受限进入/);
+  assert.doesNotMatch(startupView, /%|progressPercent|Math\.round/);
+  assert.match(styles, /\.startup-readiness \{[^}]*position: fixed;[^}]*inset: 0;/s);
+  assert.match(styles, /@media \(max-width: 760px\)[\s\S]*\.startup-readiness \{/s);
+});
+
 test("composer separates OPL standard agents from Skills, connections, and other modules", () => {
   assert.match(app, /agentPresets: \[/);
   assert.match(app, /id: "opl-daily-work"/);
