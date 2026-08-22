@@ -65,6 +65,7 @@ const requiredFiles = [
   "scripts/build-renderer.mjs",
   "scripts/validate-client-conformance.mjs",
   "scripts/build-desktop.mjs",
+  "scripts/package-candidate-carriers.mjs",
   "scripts/bun-build-renderer-entry.ts",
   "scripts/deepseek-harness-gui-vendor.mjs",
   "scripts/model-policy-regression.ts",
@@ -78,6 +79,16 @@ const requiredFiles = [
   "desktop/preload.cjs",
   "desktop/updater.mjs",
   "scripts/webui-host/app-server-transport.mjs",
+  "scripts/webui-host/dsh/cordis.yml",
+  "scripts/webui-host/dsh/host.mjs",
+  "scripts/webui-host/dsh/web.patch.yml",
+  "scripts/webui-host/dsh/plugins/opl-codex-native.mjs",
+  "scripts/webui-host/dsh/plugins/opl-dsh-tool-mcp.mjs",
+  "scripts/webui-host/dsh/plugins/opl-framework-bridge.mjs",
+  "scripts/webui-host/dsh/plugins/opl-host-core.mjs",
+  "scripts/webui-host/dsh/plugins/opl-web-routes.mjs",
+  "scripts/webui-host/dsh-tool-mcp.mjs",
+  "scripts/webui-host/dsh-tool-mcp.test.mjs",
   "scripts/webui-host/host-core.mjs",
   "scripts/webui-host/host-core.test.mjs",
   "scripts/webui-host/http-host.mjs",
@@ -147,8 +158,47 @@ for (const file of retiredPrivateThreadFiles) {
 
 const pkg = JSON.parse(read("package.json"));
 const studioProfile = readJson("contracts/opl-studio-profile.json");
+const expectedDshRef = "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e";
+const expectedDshVersion = "0.1.1-rc.2";
+const expectedDshModules = [
+  "@deepseek-ai/cordis@4.0.1",
+  "@deepseek-ai/cordis-plugin-group@1.0.1",
+  "@deepseek-ai/cordis-plugin-include@1.0.6",
+  "@deepseek-ai/cordis-plugin-loader@1.0.2",
+  "@deepseek-ai/dsh-app-boot@0.1.1-rc.2",
+  "@deepseek-ai/dsh-brand@0.1.1-rc.2",
+  "@deepseek-ai/dsh-client-modules@0.1.1-rc.2",
+  "@deepseek-ai/dsh-client-ui-primitives@0.1.1-rc.2",
+  "@deepseek-ai/dsh-client-ui-slots@0.1.1-rc.2",
+  "@deepseek-ai/dsh-client-web@0.1.1-rc.2",
+  "@deepseek-ai/dsh-home-paths@0.1.1-rc.2",
+  "@deepseek-ai/dsh-host-frontend-static@0.1.1-rc.2",
+  "@deepseek-ai/dsh-host-plugin-inventory@0.1.1-rc.2",
+  "@deepseek-ai/dsh-host-webserver@0.1.1-rc.2",
+  "@deepseek-ai/dsh-invariants@0.1.1-rc.2",
+  "@deepseek-ai/dsh-launch-environment@0.1.1-rc.2",
+  "@deepseek-ai/dsh-system-prompt@0.1.1-rc.2",
+  "@deepseek-ai/dsh-tools@0.1.1-rc.2",
+  "@deepseek-ai/dsh-typert-protocol@0.1.1-rc.2",
+  "use-sync-external-store@1.2.0"
+];
 for (const script of requiredScripts) {
   assert(pkg.scripts?.[script], `missing package script ${script}`);
+}
+assert(
+  pkg.scripts.package === "node scripts/package-candidate-carriers.mjs",
+  "package must qualify and record all three App-contracted candidate carriers"
+);
+const carrierPackager = read("scripts/package-candidate-carriers.mjs");
+for (const marker of [
+  "app-shell-candidates.json",
+  "carrier_evidence_contract",
+  "expected.qualification_commands",
+  "passed_local_candidate_build",
+  "candidate_only: true",
+  "release_authority: false"
+]) {
+  assert(carrierPackager.includes(marker), `candidate carrier packager is missing ${marker}`);
 }
 
 assert(
@@ -189,10 +239,34 @@ assert(
   "Studio profile must declare one renderer and host core across desktop, headless, and Docker targets"
 );
 assert(
+  studioProfile.application_host?.role === "deepseek_harness_cordis_application_host"
+    && studioProfile.application_host.implementation_status === "source_implemented_release_admission_separate"
+    && studioProfile.application_host.upstream_version === expectedDshVersion
+    && studioProfile.application_host.upstream_ref === expectedDshRef
+    && studioProfile.application_host.profile === "opl-studio"
+    && studioProfile.application_host.dsh_base_loaded === false
+    && studioProfile.application_host.codex_runtime_owner === "opl-codex-native"
+    && studioProfile.application_host.dsh_tool_bridge === "authenticated_stateful_loopback_mcp",
+  "Studio profile must declare the pinned DSH Application Host and Codex ownership boundary"
+);
+assert(
+  JSON.stringify(studioProfile.application_host.startup_order) === JSON.stringify([
+    "dsh_host_tree_and_tool_mcp",
+    "codex_app_server",
+    "framework_bridge"
+  ])
+    && JSON.stringify(studioProfile.application_host.shutdown_order) === JSON.stringify([
+      "framework_channel_callback",
+      "codex_app_server",
+      "dsh_cordis_tree"
+    ]),
+  "Studio profile must preserve the Application Host lifecycle order"
+);
+assert(
   studioProfile.runtime_dependency_policy?.aioncore_required === false
     && studioProfile.runtime_dependency_policy.aionui_required === false
     && studioProfile.runtime_dependency_policy.codex_app_server_source === "OPL_CODEX_BIN_or_exact_external_codex"
-    && studioProfile.runtime_dependency_policy.opl_integration === "framework_app_state_action_contracts_only"
+    && studioProfile.runtime_dependency_policy.opl_integration === "framework_app_state_action_authentication_and_channel_callbacks_only"
     && studioProfile.runtime_dependency_policy.multi_backend_abstraction_required === false
     && studioProfile.runtime_dependency_policy.thread_store_owner === "codex_core_app_server",
   "candidate profile must keep Native independent from AionUI/AionCore and scoped to Codex App Server"
@@ -230,6 +304,44 @@ assert(
     && evidence.carrier_policy.disabled_carriers_add_runtime_dependencies === false,
   "candidate evidence must record the single enabled Codex carrier boundary"
 );
+assert(
+  JSON.stringify(evidence.application_host) === JSON.stringify(studioProfile.application_host),
+  "candidate evidence and Studio profile must share one Application Host contract"
+);
+
+function assertApplicationHost(evidence) {
+  const host = evidence.application_host;
+  const profile = read("scripts/webui-host/dsh/cordis.yml");
+  const webOverlay = read("scripts/webui-host/dsh/web.patch.yml");
+  const hostBoot = read("scripts/webui-host/dsh/host.mjs");
+  const codexPlugin = read("scripts/webui-host/dsh/plugins/opl-codex-native.mjs");
+  const toolPlugin = read("scripts/webui-host/dsh/plugins/opl-dsh-tool-mcp.mjs");
+  const frameworkPlugin = read("scripts/webui-host/dsh/plugins/opl-framework-bridge.mjs");
+  const toolMcp = read("scripts/webui-host/dsh-tool-mcp.mjs");
+  const codexNative = read("scripts/webui-host/opl-codex-native.mjs");
+  assert(host?.upstream_ref === expectedDshRef && host.upstream_version === expectedDshVersion, "Application Host must bind the pinned DSH cohort");
+  assert(host.dsh_base_loaded === false, "Application Host must not load dsh-base");
+  assert(!profile.includes("dsh-base"), "Studio DSH profile must exclude dsh-base");
+  for (const id of ["system-prompt", "tools", "webserver", "opl-dsh-tool-mcp", "opl-codex-native", "opl-framework-bridge", "opl-host-core", "plugin-inventory"]) {
+    assert(profile.includes(`id: ${id}`), `Studio DSH profile is missing ${id}`);
+  }
+  for (const id of ["frontend-static", "client-modules", "opl-studio-client", "opl-web-routes"]) {
+    assert(webOverlay.includes(`id: ${id}`), `Studio web overlay is missing ${id}`);
+  }
+  for (const marker of ["initProfile(profileDir, [])", "healProfilesModuleFallback", "loadProfile", "loadOverlayPatches", "boot("]) {
+    assert(hostBoot.includes(marker), `DSH Host boot is missing ${marker}`);
+  }
+  assert(toolPlugin.includes('inject = ["webServer", "tools"]'), "DSH Tool MCP plugin must consume the native DSH tool registry");
+  assert(codexPlugin.includes('inject = ["oplStudioHostOptions", "oplDshToolMcp"]'), "Codex plugin must depend on the DSH Tool MCP");
+  assert(frameworkPlugin.includes('inject = ["oplStudioHostOptions", "oplCodexNative"]'), "Framework bridge must start after Codex");
+  for (const marker of ["StreamableHTTPServerTransport", "ListToolsRequestSchema", "CallToolRequestSchema", "sendToolListChanged", "timingSafeEqual"]) {
+    assert(toolMcp.includes(marker), `DSH Tool MCP is missing ${marker}`);
+  }
+  assert(codexNative.includes('const name = "opl_studio_dsh"'), "Codex launch configuration must use the fixed Studio DSH MCP name");
+  for (const marker of ["mcp_servers.${name}.url", "bearer_token_env_var", "required=true", "default_tools_approval_mode", "auto"]) {
+    assert(codexNative.includes(marker), `Codex launch configuration is missing ${marker}`);
+  }
+}
 
 function assertFunctionalMvpCloseout(evidence) {
   const closeout = evidence.functional_mvp_closeout;
@@ -331,9 +443,9 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
   const publicEntry = read("README.md");
   assert(alignment, "missing DeepSeek Harness GUI source-reuse evidence");
   assert(alignment.reference_product === "DeepSeek Harness", "DeepSeek Harness must be the primary GUI reference");
-  assert(alignment.reference_version === "141eb6fef83422698aef7a981029e843e8161534", "pinned DeepSeek Harness source ref must be recorded");
-  assert(alignment.reference_date === "2026-08-20", "DeepSeek Harness inspection date must be recorded");
-  assert(alignment.source_usage === "direct_mit_gui_source_reuse", "DeepSeek Harness use must be direct GUI source reuse");
+  assert(alignment.reference_version === expectedDshRef, "pinned DeepSeek Harness source ref must be recorded");
+  assert(alignment.reference_date === "2026-08-22", "DeepSeek Harness inspection date must be recorded");
+  assert(alignment.source_usage === "direct_gui_source_reuse_with_application_host_cohort", "DeepSeek Harness GUI use must bind the Application Host cohort");
   assert(alignment.left_side === "persistent project and conversation rail with search and Settings only", "project rail placement must be recorded");
   assert(alignment.center === "single dominant conversation timeline with bottom composer", "conversation placement must be recorded");
   assert(alignment.model_controls === "composer_bottom_row", "model controls must stay in the composer");
@@ -352,7 +464,7 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
   }
   assert(
     slotHost.includes('import { createSlotRenderer } from "../vendor/deepseek-harness/packages/client/ui-renderer/src/client/scoped-slots.tsx"'),
-    "createSlotRenderer must come from the pinned rc8 source cohort"
+    "createSlotRenderer must come from the pinned rc2 source cohort"
   );
   for (const [component, moduleName] of [
     ["AppFrame", "@opl-vendor/dsh-app-frame"],
@@ -373,11 +485,11 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
     "DSH QueueDock must occupy the ordered conversation input dock slot"
   );
   for (const slot of ["sidebar.brand.mark", "sidebar.brand.name", "conversation.hero.brand.mark", "conversation.input.attachments"]) {
-    assert(slotHost.includes(`register({ name: "${slot}", registrant: "opl-studio" }`), `missing rc8 OPL slot occupant ${slot}`);
+    assert(slotHost.includes(`register({ name: "${slot}", registrant: "opl-studio" }`), `missing rc2 OPL slot occupant ${slot}`);
   }
-  assert(slotHost.includes("function OplBrandNameSlot() { return <>One Person Lab</>; }"), "rc8 brand name slot must render One Person Lab text");
-  assert(slotHost.includes("OPL\n    </span>"), "rc8 brand mark slot must render OPL text");
-  assert(slotHost.includes("function EmptyAttachmentSlot() { return null; }"), "rc8 attachment slot must remain an empty adapter");
+  assert(slotHost.includes("function OplBrandNameSlot() { return <>One Person Lab</>; }"), "rc2 brand name slot must render One Person Lab text");
+  assert(slotHost.includes("OPL\n    </span>"), "rc2 brand mark slot must render OPL text");
+  assert(slotHost.includes("function EmptyAttachmentSlot() { return null; }"), "rc2 attachment slot must remain an empty adapter");
   assert(slotHost.includes("useHostDescription={(selector: any) => selector(undefined)}"), "workspace host description must remain unavailable without a new App ABI field");
   assert(runtimeShim.includes("export function abbreviateHomePath") && runtimeShim.includes("isWindowsStylePath"), "runtime shim must provide POSIX home abbreviation with Windows fail-open");
   assert(bunBuild.includes('"process.env.DSH_CLIENT_COMMIT_HASH": JSON.stringify("")'), "browser build must not read Node process for the DSH commit hash");
@@ -388,23 +500,30 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
   for (const marker of ["return renderShell({", "threadProjects,", "agentPresets:", "modelOptions,", "conversationBody: studioConversationBody", "renderSettings: renderStudioSettings", "detailsRequestRevision"]) {
     assert(appSource.includes(marker), `missing App-to-DSH surface handoff marker ${marker}`);
   }
-  assert(mainSource.includes('import { renderOplStudioRoot } from "./composition/dshSlotHost"'), "main must import the DSH composition host");
-  assert(mainSource.includes("createRoot(rootElement).render(renderOplStudioRoot())"), "main must render the DSH composition root");
+  assert(mainSource.includes('import { mountOplStudioClient, oplStudioClientPlugin } from "./composition/oplStudioClientPlugin"'), "main must import the DSH client plugin");
+  assert(mainSource.includes("mountOplStudioClient(rootElement)"), "main must mount the DSH client plugin composition root");
   assert(sourceManifest.upstream?.ref === alignment.reference_version, "vendor manifest must bind to the pinned DSH ref");
-  assert(sourceManifest.upstream?.source_package_version === "0.1.0-rc.8", "vendor manifest must record the pinned source package version");
+  assert(sourceManifest.upstream?.source_package_version === expectedDshVersion, "vendor manifest must record the pinned source package version");
+  assert(sourceManifest.application_host?.role === "deepseek_harness_cordis_application_host", "vendor manifest must bind the DSH Application Host role");
+  assert(JSON.stringify(sourceManifest.application_host?.package_cohort) === JSON.stringify(expectedDshModules.slice(0, -1)), "vendor manifest must bind the DSH Host package cohort");
+  assert(JSON.stringify(sourceManifest.application_host?.excluded_upstream_profiles) === JSON.stringify(["dsh-base"]), "vendor manifest must exclude dsh-base");
   assert(sourceManifest.snapshot?.local_root === "src/vendor/deepseek-harness", "vendor manifest root must be canonical");
   assert(sourceManifest.snapshot?.byte_identical === true, "vendor snapshot must remain byte-identical");
   assert(sourceManifest.snapshot?.byte_identical_to_pinned_ref === true, "vendor snapshot byte identity must bind to the pinned DSH ref");
   assert(sourceManifest.snapshot?.file_count === 277 && sourceManifest.files?.length === 277, "vendor manifest must inventory 277 files");
-  assert(sourceManifest.snapshot?.package_roots?.includes("packages/client/ui-renderer/src"), "vendor manifest must include the rc8 ui-renderer source root");
+  assert(sourceManifest.snapshot?.package_roots?.includes("packages/client/ui-renderer/src"), "vendor manifest must include the rc2 ui-renderer source root");
   assert(JSON.stringify(sourceManifest.snapshot?.package_roots) === JSON.stringify(evidence.reused_oss_module_policy.vendored_package_roots), "candidate evidence package roots must match the vendor manifest");
   const vendorCheck = spawnSync(process.execPath, [path.join(root, "scripts/deepseek-harness-gui-vendor.mjs"), "check"], { cwd: root, encoding: "utf8" });
   assert(vendorCheck.status === 0, `vendored DSH GUI byte parity failed: ${vendorCheck.stderr}`);
   assert(packageJson.dependencies?.clsx === "2.1.1", "DeepSeek Harness GUI closure must declare clsx directly");
-  assert(packageJson.dependencies?.["@deepseek-ai/dsh-client-ui-slots"] === "0.1.0-rc.8", "DSH slot runtime must be pinned to rc8");
-  assert(packageJson.dependencies?.["@deepseek-ai/dsh-invariants"] === "0.1.0-rc.8", "DSH invariants must be pinned to rc8");
+  assert(packageJson.dependencies?.["@deepseek-ai/dsh-client-ui-slots"] === expectedDshVersion, "DSH slot runtime must be pinned to rc2");
+  assert(packageJson.dependencies?.["@deepseek-ai/dsh-invariants"] === expectedDshVersion, "DSH invariants must be pinned to rc2");
+  for (const module of expectedDshModules.slice(0, -1)) {
+    const at = module.lastIndexOf("@");
+    assert(packageJson.dependencies?.[module.slice(0, at)] === module.slice(at + 1), `DSH Application Host dependency must match ${module}`);
+  }
   assert(packageJson.dependencies?.["@deepseek-ai/cordis"] === "4.0.1", "Cordis boundary must remain pinned to 4.0.1");
-  assert(packageJson.dependencies?.["use-sync-external-store"] === "1.2.0", "vendored rc8 renderer closure must declare use-sync-external-store directly");
+  assert(packageJson.dependencies?.["use-sync-external-store"] === "1.2.0", "vendored rc2 renderer closure must declare use-sync-external-store directly");
   assert(packageJson.dependencies?.["@deepseek-ai/dsh-client-web-react"] === undefined, "obsolete dsh-client-web-react must stay removed");
   assert(packageJson.dependencies?.["@deepseek-ai/dsh-client-ui-renderer"] === undefined, "ui-renderer must be reused as pinned source, not installed as a package");
   const primitiveAlias = ["src/vendor/deepseek-harness/packages/client/ui-primitives/src/index.ts"];
@@ -420,7 +539,7 @@ function assertDeepSeekHarnessReuse(evidence, rendererSource) {
     for (const name of names) assert(primitiveIndex.includes(`export { ${name} }`), `vendored DSH primitive index must export ${name}`);
   }
   assert(!mainSource.includes("--opl-brand-logo") && !mainSource.includes("branding/opl-app-logo.png"), "renderer must keep OPL identity text-only without a Logo asset");
-  assert(notices.includes("141eb6fef83422698aef7a981029e843e8161534") && notices.includes("use-sync-external-store") && notices.includes("MIT License"), "third-party notices must preserve pinned rc8 source and runtime licenses");
+  assert(notices.includes(expectedDshRef) && notices.includes(expectedDshVersion) && notices.includes("use-sync-external-store") && notices.includes("MIT License"), "third-party notices must preserve pinned rc2 source and runtime licenses");
   assert(architecture.includes("Model And Settings Boundary") && architecture.includes("App product profile"), "architecture must route model and settings authority to App");
   assert(architecture.includes("Codex App Server owns canonical thread identity"), "architecture must route thread truth to Codex App Server");
   assert(architecture.includes("AionUI is the current active release shell"), "architecture must preserve the active-shell boundary");
@@ -451,7 +570,7 @@ function assertCodexModelControls(evidence, app, rendererSource) {
   const appRepoResolver = read("scripts/resolve-app-repo-root.mjs");
   const bridge = read("src/bridge/oplBridge.ts");
   const hostTransport = read("scripts/webui-host/app-server-transport.mjs");
-  const hostCore = read("scripts/webui-host/host-core.mjs");
+  const codexNative = read("scripts/webui-host/opl-codex-native.mjs");
   const oplPassthrough = read("scripts/webui-host/opl-passthrough.mjs");
   const appRepoRoot = resolveAppRepoRoot(root);
   const appProductProfilePath = path.join(appRepoRoot, "contracts", "app-product-profile.json");
@@ -525,7 +644,7 @@ function assertCodexModelControls(evidence, app, rendererSource) {
   assert(hostTransport.includes("...(model ? { model } : {})"), "shared host core must pass model to app-server turn/start");
   assert(hostTransport.includes("...(reasoningEffort ? { effort: reasoningEffort } : {})"), "shared host core must pass effort to app-server turn/start");
   assert(hostTransport.includes("env.OPL_CODEX_BIN"), "shared host core must consume the App launcher Codex executable from its injected environment");
-  assert(hostCore.includes("process.env.OPL_NATIVE_WORKBENCH_CODEX_CWD"), "shared host core must consume the App launcher workspace");
+  assert(codexNative.includes("process.env.OPL_NATIVE_WORKBENCH_CODEX_CWD"), "opl-codex-native must consume the App launcher workspace");
   for (const marker of ["OPL_APP_OPL_BIN", "OPL_NATIVE_WORKBENCH_READ_ONLY", "blocked_read_only", "candidate_read_only_policy"]) {
     assert(oplPassthrough.includes(marker), `shared host core must preserve launcher/runtime safety marker ${marker}`);
   }
@@ -567,6 +686,7 @@ assertFallbackBoundaryDowngrades({
 assertFunctionalMvpCloseout(evidence);
 assertSourceMarkerRequirements(evidence);
 assertPrivateThreadLayerRemoved(evidence);
+assertApplicationHost(evidence);
 assertDeepSeekHarnessReuse(evidence, rendererSource);
 assertCodexModelControls(evidence, app, rendererSource);
 assertRendererTestIds(rendererSource, requiredTestIds);
@@ -597,6 +717,14 @@ for (const capability of [
   "opl_app_action_bridge",
   "default_context_collapsed_chat_first_home",
   "dsh_chat_first_visual_baseline",
+  "dsh_cordis_application_host",
+  "dsh_profile_loader_and_overlay",
+  "dsh_host_plugin_inventory",
+  "dsh_tools_to_codex_mcp_bridge",
+  "dsh_tool_plugin_compatibility",
+  "opl_codex_native_plugin",
+  "opl_framework_bridge_plugin",
+  "upstream_dsh_upgrade_replay_contract",
   "dsh_slot_core_composition_host",
   "dsh_create_slot_renderer_root",
   "dsh_ui_primitives_direct_reuse",
@@ -630,9 +758,11 @@ for (const capability of [
 ]) {
   assert(evidence.capabilities.includes(capability), `missing evidence capability ${capability}`);
 }
-assert(evidence.reuse_policy.deepseek_harness_source_usage === "direct_mit_gui_source_reuse", "DeepSeek Harness GUI use must be direct and pinned");
-assert(evidence.reuse_policy.deepseek_harness_source_ref === "141eb6fef83422698aef7a981029e843e8161534", "DeepSeek Harness source ref must be pinned");
-assert(evidence.reuse_policy.deepseek_harness_ui_package_version === "0.1.0-rc.8", "DeepSeek Harness UI packages must use the verified version");
+assert(evidence.reuse_policy.deepseek_harness_source_usage === "pinned_application_host_runtime_and_gui_source_reuse", "DeepSeek Harness Application Host and GUI use must be direct and pinned");
+assert(evidence.reuse_policy.deepseek_harness_source_ref === expectedDshRef, "DeepSeek Harness source ref must be pinned");
+assert(evidence.reuse_policy.deepseek_harness_package_version === expectedDshVersion, "DeepSeek Harness packages must use the verified version");
+assert(evidence.reuse_policy.application_host_runtime_adopted === true, "DeepSeek Harness Application Host runtime must be adopted");
+assert(evidence.reuse_policy.dsh_product_runtime_authority_adopted === false, "DeepSeek Harness product runtime authority must stay excluded");
 assert(evidence.reuse_policy.deepseek_harness_selected_source_reused === true, "selected DeepSeek Harness source must be declared as reused");
 assert(evidence.reused_oss_module_policy.vendored_source_root === "src/vendor/deepseek-harness", "DeepSeek Harness source must have one explicit vendor root");
 assert(evidence.reused_oss_module_policy.source_manifest === "src/composition/deepseekHarnessSourceManifest.json", "DeepSeek Harness source manifest must be canonical");
@@ -642,16 +772,11 @@ assert(evidence.reused_oss_module_policy.byte_identical_to_pinned_ref === true, 
 assert(evidence.reused_oss_module_policy.vendored_package_roots?.includes("packages/client/ui-primitives/src"), "DeepSeek Harness source reuse must include the complete ui-primitives tree");
 assert(evidence.reused_oss_module_policy.vendored_package_roots?.includes("packages/client/ui-renderer/src"), "DeepSeek Harness source reuse must include the complete ui-renderer tree");
 assert(evidence.reused_oss_module_policy.ui_primitives_index === "packages/client/ui-primitives/src/index.ts", "DeepSeek Harness primitive reuse must name the upstream index");
-assert(JSON.stringify(evidence.reused_oss_module_policy.direct_reuse_modules) === JSON.stringify([
-  "@deepseek-ai/dsh-client-ui-slots@0.1.0-rc.8",
-  "@deepseek-ai/dsh-invariants@0.1.0-rc.8",
-  "@deepseek-ai/cordis@4.0.1",
-  "use-sync-external-store@1.2.0"
-]), "DeepSeek Harness runtime closure must match the rc8 adapter boundary");
+assert(JSON.stringify(evidence.reused_oss_module_policy.direct_reuse_modules) === JSON.stringify(expectedDshModules), "DeepSeek Harness runtime closure must match the rc2 Application Host boundary");
   for (const primitive of ["Button", "Pill", "Input", "Tooltip", "StateDot", "MessageText", "Menu", "icons"]) {
   assert(evidence.reused_oss_module_policy.direct_ui_primitives?.includes(primitive), `missing direct DeepSeek Harness primitive evidence ${primitive}`);
 }
-assert(evidence.reused_oss_module_policy.brand_override === "upstream_rc8_brand_slots_with_text_only_opl_occupants", "OPL branding must use the rc8 brand slots");
+assert(evidence.reused_oss_module_policy.brand_override === "upstream_rc2_brand_slots_with_text_only_opl_occupants", "OPL branding must use the rc2 brand slots");
 assert(evidence.reused_oss_module_policy.slot_renderer_source === "packages/client/ui-renderer/src/client/scoped-slots.tsx#createSlotRenderer", "candidate evidence must name the pinned slot renderer source");
 assert(evidence.reused_oss_module_policy.attachment_slot_policy === "registered_empty_occupant_no_multimodal_runtime", "candidate evidence must not claim multimodal attachment support");
 assert(evidence.reused_oss_module_policy.workspace_host_description_policy === "unavailable_until_app_abi_exists", "candidate evidence must not claim a host-description ABI");
@@ -668,7 +793,12 @@ assert(clientComposition?.host_projection_graph === "allowlisted_closed_graph_fr
 assert(clientComposition?.host_projection_allowlist_contract === "contracts/opl-app-contributions.schema.json", "Client graph allowlist must remain App-owned");
 assert(JSON.stringify(clientComposition?.typed_slots) === JSON.stringify(["settings.section", "runtime.detail", "composer.palette"]), "Client Cordis typed slots must match the App product profile");
 assert(clientComposition?.typed_action_policy === "action_refs_only_via_canonical_app_action_bridge", "Client actions must remain typed App action refs");
-assert(clientComposition?.framework_host_composition_authority === "one-person-lab-framework", "Framework must remain the only Host composition authority");
+assert(clientComposition?.framework_host_composition_authority === "one-person-lab-framework", "Framework must remain the Client Host projection authority");
+assert(clientComposition?.framework_host_composition_authority_scope === "framework_runtime_package_graph_and_app_projection", "Framework Host authority must remain scoped to runtime, Package graph, and App projection");
+assert(clientComposition?.framework_runtime_and_package_composition_authority === "one-person-lab-framework", "Framework must remain the runtime and Package composition authority consumed by Studio");
+assert(clientComposition?.studio_application_host === "opl-studio", "Studio must identify its independent Application Host");
+assert(clientComposition?.studio_application_host_scope === "dsh_profile_plugin_lifecycle_codex_and_delivery_transport_composition", "Studio Application Host must remain scoped to DSH, Codex, and delivery transport composition");
+assert(clientComposition?.studio_application_host_may_exist_without_authority_transfer === true, "Studio Application Host must coexist without transferring Framework or App authority");
 assert(clientComposition?.app_authority_policy === "one-person-lab-app_owns_product_profile_gui_abi_active_shell_and_release", "App product authorities must remain App-owned");
 assert(clientComposition?.framework_projection_runtime_status === "framework_host_projection_active", "candidate evidence must consume the active Framework Host projection");
 assert(clientComposition?.shared_transport_policy === "framework_host_projected_typed_rpc_reads_typed_events_and_canonical_app_actions", "shells must share typed RPC, event, and App action semantics");
@@ -681,7 +811,7 @@ for (const field of ["independent_host_truth", "second_package_registry", "secon
   assert(clientComposition?.[field] === false, `${field} must remain false`);
 }
 const clientCordisSource = read("src/composition/clientCordis.ts");
-const dshSlotHostSource = read("src/composition/dshSlotHost.tsx");
+const oplStudioClientPluginSource = read("src/composition/oplStudioClientPlugin.tsx");
 for (const marker of [
   "opl.app.client-contributions",
   "opl/app-client-contributions/updated",
@@ -691,7 +821,11 @@ for (const marker of [
 ]) {
   assert(clientCordisSource.includes(marker), `Client Cordis runtime is missing ${marker}`);
 }
-assert(dshSlotHostSource.includes("createOplStudioClientCordisComposition"), "DSH Shell must instantiate the Host-derived Client Cordis");
+assert(
+  oplStudioClientPluginSource.includes("provideOplStudioClientContributions(ctx)")
+    && oplStudioClientPluginSource.includes("ctx.plugin(oplStudioClientPlugin)"),
+  "OPL Studio client plugin must provide and load the Host-derived Client Cordis composition"
+);
 assert(app.includes("onHostStateChange?.(state)"), "App state caller must feed fresh Host state into Client Cordis");
 assert(app.includes("createOplContributionActionRequest(entry, command, confirmed)"), "projected commands must use the typed canonical App action request");
 assert(app.includes('receipt.status === "executed"') && app.includes("loadState(settings.runtimeProfile)"), "successful contribution actions must refresh App state");
@@ -717,7 +851,7 @@ for (const value of Object.values(qualification.external_cohort ?? {})) {
   assert(typeof value === "string" && /^[0-9a-f]{40}$/.test(value), "external qualification cohort must use exact Git object ids");
 }
 assert(evidence.reuse_policy.other_external_gui_source_copied === false, "other external GUI sources must remain reference-only");
-assert(evidence.reuse_policy.runtime_authority_transfer === false, "runtime authority must not transfer");
+assert(evidence.false_ready_boundary.runtime_authority_transfer === false, "Framework, Codex, product, and domain authority must not transfer");
 assert(evidence.user_visible_protocol_copy.agui === false, "AGUI must not be ordinary UI copy");
 assert(evidence.user_visible_protocol_copy.copilotkit_surface === false, "CopilotKit must not be ordinary native UI copy");
 assert(evidence.settings_information_architecture?.persistence_model?.storage_key === "opl.studio.settings.v1", "settings persistence storage key must be recorded");

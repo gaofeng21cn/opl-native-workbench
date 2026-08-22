@@ -7,20 +7,19 @@ Machine boundary: Human-readable navigation and ownership map. App contracts,
 Framework state/action output, Codex App Server, source/tests, and explicit owner
 decisions remain the corresponding machine and product truth.
 
-This repository is the implementation carrier for the first-party `opl-studio`
-DSH-derived Native App successor. It is one replaceable Shell of the single OPL App
-product, not a second App. It
+This repository implements the first-party `opl-studio` DSH/Cordis Application
+Host and Studio carrier for the single OPL App product, not a second App. It
 does not own App product requirements, OPL runtime/package truth, Codex thread
 truth, domain verdicts, release adoption, or production readiness.
 
-The stable sibling is `opl-aion-shell`. Both shells consume the same
+The Stable sibling is `opl-aion-shell`. Both carriers consume the same
 `one-person-lab-app` product contracts, Framework Host projection, Client Cordis
-contribution ABI, and versioned composition inputs. Studio may implement the
-Client Cordis and renderer natively in the DSH style, but only the App repository
+contribution ABI, and versioned composition inputs. Studio additionally owns
+its DSH Host profile and App-process plugin lifecycle, but only the App repository
 can change `active_shell` or declare a release combination.
 
-Both Shells sit inside the same `OPL Base + OPL App + OPL Packages + optional
-OPL Cloud` ecology. Studio owns only candidate Shell implementation; it never
+Both carriers sit inside the same `OPL Base + OPL App + OPL Packages + optional
+OPL Cloud` ecology. Studio owns its Application Host implementation; it never
 promotes itself into Base, Package lifecycle, Cloud service, or App authority.
 Framework's Host projection is active. Studio's qualification lane consumes the
 canonical producer and App product profile, then compares its Client projection
@@ -31,9 +30,9 @@ App release admission remains separate.
 
 | Theme | Single Source of Truth |
 | --- | --- |
-| Public candidate entry | [Root README](../README.md) |
-| Candidate implementation boundary | [Architecture](./architecture.md) |
-| Candidate architecture rationale | [Whitepaper](./whitepaper.md) |
+| Public Studio entry | [Root README](../README.md) |
+| Application Host implementation boundary | [Architecture](./architecture.md) |
+| Application Host architecture rationale | [Whitepaper](./whitepaper.md) |
 | Current state, open gaps, and next prompt | [Single Active Truth plan](./active/current-state-vs-ideal-gap.md) |
 | Validation meaning | [Verification](./verification.md) |
 | Superseded implementation and visual baseline | [History](./history/README.md) |

@@ -74,15 +74,9 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
     webRoot: directory
   });
   t.after(async () => {
-    host.server.closeAllConnections();
     await host.close();
   });
-  await new Promise((resolve, reject) => {
-    host.server.once("error", reject);
-    host.server.listen(0, "127.0.0.1", resolve);
-  });
-  const address = host.server.address();
-  const baseUrl = `http://127.0.0.1:${address.port}`;
+  const baseUrl = host.url;
 
   const capabilities = await fetch(`${baseUrl}/api/capabilities`).then((response) => response.json());
   assert.equal(capabilities.localHost, true);
@@ -97,6 +91,33 @@ test("loopback HTTP host exposes standard thread lifecycle, subagent projection,
   assert.deepEqual(
     capabilities.threadAdapter.subagentProjection.itemTypes,
     ["collabAgentToolCall", "subAgentActivity"]
+  );
+
+  const inventory = await fetch(`${baseUrl}/api/host/plugins`).then((response) => response.json());
+  assert.deepEqual(
+    inventory.entries
+      .filter((entry) => entry.moduleName.startsWith("./plugins/opl-"))
+      .map((entry) => [entry.moduleName, entry.enabled, entry.fiberPhase]),
+    [
+      ["./plugins/opl-dsh-tool-mcp.mjs", true, "active"],
+      ["./plugins/opl-codex-native.mjs", true, "active"],
+      ["./plugins/opl-framework-bridge.mjs", true, "active"],
+      ["./plugins/opl-host-core.mjs", true, "active"],
+      ["./plugins/opl-web-routes.mjs", true, "active"]
+    ]
+  );
+  const staticEntry = host.context.loader.resolve("include:frontend-static");
+  await staticEntry._dispose();
+  const unloadedInventory = await fetch(`${baseUrl}/api/host/plugins`).then((response) => response.json());
+  assert.equal(
+    unloadedInventory.entries.find((entry) => entry.moduleName === "@deepseek-ai/dsh-host-frontend-static").fiberPhase,
+    null
+  );
+  await staticEntry.refresh();
+  const reloadedInventory = await fetch(`${baseUrl}/api/host/plugins`).then((response) => response.json());
+  assert.equal(
+    reloadedInventory.entries.find((entry) => entry.moduleName === "@deepseek-ai/dsh-host-frontend-static").fiberPhase,
+    "active"
   );
 
   const eventAbort = new AbortController();
@@ -306,15 +327,9 @@ test("loopback HTTP host exposes the dedicated Gateway secret route without gene
     webRoot: directory
   });
   t.after(async () => {
-    host.server.closeAllConnections();
     await host.close();
   });
-  await new Promise((resolve, reject) => {
-    host.server.once("error", reject);
-    host.server.listen(0, "127.0.0.1", resolve);
-  });
-  const address = host.server.address();
-  const result = await post(`http://127.0.0.1:${address.port}`, "/api/opl-runtime/gateway-account-login", {
+  const result = await post(host.url, "/api/opl-runtime/gateway-account-login", {
     email: "user@example.com",
     password: "route-secret"
   });
@@ -348,15 +363,9 @@ test("loopback HTTP host sends model credentials only through the dedicated stdi
     webRoot: directory
   });
   t.after(async () => {
-    host.server.closeAllConnections();
     await host.close();
   });
-  await new Promise((resolve, reject) => {
-    host.server.once("error", reject);
-    host.server.listen(0, "127.0.0.1", resolve);
-  });
-  const address = host.server.address();
-  const result = await post(`http://127.0.0.1:${address.port}`, "/api/opl-runtime/configure-codex", {
+  const result = await post(host.url, "/api/opl-runtime/configure-codex", {
     apiKey: "route-api-key"
   });
   assert.deepEqual(result, { status: 200, body: { ok: true, stateRefreshRequired: true } });

@@ -27,6 +27,11 @@ const settingsRoot = read("src/vendor/deepseek-harness/packages/client/ui-settin
 const desktopMain = read("desktop/main.mjs");
 const desktopPreload = read("desktop/preload.cjs");
 const hostCore = read("scripts/webui-host/host-core.mjs");
+const dshHost = read("scripts/webui-host/dsh/host.mjs");
+const dshProfile = read("scripts/webui-host/dsh/cordis.yml");
+const dshWebOverlay = read("scripts/webui-host/dsh/web.patch.yml");
+const codexNative = read("scripts/webui-host/opl-codex-native.mjs");
+const dshToolMcp = read("scripts/webui-host/dsh-tool-mcp.mjs");
 const appServerTransport = read("scripts/webui-host/app-server-transport.mjs");
 const detail = read("src/workbench/threads/ThreadDetailPopover.tsx");
 const lifecycle = read("src/workbench/threads/ThreadLifecycleConfirmationDialog.tsx");
@@ -423,7 +428,8 @@ test("Electron desktop hosts the live DeepSeek Harness composition root", () => 
   assert.match(app, /modelOptions,/);
   assert.match(app, /conversationBody: studioConversationBody/);
   assert.match(app, /renderSettings: renderStudioSettings/);
-  assert.match(main, /createRoot\(rootElement\)\.render\(renderOplStudioRoot\(\)\)/);
+  assert.match(main, /mountOplStudioClient\(rootElement\)/);
+  assert.match(main, /oplStudioClientPlugin/);
   assert.match(main, /document\.documentElement\.dataset\.oplHost = desktopTransportInstalled \? "desktop" : "web"/);
   assert.match(desktopMain, /new BrowserWindow\(/);
   assert.match(desktopMain, /titleBarStyle: "hiddenInset"/);
@@ -553,12 +559,12 @@ test("desktop visual shell uses vendored DeepSeek Harness roots and theme tokens
   assert.match(styles, /\[data-streamdown="code-block"\]/);
 });
 
-test("DSH rc8 controls resolve to the complete pinned source cohort and OPL-owned slots", () => {
+test("DSH rc2 controls resolve to the complete pinned source cohort and OPL-owned slots", () => {
   const primitiveAlias = ["src/vendor/deepseek-harness/packages/client/ui-primitives/src/index.ts"];
   assert.deepEqual(tsconfig.compilerOptions.paths["@deepseek-ai/dsh-client-ui-primitives"], primitiveAlias);
   assert.deepEqual(typecheckConfig.compilerOptions.paths["@deepseek-ai/dsh-client-ui-primitives"], primitiveAlias);
-  assert.equal(sourceManifest.upstream.ref, "141eb6fef83422698aef7a981029e843e8161534");
-  assert.equal(sourceManifest.upstream.source_package_version, "0.1.0-rc.8");
+  assert.equal(sourceManifest.upstream.ref, "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e");
+  assert.equal(sourceManifest.upstream.source_package_version, "0.1.1-rc.2");
   assert.equal(sourceManifest.snapshot.file_count, 277);
   assert.equal(sourceManifest.files.length, 277);
   assert.equal(sourceManifest.snapshot.byte_identical_to_pinned_ref, true);
@@ -567,13 +573,29 @@ test("DSH rc8 controls resolve to the complete pinned source cohort and OPL-owne
   assert.equal(candidateEvidence.reused_oss_module_policy.vendored_file_count, 277);
   assert.equal(candidateEvidence.reused_oss_module_policy.byte_identical_to_pinned_ref, true);
   assert.deepEqual(candidateEvidence.reused_oss_module_policy.direct_reuse_modules, [
-    "@deepseek-ai/dsh-client-ui-slots@0.1.0-rc.8",
-    "@deepseek-ai/dsh-invariants@0.1.0-rc.8",
     "@deepseek-ai/cordis@4.0.1",
+    "@deepseek-ai/cordis-plugin-group@1.0.1",
+    "@deepseek-ai/cordis-plugin-include@1.0.6",
+    "@deepseek-ai/cordis-plugin-loader@1.0.2",
+    "@deepseek-ai/dsh-app-boot@0.1.1-rc.2",
+    "@deepseek-ai/dsh-brand@0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-modules@0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-primitives@0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots@0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-web@0.1.1-rc.2",
+    "@deepseek-ai/dsh-home-paths@0.1.1-rc.2",
+    "@deepseek-ai/dsh-host-frontend-static@0.1.1-rc.2",
+    "@deepseek-ai/dsh-host-plugin-inventory@0.1.1-rc.2",
+    "@deepseek-ai/dsh-host-webserver@0.1.1-rc.2",
+    "@deepseek-ai/dsh-invariants@0.1.1-rc.2",
+    "@deepseek-ai/dsh-launch-environment@0.1.1-rc.2",
+    "@deepseek-ai/dsh-system-prompt@0.1.1-rc.2",
+    "@deepseek-ai/dsh-tools@0.1.1-rc.2",
+    "@deepseek-ai/dsh-typert-protocol@0.1.1-rc.2",
     "use-sync-external-store@1.2.0"
   ]);
-  assert.equal(packageJson.dependencies["@deepseek-ai/dsh-client-ui-slots"], "0.1.0-rc.8");
-  assert.equal(packageJson.dependencies["@deepseek-ai/dsh-invariants"], "0.1.0-rc.8");
+  assert.equal(packageJson.dependencies["@deepseek-ai/dsh-client-ui-slots"], "0.1.1-rc.2");
+  assert.equal(packageJson.dependencies["@deepseek-ai/dsh-invariants"], "0.1.1-rc.2");
   assert.equal(packageJson.dependencies["@deepseek-ai/dsh-client-web-react"], undefined);
   assert.equal(packageJson.dependencies["@deepseek-ai/dsh-client-ui-renderer"], undefined);
   assert.equal(fs.existsSync(path.join(root, "src/integrations/deepseek-harness/uiPrimitives.tsx")), false);
@@ -605,6 +627,27 @@ test("DSH rc8 controls resolve to the complete pinned source cohort and OPL-owne
   assert.match(slotHost, /function SettingsHeaderSlot\(\) \{ return <>One Person Lab<\/>; \}/);
   assert.doesNotMatch(main, /--opl-brand-logo/);
   assert.doesNotMatch(main, /branding\/opl-app-logo\.png/);
+});
+
+test("Studio boots as the pinned DSH Application Host while Codex remains the thread owner", () => {
+  assert.match(dshHost, /initProfile\(profileDir, \[\]\)/);
+  assert.match(dshHost, /healProfilesModuleFallback/);
+  assert.match(dshHost, /loadOverlayPatches/);
+  assert.doesNotMatch(dshProfile, /dsh-base/);
+  for (const id of ["system-prompt", "tools", "webserver", "opl-dsh-tool-mcp", "opl-codex-native", "opl-framework-bridge", "opl-host-core", "plugin-inventory"]) {
+    assert.match(dshProfile, new RegExp(`id: ${id}`));
+  }
+  for (const id of ["frontend-static", "client-modules", "opl-studio-client", "opl-web-routes"]) {
+    assert.match(dshWebOverlay, new RegExp(`id: ${id}`));
+  }
+  assert.match(dshToolMcp, /StreamableHTTPServerTransport/);
+  assert.match(dshToolMcp, /sendToolListChanged/);
+  assert.match(codexNative, /const name = "opl_studio_dsh"/);
+  assert.match(codexNative, /codexArgsWithDshToolMcp/);
+  assert.match(codexNative, /bearer_token_env_var/);
+  assert.match(codexNative, /required=true/);
+  assert.equal(candidateEvidence.application_host.codex_runtime_owner, "opl-codex-native");
+  assert.equal(candidateEvidence.application_host.dsh_base_loaded, false);
 });
 
 test("primary canvas hides its scrollbar without disabling scrolling", () => {

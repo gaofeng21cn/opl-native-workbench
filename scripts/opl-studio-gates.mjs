@@ -82,15 +82,16 @@ export function validateNonLiveDeliveryEvidence(evidence) {
   const ossPolicy = evidence.reused_oss_module_policy;
   assert(ossPolicy, "missing reused_oss_module_policy");
   assert(
-    ossPolicy.policy === "pinned_direct_reuse_for_deepseek_harness_reference_only_for_other_gui_sources",
-    "reused OSS policy must limit direct reuse to the pinned DeepSeek Harness GUI closure"
+    ossPolicy.policy === "pinned_deepseek_harness_application_host_and_gui_source_reuse_other_gui_sources_reference_only",
+    "reused OSS policy must bind the pinned DeepSeek Harness Application Host and GUI closure"
   );
   assert(
     ossPolicy.deepseek_harness_selected_source_reused === true
       && ossPolicy.other_external_source_copied === false,
     "reused OSS policy must distinguish approved DSH reuse from other external GUI sources"
   );
-  assert(ossPolicy.runtime_authority_transfer === false, "reused OSS policy must not transfer runtime authority");
+  assert(ossPolicy.application_host_runtime_adopted === true, "reused OSS policy must adopt the DSH Application Host runtime");
+  assert(ossPolicy.dsh_product_runtime_authority_adopted === false, "reused OSS policy must not adopt DSH product runtime authority");
   assert(ossPolicy.user_visible_protocol_copy === false, "reused OSS policy must not copy protocol UI");
 }
 
@@ -137,7 +138,7 @@ export function assertFallbackBoundaryDowngrades(namedSources) {
 
   assert(!app.includes("Context ready"), "fallback UI must not display Context ready");
   assert(!app.includes('status="connected"'), "fallback UI must not display connected status");
-  assert(!app.includes(': "Ready"'), "composer idle state must not display Ready");
+  assert(!/idle\s*:\s*"Ready"/.test(app), "composer idle state must not display Ready");
   for (const marker of ['setStateStatus("loading")', 'setStateStatus("error")', 'setStateStatus("ready")']) {
     assert(app.includes(marker), `App state readback missing explicit state branch ${marker}`);
   }

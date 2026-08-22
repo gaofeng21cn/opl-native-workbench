@@ -32,6 +32,59 @@
     "windows_linux_source_support": true,
     "release_adoption_requires_separate_app_qualification": true
   },
+  "application_host": {
+    "role": "deepseek_harness_cordis_application_host",
+    "implementation_status": "source_implemented_release_admission_separate",
+    "upstream_version": "0.1.1-rc.2",
+    "upstream_ref": "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e",
+    "profile": "opl-studio",
+    "profile_source": "scripts/webui-host/dsh/cordis.yml",
+    "web_overlay": "scripts/webui-host/dsh/web.patch.yml",
+    "profile_home": "$DSH_HOME/profiles/opl-studio",
+    "dsh_base_loaded": false,
+    "loaded_dsh_services": [
+      "system-prompt_without_harness_identity_or_runtime_context",
+      "tools_native_registry",
+      "host_webserver",
+      "host_plugin_inventory",
+      "frontend_static_web_only",
+      "client_modules_web_only"
+    ],
+    "studio_plugins": [
+      "opl-dsh-tool-mcp",
+      "opl-codex-native",
+      "opl-framework-bridge",
+      "opl-host-core",
+      "opl-web-routes"
+    ],
+    "codex_runtime_owner": "opl-codex-native",
+    "codex_owned_state": [
+      "persistent_app_server_process",
+      "canonical_threads_and_turns",
+      "approvals",
+      "live_turn_events"
+    ],
+    "dsh_tool_bridge": "authenticated_stateful_loopback_mcp",
+    "dsh_tool_plugin_compatibility": "plugins_registering_tools_in_ctx_tools_are_exposed_to_codex",
+    "excluded_upstream_authorities": [
+      "dsh_session",
+      "dsh_llm_provider_routing",
+      "dsh_agent_loop",
+      "dsh_credentials"
+    ],
+    "framework_bridge": "consume_framework_app_state_action_authentication_and_channel_callbacks_only",
+    "startup_order": [
+      "dsh_host_tree_and_tool_mcp",
+      "codex_app_server",
+      "framework_bridge"
+    ],
+    "shutdown_order": [
+      "framework_channel_callback",
+      "codex_app_server",
+      "dsh_cordis_tree"
+    ],
+    "upstream_upgrade_contract": "update_one_pinned_ref_and_package_cohort_then_regenerate_vendor_manifest_replay_profile_patches_and_run_host_mcp_renderer_candidate_gates"
+  },
   "canonical_docs": [
     {
       "path": "README.md",
@@ -64,14 +117,14 @@
     "tests/**",
     "docs/active/current-state-vs-ideal-gap.md"
   ],
-  "plugin_native_status": "profile_declared",
+  "plugin_native_status": "dsh_application_host_implemented",
   "repo_id": "opl-studio",
   "repo_profile": "tooling_repo",
   "runtime_dependency_policy": {
     "aioncore_required": false,
     "aionui_required": false,
     "codex_app_server_source": "OPL_CODEX_BIN_or_exact_external_codex",
-    "opl_integration": "framework_app_state_action_contracts_only",
+    "opl_integration": "framework_app_state_action_authentication_and_channel_callbacks_only",
     "multi_backend_abstraction_required": false,
     "thread_store_owner": "codex_core_app_server"
   },

@@ -2,20 +2,27 @@
 
 ## DeepSeek Harness
 
-OPL Studio directly reuses the following DeepSeek Harness runtime packages:
+OPL Studio directly reuses the pinned DeepSeek Harness Application Host cohort:
 
-- `@deepseek-ai/dsh-client-ui-slots` `0.1.0-rc.8`
-  (`sha512-mwmSDuUG2BTcmPSL/o6esCYmjiwlW+uV3+ZZKIHzCxNVZ0AFMsfPQNZLhNSC2SYYw3SuIPb2R1W9DorB++KVyQ==`)
-- `@deepseek-ai/dsh-invariants` `0.1.0-rc.8`
-  (`sha512-u0lYqyxOYwfsVnbsfGXZos5vFvA4cqFnBEW3/ezgljNwkYwzeUP/Y5wjPnQjP+ZzBn3CnVeIF6s2N2Vk3iA5mQ==`)
-- `@deepseek-ai/cordis` `4.0.1`
-  (`sha512-YBdskTU2Po1kru3GgcUWUbkTsPMA9LkSQDAY8rBkFJeajdgcQad3QPJZE26JyK99Xb6HaASvoXg2DSUTeN/0Nw==`)
-- `use-sync-external-store` `1.2.0`
-  (`sha512-eEgnFxGQ1Ife9bzYs6VLi8/4X6CObHMw9Qr9tPY43iKwsPw8xE8+EFsf/2cFZ5S3esXgpWgtSCtLNS41F+sKPA==`)
+- `@deepseek-ai/cordis` `4.0.1`;
+- `@deepseek-ai/cordis-plugin-group` `1.0.1`;
+- `@deepseek-ai/cordis-plugin-include` `1.0.6`;
+- `@deepseek-ai/cordis-plugin-loader` `1.0.2`;
+- `@deepseek-ai/dsh-app-boot`, `dsh-brand`, `dsh-client-modules`,
+  `dsh-client-ui-primitives`, `dsh-client-ui-slots`, `dsh-client-web`,
+  `dsh-home-paths`, `dsh-host-frontend-static`,
+  `dsh-host-plugin-inventory`, `dsh-host-webserver`, `dsh-invariants`,
+  `dsh-launch-environment`, `dsh-system-prompt`, `dsh-tools`, and
+  `dsh-typert-protocol`, all at `0.1.1-rc.2`;
+- `use-sync-external-store` `1.2.0` for the vendored renderer closure.
+
+Exact package integrity values are pinned in `package-lock.json` and the
+Application Host package cohort is repeated in
+`src/composition/deepseekHarnessSourceManifest.json`.
 
 Source repository: <https://github.com/deepseek-ai/deepseek-harness>
 
-Inspected source ref: `141eb6fef83422698aef7a981029e843e8161534`
+Inspected source ref: `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`
 
 The complete `src/` trees of eleven GUI packages are vendored byte-for-byte from
 that ref under `src/vendor/deepseek-harness/packages/client/`:
@@ -33,7 +40,7 @@ that ref under `src/vendor/deepseek-harness/packages/client/`:
 - `ui-renderer`
 
 The snapshot contains 277 files, including the upstream `LICENSE`. Its package
-roots, per-file SHA-256 inventory, source package version (`0.1.0-rc.8`), and
+roots, per-file SHA-256 inventory, source package version (`0.1.1-rc.2`), and
 update boundary are recorded in
 `src/composition/deepseekHarnessSourceManifest.json`; `npm run verify:dsh-gui`
 checks local byte parity. OPL changes stay outside the vendor root.
@@ -45,18 +52,24 @@ The live One Person Lab composition directly renders upstream `AppFrame`,
 registration, disposal, and entry error isolation. OPL components import `Button`, `Pill`, `Input`, `Tooltip`,
 `StateDot`, `MessageText`, and icons directly from the vendored upstream
 `@deepseek-ai/dsh-client-ui-primitives` index. User-visible identity uses the
-rc8 brand slots with the text `OPL` / `One Person Lab`; no OPL logo, parallel
+RC2 brand slots with the text `OPL` / `One Person Lab`; no OPL logo, parallel
 type scale, layout, color system, primitive control, or icon is introduced. The
-rc8 attachment slot is occupied by a null adapter and does not enable a
+RC2 attachment slot is occupied by a null adapter and does not enable a
 multimodal runtime. Workspace host description remains unavailable until the
 App ABI supplies it; the POSIX home-path compatibility shim therefore does not
 claim a visible `~` abbreviation.
 
-DeepSeek Harness session, agent, provider, credential, connection,
-plugin-manager, and control-plane authority are not adopted. The Client Cordis
-graph is derived from the Framework Host graph and App-owned profile/slot
-policy; it does not discover Packages or create a second registry, currentness,
-state, session, or action authority.
+The `opl-studio` profile adopts DSH boot, profile/patch loading, Cordis plugin
+lifecycle, native tool registry, WebServer, frontend modules, and plugin
+inventory. OPL-owned plugins provide Codex, Framework bridging, Host APIs, and
+Web routes. The profile does not load `dsh-base`; DeepSeek Harness session, LLM
+provider routing, Agent loop, and credential authority are not adopted.
+
+Tools registered in DSH `ctx.tools` are exposed to the persistent Codex App
+Server through an authenticated stateful loopback MCP endpoint. The browser
+Client Cordis graph remains derived from the Framework Host graph and App-owned
+profile/slot policy; it does not discover OPL Packages or create another
+registry, currentness, state, session, or action authority.
 
 MIT License
 

@@ -9,7 +9,7 @@ export const codexWorkbenchStyles = `
     --opl-font-mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
     /* Selected from DeepSeek Harness ui-theme/design-platform.css at
-       141eb6fef83422698aef7a981029e843e8161534 for the reused primitives. */
+       b150a551b8d465e31e418e1b2eaf5e79bbb7d28e for the reused primitives. */
     --dsw-static-deepseek-450: rgb(86, 134, 254);
     --dsw-static-neutral-bluish-00: rgb(255, 255, 255);
     --dsw-static-neutral-bluish-100: rgb(235, 238, 242);

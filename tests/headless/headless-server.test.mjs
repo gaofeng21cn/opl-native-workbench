@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { EventEmitter } from "node:events";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -37,20 +36,27 @@ test("headless config validates bind, port, shutdown bound, and renderer root", 
 });
 
 test("standalone host serves health and readiness from the shared host core", async (t) => {
-  const core = new EventEmitter();
-  core.transport = { initialized: true };
-  core.capabilities = () => ({
-    localHost: true,
-    appServerAvailable: true,
-    appServerError: null,
-    threadAdapter: { available: true }
-  });
-  core.invoke = async () => ({});
-  core.close = async () => {};
   const directory = await webRoot();
+  const project = await mkdtemp(path.join(os.tmpdir(), "opl-headless-health-project-"));
   const service = await startHeadlessHost({
     config: { address: "127.0.0.1", port: 0, shutdownTimeoutMs: 500, webRoot: directory },
-    createHost: (options) => createWebUiHost({ ...options, core })
+    createHost: (options) => createWebUiHost({
+      ...options,
+      workspaceRoot: project,
+      env: {
+        ...process.env,
+        CODEX_APP_SERVER_COMMAND: process.execPath,
+        CODEX_APP_SERVER_ARGS: fixture
+      },
+      opl: {
+        readState: async () => ({}),
+        readInitialize: async () => ({}),
+        readFullDrilldown: async () => ({}),
+        readDomainDetailView: async () => ({}),
+        readContribution: async () => ({}),
+        executeAction: async () => ({})
+      }
+    })
   });
   t.after(() => service.host.close());
 

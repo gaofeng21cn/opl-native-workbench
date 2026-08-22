@@ -1,19 +1,8 @@
 import { EventEmitter } from "node:events";
-import os from "node:os";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { CHANNEL_CALLBACK_SCHEMA, CodexAppServerTransport } from "./app-server-transport.mjs";
-import { ChannelBindingStore } from "./channel-bindings.mjs";
-import { createFrameworkChannelCallbackRegistrar } from "./framework-channel-bootstrap.mjs";
-import { createCodexApiKeyConfiguration, createGatewayAccountLogin } from "./gateway-account-login.mjs";
 import { createNativeAppUpdaterFromEnvironment } from "./native-app-updater.mjs";
-import { createOplPassthrough } from "./opl-passthrough.mjs";
-import { CodexThreadAdapter, ThreadAdapterError } from "./thread-adapter.mjs";
-
-const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const defaultWorkspaceRoot = process.env.OPL_NATIVE_WORKBENCH_CODEX_CWD
-  ?? process.env.OPL_STUDIO_CODEX_CWD
-  ?? repositoryRoot;
+import { OplCodexNative } from "./opl-codex-native.mjs";
+import { OplFrameworkBridge } from "./opl-framework-bridge.mjs";
+import { ThreadAdapterError } from "./thread-adapter.mjs";
 
 function unavailablePlatformCapability(capability) {
   return async () => {
@@ -36,11 +25,6 @@ function defaultPlatformServices() {
 
 function defaultNativeUpdater() {
   return createNativeAppUpdaterFromEnvironment();
-}
-
-function defaultChannelBindingFile(env) {
-  return env.OPL_STUDIO_CHANNEL_BINDINGS_FILE
-    ?? path.join(env.OPL_DATA_DIR ?? os.homedir(), ".opl-studio", "channel-transport-bindings.json");
 }
 
 function unavailableCarrierDiagnostics(reasonCode = "carrier_log_directory_unavailable") {
@@ -95,129 +79,64 @@ function defaultCarrierDiagnostics(env) {
 
 export class OplHostCore extends EventEmitter {
   constructor({
-    workspaceRoot = defaultWorkspaceRoot,
-    transport,
-    opl,
-    candidateActionAllowlist = [],
-    channelBindingFile,
-    channelCallbackRegistrar,
-    gatewayAccountLogin,
-    codexApiKeyConfiguration,
+    codex,
+    framework,
+    managedByDsh = false,
     platform = defaultPlatformServices(),
     nativeUpdater = defaultNativeUpdater(),
     carrierDiagnostics,
     env = process.env
-  } = {}) {
+  } = {}, legacyOptions) {
     super();
-    const oplCommand = env.OPL_APP_OPL_BIN ?? env.OPL_COMMAND ?? "opl";
-    const channelBindingStore = new ChannelBindingStore({
-      filePath: channelBindingFile ?? defaultChannelBindingFile(env)
-    });
-    this.transport = transport ?? new CodexAppServerTransport({
-      cwd: workspaceRoot,
-      env,
-      channelBindingStore
-    });
-    this.transport.channelBindingStore ??= channelBindingStore;
-    this.opl = opl ?? createOplPassthrough({
-      cwd: workspaceRoot,
-      command: oplCommand,
-      env,
-      candidateActionAllowlist,
-      channelCallbackRegistrar: channelCallbackRegistrar
-        ?? createFrameworkChannelCallbackRegistrar({ command: oplCommand, env })
-    });
-    this.gatewayAccountLogin = gatewayAccountLogin ?? createGatewayAccountLogin({
-      command: oplCommand,
-      cwd: workspaceRoot,
-      env
-    });
-    this.codexApiKeyConfiguration = codexApiKeyConfiguration ?? createCodexApiKeyConfiguration({
-      command: oplCommand,
-      cwd: workspaceRoot,
-      env
-    });
+    const options = legacyOptions ?? arguments[0] ?? {};
+    this.codex = codex ?? new OplCodexNative(options);
+    this.framework = framework ?? new OplFrameworkBridge({ ...options, codex: this.codex });
+    this.transport = this.codex.transport;
+    this.threads = this.codex.threads;
+    this.opl = this.framework.opl;
+    this.gatewayAccountLogin = this.framework.gatewayAccountLogin;
+    this.codexApiKeyConfiguration = this.framework.codexApiKeyConfiguration;
+    this.managedByDsh = managedByDsh;
+    this.hostContext = null;
     this.platform = { ...defaultPlatformServices(), ...platform };
     this.nativeUpdater = nativeUpdater;
     this.carrierDiagnostics = carrierDiagnostics ?? defaultCarrierDiagnostics(env);
-    this.threads = new CodexThreadAdapter(this.transport);
-    this.channelCallbackAdapter = typeof this.transport.createChannelCallbackAdapter === "function"
-      ? this.transport.createChannelCallbackAdapter()
-      : null;
-    this.channelCallbackRegistration = { status: "dormant", registered: false, dispose: async () => {} };
-    this.channelCallbackRegistrationAttempted = false;
     this.closePromise = null;
-    this.appServerError = null;
-
-    this.threads.on("event", (event) => this.emit("event", event));
-    this.transport.on("availability", (availability) => {
-      this.appServerError = availability.available === true
-        ? null
-        : {
-            code: "app_server_unavailable",
-            message: `Codex App Server became unavailable (${availability.signal ?? availability.code ?? "unknown"})`
-          };
-      this.emit("event", { method: "host/availability", params: availability });
-    });
-    this.transport.on("serverRequest", (request) => {
-      this.emit("event", { method: "codex/server-request", params: request });
-    });
-    this.transport.on("serverRequestsCleared", (detail) => {
-      this.emit("event", { method: "codex/server-requests-cleared", params: detail });
-    });
+    this.codex.on("event", (event) => this.emit("event", event));
   }
 
   async start() {
-    try {
-      await this.transport.start();
-      this.appServerError = null;
-    } catch (error) {
-      this.appServerError = {
-        code: error.code ?? "app_server_unavailable",
-        message: error.message ?? String(error)
-      };
-    }
-    if (
-      this.transport.initialized === true
-      && !this.channelCallbackRegistrationAttempted
-      && this.channelCallbackAdapter
-      && typeof this.opl.registerChannelCallbackAdapter === "function"
-    ) {
-      this.channelCallbackRegistrationAttempted = true;
-      try {
-        this.channelCallbackRegistration = await this.opl.registerChannelCallbackAdapter(
-          this.channelCallbackAdapter
-        );
-      } catch (error) {
-        this.channelCallbackRegistration = {
-          status: "failed",
-          registered: false,
-          reasonCode: error.code ?? "channel_provider_bootstrap_failed",
-          dispose: async () => {}
-        };
-      }
-    }
+    await this.codex.start();
+    await this.framework.start();
     return this.capabilities();
+  }
+
+  attachHostContext(context) {
+    this.hostContext = context;
+  }
+
+  readHostPluginInventory() {
+    const inventory = this.hostContext?.get("pluginInventory");
+    if (!inventory || typeof inventory.list !== "function") {
+      throw new ThreadAdapterError(
+        "host_plugin_inventory_unavailable",
+        "DSH Host plugin inventory is unavailable",
+        {},
+        503
+      );
+    }
+    return inventory.list();
   }
 
   capabilities() {
     return {
       localHost: true,
-      appServerAvailable: this.transport.initialized === true && this.appServerError === null,
-      threadAdapter: this.threads.capabilities(),
-      appServerError: this.appServerError,
-      oplPassthrough: {
-        available: true,
-        authorityBoundary: "app_bridge_no_domain_authority",
-        channelCallback: {
-          schema: this.channelCallbackAdapter ? CHANNEL_CALLBACK_SCHEMA : null,
-          status: this.channelCallbackRegistration?.status ?? "dormant",
-          registered: this.channelCallbackRegistration?.registered === true,
-          ...(this.channelCallbackRegistration?.reasonCode
-            ? { reasonCode: this.channelCallbackRegistration.reasonCode }
-            : {})
-        }
-      }
+      applicationHost: "deepseek_harness",
+      dshProfile: "opl-studio",
+      appServerAvailable: this.codex.capabilities().available,
+      threadAdapter: this.codex.capabilities().threadAdapter,
+      appServerError: this.codex.capabilities().appServerError,
+      oplPassthrough: this.framework.capabilities()
     };
   }
 
@@ -228,6 +147,7 @@ export class OplHostCore extends EventEmitter {
 
     switch (method) {
       case "beginWindowDrag": return this.platform.beginWindowDrag();
+      case "readHostPluginInventory": return this.readHostPluginInventory();
       case "readState": {
         const state = await this.opl.readState(payload.profile ?? "fast");
         let carrierDiagnostics;
@@ -280,15 +200,20 @@ export class OplHostCore extends EventEmitter {
 
   async close() {
     this.closePromise ??= (async () => {
-      await this.channelCallbackRegistration?.dispose?.();
-      await this.transport.stop();
+      if (this.managedByDsh && this.hostContext) {
+        await this.framework.close();
+        await this.codex.close();
+        await this.hostContext.fiber.dispose();
+        return;
+      }
+      await this.framework.close();
+      await this.codex.close();
     })();
     return this.closePromise;
   }
 }
 
 export async function createOplHostCore(options = {}) {
-  const core = new OplHostCore(options);
-  await core.start();
-  return core;
+  const { bootOplStudioHost } = await import("./dsh/host.mjs");
+  return (await bootOplStudioHost(options)).core;
 }

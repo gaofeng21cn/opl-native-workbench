@@ -30,7 +30,7 @@ import App from "../workbench/App";
 import { settingsDestinations, type SettingsDestinationId } from "../workbench/SettingsPanel";
 import { autoModelLabel, reasoningLabel } from "../workbench/modelPolicy";
 import { ProjectedContribution } from "./contributionComponents";
-import { createOplStudioClientCordisComposition } from "./clientCordis";
+import type { OplClientContributionsService } from "./clientCordis";
 import {
   OPL_UI_CONTRIBUTION_SLOTS,
   type OplUiContribution,
@@ -275,44 +275,33 @@ function StudioFrame({ surface, renderSlot }: { surface: OplStudioSurface; rende
   );
 }
 
-function OplStudioRoot({ renderSlot }: { renderSlot: any }) {
+function OplStudioRoot({
+  renderSlot,
+  contributions
+}: {
+  renderSlot: any;
+  contributions: OplClientContributionsService;
+}) {
   const latestHostState = useRef<unknown>(null);
-  const client = useRef<Awaited<ReturnType<typeof createOplStudioClientCordisComposition>> | null>(null);
 
   useEffect(() => {
-    let active = true;
-    let unsubscribe: (() => void) | undefined;
-    let composition: Awaited<ReturnType<typeof createOplStudioClientCordisComposition>> | null = null;
-    void createOplStudioClientCordisComposition()
-      .then((next) => {
-        if (!active) return next.dispose();
-        composition = next;
-        client.current = next;
-        unsubscribe = next.contributions.subscribe((projection) => slotHost.replaceHostDerivedProjection(projection));
-        next.contributions.updateHostState(latestHostState.current);
-      })
-      .catch((error) => {
-        console.error("Failed to initialize OPL Studio Client Cordis", error);
-        slotHost.clearProjection();
-      });
+    const unsubscribe = contributions.subscribe((projection) => slotHost.replaceHostDerivedProjection(projection));
+    contributions.updateHostState(latestHostState.current);
     return () => {
-      active = false;
-      unsubscribe?.();
-      client.current = null;
+      unsubscribe();
       slotHost.clearProjection();
-      if (composition) void composition.dispose();
     };
-  }, []);
+  }, [contributions]);
 
   const updateHostState = useCallback((state: unknown) => {
     latestHostState.current = state;
-    client.current?.contributions.updateHostState(state);
-  }, []);
+    contributions.updateHostState(state);
+  }, [contributions]);
   const clearHostState = useCallback(() => {
     latestHostState.current = null;
-    client.current?.contributions.updateHostState(null);
+    contributions.updateHostState(null);
     slotHost.clearProjection();
-  }, []);
+  }, [contributions]);
 
   return <App renderShell={(surface) => <StudioFrame surface={surface} renderSlot={renderSlot} />} renderContributionSlot={(slot, owner, options) => renderSlot(slot, owner, options)} onHostStateChange={updateHostState} onHostStateDispose={clearHostState} />;
 }
@@ -869,7 +858,9 @@ export class OplStudioDshSlotHost {
     register({ name: "shell.overlay", id: "opl-studio-overlay", order: 0, registrant: "opl-studio" }, ShellOverlaySlot);
   }
 
-  renderRoot() { return this.renderer.renderRoot(this.host, {}); }
+  renderRoot(contributions: OplClientContributionsService) {
+    return this.renderer.renderRoot(this.host, { contributions });
+  }
 
   // Package occupants come only from the Framework Host projection. Static DSH
   // registrations define renderer structure, not a second Package graph.
@@ -894,7 +885,9 @@ export class OplStudioDshSlotHost {
 
 const slotHost = new OplStudioDshSlotHost();
 
-export function renderOplStudioRoot() { return slotHost.renderRoot(); }
+export function renderOplStudioRoot(contributions: OplClientContributionsService) {
+  return slotHost.renderRoot(contributions);
+}
 export function clearOplStudioContributionProjection() { slotHost.clearProjection(); }
 export function dshSlotSnapshot(slot?: OplUiContributionSlot) { return slotHost.core.snapshot(slot); }
 export { OPL_UI_CONTRIBUTION_SLOTS };

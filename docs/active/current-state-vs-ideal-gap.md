@@ -1,9 +1,9 @@
-# OPL Studio Current State And Pre-Adoption Development Policy
+# OPL Studio Application Host Current State And Pre-Adoption Policy
 
-Studio is the DSH-derived candidate Shell for the single OPL App product. The
-current release Shell remains AionUI until the App-owned adapter and release
-gates switch. All candidate evidence in this document is scoped to Studio bytes
-and must not be read as active-shell, App-release, or production evidence.
+Studio is now implemented as the DSH/Cordis Application Host for the single OPL
+App product. The current Stable release carrier remains AionUI until the
+App-owned adapter and release gates switch. Source-level Host completion must
+not be read as active-shell, App-release, or production evidence.
 
 Owner: `one-person-lab-app`
 Purpose: `single_active_truth_plan`
@@ -15,22 +15,19 @@ authority, release adoption, or production readiness.
 
 ## Target State
 
-Studio is the internal repository and development codename for the thin,
-maintainable first-party implementation of the One Person Lab Native GUI. The
-product UI presents only `One Person Lab`. It directly reuses the pinned
-DeepSeek Harness App frame, workspace browser, conversation, composer, Agent
-preset, model selection, Settings, theme, and queue source as its visual and
-interaction baseline. DSH-owned typography, spacing, layout, colors, state, and
-interaction stay unchanged; OPL adds only product identity, real data, App
-policy, and typed contribution adapters outside the vendor root.
+Studio is the maintainable first-party One Person Lab Application Host. It
+boots the pinned DeepSeek Harness `v0.1.1-rc.2` profile/patch/plugin skeleton,
+reuses the pinned App frame, workspace browser, conversation, composer, Agent
+preset, model selection, Settings, theme, and queue source, and supplies the OPL
+plugins that own Codex, Framework bridging, Host APIs, and Web routes.
 
-The implementation has one React renderer and one shared Node host core.
-Electron packages them for macOS, Windows, and Linux, while a thin HTTP/SSE
-adapter exposes standalone WebUI and headless operation. Every carrier starts
-Codex CLI App Server directly and consumes Framework state/action contracts
-without AionUI/AionCore, a multi-backend abstraction, or a second thread/session
-store. The successor Docker carrier uses the same WebUI/host core and never runs
-Electron.
+The implementation has one DSH/Cordis Application Host, one React renderer, and
+one OPL Host core plugin. `opl-codex-native` owns one persistent Codex App
+Server; `opl-dsh-tool-mcp` exposes DSH `ctx.tools` to it; and
+`opl-framework-bridge` consumes Framework state/action, authentication, and
+channel callback contracts. Studio does not load `dsh-base`, so no second DSH
+session, LLM provider, Agent loop, or credential owner exists. Electron and
+HTTP/SSE are carrier adapters over the same Host.
 
 Native development is required against the App-owned minimum-complete product
 contract. It must preserve the necessary user outcomes of the current AionUI
@@ -48,9 +45,14 @@ release admission, and is explicitly adopted.
 | Product work policy | `active_product_development_release_admission_separate` | Minimum-complete OPL outcomes are required; full AionUI parity and implicit release are not |
 | Current mainline | `false` | AionUI remains the only mainline until Studio completes and passes separate release qualification |
 | Product completion obligation | `true` | Minimum-complete Native gaps enter the App development backlog without blocking the current AionUI release |
+| DSH Application Host | `pinned_rc2_application_host_implemented` | `opl-studio` profile, Web overlay, profile home, plugin inventory, startup/shutdown ordering, and Host service tree are implemented from DSH `v0.1.1-rc.2`; `dsh-base` is explicitly excluded |
+| Codex native plugin | `persistent_codex_owner_implemented` | `opl-codex-native` owns the App Server process, canonical threads/turns, approvals, and live events; launch-time MCP settings do not mutate global Codex config |
+| DSH plugin bridge | `ctx_tools_to_codex_mcp_implemented` | Tools registered in DSH `ctx.tools` are listed/called through authenticated stateful loopback MCP with dynamic list-change notifications; plugins requiring excluded DSH product-runtime services need an explicit adapter |
+| Framework bridge | `public_contract_consumer_implemented` | `opl-framework-bridge` consumes App state/action, authentication, and channel callbacks; Framework remains the runtime/Package composition owner |
 | DSH GUI baseline | `pinned_source_reuse_implemented` | App frame, navigation, workspace/session tree, conversation, composer, Agent preset, model selection, Settings, theme, and queue are reused byte-identically from the pinned MIT upstream source; OPL keeps no parallel visual system |
 | Product brand | `one_person_lab_only` | `OPL Studio` remains an internal repo/codename and is not a user-facing product brand or logo |
-| Renderer/hosts | `shared_renderer_and_node_host_core_implemented` | Electron IPC and HTTP/SSE adapt one host core and one renderer; release-cohort equivalence is not proven |
+| Renderer/hosts | `shared_application_host_renderer_and_bridge_implemented` | Electron IPC and HTTP/SSE adapt one DSH Application Host, OPL Host core, and renderer; release-cohort equivalence is not proven |
+| Carrier evidence command | `exact_commit_three_carrier_generator_implemented` | `npm run package` reads the current App carrier contract, requires committed tracked-clean Studio source, and emits Electron, standalone WebUI, Docker smoke, and candidate manifest outputs bound to exact `HEAD`; it grants no distribution, release, or adoption authority |
 | Desktop host | `electron_hosted_installer_native_api_accessibility_baseline` | macOS directory packaging is proven locally; hosted Windows x64 and Linux x64 build two unsigned package cohorts and prove install/update/rollback/uninstall of NSIS and DEB with exact running-version, state-preservation, and process-bound UIA/AT-SPI tree readback. DEB is the only admitted Linux native carrier; AppImage is rejected because its sandbox requirements conflict with direct portable execution on Ubuntu 24.04. Dedicated clean-VM, NVDA/Orca experience, signing, release, and platform support remain unqualified |
 | Headless/WebUI host | `posix_user_service_qualification_wired` | Candidate WebUI starts Codex App Server directly. Formal install/status/stop/start/restart/update/rollback/uninstall commands manage only the current user's launchd or systemd service. The hosted jobs bind exact pinned runtime paths, readiness and App-state readback, then prove native service-definition and payload removal. Supported installers, remote access, signing and release remain open; no Electron/AionCore or Desktop database is used |
 | Docker carrier | `successor_oci_hosted_qualification_wired` | Dockerfile/Compose reuse the shared Node host core and renderer with pinned inputs and persistent volumes; the manual additional-carrier qualification builds local-only OCI layouts with SBOM/provenance and runs install/update/recreate/rollback/uninstall on matching native amd64 and arm64 runners. Registry index identity, signing, public distribution, clean-host and release admission remain open |
@@ -60,7 +62,7 @@ release admission, and is explicitly adopted.
 | Thread/history | `codex_app_server_owned` | Candidate consumes thread/turn APIs and keeps only UI metadata/drafts locally |
 | Shared directory | `codex_visible_default_overview` | Uses the default `thread/list` source set and opens history by the same canonical thread ID |
 | Codex subagents | `read_only_app_server_projection` | Lineage, role, nickname, source kind, tool-call, and activity items are displayed without owning scheduling |
-| Private cross-thread layer | `removed_non_goal` | No proposal/dispatch/wait protocol, host queue, ledger, bilateral receipt, or dynamic-tool bridge remains |
+| Private cross-thread layer | `removed_non_goal` | No proposal/dispatch/wait protocol, host queue, ledger, or bilateral receipt remains. The DSH Tool MCP is an in-process plugin capability bridge, not a second thread coordinator |
 | Client composition | `host_derived_client_cordis` | AionUI and Native consume the same App Client Contribution ABI, product profile, and slot policy. Native's Client Cordis occupants derive only from the Framework Host projection; no shell discovers Packages or owns another graph |
 | OPL state/actions | `canonical_producer_consumer_conformance` | Framework Cordis composition, Package graph, and public App state/action producer are canonical; Native has one bounded consumer bridge and no second registry, currentness, session, state, or action authority |
 | Conversation | `chat_first_with_on_demand_detail` | Primary surface is the DSH conversation; run status, roadmap/detail contributions, files, and results open on demand instead of becoming static home cards |
@@ -148,8 +150,8 @@ carrier.
   authority;
 - no independent Client Cordis graph or Package discovery; the single GUI-side
   graph must derive from the Framework Host projection and App slot policy;
-- no revival of cross-host handoff, dynamic-tool product requirements, or
-  private delivery ledgers merely because experimental source exists;
+- no revival of cross-host handoff or private delivery ledgers; DSH tool plugins
+  must stay behind the Host tool registry and Codex MCP bridge;
 - no conflation of AionUI Team executor orchestration with Codex App Server
   subagent lineage and activity projection;
 - no AionUI/AionCore runtime dependency or provider/session abstraction;
@@ -168,6 +170,8 @@ carrier.
   delta;
 - current Native source, `src/candidateContractEvidence.json`, tests, package
   scripts, and verification guide.
+- pinned DSH ref/package cohort, `scripts/webui-host/dsh/cordis.yml`, Web
+  overlay, profile/bundle patches, vendor manifest, and Host/MCP tests.
 
 ### Required Actions
 

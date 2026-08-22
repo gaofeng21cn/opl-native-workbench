@@ -1,7 +1,7 @@
-# One Person Lab App Candidate Client Architecture
+# One Person Lab Studio Application Host Architecture
 
 Owner: `one-person-lab-app`
-Purpose: `candidate_client_architecture_rationale`
+Purpose: `application_host_architecture_rationale`
 State: `active_technical_whitepaper`
 Machine boundary: This paper explains the Studio candidate design. App
 contracts, Framework output, Codex App Server, candidate source/tests, and an
@@ -10,17 +10,41 @@ explicit App adoption decision remain their respective authorities.
 ## One Product, Replaceable Renderers
 
 One Person Lab App is one product with one product profile and one release
-authority. AionUI is the current release renderer; `opl-studio` is the
-DSH-derived candidate. Their carriers and visual implementations may differ,
+authority. AionUI is the current Stable renderer; `opl-studio` is the
+DSH/Cordis Application Host implementation intended for the Studio carrier.
+Their carriers and visual implementations may differ,
 but they cannot fork product state, Package identity, action semantics, or
 release truth.
 
-Studio directly reuses the pinned MIT-licensed DeepSeek Harness GUI modules.
+Studio directly reuses the pinned MIT-licensed DeepSeek Harness Application
+Host packages and GUI modules.
 Typography, spacing, layout, colors, component states, and ordinary interaction
 stay upstream-owned. OPL adds text identity, real product data, and thin bridge
 adapters outside the vendored source. This keeps the candidate visually stable
 and makes future DSH updates a bounded source-reuse operation instead of a
-second design-system maintenance stream.
+second design-system maintenance stream. The same pinned cohort provides the
+profile loader, Cordis plugin lifecycle, native tool registry, WebServer,
+frontend modules, and plugin inventory.
+
+## Two Hosts, Separate Owners
+
+Studio and Framework are separate Cordis Hosts because they own different
+process-local responsibilities:
+
+```text
+Studio Host: App plugins + GUI + Codex lifecycle + DSH tool exposure
+Framework Host: OPL runtime + Package composition + projections
+Bridge: opl app state/action + authentication + channel callback
+```
+
+Neither Host shares internal registries or writes the other's state. Studio
+does not load `dsh-base`; `opl-codex-native` remains the only thread/turn owner,
+while Framework remains the runtime/Package owner.
+
+DSH plugins that register tools in `ctx.tools` become callable by Codex through
+Studio's authenticated loopback MCP. This is the direct compatibility surface.
+Plugins that depend on DSH session, LLM provider, Agent loop, or credential
+services are outside that surface and need an explicit OPL adapter.
 
 ## Host-Derived Client Composition
 
@@ -34,7 +58,7 @@ OPL Packages
   -> AionUI or DSH renderer
 ```
 
-Framework is the only Host composition authority. App owns the product profile,
+Framework is the only OPL runtime and Package composition authority. App owns the product profile,
 GUI ABI, active shell, and release composition. A GUI Client receives only the
 allowlisted projection. It cannot discover or install Packages, maintain a
 registry or currentness plane, obtain release-operation, or own task, Package,
@@ -44,8 +68,9 @@ Studio implements the App Client face with one `@deepseek-ai/cordis` context,
 the `opl.app.client-contributions` service, the
 `opl/app-client-contributions/updated` event, and the three App-declared slots.
 DSH `SlotCore` supplies renderer registration, ordering, disposal, and entry
-error isolation. This is a Client projection of the Framework Host graph, not a
-second Host.
+error isolation. This browser Client projection is not another Framework Host;
+the server-side Studio Application Host is a separate, explicitly owned process
+scope described above.
 
 ## Dynamic Brand Capabilities
 

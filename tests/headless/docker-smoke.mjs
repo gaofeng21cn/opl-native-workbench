@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+const receiptPath = path.join(root, "out", "docker-local-smoke.json");
 
 const suffix = `${process.pid}-${Date.now()}`;
 const image = `opl-studio-headless-smoke:${suffix}`;
@@ -74,7 +80,7 @@ try {
   assert.ok(codexVersion, "codex --version returned no output");
 
   docker("stop", "--time", "10", container);
-  console.log(JSON.stringify({
+  const receipt = {
     status: "headless_docker_smoke_passed",
     image,
     health: "ok",
@@ -86,7 +92,10 @@ try {
     runtimeUser: 1000,
     pid1: "node",
     persistentMounts: ["/data", "/projects"]
-  }, null, 2));
+  };
+  fs.mkdirSync(path.dirname(receiptPath), { recursive: true });
+  fs.writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, "utf8");
+  console.log(JSON.stringify(receipt, null, 2));
 } finally {
   spawnSync("docker", ["rm", "--force", container], { stdio: "ignore" });
   spawnSync("docker", ["volume", "rm", "--force", dataVolume, projectsVolume], { stdio: "ignore" });

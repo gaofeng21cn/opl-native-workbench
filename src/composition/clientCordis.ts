@@ -176,11 +176,20 @@ function createContributionsService(
   });
 }
 
+export function provideOplStudioClientContributions(
+  ctx: Context,
+  policy: OplClientCompositionPolicy = readOplClientCompositionPolicy()
+): OplClientContributionsService {
+  const service = createContributionsService(ctx, policy);
+  ctx.provide(OPL_CLIENT_CONTRIBUTIONS_SERVICE, service);
+  return service;
+}
+
 const clientContributionsPlugin = {
   name: "opl-studio-client-contributions",
   provide: OPL_CLIENT_CONTRIBUTIONS_SERVICE,
   apply(ctx: Context, config: { policy: OplClientCompositionPolicy }) {
-    ctx.provide(OPL_CLIENT_CONTRIBUTIONS_SERVICE, createContributionsService(ctx, config.policy));
+    provideOplStudioClientContributions(ctx, config.policy);
   }
 };
 

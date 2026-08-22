@@ -77,13 +77,7 @@ try {
     turnTimeoutMs: 2_000
   });
   host = await createWebUiHost({ transport, opl, webRoot: path.join(repositoryRoot, "dist", "webui") });
-  await new Promise((resolve, reject) => {
-    host.server.once("error", reject);
-    host.server.listen(0, "127.0.0.1", resolve);
-  });
-  const address = host.server.address();
-  assert.equal(typeof address, "object");
-  const baseUrl = `http://127.0.0.1:${address.port}`;
+  const baseUrl = host.url;
 
   await cli(["open", baseUrl], cliRoot);
   await cli(["resize", "1440", "900"], cliRoot);
@@ -228,7 +222,6 @@ try {
   process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
 } finally {
   await cli(["close"], cliRoot).catch(() => undefined);
-  host?.server.closeAllConnections?.();
   if (host) await host.close().catch(() => undefined);
   await rm(tempRoot, { recursive: true, force: true });
 }

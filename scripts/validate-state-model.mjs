@@ -116,7 +116,9 @@ assert(workbenchModelSource.includes("nonReadyBoundaryStatusPattern"), "artifact
 assert(workbenchModelSource.includes('"app_canonical"'), "artifactStatus missing explicit canonical ready source");
 assert(!appSource.includes("Context ready"), "fallback UI still displays Context ready");
 assert(!appSource.includes('status="connected"'), "fallback UI still displays connected status");
-assert(!appSource.includes(': "Ready"'), "composer idle state still displays Ready");
+const composerRunStateSource = appSource.match(/data-testid="opl-composer-run-state"[\s\S]*?<\/span>/)?.[0];
+assert(composerRunStateSource, "composer run-state surface missing");
+assert(!composerRunStateSource.includes(': "Ready"'), "composer idle state still displays Ready");
 assert(!bridgeSource.includes('canExecute: receiptKind !== "confirmation_required"'), "placeholder receipt still allows execution by default");
 assert(bridgeSource.includes("bridge_unavailable_placeholder"), "placeholder receipt missing bridge unavailable boundary");
 for (const status of allowedStarterFallbackStatuses) {

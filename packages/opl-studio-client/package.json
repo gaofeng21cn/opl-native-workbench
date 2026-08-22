@@ -1,0 +1,23 @@
+{
+  "name": "@one-person-lab/opl-studio-client",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "main": "./host.mjs",
+  "exports": {
+    ".": "./host.mjs",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "files": [
+    "host.mjs",
+    "lib/client.js"
+  ],
+  "license": "Apache-2.0"
+}

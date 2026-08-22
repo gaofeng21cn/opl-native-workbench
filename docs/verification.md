@@ -14,12 +14,11 @@ npm ci
 npm test
 ```
 
-`npm test` runs the repository's current typecheck, Electron host/updater tests,
-standalone headless process tests, Gateway-account projection regression,
-standard thread adapter/lifecycle/subagent tests, candidate and state
-validators, WebUI and visual smoke, Electron directory packaging, and package
-validation. Read `package.json` before relying on this summary because the
-script is the command owner.
+`npm test` runs the repository's `test:source` gate: typecheck, focused
+Desktop/headless/OCI and projection tests, Host/MCP and thread tests, Client
+Cordis checks, and the candidate validator. It does not construct carrier
+artifacts. Read `package.json` before relying on this summary because the script
+is the command owner.
 
 ## Focused Commands
 
@@ -30,14 +29,15 @@ script is the command owner.
 | `npm run test:headless` | Standalone bind/config validation, health/readiness, real child App Server startup, and bounded signal shutdown |
 | `npm run headless:install` / `headless:status` / `headless:stop` / `headless:start` / `headless:restart` / `headless:update` / `headless:rollback` / `headless:uninstall` | Current-user macOS/Linux native service lifecycle commands; platform support and public distribution remain separately admitted |
 | `npm run test:threads` | Standard Desktop/WebUI thread lifecycle, pagination, renderer, and Codex subagent projection tests |
-| `npm run test:webui-host` | Shared host core, HTTP/SSE, model/thread pagination, OPL projection, and read-only mutation guard |
+| `npm run test:webui-host` | DSH Host boot/profile/plugin inventory, authenticated DSH-tool MCP, persistent Codex ownership, shared Host core, HTTP/SSE, model/thread pagination, OPL projection, and read-only mutation guard |
 | `npm run test:client-cordis` | Studio Client Cordis policy, typed event/slot lifecycle, and exact contribution action request |
 | `npm run validate:client-conformance` | Fresh four-repository Host -> App -> Studio/AionUI compatibility and wire-ref readback |
 | `npm run validate:candidate` | Required source markers and false-ready guards |
+| `npm run verify:dsh-gui` | Byte parity of the pinned DSH `v0.1.1-rc.2` GUI source manifest |
 | `npm run validate:state-model` | Runtime-backed App-state projection mapping; requires a real `opl` CLI/state source and is not part of default PR/main source CI |
 | `npm run smoke:webui` | Local WebUI host/renderer smoke |
 | `npm run smoke:visual` | Source-level visual smoke |
-| `npm run package` | Current-platform Electron directory package construction |
+| `OPL_APP_REPO_ROOT=/absolute/app/root npm run package` | App-contract-driven three-carrier local qualification and exact-commit evidence: Electron `.app`, standalone WebUI archive, Docker smoke receipt, and candidate manifest; requires macOS, Docker, and tracked-clean committed Studio source |
 | `npm run validate:package` | Electron package and three-platform builder configuration structure |
 | `npm run dist:windows` | Unsigned Windows x64 unpacked app, NSIS, and ZIP construction with publishing disabled |
 | `npm run dist:linux` | Unsigned Linux x64 unpacked app and DEB construction with publishing disabled |
@@ -45,6 +45,20 @@ script is the command owner.
 | `npm run smoke:desktop-live` | Current-platform packaged executable startup, exact optional version readback, Chromium AX tree, and App Server cleanup smoke |
 | `npm run build:docker` | Local source-candidate OCI image construction only |
 | `npm run smoke:docker` | Local Docker build/run, health/readiness, non-root PID 1, persistent mounts, and guarded stop |
+
+## Three-Carrier Candidate Evidence
+
+`npm run package` reads the `opl-studio` carrier evidence contract from the App
+root selected by `OPL_APP_REPO_ROOT`. It rejects tracked source changes, binds
+the manifest to the exact Studio `HEAD`, runs the qualification commands named
+by the App contract, and writes the four outputs documented in the root README.
+Run it only after the intended Studio source is committed. The App candidate
+wrapper supplies the current App worktree root explicitly.
+
+This proves that the three local candidate artifacts were constructed and
+qualified under that contract. It does not prove distribution/update wiring,
+signing, notarization, a public feed or registry image, release admission,
+active-shell adoption, or production readiness.
 
 ## Cross-GUI Client Qualification
 
@@ -72,6 +86,16 @@ bunx cross-env VITEST_INCLUDE_DOM=1 vitest run --project dom \
 
 These gates establish renderer compatibility for the tested cohort. They do
 not adopt Studio, switch the active shell, or qualify a release artifact.
+
+## DSH Upstream Upgrade Gate
+
+The upgrade owner is `src/composition/deepseekHarnessSourceManifest.json` plus
+the exact dependencies in `package.json`. A DSH upgrade must update one pinned
+source ref and package cohort, regenerate the vendored GUI manifest from that
+checkout, replay the `opl-studio` profile and Web/profile/bundle patches, then
+run `verify:dsh-gui`, typecheck, WebUI Host/MCP tests, headless tests, renderer
+source tests, and the candidate validator. Passing only package installation or
+GUI byte parity does not prove Host/plugin compatibility.
 
 ## Rendered WebUI Acceptance
 
@@ -116,7 +140,10 @@ require an installed OPL Framework CLI.
 
 The local default `npm test` uses the same `test:source` boundary. The broader
 `npm run test:full` entry remains available for runtime state, visual smoke,
-Electron package construction, and packaged-artifact validation.
+App-contract-driven three-carrier candidate construction, and packaged-artifact
+validation. Because `test:full` reaches `npm run package`, run it only from a
+committed, tracked-clean Studio checkout with the intended App root and a
+working local Docker daemon.
 
 ## macOS Desktop Release Qualification
 

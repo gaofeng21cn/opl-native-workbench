@@ -1,10 +1,26 @@
 # OPL Studio Instructions
 
-- This repository is an external shell checkout for One Person Lab App.
+- This repository implements the independent OPL Studio Application Host for
+  One Person Lab App on the pinned DeepSeek Harness/Cordis application
+  skeleton.
 - Keep product truth in `one-person-lab-app` contracts and docs.
 - Do not copy AionUI, Hermes, AGUI, K-Dense, or OpenClaudeScience source into
   this repository without a separate code-reuse decision.
-- Use OPL App state/action contracts as the only runtime interface.
+- `opl-codex-native` is the only owner of the persistent Codex App Server,
+  canonical threads, approvals, and live turn events inside Studio.
+- DSH Host plugins may contribute tools and application services, but Studio
+  must not load `dsh-base` or adopt a second DSH session, LLM, agent-loop, or
+  credential authority.
+- Use OPL App state/action contracts as the only interface to Framework-owned
+  runtime and Package truth; `opl-framework-bridge` remains a consumer bridge,
+  not a second owner.
+- Keep the pinned DSH ref, package cohort, vendored GUI manifest, Host profile,
+  overlay patches, and focused Host/MCP tests synchronized so upstream upgrades
+  remain replayable and reviewable.
+- `npm run package` is the App-contract-driven three-carrier candidate evidence
+  entry. Run it only from committed, tracked-clean Studio source and bind it to
+  the intended App checkout with `OPL_APP_REPO_ROOT`; its manifest is candidate
+  evidence, not release or adoption authority.
 - Candidate evidence must not claim active-shell adoption, release readiness,
   production readiness, domain readiness, or artifact authority.
 - Keep packaged macOS and WebUI on the same renderer and bridge shape.

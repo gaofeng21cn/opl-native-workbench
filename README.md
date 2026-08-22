@@ -7,34 +7,48 @@ State: `active_product_development_release_admission_separate`
 Machine boundary: Human-readable Native product entry. App product and adoption truth stays in one-person-lab-app contracts; runtime/package truth stays in OPL Framework; domain truth stays with domain owners. This page does not prove active-shell adoption, release readiness, owner acceptance, or production readiness.
 -->
 
-`opl-studio` is the internal repository and development codename for the
-first-party One Person Lab App successor. The product directly reuses the pinned
-DeepSeek Harness React GUI source and uses one shared Node host core. Electron is the
-thin desktop carrier for macOS, Windows, and Linux; HTTP/SSE exposes the same
-renderer and bridge for standalone WebUI, headless, and Docker forms.
+`opl-studio` implements the first-party One Person Lab Studio Application Host.
+It is built on the pinned DeepSeek Harness `v0.1.1-rc.2` Cordis application
+skeleton and React GUI source, not just the DSH GUI modules. Electron is the
+desktop carrier for macOS, Windows, and Linux; HTTP/SSE exposes the same Host,
+renderer, and App bridge for standalone WebUI, headless, and Docker forms.
 
 The wider product model remains `OPL Base + OPL App + OPL Packages + optional
-OPL Cloud`. Studio implements one replaceable App Shell inside that model. It
-does not become Base, install or publish Packages, or own Cloud services.
+OPL Cloud`. Studio is the App-facing Application Host and plugin host inside
+that model. It does not become Base, take over Framework runtime/Package truth,
+install or publish Packages, or own Cloud services.
 
 AionUI remains the active release shell. Selecting or launching Studio is a
 local development choice only; it does not change the release adapter, updater
 channel, App product truth, installed App, or current platform support. AionUI
 and AionCore are not candidate renderer/runtime dependencies.
 
-Studio is now required product development against the App-owned minimum-complete
-contract. It is not a full AionUI parity program, scheduled workstream, or release
-blocker. The desktop and headless hosts start Codex App Server directly
-from `OPL_CODEX_BIN` or an exact external Codex executable, while OPL state and
-mutations remain behind Framework `opl app state/action` contracts. It does not
-package or read AionUI/AionCore manifests, sessions, or data.
-Codex App Server stdio is the only enabled carrier; `pi` and `hermes` are
-reserved disabled interface names and add no current code path or dependency.
+Studio boots a dedicated `opl-studio` DSH profile. The profile uses DSH boot,
+profile/patch loading, native tool registry, WebServer, frontend modules, and
+plugin inventory, then loads the OPL-owned `opl-dsh-tool-mcp`,
+`opl-codex-native`, `opl-framework-bridge`, Host core, and Web route plugins.
+It deliberately does not load `dsh-base`, so DSH does not introduce a second
+session store, LLM/provider router, Agent loop, or credential owner.
+
+`opl-codex-native` starts one persistent Codex App Server from `OPL_CODEX_BIN`
+or an exact external Codex executable. It remains the only Studio owner of
+canonical threads and turns, approvals, live events, and App Server lifecycle.
+Plugins that register tools in DSH `ctx.tools` are exposed to that Codex process
+through an authenticated, stateful loopback MCP endpoint. Plugins that require
+the excluded DSH session/LLM/Agent/credential services are not automatically
+compatible and need a separate owner decision and adapter.
+
+`opl-framework-bridge` consumes only Framework App state/action, authentication,
+and channel callback contracts. Framework keeps runtime and Package authority;
+Studio does not copy those states into its Cordis graph. Codex App Server stdio
+is the only enabled Agent carrier; `pi` and `hermes` remain disabled names with
+no current code path or dependency.
 
 Package-facing GUI composition uses the same App Client Contribution ABI,
 product profile, typed RPC/events, product state semantics, and slot/action
-policy as AionUI. The browser Client Cordis graph is derived only from the
-Framework Host projection; it does not discover/install plugins, own a second
+policy as AionUI. This browser Client Cordis projection is separate from the
+server-side Studio Application Host: it is derived only from the Framework Host
+projection and cannot discover/install Packages, own another
 registry/currentness/state/action plane, receive release-operation, or own task,
 Package, or product truth. Framework's Host projection is active, and the
 candidate conformance gate now runs its canonical producer through the App
@@ -89,6 +103,9 @@ settings, and unsent drafts locally.
 ## What You Can Evaluate
 
 - a persistent project and conversation rail around one dominant chat timeline;
+- the DSH/Cordis Host profile, plugin inventory, profile overlays, and plugin
+  lifecycle used by both Desktop and WebUI;
+- DSH-native tool plugins called by Codex through the authenticated MCP bridge;
 - Codex App Server thread, turn, streaming, and history integration;
 - read-only Codex subagent lineage, role, source, and activity projection from
   native App Server thread/turn items;
@@ -174,15 +191,43 @@ the renderer policy and is not copied into the runtime image. These defaults are
 not a release cohort or update contract. Do not expose the HTTP bridge to an
 untrusted network; this candidate has no remote access control boundary.
 
+### Three-Carrier Candidate Package
+
+`npm run package` is the contract-driven candidate packaging entry, not an
+alias for Electron packaging. Run it on a macOS qualification host from a
+committed, tracked-clean Studio checkout and point it at the intended current
+App checkout:
+
+```bash
+OPL_APP_REPO_ROOT=/absolute/path/to/one-person-lab-app npm run package
+```
+
+The command reads the `opl-studio` carrier evidence contract from that App
+checkout, runs each required local qualification command, and creates:
+
+- the current-architecture Electron `.app` directory;
+- `out/standalone-headless-webui.tgz`;
+- `out/docker-local-smoke.json` from a real local Docker smoke;
+- `out/opl-studio-carrier-evidence-manifest.json`, bound to the exact Studio
+  `HEAD` and the three artifacts above.
+
+The command fails when tracked Studio source changes before or during
+qualification. The App wrapper injects its own absolute `OPL_APP_REPO_ROOT`, so
+an App task worktree cannot silently read contracts from another checkout.
+The resulting manifest is local candidate evidence only: distribution wiring,
+update wiring, signing, notarization, public publication, release admission,
+and active-shell adoption remain separate App-owned decisions.
+
 ## Authority Boundary
 
 | Concern | Owner | Native role |
 | --- | --- | --- |
 | GUI product behavior, model policy, page states, and adoption | `one-person-lab-app` contracts | Implementation consumer only |
+| Studio Application Host, DSH profile, plugin lifecycle, and DSH tool MCP | This repository | Source implementation owner |
 | Runtime and projected Package state/actions | OPL Framework Host plus Package owners | Read/project exact refs; dispatch owner actions only |
-| Thread identity, history, permissions, and turns | Codex App Server | Client and renderer only |
+| Thread identity, history, permissions, approvals, and turns | Codex App Server via `opl-codex-native` | Persistent native backend owner |
 | Professional truth, quality, artifacts, and delivery | Domain owners | Refs-only presentation |
-| Candidate source, bridge, renderer, packaging, and focused tests | This repository | Implementation evidence only |
+| Renderer, carriers, packaging, and focused tests | This repository | Implementation evidence only |
 
 The App registry keeps Studio as the foreground alternative while its first-party
 product implementation is developed. Active-shell adoption and release
@@ -193,8 +238,9 @@ it does not replace Codex-native subagents and is not implemented here.
 
 ## Current Evidence Boundary
 
-Source validators, tests, renderer smoke, WebUI smoke, package construction, and
-local packaged-app smoke can prove their exact candidate layers. They do not
+Source validators, tests, renderer smoke, WebUI smoke, exact-commit
+three-carrier package construction, and local packaged-app smoke can prove their
+exact candidate layers. They do not
 prove active-shell adoption, release readiness, clean-VM readiness, shared
 physical Runtime parity, domain readiness, owner acceptance, or production
 readiness.
@@ -220,6 +266,9 @@ npm test
 regressions, candidate contracts, and the typed contribution tests. It does not
 start Electron, run visual smoke, construct a package, or validate a packaged
 artifact. Use `npm run test:full` when those broader local checks are needed.
+Use `OPL_APP_REPO_ROOT=/absolute/path/to/one-person-lab-app npm run package`
+when exact-commit three-carrier candidate evidence is required; it additionally
+requires a working local Docker daemon and a tracked-clean Studio checkout.
 Run `npm run smoke:desktop-live` separately for local packaged-window evidence.
 Run `npm run smoke:docker` separately for a local OCI build/runtime smoke.
 See [verification](docs/verification.md) before interpreting either result.

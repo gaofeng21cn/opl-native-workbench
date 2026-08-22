@@ -33,22 +33,6 @@ export function resolveHeadlessConfig(env = process.env) {
   };
 }
 
-async function listen(server, port, address) {
-  await new Promise((resolve, reject) => {
-    const onError = (error) => {
-      server.off("listening", onListening);
-      reject(error);
-    };
-    const onListening = () => {
-      server.off("error", onError);
-      resolve();
-    };
-    server.once("error", onError);
-    server.once("listening", onListening);
-    server.listen(port, address);
-  });
-}
-
 export async function startHeadlessHost({
   config = resolveHeadlessConfig(),
   createHost = createWebUiHost,
@@ -57,21 +41,16 @@ export async function startHeadlessHost({
   await access(path.join(config.webRoot, "index.html"));
   const host = await createHost({
     webRoot: config.webRoot,
+    webHost: config.address,
+    webPort: config.port,
     channelBindingFile: env.OPL_STUDIO_CHANNEL_BINDINGS_FILE
       ?? path.join(env.OPL_DATA_DIR ?? os.homedir(), ".opl-studio", "channel-transport-bindings.json")
   });
-  try {
-    await listen(host.server, config.port, config.address);
-  } catch (error) {
-    await host.close();
-    throw error;
-  }
-  const bound = host.server.address();
   return {
     host,
     config,
-    address: typeof bound === "object" && bound ? bound.address : config.address,
-    port: typeof bound === "object" && bound ? bound.port : config.port
+    address: host.host,
+    port: host.port
   };
 }
 

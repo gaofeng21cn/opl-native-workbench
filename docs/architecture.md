@@ -1,7 +1,7 @@
 # OPL Studio Architecture
 
 Owner: `one-person-lab-app`
-Purpose: `candidate_implementation_boundary`
+Purpose: `application_host_implementation_boundary`
 State: `active_technical_reference`
 Machine boundary: Human-readable implementation and authority map. Source and
 tests prove only their exact candidate behavior; App contracts, Framework
@@ -9,36 +9,75 @@ readback, Codex App Server, and domain owners retain their respective truth.
 
 ## Authority Stack
 
-This repository is the candidate Shell in the one-product/two-Shell topology:
-`one-person-lab-app` owns product and release truth, `opl-aion-shell` remains the
-Stable AionUI carrier, and `opl-studio` is the DSH-derived candidate carrier.
-The selected Shell, GUI ABI version, Framework compatibility and contribution
-snapshot are frozen by the App release composition; candidate source or local
-validation cannot promote itself.
+This repository implements the independent Studio Application Host in the
+one-product/multiple-carrier topology. `one-person-lab-app` owns product and
+release truth, `opl-aion-shell` remains the Stable AionUI carrier, and
+`opl-studio` implements the DSH/Cordis Host intended to become the first-party
+Studio carrier. Source completion does not by itself change the selected Stable
+carrier, GUI ABI freeze, release composition, or installed product.
 
 ```text
-OPL Packages -> runtime capabilities + App-schema-admitted GUI descriptors
-                         |
-                         v
-OPL Framework authoritative Host graph and allowlisted RPC/event projection
-                         +
-one-person-lab-app product profile + App Client Contribution ABI + slot policy
-                         v
-Host-derived Client Cordis graph
-                         |
-                         v
-renderer adapter (DSH React here; AionUI in the current shell)
-                         |
-                         v
-shared Node host core -> Electron IPC or HTTP/SSE
+DeepSeek Harness v0.1.1-rc.2 boot/profile/patch loader
+  -> Studio Cordis Application Host
+       -> DSH native tool registry -> authenticated MCP -> opl-codex-native
+       -> opl-framework-bridge -> public OPL App contracts
+       -> shared renderer/Web routes -> Electron IPC or HTTP/SSE
 
-Codex App Server separately owns thread/turn protocol and history.
+OPL Framework Cordis Host
+  -> runtime and Package composition
+  -> opl app state/action + authentication + channel callback
+  -> Studio's opl-framework-bridge
+
+Codex App Server separately owns canonical thread/turn protocol, history,
+approvals, and live events.
 ```
 
-The dependency direction is one-way. Native implements App requirements and
-renders owner projections. Candidate source, UI defaults, generated manifests,
-or package output cannot redefine App product behavior, runtime/package truth,
-thread truth, or domain authority.
+The two Cordis Hosts have different scopes. Studio owns its App process,
+plugins, GUI, and Codex tool exposure. Framework owns OPL runtime/Package
+composition and projections. The bridge uses public contracts rather than
+sharing registries, currentness, sessions, or internal service graphs.
+
+## Studio Application Host
+
+`scripts/webui-host/dsh/host.mjs` boots the `opl-studio` profile from
+`scripts/webui-host/dsh/cordis.yml`, initializes
+`$DSH_HOME/profiles/opl-studio`, heals the standard profile module fallback,
+and applies the Web overlay plus profile/bundle patches. The profile uses these
+DSH services:
+
+- `dsh-system-prompt` without DSH identity or runtime context;
+- `dsh-tools` in native registry mode;
+- `dsh-host-webserver` and `dsh-host-plugin-inventory`;
+- Web-only frontend static hosting and client modules.
+
+Studio deliberately does not load `dsh-base`. Therefore DSH session, LLM
+provider routing, Agent loop, and credential services do not become a second
+backend. The OPL plugin tree is:
+
+```text
+opl-dsh-tool-mcp
+  -> opl-codex-native
+       -> opl-framework-bridge
+            -> opl-host-core
+                 -> opl-web-routes (Web overlay only)
+```
+
+Startup is DSH tree and Tool MCP, then Codex App Server, then Framework bridge.
+Shutdown reverses the stateful edges: Framework callback, Codex App Server,
+then the Cordis tree.
+
+`opl-dsh-tool-mcp` exposes the current DSH `ctx.tools` registry through a
+stateful Streamable HTTP MCP endpoint on the Host loopback WebServer. A random
+bearer token is visible only to the Codex child environment. Codex receives the
+MCP URL and token-env name as launch-time `-c mcp_servers.opl_studio_dsh.*`
+overrides, so Studio does not mutate the user's global Codex config. Dynamic
+DSH tool changes emit MCP `tools/list_changed` notifications.
+
+This gives DSH tool plugins a direct path into the persistent Codex backend.
+It does not promise universal compatibility: plugins that only register
+`ctx.tools` can be consumed directly; plugins that depend on the excluded
+`dsh-base` session, LLM, Agent, or credential services require an explicit OPL
+adapter and authority decision.
 
 ## Client Composition Boundary
 
@@ -48,7 +87,7 @@ trust/scope/order rules, typed RPC reads/events, canonical App actions, product
 state semantics, and disposal policy. Their renderer and package carrier may
 differ; their Package graph and authority inputs may not.
 
-The Framework Host graph remains the only Package producer, identity, and
+The Framework Host graph remains the only OPL Package producer, identity, and
 lifecycle authority. The target `opl app state` projection exposes its bounded
 declarative client graph as `opl_app_ui_contributions_projection.v1`.
 `readUiContributionsProjection()` normalizes that projection. The renderer
@@ -56,8 +95,9 @@ creates one `@deepseek-ai/cordis` Client context, provides the typed
 `opl.app.client-contributions` face, publishes
 `opl/app-client-contributions/updated`, and lets
 `OplStudioDshSlotHost.replaceHostDerivedProjection()` register or dispose the
-corresponding browser occupants. The local `SlotCore` is therefore the renderer
-face of the authoritative Host graph, not an independent Host.
+corresponding browser occupants. This browser Client graph is a projection
+inside the Studio renderer; it is neither the server-side Studio Application
+Host nor another Framework Host.
 
 Framework's canonical producer is active. `npm run
 validate:client-conformance` loads that exact producer, passes one Package
@@ -75,12 +115,12 @@ executable component fields, handlers, HTML, paths, URLs, and arbitrary plugin
 objects cannot become Client Cordis occupants.
 
 The renderer may register static DSH shell slots needed to draw the App, but it
-must not discover or install Packages/plugins, establish another Package
+must not discover or install OPL Packages, establish another Package
 registry/currentness source, receive release-operation, or own task, Package,
 product, state, action, session, or runtime truth. Cordis itself is not forbidden
 in a GUI; a second independent graph or authority plane is.
 
-DSH GUI/runtime source reuse remains Native-only. AionUI can consume the same
+DSH Application Host and GUI source reuse remains Studio-only. AionUI can consume the same
 Host-derived Client Cordis inputs through its own thin renderer adapter without
 importing DSH GUI/runtime source.
 
@@ -91,8 +131,9 @@ an item part of the active graph.
 
 ## Renderer And Host Topology
 
-The implementation has one DeepSeek Harness-derived React renderer and one
-Node host core. Transport adapters do not own product or runtime behavior:
+The implementation has one DSH/Cordis Application Host, one DeepSeek
+Harness-derived React renderer, and one OPL Host core plugin. Transport adapters
+do not own product or runtime behavior:
 
 - Electron packages the renderer and host core for macOS, Windows, and Linux,
   exposing the typed `window.oplStudio` ABI through an isolated preload and
@@ -107,11 +148,20 @@ read-only action policy. Source support and local package output are candidate
 evidence only. They do not prove a platform release, clean installation,
 updater cohort, released Docker image, or cross-carrier runtime equivalence.
 
+`npm run package` materializes the App-owned three-carrier evidence contract
+against one exact committed Studio `HEAD`. It requires tracked source to stay
+clean while it qualifies and emits the current-architecture Electron `.app`, a
+standalone WebUI archive, a Docker smoke receipt, and one candidate-only
+manifest. `OPL_APP_REPO_ROOT` selects the App checkout whose
+`app-shell-candidates.json` contract is read; the App wrapper supplies its own
+absolute root. These outputs bind source and local qualification, but they do
+not own distribution, update, publication, release, or adoption state.
+
 ## Headless And OCI Process Boundary
 
 `scripts/headless/run.mjs` is the standalone process entrypoint. It validates
-bind, port, renderer-root, and shutdown-bound inputs, starts the same
-`createOplHostCore` plus HTTP/SSE adapter used by the desktop architecture, and
+bind, port, renderer-root, and shutdown-bound inputs, boots the same Studio DSH
+Host plus HTTP/SSE adapter used by the desktop architecture, and
 owns SIGINT/SIGTERM shutdown. It reuses the renderer's single Host-derived
 Client Cordis graph and does not introduce an independent composition graph,
 thread store, action dispatcher, or renderer.
@@ -142,17 +192,17 @@ boundary exists; Compose therefore publishes host loopback only.
 
 ## Runtime Independence
 
-Native does not require, start, package, or read AionUI or AionCore. The shared
-host core resolves `OPL_CODEX_BIN` or an exact external Codex executable and
-starts `codex app-server --stdio` directly. Every carrier consumes OPL only
-through Framework state/action
+Studio does not require, start, package, or read AionUI or AionCore.
+`opl-codex-native` resolves `OPL_CODEX_BIN` or an exact external Codex
+executable and starts `codex app-server --stdio` directly. Every carrier
+consumes OPL only through Framework state/action
 contracts; AionUI/AionCore managed-resource manifests, provider abstractions,
 session/database state, backend, and authentication are not Native runtime inputs.
 
-This independence is a carrier property, not a second product or runtime
-authority. Codex still owns thread/turn truth, Framework still owns OPL
-state/actions and the authoritative Package Host graph, and App contracts still
-own product behavior plus Client ABI/slot policy.
+This independence creates a second Cordis Host process scope, not a second
+writer for the same truth. Codex still owns thread/turn truth, Framework still
+owns OPL state/actions and the authoritative Package Host graph, and App
+contracts still own product behavior plus Client ABI/slot policy.
 
 Codex CLI/App Server is the candidate's complete backend scope. App Server over
 stdio is the only enabled carrier. `pi` and `hermes` are
@@ -234,8 +284,8 @@ authority, export acceptance, or delivery readiness.
 
 ## Adoption Boundary
 
-AionUI is the current active release shell and only mainline. Studio is the
-internal development codename for the first-party successor, but it does not
+AionUI is the current active release shell and only release mainline. Studio's
+Application Host is implemented in source, but it does not
 acquire mainline, full-AionUI-parity, release, or cross-platform delivery status
 before its minimum-complete and release gates pass. Adoption requires an
 explicit App owner decision and a change to the App shell adapter after the

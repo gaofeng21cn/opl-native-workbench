@@ -1,13 +1,15 @@
-import { createRoot } from "react-dom/client";
+import { AppWebEntry } from "@deepseek-ai/dsh-client-web";
 import "./integrations/deepseek-harness/theme";
 import type { OplStudioSurface } from "./bridge/oplBridge";
 import { installWebTransport } from "./bridge/webTransport";
-import { renderOplStudioRoot } from "./composition/dshSlotHost";
+import { mountOplStudioClient, oplStudioClientPlugin } from "./composition/oplStudioClientPlugin";
 
 declare global {
   interface Window {
     oplStudio?: OplStudioSurface;
   }
+
+  var __OPL_STUDIO_CLIENT__: typeof oplStudioClientPlugin | undefined;
 }
 
 const desktopTransportInstalled = Boolean(window.oplStudio);
@@ -18,8 +20,12 @@ if (!desktopTransportInstalled && window.location.protocol !== "file:") {
 }
 
 const rootElement = document.getElementById("root");
-if (!rootElement) {
-  throw new Error("missing #root renderer mount");
-}
+if (!rootElement) throw new Error("missing #root renderer mount");
 
-createRoot(rootElement).render(renderOplStudioRoot());
+globalThis.__OPL_STUDIO_CLIENT__ = oplStudioClientPlugin;
+
+if (desktopTransportInstalled || window.location.protocol === "file:") {
+  void mountOplStudioClient(rootElement);
+} else {
+  void new AppWebEntry(rootElement).run();
+}

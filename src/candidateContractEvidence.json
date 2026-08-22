@@ -24,6 +24,59 @@
     "windows_linux_source_support": true,
     "release_adoption_requires_separate_app_qualification": true
   },
+  "application_host": {
+    "role": "deepseek_harness_cordis_application_host",
+    "implementation_status": "source_implemented_release_admission_separate",
+    "upstream_version": "0.1.1-rc.2",
+    "upstream_ref": "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e",
+    "profile": "opl-studio",
+    "profile_source": "scripts/webui-host/dsh/cordis.yml",
+    "web_overlay": "scripts/webui-host/dsh/web.patch.yml",
+    "profile_home": "$DSH_HOME/profiles/opl-studio",
+    "dsh_base_loaded": false,
+    "loaded_dsh_services": [
+      "system-prompt_without_harness_identity_or_runtime_context",
+      "tools_native_registry",
+      "host_webserver",
+      "host_plugin_inventory",
+      "frontend_static_web_only",
+      "client_modules_web_only"
+    ],
+    "studio_plugins": [
+      "opl-dsh-tool-mcp",
+      "opl-codex-native",
+      "opl-framework-bridge",
+      "opl-host-core",
+      "opl-web-routes"
+    ],
+    "codex_runtime_owner": "opl-codex-native",
+    "codex_owned_state": [
+      "persistent_app_server_process",
+      "canonical_threads_and_turns",
+      "approvals",
+      "live_turn_events"
+    ],
+    "dsh_tool_bridge": "authenticated_stateful_loopback_mcp",
+    "dsh_tool_plugin_compatibility": "plugins_registering_tools_in_ctx_tools_are_exposed_to_codex",
+    "excluded_upstream_authorities": [
+      "dsh_session",
+      "dsh_llm_provider_routing",
+      "dsh_agent_loop",
+      "dsh_credentials"
+    ],
+    "framework_bridge": "consume_framework_app_state_action_authentication_and_channel_callbacks_only",
+    "startup_order": [
+      "dsh_host_tree_and_tool_mcp",
+      "codex_app_server",
+      "framework_bridge"
+    ],
+    "shutdown_order": [
+      "framework_channel_callback",
+      "codex_app_server",
+      "dsh_cordis_tree"
+    ],
+    "upstream_upgrade_contract": "update_one_pinned_ref_and_package_cohort_then_regenerate_vendor_manifest_replay_profile_patches_and_run_host_mcp_renderer_candidate_gates"
+  },
   "capabilities": [
     "codex_cli_fixed_executor_home",
     "electron_context_isolated_ipc_bridge",
@@ -54,6 +107,14 @@
     "default_context_collapsed_chat_first_home",
     "results_and_delivery_first_presentation",
     "dsh_chat_first_visual_baseline",
+    "dsh_cordis_application_host",
+    "dsh_profile_loader_and_overlay",
+    "dsh_host_plugin_inventory",
+    "dsh_tools_to_codex_mcp_bridge",
+    "dsh_tool_plugin_compatibility",
+    "opl_codex_native_plugin",
+    "opl_framework_bridge_plugin",
+    "upstream_dsh_upgrade_replay_contract",
     "dsh_slot_core_composition_host",
     "dsh_create_slot_renderer_root",
     "dsh_ui_primitives_direct_reuse",
@@ -631,9 +692,9 @@
     },
     "primary_visual_reference": {
       "reference_product": "DeepSeek Harness",
-      "reference_version": "141eb6fef83422698aef7a981029e843e8161534",
-      "reference_date": "2026-08-20",
-      "source_usage": "direct_mit_gui_source_reuse",
+      "reference_version": "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e",
+      "reference_date": "2026-08-22",
+      "source_usage": "direct_gui_source_reuse_with_application_host_cohort",
       "left_side": "persistent project and conversation rail with search and Settings only",
       "center": "single dominant conversation timeline with bottom composer",
       "model_controls": "composer_bottom_row",
@@ -671,8 +732,8 @@
     },
     "visual_style_reference": {
       "reference_product": "DeepSeek Harness",
-      "reference_version": "141eb6fef83422698aef7a981029e843e8161534",
-      "reference_date": "2026-08-20",
+      "reference_version": "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e",
+      "reference_date": "2026-08-22",
       "scope": "eleven_pinned_gui_package_source_trees_with_opl_slot_adapters",
       "token_source": "src/vendor/deepseek-harness/packages/client/ui-theme/src/styles/design-platform.css",
       "palette": {
@@ -698,6 +759,8 @@
     "renderer": "src/workbench/App.tsx",
     "composition_host": "src/composition/dshSlotHost.tsx",
     "host_core": "scripts/webui-host/host-core.mjs",
+    "application_host_boot": "scripts/webui-host/dsh/host.mjs",
+    "application_host_profile": "scripts/webui-host/dsh/cordis.yml",
     "native_host": "desktop/main.mjs",
     "native_transport": "desktop/preload.cjs#window.oplStudio",
     "web_transport": "src/bridge/webTransport.ts",
@@ -710,12 +773,13 @@
     "subagent_projection": "Codex-owned lineage, agent metadata, source kind, collabAgentToolCall, and subAgentActivity are rendered read-only"
   },
   "reuse_policy": {
-    "deepseek_harness_source_usage": "direct_mit_gui_source_reuse",
-    "deepseek_harness_source_ref": "141eb6fef83422698aef7a981029e843e8161534",
-    "deepseek_harness_ui_package_version": "0.1.0-rc.8",
+    "deepseek_harness_source_usage": "pinned_application_host_runtime_and_gui_source_reuse",
+    "deepseek_harness_source_ref": "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e",
+    "deepseek_harness_package_version": "0.1.1-rc.2",
     "deepseek_harness_selected_source_reused": true,
     "other_external_gui_source_copied": false,
-    "runtime_authority_transfer": false,
+    "application_host_runtime_adopted": true,
+    "dsh_product_runtime_authority_adopted": false,
     "adopted_patterns": [
       "SlotCore typed slot registry and disposer lifecycle",
       "createSlotRenderer React composition and entry error isolation",
@@ -733,11 +797,27 @@
     ]
   },
   "reused_oss_module_policy": {
-    "policy": "pinned_direct_reuse_for_deepseek_harness_reference_only_for_other_gui_sources",
+    "policy": "pinned_deepseek_harness_application_host_and_gui_source_reuse_other_gui_sources_reference_only",
     "direct_reuse_modules": [
-      "@deepseek-ai/dsh-client-ui-slots@0.1.0-rc.8",
-      "@deepseek-ai/dsh-invariants@0.1.0-rc.8",
       "@deepseek-ai/cordis@4.0.1",
+      "@deepseek-ai/cordis-plugin-group@1.0.1",
+      "@deepseek-ai/cordis-plugin-include@1.0.6",
+      "@deepseek-ai/cordis-plugin-loader@1.0.2",
+      "@deepseek-ai/dsh-app-boot@0.1.1-rc.2",
+      "@deepseek-ai/dsh-brand@0.1.1-rc.2",
+      "@deepseek-ai/dsh-client-modules@0.1.1-rc.2",
+      "@deepseek-ai/dsh-client-ui-primitives@0.1.1-rc.2",
+      "@deepseek-ai/dsh-client-ui-slots@0.1.1-rc.2",
+      "@deepseek-ai/dsh-client-web@0.1.1-rc.2",
+      "@deepseek-ai/dsh-home-paths@0.1.1-rc.2",
+      "@deepseek-ai/dsh-host-frontend-static@0.1.1-rc.2",
+      "@deepseek-ai/dsh-host-plugin-inventory@0.1.1-rc.2",
+      "@deepseek-ai/dsh-host-webserver@0.1.1-rc.2",
+      "@deepseek-ai/dsh-invariants@0.1.1-rc.2",
+      "@deepseek-ai/dsh-launch-environment@0.1.1-rc.2",
+      "@deepseek-ai/dsh-system-prompt@0.1.1-rc.2",
+      "@deepseek-ai/dsh-tools@0.1.1-rc.2",
+      "@deepseek-ai/dsh-typert-protocol@0.1.1-rc.2",
       "use-sync-external-store@1.2.0"
     ],
     "vendored_source_root": "src/vendor/deepseek-harness",
@@ -769,7 +849,7 @@
       "Menu",
       "icons"
     ],
-    "brand_override": "upstream_rc8_brand_slots_with_text_only_opl_occupants",
+    "brand_override": "upstream_rc2_brand_slots_with_text_only_opl_occupants",
     "slot_renderer_source": "packages/client/ui-renderer/src/client/scoped-slots.tsx#createSlotRenderer",
     "attachment_slot_policy": "registered_empty_occupant_no_multimodal_runtime",
     "workspace_host_description_policy": "unavailable_until_app_abi_exists",
@@ -787,9 +867,10 @@
     "other_gui_source_reuse": [],
     "deepseek_harness_selected_source_reused": true,
     "other_external_source_copied": false,
-    "runtime_authority_transfer": false,
+    "application_host_runtime_adopted": true,
+    "dsh_product_runtime_authority_adopted": false,
     "user_visible_protocol_copy": false,
-    "required_boundary": "render the pinned DeepSeek Harness GUI package source through OPL-owned adapters; derive the single Client Cordis graph from Framework Host projection plus App profile and slot policy; do not adopt DeepSeek Harness session, agent, provider, credential, plugin-manager, control-plane, domain, runtime, or release authority"
+    "required_boundary": "run the pinned DeepSeek Harness Cordis application skeleton and GUI source with OPL-owned plugins; expose DSH ctx.tools to the persistent Codex App Server through authenticated loopback MCP; derive the browser Client Cordis graph from Framework Host projection plus App profile and slot policy; do not load dsh-base or adopt DSH session, LLM-provider, agent-loop, credential, domain, Package-currentness, product, or release authority"
   },
   "client_composition_boundary": {
     "app_client_contribution_abi": "opl_app_client_contributions.v1",
@@ -804,6 +885,11 @@
     ],
     "typed_action_policy": "action_refs_only_via_canonical_app_action_bridge",
     "framework_host_composition_authority": "one-person-lab-framework",
+    "framework_host_composition_authority_scope": "framework_runtime_package_graph_and_app_projection",
+    "framework_runtime_and_package_composition_authority": "one-person-lab-framework",
+    "studio_application_host": "opl-studio",
+    "studio_application_host_scope": "dsh_profile_plugin_lifecycle_codex_and_delivery_transport_composition",
+    "studio_application_host_may_exist_without_authority_transfer": true,
     "app_authority_policy": "one-person-lab-app_owns_product_profile_gui_abi_active_shell_and_release",
     "framework_projection_runtime_status": "framework_host_projection_active",
     "shared_transport_policy": "framework_host_projected_typed_rpc_reads_typed_events_and_canonical_app_actions",
