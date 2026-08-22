@@ -246,7 +246,9 @@ assert(
     && studioProfile.application_host.profile === "opl-studio"
     && studioProfile.application_host.dsh_base_loaded === false
     && studioProfile.application_host.codex_runtime_owner === "opl-codex-native"
-    && studioProfile.application_host.dsh_tool_bridge === "authenticated_stateful_loopback_mcp",
+    && studioProfile.application_host.dsh_tool_bridge === "authenticated_stateful_loopback_mcp"
+    && studioProfile.application_host.active_shell_adopted === false
+    && studioProfile.application_host.release_ready === false,
   "Studio profile must declare the pinned DSH Application Host and Codex ownership boundary"
 );
 assert(
@@ -321,6 +323,7 @@ function assertApplicationHost(evidence) {
   const codexNative = read("scripts/webui-host/opl-codex-native.mjs");
   assert(host?.upstream_ref === expectedDshRef && host.upstream_version === expectedDshVersion, "Application Host must bind the pinned DSH cohort");
   assert(host.dsh_base_loaded === false, "Application Host must not load dsh-base");
+  assert(host.active_shell_adopted === false && host.release_ready === false, "Application Host implementation must not claim active-shell adoption or release readiness");
   assert(!profile.includes("dsh-base"), "Studio DSH profile must exclude dsh-base");
   for (const id of ["system-prompt", "tools", "webserver", "opl-dsh-tool-mcp", "opl-codex-native", "opl-framework-bridge", "opl-host-core", "plugin-inventory"]) {
     assert(profile.includes(`id: ${id}`), `Studio DSH profile is missing ${id}`);

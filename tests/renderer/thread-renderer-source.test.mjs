@@ -648,6 +648,8 @@ test("Studio boots as the pinned DSH Application Host while Codex remains the th
   assert.match(codexNative, /required=true/);
   assert.equal(candidateEvidence.application_host.codex_runtime_owner, "opl-codex-native");
   assert.equal(candidateEvidence.application_host.dsh_base_loaded, false);
+  assert.equal(candidateEvidence.application_host.active_shell_adopted, false);
+  assert.equal(candidateEvidence.application_host.release_ready, false);
 });
 
 test("primary canvas hides its scrollbar without disabling scrolling", () => {
